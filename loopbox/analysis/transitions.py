@@ -53,7 +53,6 @@ FADE_SECONDS = 4.0
 
 _cache: dict[str, tuple[float, dict]] = {}
 _cache_lock = threading.Lock()
-_file_lock = threading.Lock()
 
 
 def load_features(tid: str) -> dict:
@@ -564,23 +563,74 @@ def pair(a: str, b: str) -> dict:
     return {"items": items, "fade": fade, "tempo_ratio": round(fb["bpm"] / fa["bpm"], 4), "key_distance": kd}
 
 
-def _write(src: str, items: list[dict]) -> None:
-    path = library.transitions_path(src)
+
+# ----------------------------------------------------------------- the store
+#
+# Transitions are stored per ordered pair of songs (data/pairs/<a>/<b>.json):
+# what pair(a, b) found, which depends on those two songs only. A listener's
+# library is any set of songs; its transition lists are assembled from the
+# pairs (assemble), so a pair computed for one listener serves every other.
+
+_pair_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+_pair_cache_lock = threading.Lock()
+
+
+def has_pair(a: str, b: str) -> bool:
+    data = _load_pair(a, b)
+    return data is not None
+
+
+def _load_pair(a: str, b: str) -> dict | None:
+    path = library.pair_path(a, b)
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    with _pair_cache_lock:
+        hit = _pair_cache.get((a, b))
+        if hit and hit[0] == mtime:
+            return hit[1]
+    data = library.read_json(path)
+    if not data or data.get("version") != TRANSITIONS_VERSION:
+        return None
+    with _pair_cache_lock:
+        if len(_pair_cache) > 50_000:
+            _pair_cache.clear()
+        _pair_cache[(a, b)] = (mtime, data)
+    return data
+
+
+def compute_pair(a: str, b: str) -> None:
+    r = pair(a, b)
+    path = library.pair_path(a, b)
     on_disk = library.read_json(path) or {}
     if on_disk.get("version", 0) > TRANSITIONS_VERSION:
         # Written by a newer version of the code: a stale server must not
         # downgrade it.
-        print(f"[loopbox] not overwriting {path.name}: version {on_disk['version']} > {TRANSITIONS_VERSION}")
         return
-    items.sort(key=lambda t: (t["to"], -t["q"]))
-    library.write_json(path, {"version": TRANSITIONS_VERSION, "from": src, "items": items})
+    items = sorted(r["items"], key=lambda t: -t["q"])
+    library.write_json(path, {"version": TRANSITIONS_VERSION, "from": a, "to": b, "items": items, "fade": r["fade"]})
 
 
-def read(src: str) -> list[dict]:
-    data = library.read_json(library.transitions_path(src))
-    if not data or data.get("version") != TRANSITIONS_VERSION:
-        return []
-    return data["items"]
+def link(tid: str, others: list[str]) -> int:
+    """Computes the missing pairs between tid and each of `others`, both ways.
+    Returns how many were computed."""
+    n = 0
+    for o in others:
+        if o == tid:
+            continue
+        for a, b in ((tid, o), (o, tid)):
+            if not has_pair(a, b):
+                try:
+                    compute_pair(a, b)
+                    n += 1
+                except FileNotFoundError:
+                    pass  # one of the songs left the store meanwhile
+    return n
+
+
+def missing_pairs(ids: list[str]) -> list[tuple[str, str]]:
+    return [(a, b) for a in ids for b in ids if a != b and not has_pair(a, b)]
 
 
 def _with_fallback(items: list[dict], fades: dict[str, dict]) -> list[dict]:
@@ -596,65 +646,64 @@ def _with_fallback(items: list[dict], fades: dict[str, dict]) -> list[dict]:
     return out
 
 
-def link_track(tid: str, others: list[str] | None = None) -> int:
-    """(Re)computes transitions from tid to every other ready track and back."""
-    if others is None:
-        others = [o for o in library.ready_ids() if o != tid]
-    out_items, out_fades = [], {}
-    with _file_lock:
-        for o in others:
-            fwd = pair(tid, o)
-            out_items += fwd["items"]
-            out_fades[o] = fwd["fade"]
-            back = pair(o, tid)
-            existing = [t for t in read(o) if t["to"] != tid]
-            _write(o, _with_fallback(existing + back["items"], {tid: back["fade"]}))
-        _write(tid, _with_fallback(out_items, out_fades))
-        ensure_incoming([tid, *others])
-    return len(out_items)
-
-
-def ensure_incoming(ids: list[str]) -> None:
-    """A song that no stored transition leads into is never heard in a chain.
-    Give every song at least MIN_IN ways in, using the best fades if needed."""
-    items_by = {o: read(o) for o in ids}
+def assemble(ids: list[str]) -> dict[str, list[dict]]:
+    """The transition list of every song in a library, from the stored pairs
+    (missing pairs are skipped: they appear once computed)."""
+    ids = list(dict.fromkeys(ids))
+    out: dict[str, list[dict]] = {}
+    fades_of: dict[str, dict[str, dict]] = {}
+    for a in ids:
+        items, fades = [], {}
+        for b in ids:
+            if a == b:
+                continue
+            p = _load_pair(a, b)
+            if p:
+                items += p["items"]
+                fades[b] = p["fade"]
+        fades_of[a] = fades
+        out[a] = _with_fallback(items, fades)
+    # A song that no transition leads into is never heard in a chain: give
+    # every song at least MIN_IN ways in, using the best fades if needed.
     inc = {d: set() for d in ids}
-    for o, items in items_by.items():
+    for a, items in out.items():
         for t in items:
             if t["to"] in inc:
-                inc[t["to"]].add(o)
+                inc[t["to"]].add(a)
     for d in ids:
         missing = MIN_IN - len(inc[d])
         if missing <= 0:
             continue
-        fd = load_features(d)
-        cands = []
-        for o in ids:
-            if o == d or o in inc[d]:
-                continue
-            fo = load_features(o)
-            f = best_fade(fo, fd, d, _key_penalty(fo, fd)[0])
-            if f:
-                cands.append((f["score"], o, f))
+        cands = [(f["score"], o, f) for o in ids if o != d and o not in inc[d] and (f := fades_of[o].get(d))]
         for _, o, f in sorted(cands, key=lambda c: c[0])[:missing]:
-            items_by[o].append(f)
-            _write(o, items_by[o])
+            out[o].append(f)
             inc[d].add(o)
+    for items in out.values():
+        items.sort(key=lambda t: (t["to"], -t["q"]))
+    return out
+
+
+def export(ids: list[str]) -> None:
+    """Writes the assembled lists as data/transitions/<id>.json for the test tools."""
+    for tid, items in assemble(ids).items():
+        library.write_json(library.transitions_path(tid), {"version": TRANSITIONS_VERSION, "from": tid, "items": items})
+    write_marker()
 
 
 def relink_all(on_progress=lambda i, n: None) -> None:
+    """Recomputes every pair of the whole store from scratch."""
+    import shutil
     ids = library.ready_ids()
-    with _file_lock:
-        for p in ids:
-            library.transitions_path(p).unlink(missing_ok=True)
+    shutil.rmtree(library.PAIRS_DIR, ignore_errors=True)
+    library.PAIRS_DIR.mkdir(parents=True, exist_ok=True)
+    with _pair_cache_lock:
+        _pair_cache.clear()
     done: list[str] = []
     for i, tid in enumerate(ids):
-        link_track(tid, others=done)
+        link(tid, done)
         done.append(tid)
         on_progress(i + 1, len(ids))
-    with _file_lock:
-        ensure_incoming(ids)
-    write_marker()
+    export(ids)
 
 
 def marker_path():

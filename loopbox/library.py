@@ -1,21 +1,58 @@
 """On-disk track library. One folder per track: meta.json, audio.flac,
-analysis.json (sent to the browser) and features.npz (kept for linking)."""
+analysis.json (sent to the browser) and features.npz (kept for linking).
+
+Track ids are YouTube video ids (11 characters); "x" and 16 hex digits for a
+song from another site (download.track_id); or, for uploaded files, "u" and
+the first 16 hex digits of the file's SHA-1. The same song added twice, by
+anyone, is the same track."""
 import json
 import os
+import re
 import shutil
 import threading
 import time
 from pathlib import Path
 
-from .config import LIBRARY_DIR, TRANSITIONS_DIR
+from .config import LIBRARY_DIR, PAIRS_DIR, TRANSITIONS_DIR
 
 _lock = threading.RLock()
 
 FINAL_STATES = {"ready", "error"}
+_ID = re.compile(r"^(?:[A-Za-z0-9_-]{11}|[ux][0-9a-f]{16})$")
+
+
+def valid_id(tid: str) -> bool:
+    return bool(tid) and bool(_ID.match(tid))
 
 
 def track_dir(tid: str) -> Path:
+    if not valid_id(tid):
+        raise ValueError(f"bad track id {tid!r}")
     return LIBRARY_DIR / tid
+
+
+def pair_path(a: str, b: str) -> Path:
+    if not (valid_id(a) and valid_id(b)):
+        raise ValueError("bad track id")
+    return PAIRS_DIR / a / f"{b}.json"
+
+
+def touch(tid: str) -> None:
+    """Marks a track as just used (what the store keeps longest)."""
+    try:
+        (track_dir(tid) / "used").touch()
+    except OSError:
+        pass
+
+
+def last_used(tid: str) -> float:
+    d = track_dir(tid)
+    for name in ("used", "meta.json"):
+        try:
+            return (d / name).stat().st_mtime
+        except OSError:
+            continue
+    return 0.0
 
 
 def audio_path(tid: str) -> Path:
@@ -78,7 +115,7 @@ def update(tid: str, **fields) -> dict | None:
 def list_tracks() -> list[dict]:
     out = []
     for d in LIBRARY_DIR.iterdir():
-        if d.is_dir():
+        if d.is_dir() and valid_id(d.name):
             meta = read_meta(d.name)
             if meta:
                 out.append(meta)
@@ -91,6 +128,52 @@ def ready_ids() -> list[str]:
 
 
 def delete(tid: str) -> None:
+    """Removes a track and every transition to or from it."""
     with _lock:
         shutil.rmtree(track_dir(tid), ignore_errors=True)
         transitions_path(tid).unlink(missing_ok=True)
+        shutil.rmtree(PAIRS_DIR / tid, ignore_errors=True)
+        for d in PAIRS_DIR.iterdir():
+            (d / f"{tid}.json").unlink(missing_ok=True)
+
+
+def samples_path() -> Path:
+    return LIBRARY_DIR.parent / "samples.json"
+
+
+def samples() -> dict:
+    """The sample library: {"name", "ids"} (set with `cli samples`)."""
+    s = read_json(samples_path()) or {}
+    return {"name": s.get("name") or "Thư viện mẫu", "ids": [t for t in s.get("ids") or [] if valid_id(t)]}
+
+
+def _tree_bytes(path: Path) -> int:
+    total = 0
+    for root, _, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
+def evict(max_bytes: int, keep: set[str]) -> list[str]:
+    """Deletes the least recently used finished tracks not in `keep` until the
+    library fits in max_bytes (with a tenth of headroom). Returns the ids."""
+    sizes = {d.name: _tree_bytes(d) for d in LIBRARY_DIR.iterdir() if d.is_dir() and valid_id(d.name)}
+    total = sum(sizes.values())
+    if total <= max_bytes:
+        return []
+    gone = []
+    target = 0.9 * max_bytes
+    for tid in sorted(sizes, key=last_used):
+        if total <= target:
+            break
+        meta = read_meta(tid) or {}
+        if tid in keep or meta.get("status") not in FINAL_STATES:
+            continue
+        delete(tid)
+        total -= sizes[tid]
+        gone.append(tid)
+    return gone

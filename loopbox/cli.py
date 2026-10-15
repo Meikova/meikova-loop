@@ -19,21 +19,41 @@ def main(argv=None) -> int:
     sub.add_parser("relink", help="recompute every cross-song transition")
     sub.add_parser("rejump", help="recompute in-song jumps from stored features, then relink")
     sub.add_parser("list")
+    p = sub.add_parser("samples", help="set the sample library offered to empty libraries (no ids: show it)")
+    p.add_argument("--name", default=None)
+    p.add_argument("ids", nargs="*")
     args = ap.parse_args(argv)
 
-    if args.cmd == "add":
-        for text in args.items:
-            for entry in download.resolve(text):
-                meta = ingest.register(entry)
-                print(f"{entry['id']}  {entry['title']}")
-                if meta.get("status") != "ready":
-                    ingest.process(entry["id"], _print_update)
-                    print()
-    elif args.cmd == "analyze":
-        for tid in args.ids or [m["id"] for m in library.list_tracks()]:
+    if args.cmd == "samples":
+        s = library.samples()
+        if args.ids or args.name:
+            ids = [t for t in args.ids if library.read_meta(t)] or s["ids"]
+            library.write_json(library.samples_path(), {"name": args.name or s["name"], "ids": ids})
+            s = library.samples()
+        print(s["name"])
+        for t in s["ids"]:
+            m = library.read_meta(t) or {}
+            print(f"  {t}  {m.get('status', '?'):<9} {m.get('title', '')}")
+        return 0
+
+    if args.cmd in ("add", "analyze"):
+        from .analysis import transitions
+        if args.cmd == "add":
+            todo = []
+            for text in args.items:
+                for entry in download.resolve(text):
+                    meta = ingest.register(entry)
+                    print(f"{entry['id']}  {entry['title']}")
+                    if meta.get("status") != "ready":
+                        todo.append(entry["id"])
+        else:
+            todo = args.ids or [m["id"] for m in library.list_tracks()]
+        for tid in todo:
             print(tid)
-            ingest.process(tid, _print_update)
+            if ingest.process(tid, _print_update) == "ready":
+                transitions.link(tid, library.ready_ids())
             print()
+        transitions.export(library.ready_ids())
     elif args.cmd == "rejump":
         from .analysis import pipeline, transitions
         for m in library.list_tracks():

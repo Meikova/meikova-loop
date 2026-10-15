@@ -7,9 +7,15 @@
   <meta name="description" content="Mash ∞ Loop: nghe một bài mãi không dứt, hoặc nối cả thư viện thành một vòng nhạc vô tận.">
   <meta name="theme-color" content="#16120e">
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mashloop.truclv.com/">
   <meta property="og:title" content="Mash ∞ Loop">
-  <meta property="og:description" content="Mỗi bài là một vòng của dấu ∞, điểm hai vòng chạm nhau là chỗ mix.">
-  <meta property="og:image" content="img/og.png">
+  <meta property="og:description" content="Nghe một bài mãi không dứt, hoặc mash cả thư viện thành một chuỗi nhạc vô tận. Mỗi bài là một vòng của dấu ∞, chỗ hai vòng chạm nhau là chỗ mix.">
+  <!-- Absolute: link previews (Facebook, Zalo, Slack) do not resolve relative images. -->
+  <meta property="og:image" content="https://mashloop.truclv.com/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
@@ -95,10 +101,15 @@
           <label class="label" for="add-input">Thêm bài vào thư viện</label>
           <div class="add__field">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-            <input id="add-input" type="text" inputmode="search" enterkeyhint="search" placeholder="Tên bài, link video hoặc playlist">
+            <input id="add-input" type="text" inputmode="search" enterkeyhint="search" placeholder="Tên bài, link YouTube, SoundCloud, Zing MP3…">
             <button type="submit">Tìm</button>
           </div>
-          <p class="hint">Bài mới được tải về, tách beat và giọng hát, rồi tự nối vào chuỗi.</p>
+          <label class="drop" id="drop" for="file-input">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg>
+            <span><b>Tải file nhạc lên</b>hoặc thả vào đây · MP3, M4A, FLAC, WAV, cả file zip<span id="upload-limit"></span></span>
+          </label>
+          <input id="file-input" class="sr" type="file" accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.webm,.zip,application/zip" multiple>
+          <p class="hint" id="add-hint">Bài mới được tải về, tách beat và giọng hát, rồi tự nối vào chuỗi.</p>
         </form>
         <div id="search-results" class="results" aria-live="polite"></div>
         <p id="worker" class="worker" aria-live="polite"></p>

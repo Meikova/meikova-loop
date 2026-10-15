@@ -1,5 +1,7 @@
-"""Lazily loaded neural models, kept resident between tracks. The worker runs one
-track at a time, so a single lock is enough to keep GPU use serial."""
+"""Lazily loaded neural models, kept resident between tracks. Each worker process
+analyses one track at a time and holds its own copy; several processes share
+the GPU. When the GPU is out of memory (it is shared with other services), a
+track is separated on the CPU instead: slower, same result."""
 import threading
 import warnings
 
@@ -47,10 +49,18 @@ def separate(y: np.ndarray) -> tuple[np.ndarray, list[str]]:
     wav = torch.from_numpy(np.ascontiguousarray(y.T))
     ref = wav.mean(0)
     mean, std = ref.mean(), ref.std() + 1e-8
-    with torch.no_grad():
-        out = apply_model(model, ((wav - mean) / std)[None].to(device()), device=device(),
-                          split=True, overlap=0.1, progress=False)[0]
+    dev = device()
+    try:
+        with torch.no_grad():
+            out = apply_model(model, ((wav - mean) / std)[None].to(dev), device=dev,
+                              split=True, overlap=0.1, progress=False)[0]
+    except torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        with torch.no_grad():
+            out = apply_model(model.cpu(), ((wav - mean) / std)[None], device="cpu",
+                              split=True, overlap=0.1, progress=False)[0]
+        model.to(dev)
     out = (out * std + mean).mean(1).cpu().numpy()  # (sources, frames)
-    if device() == "cuda":
+    if dev == "cuda":
         torch.cuda.empty_cache()
     return out, list(model.sources)

@@ -1,4 +1,4 @@
-import { api, Loader } from "./api.js";
+import { api, hooks, Loader, ready, session } from "./api.js";
 import { Engine } from "./engine.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, shiftCamelot } from "./player.js";
 import * as theme from "./theme.js";
@@ -21,6 +21,15 @@ const viz = new Viz($("#viz"), player, {
 let metas = [];
 let workerState = null;
 let serverStale = false;
+let lastLinks = null;
+// The sample library: songs kept analysed on the server, for a first visit
+// that does not know what to add. They come in ready and the chain starts.
+const samples = { name: "", ids: [] };
+// The server forgot this visit's library (it restarted): add the songs back.
+hooks.restore = async () => {
+  const ids = metas.map((m) => m.id);
+  if (ids.length) await api.restore(ids).catch(() => {});
+};
 const byId = () => new Map(metas.map((m) => [m.id, m]));
 const songOf = (m) => splitTitle(m?.title || "", m?.channel || "");
 const titleOf = (id) => {
@@ -379,32 +388,60 @@ function trackRow(m) {
 
 let lastListHtml = "";
 function renderLibrary() {
+  const sampleBtn = samples.ids.length
+    ? `<button type="button" class="ghost sample-btn" data-act="samples">Nghe thử ${esc(samples.name)} · ${samples.ids.length} bài</button>`
+    : "";
   const html = metas.length
     ? metas.slice().reverse().map(trackRow).join("")
-    : `<li class="empty">${ICON.inf}Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.</li>`;
+    : session.multiuser
+      ? `<li class="empty">${ICON.inf}Thư viện của bạn đang trống.<br>Dán link YouTube, SoundCloud, Zing MP3, gõ tên bài, hoặc thả file nhạc (cả file zip) vào đây.<br>Chưa biết thêm gì? Nghe thử một thư viện có sẵn:${sampleBtn}</li>`
+      : `<li class="empty">${ICON.inf}Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.${sampleBtn}</li>`;
   if (html !== lastListHtml) {
     lastListHtml = html;
     $("#track-list").innerHTML = html;
     paintMinis();
   }
-  const ready = metas.filter((m) => m.status === "ready").length;
-  $("#lib-count").textContent = metas.length ? `${ready}/${metas.length}` : "";
-  const w = workerState;
-  const cur = w?.current?.id ? byId().get(w.current.id) : null;
-  $("#worker").textContent = serverStale
-    ? "Server đang chạy phiên bản cũ: tắt nó (Ctrl+C) rồi chạy lại run.ps1"
-    : w?.relink
-      ? `Đang tính lại điểm nối ${w.relink.done}/${w.relink.total}`
-      : cur
-        ? `Đang xử lý ${short(cur.title, 34)} · ${STAGES[cur.stage] || cur.stage}${w.queued > 1 ? ` · còn ${w.queued - 1} bài chờ` : ""}`
-        : "";
+  const readyCount = metas.filter((m) => m.status === "ready").length;
+  const own = metas.filter((m) => !samples.ids.includes(m.id)).length;
+  $("#lib-count").textContent = session.limits.tracks
+    ? `${own}/${session.limits.tracks} bài`
+    : metas.length ? `${readyCount}/${metas.length}` : "";
+  const w = workerState || {};
+  const busy = metas.filter((m) => m.status !== "ready" && m.status !== "error");
+  const active = busy.filter((m) => m.status !== "queued");
+  let line = "";
+  if (serverStale) line = "Server đang chạy phiên bản cũ: tắt nó (Ctrl+C) rồi chạy lại run.ps1";
+  else if (w.relink) line = "Đang tính lại điểm nối giữa các bài…";
+  else if (busy.length) {
+    line = active.length === 1
+      ? `Đang xử lý ${short(songOf(active[0]).title, 30)} · ${STAGES[active[0].stage] || active[0].stage}`
+      : active.length > 1 ? `Đang xử lý ${active.length} bài cùng lúc` : "Đang chờ tới lượt xử lý";
+    if (busy.length > active.length) line += ` · ${busy.length - active.length} bài chờ`;
+  } else if (w.linking) line = `Đang nối các bài với nhau · còn ${w.linking} cặp`;
+  $("#worker").textContent = line;
   viz.setTitles(new Map(metas.map((m) => [m.id, songOf(m).title])));
   renderTransport();
+}
+
+async function loadSamples(btn) {
+  btn.disabled = true;
+  btn.textContent = "Đang mở thư viện mẫu…";
+  engine.ctx.resume(); // inside the click: lets the chain start playing below
+  try {
+    await api.restore(samples.ids);
+    await refresh();
+    const first = metas.find((m) => m.status === "ready");
+    if (first && !player.cur) await play(first.id);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = `Không mở được: ${err.message}`;
+  }
 }
 
 $("#track-list").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-act]");
   if (!btn) return;
+  if (btn.dataset.act === "samples") return loadSamples(btn);
   const id = btn.closest(".track").dataset.id;
   const m = byId().get(id);
   switch (btn.dataset.act) {
@@ -418,7 +455,7 @@ $("#track-list").addEventListener("click", async (e) => {
       await api.reanalyze(id);
       break;
     case "delete":
-      if (!confirm(`Xoá "${m.title}" khỏi thư viện?`)) return;
+      if (!session.multiuser && !confirm(`Xoá "${m.title}" khỏi thư viện?`)) return;
       if (player.cur?.track.id === id) player.stop();
       loader.drop(id);
       forget(id);
@@ -434,6 +471,12 @@ async function refresh() {
     metas = r.tracks;
     workerState = r.worker;
     loader.setMetas(metas);
+    // New pairs were linked in this library: loaded songs pick up their new exits.
+    if (lastLinks !== null && r.links !== lastLinks) {
+      loader.refreshAll();
+      viz.invalidate();
+    }
+    lastLinks = r.links;
     if (theme.setMoods(metas.filter((m) => m.status === "ready"))) recolor();
     // An old server process (started before an update) is still serving: its
     // results would not match the files on disk. Servers older than this check
@@ -470,7 +513,9 @@ $("#add-form").addEventListener("submit", async (e) => {
     box.innerHTML = `<div class="msg">Đang thêm…</div>`;
     try {
       const r = await api.add(text);
-      box.innerHTML = `<div class="msg">Đã thêm ${r.added.length} bài vào hàng đợi phân tích.</div>`;
+      const have = r.added.filter((m) => m.status === "ready").length;
+      const todo = r.added.length - have;
+      box.innerHTML = `<div class="msg">${[have && `Đã thêm ${have} bài có sẵn`, todo && `${have ? "" : "Đã thêm "}${todo} bài vào hàng đợi phân tích`].filter(Boolean).join(", ") || "Không thêm được bài nào"}.${r.note ? ` ${esc(r.note)}.` : ""}</div>`;
       $("#add-input").value = "";
       setTimeout(() => (box.innerHTML = ""), 3000);
     } catch (err) {
@@ -512,6 +557,87 @@ $("#search-results").addEventListener("click", async (e) => {
   }
   refresh();
   schedulePoll();
+});
+
+// ------------------------------------------------------------------ upload
+
+// Files go up one after another (the server analyses several at once anyway);
+// each gets a line with its progress in the results box.
+const uploads = [];
+let uploading = false;
+
+function renderUploads() {
+  const box = $("#search-results");
+  if (!uploads.length) return;
+  box.innerHTML = uploads.map((u) => `<div class="upload-row ${u.error ? "err" : ""}">
+      <div class="t">${esc(u.name)}</div>
+      ${u.error ? `<small>${esc(u.error)}</small>`
+        : u.done ? `<small>${u.count > 1 ? `Đã thêm ${u.count} bài` : "Đã thêm"}, đang phân tích${u.note ? `. ${esc(u.note)}` : ""}</small>`
+        : `<div class="progress"><i style="width:${Math.round(100 * u.p)}%"></i></div>`}
+    </div>`).join("");
+}
+
+async function uploadFiles(files) {
+  const maxMb = session.limits.upload_mb || 80;
+  for (const f of files) {
+    const u = { name: f.name, p: 0, done: false, error: null, file: f };
+    if (f.size > maxMb * 1024 * 1024) u.error = `Lớn hơn ${maxMb} MB`;
+    else if (f.type && !/^(audio|video)\/|zip/.test(f.type) && !/\.zip$/i.test(f.name)) u.error = "Không phải file âm thanh";
+    uploads.push(u);
+  }
+  renderUploads();
+  if (uploading) return;
+  uploading = true;
+  for (const u of uploads) {
+    if (u.done || u.error) continue;
+    try {
+      const r = await api.upload(u.file, (p) => ((u.p = p), renderUploads()));
+      u.done = true;
+      u.count = r?.added?.length || 0;
+      u.note = r?.note || "";
+    } catch (err) {
+      u.error = `Không tải lên được: ${err.message}`;
+    }
+    u.file = null;
+    renderUploads();
+    refresh();
+    schedulePoll();
+  }
+  uploading = false;
+  setTimeout(() => {
+    if (uploading) return;
+    uploads.length = 0;
+    $("#search-results").innerHTML = "";
+  }, 6000);
+}
+
+$("#file-input").addEventListener("change", (e) => {
+  uploadFiles([...e.target.files]);
+  e.target.value = "";
+});
+
+// Drop files anywhere on the page.
+let dragDepth = 0;
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+document.addEventListener("dragenter", (e) => {
+  if (!hasFiles(e)) return;
+  dragDepth++;
+  document.body.classList.add("dragging");
+});
+document.addEventListener("dragleave", (e) => {
+  if (!hasFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) document.body.classList.remove("dragging");
+});
+document.addEventListener("dragover", (e) => {
+  if (hasFiles(e)) e.preventDefault();
+});
+document.addEventListener("drop", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove("dragging");
+  uploadFiles([...e.dataTransfer.files]);
 });
 
 // ------------------------------------------------------------- stage text
@@ -680,7 +806,21 @@ renderLooks();
 renderTransport();
 renderStage();
 placeIndicators();
+ready().then(() => {
+  if (session.multiuser) {
+    // Hosted: a library per visit; pairs are linked automatically and shared.
+    $("#add-hint").textContent = "Mỗi lần mở trang là một thư viện mới. Bài ai đó đã thêm trước sẽ vào ngay, không phải chờ phân tích.";
+    $("#btn-relink").hidden = true;
+  }
+  if (session.limits.upload_mb) $("#upload-limit").textContent = `, tối đa ${session.limits.upload_mb} MB`;
+  renderLibrary();
+  api.samples().then((s) => {
+    Object.assign(samples, s);
+    lastListHtml = "";
+    renderLibrary();
+  }, () => {});
+}).catch(() => {});
 refresh().then(schedulePoll);
 
 // Handle for the browser console and the end-to-end test.
-window.loopbox = { player, engine, loader, play, refresh, applySettings, ui, viz };
+window.loopbox = { player, engine, loader, play, refresh, applySettings, ui, viz, session };
