@@ -1,0 +1,56 @@
+"""Lazily loaded neural models, kept resident between tracks. The worker runs one
+track at a time, so a single lock is enough to keep GPU use serial."""
+import threading
+import warnings
+
+import numpy as np
+import torch
+
+from ..config import DEVICE, SAMPLE_RATE
+
+_lock = threading.Lock()
+_beat_tracker = None
+_separator = None
+
+
+def device() -> str:
+    return DEVICE if DEVICE != "cuda" or torch.cuda.is_available() else "cpu"
+
+
+def beat_tracker():
+    global _beat_tracker
+    with _lock:
+        if _beat_tracker is None:
+            from beat_this.inference import Audio2Beats
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                _beat_tracker = Audio2Beats(checkpoint_path="final0", device=device(), dbn=False)
+        return _beat_tracker
+
+
+def separator():
+    global _separator
+    with _lock:
+        if _separator is None:
+            from demucs.pretrained import get_model
+            model = get_model("htdemucs")
+            model.to(device()).eval()
+            _separator = model
+        return _separator
+
+
+def separate(y: np.ndarray) -> tuple[np.ndarray, list[str]]:
+    """y: (frames, 2) float32 at SAMPLE_RATE. Returns stems (4, frames) mono and their names."""
+    from demucs.apply import apply_model
+    model = separator()
+    assert model.samplerate == SAMPLE_RATE
+    wav = torch.from_numpy(np.ascontiguousarray(y.T))
+    ref = wav.mean(0)
+    mean, std = ref.mean(), ref.std() + 1e-8
+    with torch.no_grad():
+        out = apply_model(model, ((wav - mean) / std)[None].to(device()), device=device(),
+                          split=True, overlap=0.1, progress=False)[0]
+    out = (out * std + mean).mean(1).cpu().numpy()  # (sources, frames)
+    if device() == "cuda":
+        torch.cuda.empty_cache()
+    return out, list(model.sources)
