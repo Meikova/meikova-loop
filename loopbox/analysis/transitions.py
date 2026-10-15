@@ -10,11 +10,16 @@ Three kinds, from most to least seamless:
   fade   a crossfade over a few seconds with no beat matching, placed where the
          drums are quiet. Always possible, so every song stays connected.
 
-Tempo bending: a small tempo gap is absorbed by B alone. A larger one (up to
-~12 %) is split between the songs: A speeds up or slows down over the bars
-before the junction (`pre`, A's rate when it arrives), B starts at that same
-tempo (`rate`) and glides back to its own. Rates are vinyl-style, so pitch
-moves too; harmony is scored with B shifted by the semitones that implies.
+Tempo: B comes in at A's tempo (`rate`, up to 8 % off its own) and glides
+back to its own; the player time-stretches it with its pitch kept (key lock),
+so harmony is compared untransposed and only the recordings' own tunings can
+set two songs apart (`keylock` marks the transitions that need the stretch).
+A no longer bends toward B (`pre` stays 1).
+
+Where: hand-overs are scored by where they leave A and enter B, as a DJ reads
+a track (structure.roles): leaving as A's section ends (after a chorus or a
+drop best), entering B at its intro, a drop or a chorus, and on the 8- and
+16-bar lines of a section rather than any bar.
 """
 import math
 import threading
@@ -25,12 +30,19 @@ from .. import library
 from ..config import TRANSITIONS_VERSION
 from . import similarity as sim
 from .mood import song_mood
-from .structure import _CAMELOT_MAJOR, _CAMELOT_MINOR, PHRASE_4BAR, PHRASE_SECTION
+from .structure import (_CAMELOT_MAJOR, _CAMELOT_MINOR, PHRASE_4BAR, PHRASE_SECTION, ROLE_BREAK, ROLE_CHORUS,
+                        ROLE_DROP, ROLE_INTRO, ROLE_OUTRO)
 
-CUT_MAX_RATE = 0.035     # B alone absorbs this much at a cut
-BLEND_MAX_RATE = 0.06    # ... and this much in a blend
-BEND_MAX = 0.06          # each song bends at most this much (about one semitone)
-BRIDGE_MAX = (1 + BEND_MAX) ** 2 - 1   # the largest gap two bends can close, ~12.4 %
+# Key lock: B is time-stretched with its pitch kept, so it alone absorbs the
+# whole tempo gap, up to 8 % (Kim et al. 2020: 86 % of DJs' tempo changes are
+# under 5 %, key lock usually on). Below KEYLOCK_FROM a vinyl-style change is
+# inaudible (7 cents) and plays without the stretch.
+KEYLOCK = True
+KEYLOCK_FROM = 0.004
+CUT_MAX_RATE = 0.08      # B alone absorbs this much at a cut
+BLEND_MAX_RATE = 0.08    # ... and this much in a blend
+BEND_MAX = 0.0           # A never bends toward B any more
+BRIDGE_MAX = 0.08        # the largest gap closed at all
 HALF_DOUBLE_PENALTY = 0.06             # a beat-ratio change is felt, if smooth
 # A change of song is expected at a cut, so timbre matters less than in-song
 # jumps; what gives a cut away is the groove, the level and the arrangement
@@ -51,6 +63,16 @@ MIN_LINKS = 3
 MIN_IN = 2
 FADE_SECONDS = 4.0
 
+# Hard guardrails: what makes a hand-over sound forced, whatever else fits
+# (from real DJ mixes, Kim et al. ISMIR 2020; Mosaikbox, Sowula & Knees ISMIR
+# 2024; the automatic DJ of Vande Veire & De Bie 2018).
+DRUMS_CLASH = 0.35           # both sides' drums above this, unsynced: two kits flamming
+VOCAL_OVERLAP_MAX_S = 2.0    # two singers at once for longer than this
+BEND_UNDER_VOICE = 0.03      # a vinyl-style tempo bend this large is heard on a voice
+DETUNE_MAX_CENTS = 25.0      # keys this far off a semitone grid beat against each other
+HARMONIC_DB = 15.0           # harmonic stems (bass, other) within this of the mix count as harmony
+LONG_BLEND_VOCAL = 0.2       # 16 and 32-bar blends only where neither side is sung
+
 _cache: dict[str, tuple[float, dict]] = {}
 _cache_lock = threading.Lock()
 
@@ -68,8 +90,18 @@ def load_features(tid: str) -> dict:
         f[k] = int(f[k])
     for k in ("bpm", "gain_db", "env_rate"):
         f[k] = float(f[k])
+    # Analysed before these were measured (until it is analysed again): in tune,
+    # no section roles, bars counted from the phrase grid.
+    f["tuning"] = float(f.get("tuning", 0.0))
+    f["key_conf"] = float(f.get("key_conf", 0.0))
     f["cum"] = np.concatenate([[0.0], np.cumsum(f["dur"].astype(np.float64))])
     f["n"] = len(f["beats"])
+    if "role" not in f:
+        f["role"] = np.zeros(f["n"], np.int8)
+    if "bar_in_sec" not in f:
+        f["bar_in_sec"] = _bars_from_phrase(f)
+    f["level"] = _levels(f)
+    f["exit_fit"], f["entry_fit"] = _exit_fit(f), _entry_fit(f)
     f["intensity"] = _intensity(f)
     f["mood"] = _mood(f)
     with _cache_lock:
@@ -77,6 +109,50 @@ def load_features(tid: str) -> dict:
             _cache.clear()
         _cache[tid] = (mtime, f)
     return f
+
+
+def _bars_from_phrase(f: dict) -> np.ndarray:
+    """Bar number within the section, from the downbeats since its start."""
+    out = np.zeros(f["n"], np.int16)
+    bar = -1
+    for b in range(f["n"]):
+        if f["phrase"][b] == PHRASE_SECTION:
+            bar = -1
+        if f["pos"][b] == 0:
+            bar += 1
+        out[b] = max(bar, 0)
+    return out
+
+
+def _levels(f: dict) -> np.ndarray:
+    """How strong a line a beat is: 3 on a 16-bar line of its section, 2 on an
+    8-bar one, 1 on a 4-bar one, 0 elsewhere (a phrase starts on these)."""
+    b = f["bar_in_sec"].astype(int)
+    down = f["pos"] == 0
+    return np.where(down & (b % 16 == 0), 3, np.where(down & (b % 8 == 0), 2, np.where(down & (b % 4 == 0), 1, 0)))
+
+
+# Weight of where a hand-over leaves and enters against its other costs (DJs
+# and automatic mixers alike place them on section boundaries; Spotify's looks
+# for its exit late in A and its entry early in B, Bittner et al. 2017).
+FIT_WEIGHT = 0.3
+
+
+def _exit_fit(f: dict) -> np.ndarray:
+    """Per beat x, leaving A so that x would be its next beat: best as A's
+    section ends (above all after a chorus or a drop), on a strong line."""
+    sec_end = (f["phrase"] == PHRASE_SECTION).astype(float)
+    prev_role = np.r_[f["role"][:1], f["role"][:-1]]
+    after_peak = np.isin(prev_role, (ROLE_CHORUS, ROLE_DROP)) * sec_end
+    return 0.5 * sec_end + 0.2 * f["level"] / 3 + 0.3 * after_peak
+
+
+def _entry_fit(f: dict) -> np.ndarray:
+    """Per beat y, entering B there: best at a section start, above all its
+    intro, a drop or a chorus, on a strong line."""
+    start = (f["phrase"] == PHRASE_SECTION).astype(float)
+    good = np.isin(f["role"], (ROLE_INTRO, ROLE_DROP, ROLE_CHORUS))
+    return 0.6 * start * np.where(good, 1.0, 0.6) + 0.2 * f["level"] / 3
 
 
 def _intensity(f: dict) -> np.ndarray:
@@ -128,8 +204,34 @@ def _bridge(R: np.ndarray, alone: float) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _semis(R) -> np.ndarray:
-    """Semitones B sounds shifted relative to A when it runs R times as fast."""
+    """Semitones B sounds shifted relative to A when it runs R times as fast:
+    none with key lock; vinyl-style, 12 * log2(R) rounded."""
+    if KEYLOCK:
+        return np.zeros(np.shape(R), dtype=int)
     return np.rint(12 * np.log2(R)).astype(int)
+
+
+def _keylocked(rate: float) -> bool:
+    """Whether B must be time-stretched (pitch kept) to come in at this rate."""
+    return bool(KEYLOCK and abs(math.log(rate)) > math.log(1 + KEYLOCK_FROM))
+
+
+def _detune(R, tune_a: float = 0.0, tune_b: float = 0.0) -> np.ndarray:
+    """Cents B sounds off the nearest semitone of A: the two recordings' own
+    tunings, plus (vinyl-style, or key lock's tiny unstretched changes) what
+    running R times as fast does; 3 % faster on vinyl is half a semitone."""
+    lr = np.log(np.asarray(R, dtype=np.float64))
+    shift = 1200 * lr / math.log(2)
+    if KEYLOCK:
+        shift = np.where(np.abs(lr) > math.log(1 + KEYLOCK_FROM), 0.0, shift)
+    cents = shift + (tune_b - tune_a)
+    return np.abs(cents - 100 * np.rint(cents / 100))
+
+
+def harmonic_presence(f: dict) -> np.ndarray:
+    """True per beat where the pitched stems (bass, other) carry real weight in
+    the mix: there, two songs out of tune with each other are heard."""
+    return np.maximum(f["stems"][:, 1], f["stems"][:, 2]) > f["loud"] - HARMONIC_DB
 
 
 def _tempo_penalty(lr: np.ndarray, alone: float, scale: float) -> np.ndarray:
@@ -137,8 +239,9 @@ def _tempo_penalty(lr: np.ndarray, alone: float, scale: float) -> np.ndarray:
     a = math.log(1 + alone)
     full = math.log(1 + BRIDGE_MAX)
     small = scale * np.minimum(lr, a) / a
-    bend = np.where(lr > a, 0.12 + 0.28 * (lr - a) / (full - a), 0.0)
-    return small + bend
+    if full <= a:
+        return small
+    return small + np.where(lr > a, 0.12 + 0.28 * (lr - a) / (full - a), 0.0)
 
 
 def _pooled_mfcc(fa: dict, fb: dict):
@@ -159,6 +262,33 @@ def _nms(cands: list[dict], key: str, min_sep: int, limit: int) -> list[dict]:
 def _quality(score: float, rng: tuple[float, float]) -> float:
     lo, hi = rng
     return round(float(np.clip(0.4 + 0.6 * (hi - score) / (hi - lo), 0.05, 1.0)), 3)
+
+
+def _ahead(x: np.ndarray, n: int) -> np.ndarray:
+    """Mean of x over the n beats starting at each beat (fewer at the end)."""
+    c = np.concatenate([[0.0], np.cumsum(x, dtype=np.float64)])
+    i = np.arange(len(x))
+    j = np.minimum(i + n, len(x))
+    return (c[j] - c[i]) / np.maximum(1, j - i)
+
+
+def _behind(x: np.ndarray, n: int) -> np.ndarray:
+    """Mean of x over the n beats before each beat (fewer at the start)."""
+    c = np.concatenate([[0.0], np.cumsum(x, dtype=np.float64)])
+    i = np.arange(len(x))
+    j = np.maximum(i - n, 0)
+    return np.where(i > j, (c[i] - c[j]) / np.maximum(1, i - j), x[0] if len(x) else 0.0)
+
+
+def _bent_voice(pre: np.ndarray, rb: np.ndarray, voice_before_a: np.ndarray, voice_b: np.ndarray) -> np.ndarray:
+    """True where a vinyl-style bend would be heard on a singer: A bending on
+    its way in, or B arriving off its own tempo while someone sings (never
+    with key lock: the pitch stays, and a voice stretched up to 8 % is fine)."""
+    if KEYLOCK:
+        return np.zeros(np.broadcast(pre, voice_before_a, voice_b).shape, dtype=bool)
+    big = math.log(1 + BEND_UNDER_VOICE)
+    return (((np.abs(np.log(pre)) > big) & (voice_before_a > 0.3))
+            | ((np.abs(np.log(rb)) > big) & (voice_b > 0.3)))
 
 
 def _steady(f: dict, ibi: np.ndarray) -> np.ndarray:
@@ -194,6 +324,8 @@ def cuts(fa: dict, fb: dict, to: str) -> list[dict]:
              & (y <= fb["lbp"] - 2 * meter) & (y >= 1) & (lr <= math.log(1 + BRIDGE_MAX))
              & aud_a[:, None] & aud_b[None, :]
              & _steady(fa, fa["local_ibi"])[:, None] & _steady(fb, fb["local_ibi"])[None, :])
+    pre_m, rb_m = _bridge(rate, CUT_MAX_RATE)
+    valid &= ~_bent_voice(pre_m, rb_m, _behind(fa["vocal"], 16)[:, None], _ahead(fb["vocal"], 8)[None, :])
     if not valid.any():
         return []
     # B sounds transposed by the rate it runs at, so harmony is compared with
@@ -218,7 +350,7 @@ def cuts(fa: dict, fb: dict, to: str) -> list[dict]:
     # Cutting while someone is mid-line gives the singer away.
     pen_v = 0.5 * (va_prev * va)[:, None] + 0.3 * (vb_prev * vb)[None, :]
     pen_t = _tempo_penalty(lr, CUT_MAX_RATE, 0.15)
-    bonus = 0.05 * (fa["phrase"] == PHRASE_SECTION)[:, None] + 0.05 * (fb["phrase"] == PHRASE_SECTION)[None, :]
+    bonus = FIT_WEIGHT * (fa["exit_fit"][:, None] + fb["entry_fit"][None, :])
     # Nothing overlaps at a cut to soften it: intensity and mood must carry on.
     ia_prev = np.r_[fa["intensity"][0], fa["intensity"][:-1]]
     jolt = np.abs(ia_prev[:, None] - fb["intensity"][None, :])
@@ -242,7 +374,7 @@ def cuts(fa: dict, fb: dict, to: str) -> list[dict]:
         shift, _ = sim.align_offset(fa["onset_env"], fa["beats"][xi], fb["onset_env"], fb["beats"][yi],
                                     fa["env_rate"], ibi, rate_b=r)
         out.append({"type": "cut", "to": to, "i": xi - 1, "j": yi, "rate": round(rb, 5), "pre": round(pre, 5),
-                    "semis": int(semis[xi, yi]), "m": 1,
+                    "semis": int(semis[xi, yi]), "m": 1, "keylock": _keylocked(rb),
                     "shift_ms": round(shift * 1000, 2), "score": round(c["score"], 4),
                     "q": _quality(c["score"], CUT_RANGE),
                     "xf_ms": sim.crossfade_ms(max(dpa[xi - 1], dpa[xi]), max(dpb[yi - 1], dpb[yi]))})
@@ -286,16 +418,19 @@ def _rhythm_regions(fa, fb, A, B, L, m):
     return ra.reshape(len(A), -1), rb.reshape(len(B), -1), n
 
 
-def blends(fa: dict, fb: dict, to: str) -> list[dict]:
+def blends(fa: dict, fb: dict, to: str, stems: bool = False) -> list[dict]:
     if fa["meter"] != fb["meter"]:
         return []
     meter = fa["meter"]
     mu, sd = _pooled_mfcc(fa, fb)
+    harm_a, harm_b = harmonic_presence(fa), harmonic_presence(fb)
     cands = []
     for m in (1, 2, 0.5):
         # Two bars slip a blend into the breath between two sung lines; four
-        # and eight bars are the classic DJ lengths.
-        for L in (2 * meter, 4 * meter, 8 * meter):
+        # and eight bars are the classic DJ lengths; sixteen and thirty-two are
+        # how DJs mix instrumental intros and outros (real mixes peak at
+        # multiples of 32 beats), only where neither side is sung.
+        for L in (2 * meter, 4 * meter, 8 * meter, 16 * meter, 32 * meter):
             span = int(round(m * L))  # B beats covered while A plays L
             A = _region_starts(fa, L, fa["n"], False)
             A = A[A >= 2 * meter]
@@ -309,6 +444,16 @@ def blends(fa: dict, fb: dict, to: str) -> list[dict]:
             ok = ((lr <= math.log(1 + BRIDGE_MAX))
                   & _steady(fa, dur_a / L)[:, None] & _steady(fb, dur_b / span)[None, :]
                   & _even(fa, A, L)[:, None] & _even(fb, B, span)[None, :])
+            va_win = _gather(fa["vocal"], A, L).mean(1)
+            vb_win = _gather(fb["vocal"], B, span).mean(1)
+            if L >= 16 * meter:
+                ok &= (va_win < LONG_BLEND_VOCAL)[:, None] & (vb_win < LONG_BLEND_VOCAL)[None, :]
+            # Bending heard on a voice; keys off the semitone grid where both
+            # songs carry harmony.
+            pre_m, rb_m = _bridge(rate, BLEND_MAX_RATE)
+            ok &= ~_bent_voice(pre_m, rb_m, _behind(fa["vocal"], 16)[A][:, None], vb_win[None, :])
+            both_harm = (_gather(harm_a, A, L).mean(1) > 0.5)[:, None] & (_gather(harm_b, B, span).mean(1) > 0.5)[None, :]
+            ok &= ~(both_harm & (_detune(rate, fa["tuning"], fb["tuning"]) > DETUNE_MAX_CENTS))
             if not ok.any():
                 continue
             k = np.arange(L)
@@ -319,6 +464,18 @@ def blends(fa: dict, fb: dict, to: str) -> list[dict]:
             if m == 2:
                 vb = 0.5 * (vb + fb["vocal"][B[:, None] + kb[None, :] + 1])
             clash = (_gather(fa["vocal"], A, L) * w) @ vb.T / w.sum()
+            # Seconds both sing at once while both are within 10 dB of each
+            # other (from 5 % to 90 % of the window with the player's curves).
+            mid = (k >= round(0.05 * L)) & (k < round(0.9 * L))
+            sung_a = (_gather(fa["vocal"], A, L) > 0.5) * mid * (dur_a / L)[:, None]
+            both_s = sung_a @ (vb > 0.5).T
+            # Two singers at once: only with both vocal stems, through a stem
+            # hand-over (B's voice held back until A's is taken out).
+            voc_bad = both_s > VOCAL_OVERLAP_MAX_S
+            if not stems:
+                ok &= ~voc_bad
+            if not ok.any():
+                continue
             ha = _gather(fa["chroma"].mean(1), A, L).mean(1)
             hb = _gather(fb["chroma"].mean(1), B, span).mean(1)
             ha /= np.linalg.norm(ha, axis=1, keepdims=True) + 1e-9
@@ -331,6 +488,12 @@ def blends(fa: dict, fb: dict, to: str) -> list[dict]:
                 mask = semis == s
                 d_h[mask] = (1.0 - ha @ np.roll(hb, int(s), axis=1).T)[mask]
                 kp[mask] = _key_penalty(fa, fb, int(s))[0]
+            # Keys two or more steps apart on the Camelot wheel never share a
+            # blend where both carry harmony: those songs meet by a cut, an
+            # echo or a wash instead.
+            ok &= ~(both_harm & (kp >= 0.35))
+            if not ok.any():
+                continue
             ra, rb, nr = _rhythm_regions(fa, fb, A, B, L, m)
             d_r = 1.0 - ra @ rb.T / nr
             ta = ((_gather(fa["mfcc"].mean(1), A, L).mean(1)) - mu) / sd
@@ -340,26 +503,60 @@ def blends(fa: dict, fb: dict, to: str) -> list[dict]:
             post_l = np.array([fb["loud"][b + span:min(fb["n"], b + span + 2 * meter)].mean() if b + span < fb["n"]
                                else fb["loud"][-1] for b in B]) + fb["gain_db"]
             pen_e = 0.04 * np.maximum(0.0, np.abs(pre_l[:, None] - post_l[None, :]) - 2.0)
+            # Where it leaves (the blend ends as A's section does) and enters
+            # (B's intro, a section start); a long mix belongs to A's outro or
+            # breakdown laid over B's intro.
             end_a = np.minimum(A + L, fa["n"] - 1)
-            bonus = (0.08 * ((fa["phrase"][A] == PHRASE_SECTION) | (fa["phrase"][end_a] == PHRASE_SECTION)))[:, None] \
-                + (0.08 * (fb["phrase"][B] == PHRASE_SECTION))[None, :] \
-                + (0.05 * (A + L >= fa["n"] - meter))[:, None]
+            bonus = FIT_WEIGHT * (fa["exit_fit"][end_a][:, None] + fb["entry_fit"][B][None, :])
+            if L >= 16 * meter:
+                a_out = np.isin(_gather(fa["role"], A, L), (ROLE_OUTRO, ROLE_BREAK)).mean(1) > 0.5
+                bonus = bonus + 0.1 * (a_out[:, None] & (fb["role"][B] == ROLE_INTRO)[None, :])
             pen_t = _tempo_penalty(lr, BLEND_MAX_RATE, 0.25) + (HALF_DOUBLE_PENALTY if m != 1 else 0.0)
             # Longer blends need cleaner material; short ones are a little rougher.
-            base = {8 * meter: 0.25, 4 * meter: 0.3}.get(L, 0.36)
+            base = {32 * meter: 0.2, 16 * meter: 0.22, 8 * meter: 0.25, 4 * meter: 0.3}.get(L, 0.36)
             # Where B is left playing alone should feel like where A was.
             b_after = np.minimum(B + span, fb["n"] - 1)
             jolt = np.abs(fa["intensity"][A][:, None] - fb["intensity"][b_after][None, :])
             S = (base + kp + 0.6 * d_h + 1.2 * clash + pen_e + 0.4 * d_r + 0.2 * d_t + pen_t - bonus
                  + 0.4 * jolt + 0.35 * mood_distance(fa, fb))
-            S = np.where(ok, S, np.inf)
+            S0 = np.where(ok, S, np.inf)
+            # One style per window, the cheapest that fits:
+            #   eq/long/short  the regular EQ blend, never two singers at once;
+            #   filter  A high-passed out, B low-passed in: two songs that do
+            #           not sit together harmonically (4 and 8 bars);
+            #   swap    the window ends on B's drop: B builds up thin under A,
+            #           and on the drop A is cut (8 and 16 bars);
+            #   stem    two singers at once made possible by the vocal stems:
+            #           B's voice held back until A's goes;
+            #   acapella  B's sung window over A's instrumental, then B's own
+            #           band (8 bars, keys that sit together).
+            styles = {"long" if L >= 16 * meter else "eq" if L == 8 * meter else "short": np.where(voc_bad, np.inf, S0)}
+            if L in (4 * meter, 8 * meter):
+                apart = ((kp >= 0.35) | (d_h > 0.4)) & (lr <= math.log(1.03))
+                styles["filter"] = np.where(apart & ~voc_bad, S0 - 0.4 * kp - 0.2 * d_h + 0.08, np.inf)
+            if L in (8 * meter, 16 * meter):
+                end_b = B + span
+                on_drop = np.zeros(len(B), bool)
+                inside = end_b < fb["n"]
+                on_drop[inside] = (fb["role"][end_b[inside]] == ROLE_DROP) & (fb["phrase"][end_b[inside]] == PHRASE_SECTION)
+                styles["swap"] = np.where(on_drop[None, :] & ~voc_bad, S0 - 0.15, np.inf)
+            if stems:
+                styles["stem"] = np.where(voc_bad, S0 - 1.2 * clash + 0.05, np.inf)
+                if L == 8 * meter:
+                    sings = (vb_win > 0.5)[None, :] & (va_win > 0.3)[:, None]
+                    styles["acapella"] = np.where(sings & (kp <= 0.1) & (d_h < 0.35), S0 - 1.2 * clash - 0.05, np.inf)
+            names = list(styles)
+            stack = np.stack([styles[s] for s in names])
+            best_style = stack.argmin(0)
+            S = stack.min(0)
             for f in np.argsort(S, axis=None)[:150]:
                 ai, bi = divmod(int(f), len(B))
                 s = float(S[ai, bi])
                 if not np.isfinite(s) or s > TAU_BLEND:
                     break
                 cands.append({"a": int(A[ai]), "b": int(B[bi]), "len": L, "m": m, "R": float(rate[ai, bi]),
-                              "semis": int(semis[ai, bi]), "score": s, "clash": float(clash[ai, bi])})
+                              "semis": int(semis[ai, bi]), "score": s, "clash": float(clash[ai, bi]),
+                              "style": names[best_style[ai, bi]]})
     out = []
     ibi = float(np.median(fa["dur"]))
     for c in _nms(cands, "a", 4 * meter, MAX_PER_KIND):
@@ -367,7 +564,8 @@ def blends(fa: dict, fb: dict, to: str) -> list[dict]:
         shift, _ = sim.align_offset(fa["onset_env"], fa["beats"][c["a"]], fb["onset_env"], fb["beats"][c["b"]],
                                     fa["env_rate"], ibi, rate_b=c["R"])
         out.append({"type": "blend", "to": to, "a": c["a"], "b": c["b"], "len": c["len"], "m": c["m"],
-                    "rate": round(rb, 5), "pre": round(pre, 5), "semis": c["semis"],
+                    "style": c["style"], "rate": round(rb, 5), "pre": round(pre, 5), "semis": c["semis"],
+                    "keylock": _keylocked(rb), "stems": c["style"] in ("stem", "acapella"),
                     "shift_ms": round(shift * 1000, 2),
                     "score": round(c["score"], 4), "q": _quality(c["score"], BLEND_RANGE),
                     "clash": round(c["clash"], 3)})
@@ -399,6 +597,9 @@ def fades(fa: dict, fb: dict, to: str, kpen: float, limit: int = FADES_PER_PAIR,
         return []
     da = _gather(sim.drum_presence(fa), A, fade_beats_a).mean(1)
     db = _gather(sim.drum_presence(fb), B, fade_beats_b).mean(1)
+    # Two drum kits at different tempos flam within a few beats: a fade only
+    # where at most one side has drums (an echo or a wash covers the rest).
+    drums_clash = (da > DRUMS_CLASH)[:, None] & (db > DRUMS_CLASH)[None, :]
     L = min(fade_beats_a, fade_beats_b)
     k = np.arange(L)
     w = np.cos(0.5 * np.pi * k / L) * np.sin(0.5 * np.pi * k / L)
@@ -406,15 +607,18 @@ def fades(fa: dict, fb: dict, to: str, kpen: float, limit: int = FADES_PER_PAIR,
     pre = np.array([fa["loud"][max(0, a - 2 * meter):a].mean() for a in A]) + fa["gain_db"]
     post = np.array([fb["loud"][b:b + 2 * meter].mean() for b in B]) + fb["gain_db"]
     pen_e = 0.04 * np.maximum(0.0, np.abs(pre[:, None] - post[None, :]) - 3.0)
-    # Prefer entering B near its start; leaving A may happen anywhere, best in
-    # a valley (an outro, a breakdown) and into a B moment of like intensity.
-    pos_b = 0.15 * (B / fb["n"])[None, :]
+    # Where it leaves and enters by the songs' structure (B's intro, a drop, a
+    # chorus, wherever in the song it is), in a valley of A (an outro, a
+    # breakdown), into a B moment of like intensity.
+    fit = FIT_WEIGHT * (fa["exit_fit"][A][:, None] + fb["entry_fit"][B][None, :])
     ia, ib = fa["intensity"][A], fb["intensity"][B]
     jolt = np.abs(ia[:, None] - ib[None, :])
-    S = (0.55 + 0.5 * da[:, None] + 0.5 * db[None, :] + 1.0 * clash + 0.7 * kpen + pen_e + pos_b
+    S = (0.55 + 0.5 * da[:, None] + 0.5 * db[None, :] + 1.0 * clash + 0.7 * kpen + pen_e - fit
          + 0.45 * jolt + 0.2 * ia[:, None])
+    S = np.where(drums_clash, np.inf, S)
     best_b = S.argmin(1)
-    cands = [{"a": int(A[ai]), "b": int(B[best_b[ai]]), "score": float(S[ai, best_b[ai]])} for ai in range(len(A))]
+    cands = [{"a": int(A[ai]), "b": int(B[best_b[ai]]), "score": float(S[ai, best_b[ai]])} for ai in range(len(A))
+             if np.isfinite(S[ai, best_b[ai]])]
     out = []
     for c in _nms([c for c in cands if c["score"] <= keep], "a", 8 * meter, limit):
         out.append({"type": "fade", "to": to, "i": c["a"] - 1, "j": c["b"], "seconds": round(seconds, 1),
@@ -425,18 +629,24 @@ def fades(fa: dict, fb: dict, to: str, kpen: float, limit: int = FADES_PER_PAIR,
 FX_RANGE = (0.55, 1.20)
 FX_KEEP = 1.2
 FX_PER_PAIR = 2
-# Beats of A the effect occupies before the new song comes in.
-FX_BEATS = {"echo": 2, "brake": 1, "roll": 2}
+# Beats of A the effect occupies before the new song comes in: an echo is fed
+# by the last beat only and A is cut on the downbeat; a wash swells over two;
+# a roll winds up over two bars (1-beat, then 1/2, 1/4, 1/8 repeats).
+FX_BEATS = {"echo": 1, "brake": 1, "roll": 8, "wash": 2}
 
 
-def effects(fa: dict, fb: dict, to: str, kpen: float) -> list[dict]:
+def effects(fa: dict, fb: dict, to: str, kpen: float, keep: float = FX_KEEP, kinds=None,
+            per_pair: int = FX_PER_PAIR) -> list[dict]:
     """Hand-overs that need neither a shared tempo nor alike music, only a good
     place to leave (the end of a phrase, not mid-line) and a good place to
     arrive (a phrase or section start, ideally at full energy):
-      echo   A's last beats feed a dark feedback delay that rings out under B;
+      echo   A's last beat feeds a band-limited feedback delay that rings on
+             under B; A is cut on the downbeat;
+      wash   A swells into a long reverb and is cut on the downbeat: the way
+             across a big change of mood or tempo;
       brake  A slows to a stop like a turntable, B hits on the next downbeat;
-      roll   A's last beats repeat in ever shorter slices with a rising filter,
-             then B drops in."""
+      roll   A's last two bars repeat in ever shorter slices under a rising
+             filter, then B drops in."""
     ma, mb = fa["meter"], fb["meter"]
     X = np.where(fa["phrase"] >= PHRASE_4BAR)[0]  # A's natural next beat; leave after X - 1
     X = X[(X >= 4 * ma) & (X < fa["n"])]
@@ -454,23 +664,33 @@ def effects(fa: dict, fb: dict, to: str, kpen: float) -> list[dict]:
     pre_l = np.array([fa["loud"][x - 2 * ma:x].mean() for x in X]) + fa["gain_db"]
     post_l = np.array([lb[j:j + 2 * mb].mean() for j in J]) + fb["gain_db"]
     pen_lvl = 0.03 * np.maximum(0.0, np.abs(pre_l[:, None] - post_l[None, :]) - 3.0)
-    sec_a = 0.08 * (fa["phrase"][X] == PHRASE_SECTION)[:, None]
-    sec_b = 0.08 * (fb["phrase"][J] == PHRASE_SECTION)[None, :]
+    # Leaving as A's section ends, entering B at its intro, a drop, a chorus.
+    sec_a = FIT_WEIGHT * fa["exit_fit"][X][:, None]
+    sec_b = FIT_WEIGHT * fb["entry_fit"][J][None, :]
     jolt = np.abs(fa["intensity"][X - 1][:, None] - fb["intensity"][J][None, :])
     md = mood_distance(fa, fb)
+    # How far apart the tempos are (double and half time count as alike).
+    lt = abs(math.log2(fb["bpm"] / fa["bpm"]))
+    tempo_far = float(abs(lt - round(lt)) > math.log2(1.06))
     scores = {
-        "echo": (0.55 + 0.8 * cut_line - 0.12 * line_end + 0.25 * b_voc + 0.5 * kpen + pen_lvl - sec_a - sec_b
+        "echo": (0.55 + 0.8 * cut_line - 0.15 * line_end + 0.25 * b_voc + 0.5 * kpen + pen_lvl - sec_a - sec_b
                  + 0.5 * jolt + 0.3 * md),
+        # The long tail blurs whatever differs: the wider the gap between the
+        # songs, the better a wash fits (and the less an echo does).
+        "wash": (0.62 + 0.8 * cut_line - 0.1 * line_end + 0.2 * b_voc + 0.4 * kpen + pen_lvl - sec_a - sec_b
+                 + 0.3 * jolt - 0.2 * min(md, 1.5) - 0.1 * tempo_far),
         "brake": 0.6 + 0.8 * cut_line + 0.2 * b_voc + 0.6 * pen_lvl - 0.12 * hit_b - sec_a - sec_b + 0.6 * md,
         "roll": (0.6 + 0.6 * cut_line + 0.45 * (1 - drums_end) + 0.2 * b_voc - 0.15 * hit_b - sec_a - sec_b
                  + 0.6 * md),
     }
     out = []
     for kind, S in scores.items():
+        if kinds and kind not in kinds:
+            continue
         best_b = S.argmin(1)
         cands = [{"x": int(X[ai]), "j": int(J[best_b[ai]]), "score": float(S[ai, best_b[ai]])}
-                 for ai in range(len(X)) if S[ai, best_b[ai]] <= FX_KEEP]
-        for c in _nms(cands, "x", 8 * ma, FX_PER_PAIR):
+                 for ai in range(len(X)) if S[ai, best_b[ai]] <= keep and X[ai] >= FX_BEATS[kind] + 1]
+        for c in _nms(cands, "x", 8 * ma, per_pair):
             # Effects are the spice: their quality tops out below a clean
             # beat-matched move, so the planner reaches for them when the music
             # offers nothing better nearby, not every time.
@@ -500,9 +720,11 @@ def drops(fa: dict, fb: dict, to: str) -> list[dict]:
     R = fb["local_ibi"][J][None, :] / fa["local_ibi"][X][:, None]
     lr = np.abs(np.log(R))
     ok = (lr <= math.log(1 + BRIDGE_MAX)) & _steady(fa, fa["local_ibi"][X])[:, None] & _steady(fb, fb["local_ibi"][J])[None, :]
+    va, vb = fa["vocal"], fb["vocal"]
+    pre_m, rb_m = _bridge(R, CUT_MAX_RATE)
+    ok &= ~_bent_voice(pre_m, rb_m, _behind(va, 16)[X][:, None], _ahead(vb, 8)[J][None, :])
     if not ok.any():
         return []
-    va, vb = fa["vocal"], fb["vocal"]
     # Leaving mid-line, in absolute terms and relative to this song's own
     # phrase ends: a song that is sung end to end still has its least-sung
     # moments, and those are where it should be left.
@@ -523,8 +745,9 @@ def drops(fa: dict, fb: dict, to: str) -> list[dict]:
     kp = np.full(R.shape, 0.7)
     for s in np.unique(semis[ok]):
         kp[semis == s] = _key_penalty(fa, fb, int(s))[0]
-    sec_a = 0.06 * (fa["phrase"][X] == PHRASE_SECTION)[:, None]
-    sec_b = 0.1 * (fb["phrase"][J] == PHRASE_SECTION)[None, :]
+    # A drop lands best on B's own drop or chorus, as A's section ends.
+    sec_a = FIT_WEIGHT * fa["exit_fit"][X][:, None]
+    sec_b = FIT_WEIGHT * fb["entry_fit"][J][None, :]
     # Nothing overlaps at a drop, so a key change reads as a modulation (a
     # semitone up is a pop classic) rather than a clash: key weighs less here.
     jolt = np.abs(fa["intensity"][X - 1][:, None] - fb["intensity"][J][None, :])
@@ -544,7 +767,8 @@ def drops(fa: dict, fb: dict, to: str) -> list[dict]:
                                     fa["env_rate"], ibi, rate_b=c["R"])
         q = min(0.85, _quality(c["score"], DROP_RANGE))
         out.append({"type": "drop", "to": to, "i": c["x"] - 1, "j": c["j"], "rate": round(rb_, 5),
-                    "pre": round(pre, 5), "semis": c["semis"], "m": 1, "shift_ms": round(shift * 1000, 2),
+                    "pre": round(pre, 5), "semis": c["semis"], "m": 1, "keylock": _keylocked(rb_),
+                    "shift_ms": round(shift * 1000, 2),
                     "score": round(c["score"], 4), "q": round(q, 3), "xf_ms": 14.0})
     return out
 
@@ -552,9 +776,16 @@ def drops(fa: dict, fb: dict, to: str) -> list[dict]:
 def pair(a: str, b: str) -> dict:
     fa, fb = load_features(a), load_features(b)
     kpen, kd = _key_penalty(fa, fb)
-    items = (cuts(fa, fb, b) + drops(fa, fb, b) + blends(fa, fb, b) + fades(fa, fb, b, kpen)
+    # Stem hand-overs only between two songs whose vocal stems are on the server.
+    stems = library.has_vocals(a) and library.has_vocals(b)
+    items = (cuts(fa, fb, b) + drops(fa, fb, b) + blends(fa, fb, b, stems) + fades(fa, fb, b, kpen)
              + effects(fa, fb, b, kpen))
+    # The way across kept for when nothing better links two songs: the best
+    # fade where at most one side has drums, else the best echo or wash.
     fade = best_fade(fa, fb, b, kpen)
+    if fade is None:
+        spare = effects(fa, fb, b, kpen, keep=np.inf, kinds=("echo", "wash"), per_pair=1)
+        fade = min(spare, key=lambda t: t["score"]) if spare else None
     # The planner steers the chain toward songs of a near mood, so a session
     # drifts from style to style instead of lurching.
     md = round(mood_distance(fa, fb), 3)

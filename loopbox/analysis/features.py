@@ -52,6 +52,10 @@ def compute(y: np.ndarray, y22: np.ndarray, beats: np.ndarray, stems: np.ndarray
     harmonic = stems[1] + stems[2] + 0.5 * stems[3]
     h22 = soxr.resample(harmonic.astype(np.float32), SAMPLE_RATE, ANALYSIS_SR).astype(np.float32)
     chroma = librosa.feature.chroma_cqt(y=h22, sr=ANALYSIS_SR, hop_length=HOP).T  # (T, 12)
+    # How far the recording sits off A440, in cents: chroma hides it (it is
+    # normalised per song), but two songs 30 cents apart beat against each
+    # other when they are mixed.
+    tuning = 100.0 * float(librosa.estimate_tuning(y=h22, sr=ANALYSIS_SR))
     mel = librosa.feature.melspectrogram(y=y22, sr=ANALYSIS_SR, hop_length=HOP, n_fft=2048, n_mels=96)
     logmel = librosa.power_to_db(mel, ref=1.0, top_db=None)
     mfcc = librosa.feature.mfcc(S=logmel, n_mfcc=N_MFCC + 1)[1:].T  # drop c0 (level)
@@ -128,6 +132,7 @@ def compute(y: np.ndarray, y22: np.ndarray, beats: np.ndarray, stems: np.ndarray
         "key_profile": key_profile.astype(np.float32),
         "vpitch": vpitch,
         "vmfcc": vmf.astype(np.float32),
+        "tuning": np.float32(tuning),
     }
 
 

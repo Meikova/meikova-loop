@@ -28,6 +28,12 @@ on_ready: list[Callable[[str], None]] = []  # called with a track id once it is 
 on_linked: list[Callable[[set[str]], None]] = []  # called with the songs whose pairs were added
 _evict_state = {"at": 0.0, "running": False}
 keep_ids: Callable[[], set[str]] = lambda: set()  # songs that eviction must not touch (set by the server)
+# Songs analysed by an older version, analysed again in the background while
+# they stay ready (their old analysis serves meanwhile), only when no
+# listener's song is waiting, and leaving a worker free for one.
+_upgrade_queue: list[str] = []
+_upgrading: set[str] = set()
+UPGRADE_SLOTS = max(1, ANALYSIS_WORKERS - 1)
 
 
 # ------------------------------------------------------------ in the children
@@ -43,6 +49,11 @@ def _init_child(uses_torch: bool) -> None:
 def _ingest_job(tid: str) -> str:
     from . import ingest
     return ingest.process(tid)
+
+
+def _upgrade_job(tid: str) -> bool:
+    from . import ingest
+    return ingest.upgrade(tid)
 
 
 def _link_job(tid: str, others: list[str]) -> int:
@@ -175,6 +186,64 @@ def relink_all() -> None:
     fut.add_done_callback(done)
 
 
+def queue_upgrades(ids: list[str]) -> None:
+    with _lock:
+        for t in ids:
+            if t not in _upgrading and t not in _upgrade_queue:
+                _upgrade_queue.append(t)
+
+
+def _upgrade_tick() -> None:
+    with _lock:
+        if _ingesting:  # listeners' songs first
+            return
+        while len(_upgrading) < UPGRADE_SLOTS and _upgrade_queue:
+            tid = _upgrade_queue.pop(0)
+            meta = library.read_meta(tid) or {}
+            if (meta.get("status") != "ready" or meta.get("analysis_version") == ANALYSIS_VERSION
+                    or not library.has_audio(tid)):
+                continue
+            _upgrading.add(tid)
+            pool = _pool("ingest")
+            fut = pool.submit(_upgrade_job, tid)
+            fut.add_done_callback(lambda f, t=tid, p=pool: _upgrade_done(t, p, f))
+
+
+def _upgrade_done(tid: str, pool, fut) -> None:
+    ok = False
+    try:
+        ok = bool(fut.result())
+    except BrokenProcessPool:
+        _reset_pool("ingest", pool)
+    except Exception:
+        traceback.print_exc()
+    with _lock:
+        _upgrading.discard(tid)
+    if ok:
+        # Its transitions were found with the old analysis: found again, and
+        # the libraries holding it link it anew.
+        library.drop_pairs(tid)
+        for cb in on_ready:
+            try:
+                cb(tid)
+            except Exception:
+                traceback.print_exc()
+
+
+def upgrades_left() -> int:
+    with _lock:
+        return len(_upgrade_queue) + len(_upgrading)
+
+
+def _upgrade_loop() -> None:
+    while True:
+        time.sleep(5)
+        try:
+            _upgrade_tick()
+        except Exception:
+            traceback.print_exc()
+
+
 def backlog() -> int:
     """Songs being prepared or waiting for it, all libraries together."""
     with _lock:
@@ -204,10 +273,10 @@ def _maybe_evict() -> None:
     def run():
         try:
             with _lock:
-                busy = set(_ingesting) | {a for a, _ in _linking}
+                busy = set(_ingesting) | set(_upgrading) | {t for pair in _linking for t in pair}
             gone = library.evict(int(MAX_STORE_GB * 1e9), keep_ids() | busy)
             if gone:
-                print(f"[mashloop] store over {MAX_STORE_GB} GB: removed {len(gone)} least used songs")
+                print(f"[mashloop] store over {MAX_STORE_GB} GB: freed the {len(gone)} least used songs")
         except Exception:
             traceback.print_exc()
         finally:
@@ -228,11 +297,36 @@ def stale(metas: list[dict]) -> bool:
     return any((m.get("analysis_version") or 0) > ANALYSIS_VERSION for m in metas)
 
 
+def start_retention(max_idle_s: float, keep: Callable[[], set[str]]) -> None:
+    """Every few minutes, deletes the sound of the songs nobody has used for
+    max_idle_s (library.drop_idle_audio), except those in keep() and those
+    being worked on."""
+    def run():
+        while True:
+            time.sleep(600)
+            try:
+                with _lock:
+                    busy = set(_ingesting) | set(_upgrading) | {t for pair in _linking for t in pair}
+                gone = library.drop_idle_audio(max_idle_s, keep() | busy)
+                if gone:
+                    print(f"[mashloop] deleted the audio of {len(gone)} songs unused for {max_idle_s / 3600:g} h")
+            except Exception:
+                traceback.print_exc()
+
+    threading.Thread(target=run, name="mashloop-retention", daemon=True).start()
+
+
 def start() -> None:
-    """Resumes interrupted work and upgrades stale analyses on startup."""
+    """Resumes interrupted work on startup, and queues the songs analysed by an
+    older version for a background upgrade (the sample libraries first); a
+    song whose sound was deleted is analysed again when someone adds it back."""
+    stale = []
     for m in library.list_tracks():
-        old = m.get("status") == "ready" and m.get("analysis_version") != ANALYSIS_VERSION
-        if m.get("status") not in library.FINAL_STATES or old:
-            if old:
-                library.update(m["id"], status="queued", stage="queued")
+        if m.get("status") == "ready" and m.get("analysis_version") != ANALYSIS_VERSION:
+            if library.has_audio(m["id"]):
+                stale.append(m["id"])
+        elif m.get("status") not in library.FINAL_STATES:
             enqueue_ingest(m["id"])
+    samples = set(library.samples()["ids"])
+    queue_upgrades(sorted(stale, key=lambda t: t not in samples))
+    threading.Thread(target=_upgrade_loop, name="mashloop-upgrade", daemon=True).start()

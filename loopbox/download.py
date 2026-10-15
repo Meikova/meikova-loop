@@ -1,5 +1,5 @@
 """Music from the web through yt-dlp: YouTube (and YouTube Music), SoundCloud,
-Zing MP3, Bandcamp and Mixcloud, single songs and playlists. A JS runtime
+Zing MP3, Bandcamp, Mixcloud and Jamendo, single songs and playlists. A JS runtime
 (node or deno, MASHLOOP_JS_RUNTIME) solves YouTube's player challenges.
 
 Only links to these sites are accepted, and yt-dlp may only use their
@@ -33,9 +33,20 @@ SOURCES = {
     "zingmp3": ({"zingmp3.vn", "www.zingmp3.vn", "m.zingmp3.vn", "mp3.zing.vn"}, [r"zingmp3.*"]),
     "bandcamp": ({"bandcamp.com"}, [r"Bandcamp.*"]),  # and every artist.bandcamp.com
     "mixcloud": ({"mixcloud.com", "www.mixcloud.com", "m.mixcloud.com"}, [r"mixcloud.*"]),
+    # Creative Commons music: each song carries its licence, credited in the UI.
+    "jamendo": ({"jamendo.com", "www.jamendo.com"}, [r"Jamendo.*"]),
 }
 SITE_NAMES = {"youtube": "YouTube", "soundcloud": "SoundCloud", "zingmp3": "Zing MP3", "bandcamp": "Bandcamp",
-              "mixcloud": "Mixcloud"}
+              "mixcloud": "Mixcloud", "jamendo": "Jamendo"}
+
+
+def cc_name(license_url_or_code: str | None) -> str | None:
+    """"http://creativecommons.org/licenses/by-nc-sa/3.0/" (or "by-nc-sa") -> "CC BY-NC-SA 3.0"."""
+    s = str(license_url_or_code or "").strip()
+    m = re.search(r"/licenses/([a-z-]+)(?:/(\d(?:\.\d)?))?", s, re.I) or re.fullmatch(r"([a-z-]+)()", s, re.I)
+    if not m or not re.fullmatch(r"by(-(nc|sa|nd))*", m.group(1).lower()):
+        return None
+    return " ".join(filter(None, ["CC", m.group(1).upper(), m.group(2)]))
 
 _VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
@@ -84,7 +95,7 @@ def _entry(e: dict, site: str = "youtube") -> dict | None:
     title = e.get("title") or e.get("track")
     if not title:  # flat playlist entries may only carry their link: the slug stands in until download
         title = Path(urlparse(url).path).name.replace("-", " ").replace(".html", "").strip() or native
-    return {
+    out = {
         "id": track_id(site, native),
         "source": site,
         "title": title,
@@ -93,6 +104,11 @@ def _entry(e: dict, site: str = "youtube") -> dict | None:
         "thumbnail": thumb,
         "url": url,
     }
+    if site == "jamendo" and cc_name(e.get("license")):
+        # A CC licence asks for the artist, the licence and a link back to the song.
+        out["credit"] = {"artist": out["channel"], "license": cc_name(e.get("license")), "license_url": None,
+                         "page": url, "via": "Jamendo"}
+    return out
 
 
 def search(query: str, n: int = 8) -> list[dict]:
@@ -110,7 +126,7 @@ def resolve(text: str) -> list[dict]:
         return search(text[:200], 1)
     site = site_of(text)
     if site is None:
-        raise ValueError("chỉ nhận link YouTube, SoundCloud, Zing MP3, Bandcamp hoặc Mixcloud")
+        raise ValueError("chỉ nhận link YouTube, SoundCloud, Zing MP3, Bandcamp, Mixcloud hoặc Jamendo")
     opts = _opts(site, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST)
     # A watch URL that also carries &list= is treated as the single video.
     if site == "youtube" and ("watch?" in text or "youtu.be/" in text):

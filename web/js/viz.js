@@ -16,7 +16,7 @@ const HALO_BANDS = 48;
 const reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
 export const KIND_VI = {
   cut: "Nối thẳng", drop: "Drop vào đoạn mới", blend: "Blend khớp nhịp", fade: "Crossfade",
-  echo: "Echo vang", brake: "Phanh đĩa", roll: "Cuộn nhịp",
+  echo: "Echo vang", wash: "Reverb wash", brake: "Phanh đĩa", roll: "Cuộn nhịp",
 };
 
 // What the bridge does to the tempo, in words: "nắn nhịp 5%", "nhịp đôi".
@@ -25,7 +25,7 @@ export function bendNote(tr) {
   const pre = tr.pre || 1;
   if (Math.abs(pre - 1) > 0.004) notes.push(`hai bài cùng nắn nhịp ${Math.round(Math.abs(pre - 1) * 100)}%`);
   else if (tr.rate && Math.abs(tr.rate - 1) > 0.015 && (tr.type === "cut" || tr.type === "drop" || tr.type === "blend")) {
-    notes.push(`bài sau ${tr.rate > 1 ? "nhanh" : "chậm"} ${Math.round(Math.abs(tr.rate - 1) * 100)}% lúc vào`);
+    notes.push(`bài sau ${tr.rate > 1 ? "nhanh" : "chậm"} ${Math.round(Math.abs(tr.rate - 1) * 100)}% lúc vào${tr.keylock ? ", giữ tông" : ""}`);
   }
   if (tr.m === 2) notes.push("bài sau nhịp đôi");
   if (tr.m === 0.5) notes.push("bài sau nửa nhịp");
@@ -143,6 +143,7 @@ export class Viz {
       this._frame(now);
       requestAnimationFrame(loop);
     };
+    this.started = true;
     requestAnimationFrame(loop);
   }
 
@@ -165,11 +166,20 @@ export class Viz {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.w = Math.max(200, box.width);
     this.h = Math.max(200, box.height);
-    this.dpr = dpr;
     this.canvas.width = Math.round(this.w * dpr);
     this.canvas.height = Math.round(this.h * dpr);
     this.baseR = Math.min(this.w, this.h) * 0.37;
-    this.invalidate();
+    // A loop's layer takes a while to draw, and a resize (a line of text below
+    // the stage wrapping differently) would otherwise blank the stage for a
+    // tenth of a second while every layer is redrawn. The layers scale with
+    // the loops anyway: redraw them only when the size really changed.
+    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.15) {
+      this.layerR = this.baseR;
+      this.invalidate();
+    }
+    this.dpr = dpr;
+    // Setting the canvas size cleared it: paint now, not at the next frame.
+    if (this.started) this._frame(performance.now());
   }
 
   // Where the loops sit: one in the middle, or two touching (side by side on
@@ -236,7 +246,7 @@ export class Viz {
   // Everything about a song that does not move: drawn once, then rotated and
   // scaled as the loop travels.
   _buildLayer(track) {
-    const RL = this.baseR;
+    const RL = this.layerR;
     const th = this._thickness(RL);
     const S = Math.ceil(RL * 2.6);
     const c = document.createElement("canvas");
@@ -324,8 +334,9 @@ export class Viz {
       ctx.stroke();
     }
 
-    // Exits to other songs.
+    // Exits to other songs (those the chain may take).
     for (const tr of track.transitions) {
+      if (!this._shown(track, tr)) continue;
       const t = this._exitTime(track, tr);
       if (t === null) continue;
       const [x, y] = at(t, this._exitRadius(RL));
@@ -367,8 +378,8 @@ export class Viz {
   // A chord in stage coordinates, following the ring's position and rotation.
   _chordWorld(ctx, ring, i, j) {
     const T = ring.track;
-    const s = ring.r / this.baseR;
-    const rin = (this.baseR - this._thickness(this.baseR) / 2 - 3) * s;
+    const s = ring.r / this.layerR;
+    const rin = (this.layerR - this._thickness(this.layerR) / 2 - 3) * s;
     ctx.save();
     ctx.translate(ring.x, ring.y);
     ctx.rotate(ring.rot);
@@ -767,7 +778,7 @@ export class Viz {
 
   _drawRing(ctx, ring) {
     if (ring.alpha < 0.01 || ring.x === null) return;
-    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.baseR.toFixed(1)}|${theme.paletteVersion()}`;
+    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.layerR.toFixed(1)}|${theme.paletteVersion()}`;
     if (ring.layerKey !== key) {
       ring.layer = this._buildLayer(ring.track);
       ring.layerKey = key;
@@ -1141,6 +1152,7 @@ export class Viz {
     const rx = this._exitRadius(primary.r);
     let best = null;
     for (const tr of T.transitions) {
+      if (!this._shown(T, tr)) continue;
       const t = this._exitTime(T, tr);
       if (t === null) continue;
       const [x, y] = this._point(primary, t, rx);
@@ -1222,9 +1234,17 @@ export class Viz {
 
   _feedbackHtml() {
     const f = this.pickFeedback;
-    return f.ok
-      ? `<b>Đã chọn điểm nối này</b><small>Vòng đang xoay về phía bài kế tiếp</small>`
-      : `<b>Chưa tới được điểm này</b><small>Thử lại khi đang blend xong, hoặc chọn chấm khác</small>`;
+    if (f.ok) return `<b>Đã chọn điểm nối này</b><small>Vòng đang xoay về phía bài kế tiếp</small>`;
+    return {
+      busy: `<b>Đang chuyển sang bài khác</b><small>Chọn lại khi bài sau đã vào hẳn</small>`,
+      unreachable: `<b>Không đi tới được điểm này</b><small>Từ chỗ đang phát không có đường tới: chọn chấm khác</small>`,
+      soon: `<b>Điểm này tới quá sát</b><small>Cần vài giây chuẩn bị: chọn chấm xa hơn một chút</small>`,
+    }[this.player.pickError] || `<b>Điểm này không còn dùng được</b><small>Chọn chấm khác</small>`;
+  }
+
+  // Exits shown on a ring: those the chain may take now.
+  _shown(track, tr) {
+    return this.player.canTake ? this.player.canTake(track, tr) : true;
   }
 
   _showTip(html, x = 0, y = 0) {

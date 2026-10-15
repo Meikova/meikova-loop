@@ -20,12 +20,17 @@ và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 - **Mash cả thư viện thành một chuỗi.** Không chỉ lặp trong một bài như
   [Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) ngày
   xưa: ở mỗi bài một lúc, rồi đi tới điểm nối tốt gần nhất sang bài khác.
-- **Bảy kiểu nối bài**, từ nối thẳng không lộ tới blend kiểu DJ (bảng bên dưới).
-- **Nắn tempo để hai bài khớp nhau.** Lệch tới ~12 % vẫn blend được, kể cả nhịp đôi 70 ↔ 140.
+- **Tám kiểu nối bài và bảy cách blend**, từ nối thẳng không lộ tới blend kiểu DJ
+  (bảng bên dưới). Bật tắt từng kiểu trong *Tinh chỉnh*.
+- **Nắn tempo mà giữ tông (key lock).** Lệch tới 8 % vẫn blend được, kể cả nhịp đôi
+  70 ↔ 140, và giọng ca sĩ không bị bổng hay trầm đi.
+- **Nối vào đúng đoạn:** ra ở cuối câu nhạc, vào đầu điệp khúc hay chỗ drop của bài
+  sau, không chỉ vào đầu bài.
 - **Chọn tiêu chí cho bài kế tiếp:** cân bằng, cùng mood, cùng nhịp, hợp tông (vòng
-  Camelot của DJ, có tính cả cao độ bị dịch khi nắn nhịp), hoặc tự do.
+  Camelot của DJ), hoặc tự do.
 - **Biết ai đang hát:** không nhảy từ giọng nam sang giọng nữ giữa câu, không cắt
-  ngang một câu hát khi hai câu có lời khác nhau.
+  ngang một câu hát, không để hai giọng hát chồng nhau. Có stem giọng hát riêng nên
+  blend được chỉ phần nhạc, hoặc để giọng bài sau hát trên nền bài trước.
 - **Mỗi bài một màu theo mood**, cả căn phòng đổi màu theo bài đang phát và chuyển
   dần sang màu bài sau trong lúc mix. Có quầng phổ âm thanh quanh vòng đang phát.
   Thích yên tĩnh thì chọn Neon hoặc Hổ phách trong *Tinh chỉnh*.
@@ -38,24 +43,32 @@ và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 |---|---|---|
 | Nối thẳng | Hai đoạn nghe gần như y hệt nhau | Không nhận ra là đã đổi bài |
 | Drop | Cùng groove, cùng cường độ, cùng mood | Bài mới vào đúng phách đầu câu nhạc |
-| Blend | Nhịp khớp được (lệch tới ~12 %, kể cả nhịp đôi 70 ↔ 140) | Mix kiểu DJ, khóa nhịp từng beat, đổi bass ở giữa |
+| Blend | Nhịp khớp được (lệch tới 8 %, kể cả nhịp đôi 70 ↔ 140) | Mix kiểu DJ, khóa nhịp từng beat, 2 đến 32 ô nhịp |
 | Crossfade dài | Hai bài khác mood | 5 đến 11 giây, lọc âm: bài cũ tối dần, bài mới sáng dần |
 | Echo | Cuối một câu hát | Bài cũ tan thành tiếng vọng của chính nó |
+| Wash | Cuối một đoạn | Bài cũ chìm vào reverb, bài mới bước ra từ đó |
 | Phanh đĩa, cuộn nhịp | Khi bạn muốn | Đột ngột. Tắt sẵn, bật trong *Tinh chỉnh* nếu thích kịch tính |
 
-Khi hai bài lệch tempo, bài đang phát tăng hoặc giảm tốc dần trong 16 beat trước
-điểm nối, bài sau vào cùng tốc độ rồi trượt về tốc độ gốc. Đổi tốc độ kiểu đĩa than
-nên giọng ca sĩ cũng bổng hoặc trầm theo một chút. Độ hợp key được chấm theo đúng cao
-độ sau khi đổi.
+Bảy cách blend: dài, đổi EQ (bass, mid, treble lần lượt), ngắn, quét filter, đổi chỗ
+ở drop, chỉ phần nhạc (tách giọng), và acapella (giọng bài sau hát trên nền bài trước).
+
+Khi hai bài lệch tempo, bài sau vào đúng tốc độ bài trước rồi trượt dần về tốc độ
+gốc, giữ nguyên tông nhờ time-stretch. Hai bài lệch tông hẳn thì không blend, hai bộ
+trống chưa khớp nhịp thì không crossfade chồng lên nhau.
 
 ## Dùng bản trên web
 
 Mở https://mashloop.truclv.com. Mỗi lần mở trang là một thư viện mới, trống trơn,
-của riêng bạn. Chưa biết thêm gì thì bấm *Nghe thử* để mở thư viện mẫu (18 bài làm
-bằng Suno).
+của riêng bạn. Chưa biết thêm gì thì mở một trong 9 kho có sẵn: Pass The Aux (làm
+bằng Suno), Pop, Rock, Hip-hop, Electro & Dance, Chill & Lofi, Acoustic, Remix
+ccMixter, Kevin MacLeod. Tám kho sau là nhạc Creative Commons từ Jamendo, ccMixter và
+Incompetech, có ghi tên tác giả. Nghe hết một kho thì nó tự nối sang kho kế, hoặc
+bấm *Kho khác*.
 
 - Mỗi thư viện tối đa 10 bài tự thêm. Bài người khác đã thêm trước đó thì vào ngay,
   không phải chờ phân tích; bài mới mất chừng 20 giây.
+- File âm thanh không ai nghe trong 12 giờ thì tự xoá. Trang không lưu dữ liệu cá
+  nhân nào, và là dự án vui, phi thương mại.
 - Rê chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn
   điểm chuyển. `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
 
@@ -99,7 +112,8 @@ viện riêng, bài hát và điểm nối giữa từng cặp bài là kho chun
   nghe trên `127.0.0.1`).
 - `haproxy.cfg` và `haproxy-setup.sh`: HAProxy đứng trước, TLS bằng Let's Encrypt tự
   gia hạn.
-- `seed_samples.py`: biến một file zip nhạc thành thư viện mẫu.
+- `seed_samples.py`: biến một file zip nhạc thành thư viện mẫu. `seed_cc.py`: dựng
+  các kho nhạc Creative Commons từ Jamendo, ccMixter và Incompetech.
 - `mashloop.service`: số bài phân tích song song, giới hạn mỗi thư viện, dung lượng
   kho nhạc, tất cả là biến môi trường.
 
@@ -152,7 +166,8 @@ cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng n
 ## Nói thật
 
 - Các con số ở trên là đo bằng máy. Tai người vẫn là trọng tài cuối cùng.
-- Chưa có keylock: muốn khớp key mà không đổi nhịp thì cần một engine time-stretch.
+- Key lock chạy [signalsmith-stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch)
+  trong trình duyệt, trễ chừng 0.12 giây, nên máy yếu có thể thấy nặng trong lúc blend.
 - Zing MP3 chập chờn: nhiều bài chỉ dành cho tài khoản VIP. SoundCloud có bài chỉ cho
   nghe thử 30 giây, những bài đó bị từ chối.
 - Không có Suno: audio của Suno được mã hóa, và app không phá lớp bảo vệ đó. Có file
@@ -160,6 +175,23 @@ cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng n
 - Lớp xáo trộn audio chặn được công cụ tải và việc lưu file vu vơ, không phải DRM:
   trình duyệt bắt buộc phải nhận được âm thanh thì mới phát được.
 - Chọn bản "audio" trên YouTube sẽ tốt hơn bản MV có đoạn mở đầu dài.
+
+## Nhật ký
+
+- [x] **15/10/2026.** Bản đầu: lặp vô hạn trong một bài, nối bài khớp nhịp, chạy trên máy mình.
+- [x] Màu theo mood, ánh sáng chạy qua dấu ∞, chọn tiêu chí cho bài kế.
+- [x] Bản web cho nhiều người: thư viện riêng mỗi lượt, kho bài chung, chống lạm dụng.
+- [x] **16/10/2026.** Key lock: nắn tempo mà không đổi tông.
+- [x] Tách giọng hát: blend chỉ phần nhạc, acapella, không để hai giọng chồng nhau.
+- [x] Nối theo cấu trúc bài: ra ở cuối câu nhạc, vào điệp khúc hay drop.
+- [x] Thêm Wash và bảy cách blend, bật tắt riêng từng cái.
+- [x] 9 kho có sẵn, tự nối xuyên kho, nút *Kho khác*.
+- [x] Audio MP3 192 kbps (giọng 160 kbps) thay cho FLAC, nhẹ hơn nhiều.
+- [x] Audio tự xoá sau 12 giờ, hỏi đồng ý trước khi thêm bài, không lưu dữ liệu cá nhân.
+- [x] Chấm chuyển bài chỉ hiện chỗ đi được, và nói rõ vì sao khi chưa tới được.
+- [ ] Dịch tông ±1–2 nửa cung, kéo tempo dần qua vài câu, tự tạo outro bằng vòng lặp.
+- [ ] Mashup dài, double drop.
+- [ ] Build-up, spinback, gate, quét flanger, ngắt lặng 1 beat.
 
 ## Bản quyền
 
@@ -184,8 +216,9 @@ làm ra nó.
 
 An endless jukebox that mashes songs together. It analyses beats, stems, singers and
 mood, loops each song through its own seamless jump points, and mixes a library into
-one continuous set: beat-matched blends with tempo bending, long filtered crossfades
-between moods, and a chain that can follow mood, tempo, key, or nothing at all. Try it
+one continuous set: beat-matched, key-locked blends (seven styles, stem-aware), long
+filtered crossfades between moods, and a chain that can follow mood, tempo, key, or
+nothing at all. Try it
 at https://mashloop.truclv.com (a fresh private library per visit, songs from YouTube,
 SoundCloud, Bandcamp, Zing MP3, Mixcloud or your own files), or run it on your own
 machine. The UI is in Vietnamese; the code and its comments are in English.

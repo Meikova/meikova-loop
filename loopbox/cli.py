@@ -19,21 +19,25 @@ def main(argv=None) -> int:
     sub.add_parser("relink", help="recompute every cross-song transition")
     sub.add_parser("rejump", help="recompute in-song jumps from stored features, then relink")
     sub.add_parser("list")
-    p = sub.add_parser("samples", help="set the sample library offered to empty libraries (no ids: show it)")
+    p = sub.add_parser("samples", help="set one of the sample libraries offered to every library (no ids: show them)")
+    p.add_argument("--key", default=None, help="which library (default: from the name)")
     p.add_argument("--name", default=None)
+    p.add_argument("--blurb", default="")
     p.add_argument("ids", nargs="*")
     args = ap.parse_args(argv)
 
     if args.cmd == "samples":
-        s = library.samples()
-        if args.ids or args.name:
-            ids = [t for t in args.ids if library.read_meta(t)] or s["ids"]
-            library.write_json(library.samples_path(), {"name": args.name or s["name"], "ids": ids})
-            s = library.samples()
-        print(s["name"])
-        for t in s["ids"]:
-            m = library.read_meta(t) or {}
-            print(f"  {t}  {m.get('status', '?'):<9} {m.get('title', '')}")
+        if args.ids:
+            if not args.name:
+                print("--name is required with ids")
+                return 2
+            ids = [t for t in args.ids if library.read_meta(t)]
+            library.set_sample_library(args.key or library._slug(args.name), args.name, ids, args.blurb)
+        for lib in library.samples()["libraries"]:
+            print(f"{lib['key']}: {lib['name']} ({len(lib['ids'])})  {lib['blurb']}")
+            for t in lib["ids"]:
+                m = library.read_meta(t) or {}
+                print(f"  {t}  {m.get('status', '?'):<9} {m.get('title', '')}")
         return 0
 
     if args.cmd in ("add", "analyze"):

@@ -41,8 +41,10 @@ def separator():
         return _separator
 
 
-def separate(y: np.ndarray) -> tuple[np.ndarray, list[str]]:
-    """y: (frames, 2) float32 at SAMPLE_RATE. Returns stems (4, frames) mono and their names."""
+def separate(y: np.ndarray, keep_stereo: tuple[str, ...] = ()) -> tuple[np.ndarray, list[str], dict]:
+    """y: (frames, 2) float32 at SAMPLE_RATE. Returns stems (4, frames) mono,
+    their names, and the stems named in keep_stereo as (frames, 2) arrays,
+    sample-aligned with y (the player mixes them against the full track)."""
     from demucs.apply import apply_model
     model = separator()
     assert model.samplerate == SAMPLE_RATE
@@ -60,7 +62,9 @@ def separate(y: np.ndarray) -> tuple[np.ndarray, list[str]]:
             out = apply_model(model.cpu(), ((wav - mean) / std)[None], device="cpu",
                               split=True, overlap=0.1, progress=False)[0]
         model.to(dev)
-    out = (out * std + mean).mean(1).cpu().numpy()  # (sources, frames)
+    full = (out * std + mean).cpu().numpy()  # (sources, channels, frames)
+    names = list(model.sources)
+    stereo = {s: np.ascontiguousarray(full[names.index(s)].T.astype(np.float32)) for s in keep_stereo}
     if dev == "cuda":
         torch.cuda.empty_cache()
-    return out, list(model.sources)
+    return full.mean(1), names, stereo

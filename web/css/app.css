@@ -444,8 +444,9 @@ kbd {
 
 .ring-center[data-mode="idle"] .rc-title { font-weight: 500; }
 
+/* Two lines tall whatever it says, so a longer status never shrinks the stage. */
 .next {
-  min-height: 1.6em;
+  min-height: 3.1em;
   max-width: min(720px, 100%);
   text-align: center;
   font-size: var(--step--1);
@@ -490,6 +491,17 @@ kbd {
 .deck__btn:active { transform: scale(0.96); }
 
 .deck__btn:disabled { opacity: 0.38; cursor: default; }
+
+.deck__btn[hidden] { display: none; }
+
+/* "Kho khác" while the chain looks for its way into the next library. */
+.deck__btn[aria-pressed="true"] { color: var(--accent-hi); border-color: oklch(var(--acc) / 0.5); background: var(--accent-lo); opacity: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .deck__btn[aria-pressed="true"] svg { animation: kho-seek 1.2s var(--ease-in-out) infinite alternate; }
+}
+
+@keyframes kho-seek { to { transform: translateY(-2px); } }
 
 @media (hover: hover) {
   .deck__btn:not(:disabled):hover { color: var(--text); background: var(--ink-2); border-color: var(--line-soft); }
@@ -641,6 +653,13 @@ kbd {
 
 .tab.on { display: block; }
 
+/* Hosted: what the site is and keeps, under both tabs. */
+.fine { flex: none; padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--line-soft); }
+.fine p { font-size: var(--step--2); line-height: 1.55; color: var(--text-faint); }
+.fine p + p { margin-top: var(--space-1); }
+.fine b { font-weight: 600; color: var(--text-muted); }
+.fine a { color: var(--accent-hi); text-underline-offset: 2px; border-radius: 4px; }
+
 @media (prefers-reduced-motion: no-preference) {
   .js .tab.on { animation: tab-in var(--dur-slow) var(--ease-out) both; }
 }
@@ -745,7 +764,60 @@ body.dragging::after {
   pointer-events: none;
 }
 
-.empty .sample-btn { display: block; width: auto; margin: var(--space-4) auto 0; padding: 0 20px; }
+/* Sample libraries by theme: a grid in the empty library, folded under a full one. */
+.libs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-4); text-align: left; }
+
+.lib {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--ink-1);
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
+}
+
+.lib b { font-size: var(--step--1); font-weight: 600; color: var(--text); }
+
+.lib span { font-size: var(--step--2); line-height: 1.45; color: var(--text-faint); }
+
+.lib:active { transform: scale(0.98); }
+
+.lib:disabled { opacity: 0.6; cursor: progress; }
+
+@media (hover: hover) {
+  .lib:not(:disabled):hover { border-color: oklch(var(--acc) / 0.55); background: var(--accent-lo); }
+  .lib:not(:disabled):hover b { color: var(--accent-hi); }
+}
+
+.more { list-style: none; margin-top: var(--space-3); }
+
+.more summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-1);
+  border-radius: 8px;
+  font-size: var(--step--1);
+  color: var(--text-muted);
+}
+
+.more summary::-webkit-details-marker { display: none; }
+
+.more summary::before {
+  content: "+";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--accent);
+  font-weight: 600;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.more details[open] summary::before { transform: rotate(45deg); }
+
+.more .libs { margin-top: var(--space-2); }
 
 .upload-row { display: grid; gap: 6px; padding: 10px 14px; font-size: var(--step--1); color: var(--text-muted); }
 
@@ -817,6 +889,13 @@ body.dragging::after {
 
 .track .s .a { font-family: var(--font-text); color: var(--text-muted); }
 
+/* Creative Commons credit: the licence and where the song lives, both linked. */
+.track .s.cc a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; border-radius: 3px; }
+
+@media (hover: hover) {
+  .track .s.cc a:hover { color: var(--accent-hi); text-decoration-color: currentColor; }
+}
+
 .track .acts { display: flex; gap: 2px; }
 
 .track .acts button {
@@ -859,7 +938,7 @@ body.dragging::after {
 
 .track.off { opacity: 0.5; }
 
-.track.off .s::after { content: " · ngoài chuỗi"; font-family: var(--font-text); }
+.track.off .s:not(.cc)::after { content: " · ngoài chuỗi"; font-family: var(--font-text); }
 
 .progress { height: 2px; margin-top: 6px; background: var(--ink-3); border-radius: 2px; overflow: hidden; }
 
@@ -967,6 +1046,13 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .kind:has(input:checked) b { color: var(--text); }
 
+/* The ways to blend: under the kinds, greyed while blends are off. */
+.kinds + .kinds { margin-top: var(--space-4); }
+
+.kinds:disabled .kind { opacity: 0.45; cursor: not-allowed; }
+
+.kinds:disabled .kind input { cursor: not-allowed; }
+
 /* What the chain looks for: one row per criterion, a small loop for a radio. */
 .choices { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
 
@@ -1014,6 +1100,9 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .choice:has(input:checked) b { color: var(--text); }
 
+/* A choice that is a switch rather than one of several: a rounded square. */
+.choice input[type="checkbox"] { border-radius: 5px; }
+
 .choice:active { transform: scale(0.985); }
 
 @media (hover: hover) {
@@ -1053,6 +1142,64 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 .keys-line kbd { margin: 0 2px; }
 
 /* ------------------------------------------------------------ responsive */
+
+/* ------------------------------------------------------------ consent */
+
+/* Hosted: the visitor confirms they may use what they bring in. */
+.consent {
+  width: min(460px, calc(100vw - 32px));
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, oklch(var(--acc) / 0.07), transparent 40%),
+    var(--ink-1);
+  color: var(--text);
+  box-shadow: 0 28px 80px -24px oklch(0 0 0 / 0.75), 0 0 0 1px oklch(var(--acc) / 0.16);
+}
+
+.consent::backdrop { background: oklch(0.1 var(--gc) var(--gh) / 0.6); backdrop-filter: blur(6px); }
+
+.consent h2 { font: 600 var(--step-1) / 1.3 var(--font-display); margin-bottom: var(--space-3); }
+
+.consent p, .consent li { font-size: var(--step--1); line-height: 1.6; color: var(--text-muted); }
+
+.consent ul { margin: var(--space-3) 0 0; padding-left: 1.1em; }
+
+.consent li + li { margin-top: var(--space-1); }
+
+.consent li::marker { color: var(--accent); }
+
+.consent__acts { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); }
+
+.consent__acts button {
+  min-height: var(--tap);
+  padding: 0 18px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: var(--step--1);
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
+}
+
+.consent__acts button:active { transform: scale(0.97); }
+
+.consent__no { border: 1px solid var(--line); background: none; color: var(--text-muted); }
+
+.consent__yes { border: 1px solid oklch(var(--acc) / 0.55); background: var(--accent); color: var(--on-accent); }
+
+@media (hover: hover) {
+  .consent__no:hover { background: var(--ink-2); color: var(--text); }
+  .consent__yes:hover { background: var(--accent-hi); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .consent[open] { animation: consent-in var(--dur-base) var(--ease-out); }
+  .consent[open]::backdrop { animation: fade-in var(--dur-base) var(--ease-out); }
+}
+
+@keyframes consent-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+
+@keyframes fade-in { from { opacity: 0; } }
 
 @media (max-width: 1199px) {
   :root { --panel-w: 344px; }

@@ -181,10 +181,12 @@ def views() -> list[View]:
 
 
 def in_use() -> set[str]:
-    """Songs some live library holds, and the sample library: never evicted."""
+    """Songs some live library holds, and the sample library: never evicted,
+    and their sound never deleted for going unused."""
     keep = set(library.samples()["ids"])
     if not MULTIUSER:
         return keep | set(library.ready_ids())
+    _sweep()
     with _lock:
         return keep | {t for v in _sessions.values() for t in v.ids}
 

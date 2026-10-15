@@ -13,6 +13,10 @@ _CAMELOT_MAJOR = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1]
 _CAMELOT_MINOR = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10]
 
 PHRASE_NONE, PHRASE_BAR, PHRASE_4BAR, PHRASE_SECTION = 0, 1, 2, 3
+# What a section is for, as a DJ reads a track: where to mix in (an intro, a
+# drop), where to mix out (an outro, a breakdown), where a cut lands (a chorus).
+ROLE_OTHER, ROLE_INTRO, ROLE_VERSE, ROLE_CHORUS, ROLE_BREAK, ROLE_DROP, ROLE_OUTRO = range(7)
+ROLE_NAMES = ["other", "intro", "verse", "chorus", "breakdown", "drop", "outro"]
 
 
 def estimate_key(prof: np.ndarray) -> dict:
@@ -84,6 +88,69 @@ def sections(feat: dict, pos: np.ndarray, meter: int) -> np.ndarray:
             if abs(d - p) <= meter:
                 out.add(int(d))
     return np.array(sorted(out), dtype=np.int64)
+
+
+def roles(feat: dict, pos: np.ndarray, section_starts: np.ndarray) -> dict:
+    """The role of each section, from its energy (level and drums), bass,
+    vocals and how much it repeats elsewhere in the song:
+      intro      the first section, quiet or unsung
+      outro      the last, quiet or falling away
+      drop       the energy jumps (+0.25) with the drums and bass coming in
+      breakdown  a middle section with the drums out
+      chorus     among the most energetic, sung, and repeated
+      verse      sung otherwise
+    Per beat: role, the bar within its section (0 at the start), and the bars
+    left in the section (counting the current one)."""
+    n = len(pos)
+    loud, st, voc = feat["loud"], feat["stems"], feat["vocal"]
+    rel = np.clip((loud - loud.max() + 18.0) / 18.0, 0, 1)
+    drums = np.clip((st[:, 0] - loud + 20.0) / 15.0, 0, 1)
+    bass = np.clip((st[:, 1] - loud + 20.0) / 15.0, 0, 1)
+    inten = 0.5 * rel + 0.5 * drums
+    mf = feat["mfcc"].mean(1)
+    vec = np.concatenate([feat["chroma"].mean(1), (mf - mf.mean(0)) / (mf.std(0) + 1e-9) * 0.5], 1)
+    bounds = list(section_starts) + [n]
+    secs = []
+    for s, e in zip(bounds[:-1], bounds[1:]):
+        if e <= s:
+            continue
+        v = vec[s:e].mean(0)
+        secs.append({"s": int(s), "e": int(e), "inten": float(inten[s:e].mean()), "drums": float(drums[s:e].mean()),
+                     "bass": float(bass[s:e].mean()), "voc": float(voc[s:e].mean()), "v": v / (np.linalg.norm(v) + 1e-9)})
+    k = len(secs)
+    hi = float(np.percentile([x["inten"] for x in secs], 66)) if k else 1.0
+    out_roles = []
+    for i, x in enumerate(secs):
+        prev = secs[i - 1] if i else None
+        rep = max((float(x["v"] @ y["v"]) for j, y in enumerate(secs) if j != i), default=0.0)
+        if i == 0 and k > 1 and (x["inten"] < 0.5 or x["voc"] < 0.25):
+            r = ROLE_INTRO
+        elif i == k - 1 and k > 1 and (x["inten"] < 0.5 or x["inten"] < prev["inten"] - 0.15):
+            r = ROLE_OUTRO
+        elif (prev and x["inten"] - prev["inten"] >= 0.25 and x["drums"] >= 0.45 and x["bass"] >= 0.35
+              and x["drums"] - prev["drums"] >= 0.15):
+            r = ROLE_DROP
+        elif 0 < i < k - 1 and x["drums"] < 0.3:
+            r = ROLE_BREAK
+        elif x["inten"] >= hi and x["voc"] >= 0.35 and (rep >= 0.85 or k <= 3):
+            r = ROLE_CHORUS
+        elif x["voc"] >= 0.35:
+            r = ROLE_VERSE
+        else:
+            r = ROLE_OTHER
+        out_roles.append(r)
+    role = np.zeros(n, np.int8)
+    bar = np.zeros(n, np.int16)
+    left = np.zeros(n, np.int16)
+    for x, r in zip(secs, out_roles):
+        s, e = x["s"], x["e"]
+        role[s:e] = r
+        down = (pos[s:e] == 0).astype(np.int16)
+        idx = np.maximum(np.cumsum(down) - 1, 0)
+        bar[s:e] = idx
+        left[s:e] = np.maximum(0, int(down.sum()) - idx)
+    return {"role": role, "bar_in_sec": bar, "bars_left": left,
+            "sections": [{"start": x["s"], "role": ROLE_NAMES[r]} for x, r in zip(secs, out_roles)]}
 
 
 def phrase_grid(pos: np.ndarray, section_starts: np.ndarray, meter: int) -> np.ndarray:

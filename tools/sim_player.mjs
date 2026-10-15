@@ -21,7 +21,12 @@ Math.random = () => {
 };
 
 const read = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
-const metas = fs.readdirSync(LIB).map((d) => read(path.join(LIB, d, "meta.json"))).filter((m) => m.status === "ready");
+// SIM_IDS=<file with one id per line>: simulate that set only (a big hosted
+// store holds songs whose transitions were never exported).
+const only = process.env.SIM_IDS ? new Set(fs.readFileSync(process.env.SIM_IDS, "utf8").split(/\s+/).filter(Boolean)) : null;
+const metas = fs.readdirSync(LIB).filter((d) => !only || only.has(d))
+  .map((d) => ({ ...read(path.join(LIB, d, "meta.json")), stems: fs.existsSync(path.join(LIB, d, "vocals.flac")) }))
+  .filter((m) => m.status === "ready");
 
 // ---------------------------------------------------------------- fake audio
 const problems = [];
@@ -53,9 +58,41 @@ class FakeVoice {
     this.engine = engine;
     this.track = track;
     this.gain = { gain: new FakeParam(this, "gain") };
-    this.low = { gain: new FakeParam(this, "low") };
+    this.level = { low: 1, mid: 1, high: 1 };
+    this.bandAt = { low: -Infinity, mid: -Infinity, high: -Infinity };
     this.started = null;
+    this.stretched = false;
+    this.shift = 0;
     this.stopTime = Infinity;
+  }
+  // EQ moves on one band must come in time order and stay in range (dB).
+  _band(name, when, db) {
+    if (!(name in this.level)) problems.push(`unknown band ${name}`);
+    if (!(db <= 6 && db >= -100)) problems.push(`band ${name} to ${db} dB`);
+    if (when < this.bandAt[name] - 1e-6) problems.push(`band ${name} moved back in time on ${this.track.id} at ${when.toFixed(3)}`);
+    this.bandAt[name] = when;
+  }
+  setBand(name, when, db) {
+    this._band(name, when, db);
+  }
+  rampBand(name, when, db, dur) {
+    if (!(dur > 0)) problems.push(`band ramp of ${dur}s`);
+    this._band(name, when, db);
+    this.bandAt[name] = when + dur;
+  }
+  hpSweep(when, fromHz, toHz, dur) {
+    if (!(fromHz > 0 && toHz > fromHz && dur > 0)) problems.push(`bad hp sweep ${fromHz}->${toHz} in ${dur}`);
+  }
+  attachVocals(buffer, when, offset) {
+    if (!buffer) problems.push(`vocals attached without a stem on ${this.track.id}`);
+    if (offset < -1e-6) problems.push(`bad vocal offset ${offset}`);
+    this.hasVocals = true;
+  }
+  vocals(when, mode) {
+    if (!["full", "instrumental", "acapella"].includes(mode)) problems.push(`vocal mode ${mode}`);
+  }
+  dispose() {
+    this.engine.voices.delete(this);
   }
   start(when, offset) {
     this.started = when;
@@ -94,7 +131,7 @@ class FakeVoice {
     this.stopTime = t;
   }
 }
-const fxLog = { echo: 0, roll: 0 };
+const fxLog = { echo: 0, roll: 0, wash: 0 };
 const engine = {
   ctx: { state: "running", resume: async () => {}, suspend: async () => {} },
   get now() {
@@ -107,12 +144,27 @@ const engine = {
     this.voices.add(v);
     return v;
   },
+  canStretch: true,
+  stretched: 0,
+  async stretchVoice(track, from, to, vocals) {
+    if (!(to > from && from >= 0)) problems.push(`stretch window ${from}-${to} on ${track.id}`);
+    const v = new FakeVoice(this, track);
+    v.stretched = true;
+    v.hasVocals = !!vocals;
+    this.stretched++;
+    this.voices.add(v);
+    return v;
+  },
   stopAll() {
     for (const v of this.voices) v.release(now);
   },
   echoOut(voice, start, end, delay) {
     fxLog.echo++;
     if (!(end > start && delay > 0.05 && delay < 2)) problems.push(`echo window ${start}-${end} delay ${delay}`);
+  },
+  wash(voice, start, end) {
+    fxLog.wash++;
+    if (!(end > start)) problems.push(`wash window ${start}-${end}`);
   },
   roll(track, slices) {
     fxLog.roll++;
@@ -141,6 +193,7 @@ const loader = {
     return cache.get(id);
   },
   refreshTransitions() {},
+  vocals: (id) => Promise.resolve(metas.find((m) => m.id === id)?.stems ? { stem: id } : null),
 };
 
 // --------------------------------------------------------------------- run
@@ -190,6 +243,8 @@ const changes = []; // per song change: beat kept?, tempo gap (octaves), key fit
 let songStart = null;
 let lastJumpT = -Infinity;
 const counts = {};
+const styles = {};
+let keylocked = 0;
 const seconds = new Map();
 let lastLog = 0;
 const step = 0.04;
@@ -233,8 +288,10 @@ while (now < end) {
         });
       }
     }
-    if (["start", "promote", "cut", "drop", "fade", "echo", "brake", "roll"].includes(e.kind)) songStart = e.t;
+    if (["start", "promote", "cut", "drop", "fade", "echo", "wash", "brake", "roll"].includes(e.kind)) songStart = e.t;
     counts[e.kind] = (counts[e.kind] || 0) + 1;
+    if (e.kind === "blendStart" && e.tr) styles[e.tr.style || "?"] = (styles[e.tr.style || "?"] || 0) + 1;
+    if (e.tr && ["blendStart", "cut", "drop"].includes(e.kind) && e.tr.keylock) keylocked++;
     seconds.set(e.track.id, (seconds.get(e.track.id) || 0) + e.track.dur[e.beat] / e.rate);
     last = e;
     steps++;
@@ -261,6 +318,7 @@ const title = (id) => (metas.find((m) => m.id === id)?.title || id).slice(0, 38)
 console.log(`\nsimulated ${minutes} min in ${mode} mode over ${metas.length} tracks`);
 console.log(`steps ${steps}, max schedule deviation ${(maxDev * 1000).toFixed(4)} ms, fell off the end ${fellOff}x`);
 console.log(`events`, counts);
+console.log(`blend styles`, styles, `| key-locked hand-overs ${keylocked} (stretch voices prepared ${engine.stretched})`);
 console.log(`jumps ${player.stats.jumps} (${(player.stats.jumps / minutes).toFixed(1)}/min), back-to-back (<1.5 s apart) ${rapid}, transitions ${player.stats.transitions}`);
 const via = {};
 for (const h of player.history) via[h.via] = (via[h.via] || 0) + 1;

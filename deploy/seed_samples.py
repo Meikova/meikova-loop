@@ -1,7 +1,8 @@
-"""Puts a zip of songs on the server as the sample library: uploads them
+"""Puts a zip of songs on the server as one sample library: uploads them
 through the running app (so its workers analyse them side by side), waits
-until they are ready, names them the sample library and links them all.
-On the box: .venv/bin/python deploy/seed_samples.py <songs.zip> "<name>" """
+until they are ready, names them a sample library and links them all.
+(Creative Commons libraries from Jamendo, ccMixter, Incompetech: seed_cc.py.)
+On the box: .venv/bin/python deploy/seed_samples.py <songs.zip> "<name>" ["<blurb>"]"""
 import json
 import os
 import subprocess
@@ -59,7 +60,9 @@ def main():
             print(f"  error {t['id']} {t['title']}: {t['error']}")
     ready = [t for t in ids if any(s["id"] == t and s["status"] == "ready" for s in st)]
     env = dict(os.environ, MASHLOOP_DATA=os.environ.get("MASHLOOP_DATA", str(ROOT / "data")))
-    subprocess.run([sys.executable, "-m", "loopbox.cli", "samples", "--name", name, *ready], cwd=ROOT, env=env, check=True)
+    blurb = sys.argv[3] if len(sys.argv) > 3 else ""
+    subprocess.run([sys.executable, "-m", "loopbox.cli", "samples", "--name", name, "--blurb", blurb, *ready],
+                   cwd=ROOT, env=env, check=True)
     # One library holding all of them links every pair once, for everybody.
     sid = call("POST", "/api/session")["sid"]
     call("POST", "/api/tracks", sid, body={"ids": ready})

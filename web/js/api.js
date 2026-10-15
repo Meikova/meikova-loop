@@ -52,6 +52,20 @@ async function unscramble(buf, tid) {
 
 export const ready = () => (session.id ? Promise.resolve(session) : open());
 
+async function sound(id, kind, kid, retry) {
+  await ready();
+  const r = await fetch(`/api/tracks/${id}/${kind}`, { headers: { "X-Session": session.id } });
+  if (r.status === 410 && retry) {
+    session.id = null;
+    await open();
+    await hooks.restore();
+    return sound(id, kind, kid, false);
+  }
+  if (!r.ok) await fail(r);
+  const buf = await r.arrayBuffer();
+  return r.headers.get("X-Mash") === "1" ? unscramble(buf, kid) : buf;
+}
+
 async function fail(r) {
   let msg = `${r.status}`;
   try {
@@ -90,17 +104,11 @@ export const api = {
   transitions: (id) => json(`/api/tracks/${id}/transitions`),
   samples: () => json("/api/samples"),
   async audio(id, retry = true) {
-    await ready();
-    const r = await fetch(`/api/tracks/${id}/audio`, { headers: { "X-Session": session.id } });
-    if (r.status === 410 && retry) {
-      session.id = null;
-      await open();
-      await hooks.restore();
-      return api.audio(id, false);
-    }
-    if (!r.ok) await fail(r);
-    const buf = await r.arrayBuffer();
-    return r.headers.get("X-Mash") === "1" ? unscramble(buf, id) : buf;
+    return sound(id, "audio", id, retry);
+  },
+  // The vocal stem of a sung song (scrambled with its own key, "<id>:v").
+  async vocals(id, retry = true) {
+    return sound(id, "vocals", `${id}:v`, retry);
   },
   // The file is the request body; XHR because fetch cannot report upload progress.
   async upload(file, onProgress = () => {}) {
@@ -189,6 +197,24 @@ export class Loader extends EventTarget {
     } catch (_) {
       /* keep the old list */
     }
+  }
+
+  // The vocal stem of a loaded song, decoded (null when it has none), kept as
+  // long as the song: fetched only for a transition that hands over by layers.
+  vocals(id) {
+    if (!this.metas.get(id)?.stems) return Promise.resolve(null);
+    const hit = this.cache.get(id);
+    if (hit?.vocals) return hit.vocals;
+    const p = (async () => {
+      const raw = await api.vocals(id);
+      return this.engine.ctx.decodeAudioData(raw);
+    })();
+    p.catch(() => {
+      const e = this.cache.get(id);
+      if (e && e.vocals === p) e.vocals = null;
+    });
+    if (hit) hit.vocals = p;
+    return p;
   }
 
   drop(id) {

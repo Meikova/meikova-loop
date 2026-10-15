@@ -22,25 +22,49 @@ let metas = [];
 let workerState = null;
 let serverStale = false;
 let lastLinks = null;
-// The sample library: songs kept analysed on the server, for a first visit
-// that does not know what to add. They come in ready and the chain starts.
-const samples = { name: "", ids: [] };
+// The sample libraries, by theme: songs kept analysed on the server, for a
+// visit that does not know what to add. They come in ready and the chain starts.
+const samples = { libraries: [], ids: [] };
+let moreOpen = false; // the "add a sample library" fold under a library that has songs
+// Every song this visit has seen, so the setlist still names one that has left the library.
+const known = new Map();
+
+// The sample libraries also play as a chain of their own: the library being
+// heard (cur) and the next one (next), taken into this library ahead of time,
+// out of sight, so the chain can mix across into it when the way there is good.
+// "Kho khác" (or the timer) makes the next exit go there; once a song of it
+// plays, the library left behind goes, unless the listener opened it by hand.
+const kho = { cur: null, next: null, pinned: new Set(), force: false, forceAt: 0, heard: 0, visits: new Map() };
+const libOf = (id) => samples.libraries.find((l) => l.ids.includes(id))?.key || null;
+const libByKey = (key) => samples.libraries.find((l) => l.key === key) || null;
+const shownLib = (key) => !key || kho.pinned.has(key) || key === kho.cur; // in the list (null: the listener's own song)
 // The server forgot this visit's library (it restarted): add the songs back.
 hooks.restore = async () => {
   const ids = metas.map((m) => m.id);
   if (ids.length) await api.restore(ids).catch(() => {});
 };
 const byId = () => new Map(metas.map((m) => [m.id, m]));
-const songOf = (m) => splitTitle(m?.title || "", m?.channel || "");
+// A credited song (the Creative Commons libraries) has its exact title and
+// artist already: "Anyway - Produced by J. Glaze" is a title, not "artist - title".
+const songOf = (m) => m?.credit
+  ? { title: m.title || "", artist: m.channel || m.credit.artist || "" }
+  : splitTitle(m?.title || "", m?.channel || "");
 const titleOf = (id) => {
-  const m = byId().get(id);
+  const m = byId().get(id) || known.get(id);
   return m ? songOf(m).title : id;
 };
 
 player.enabled = (id) => {
   const m = byId().get(id);
-  return !!m && m.status === "ready" && m.enabled !== false;
+  if (!m || m.status !== "ready" || m.enabled === false) return false;
+  if (!kho.cur) return true;
+  const lib = libOf(id);
+  if (kho.force) return lib === kho.next;
+  return shownLib(lib) || (lib === kho.next && ui.crossKho);
 };
+// A little reluctance to leave the library being heard: the chain crosses
+// into the next one when the way there is clearly the better transition.
+player.bias = (id) => (kho.cur && !kho.force && libOf(id) === kho.next ? -0.12 : 0);
 loader.protect = () => [player.cur?.track.id, player.plan?.tr.to, player.blend?.B.id, ...player.prefetchIds].filter(Boolean);
 loader.addEventListener("transitions", () => {
   viz.invalidate();
@@ -73,16 +97,18 @@ document.fonts?.ready.then(placeIndicators);
 // ------------------------------------------------------------------ settings
 
 const STORE = "loopbox.settings.v1";
+const BLEND_STYLES = ["long", "eq", "short", "filter", "swap", "stem", "acapella"];
 // 2: the abrupt effects (brake, roll) became opt-in; older saved settings that
 // had them on from the first release of effects are switched off once.
 const SETTINGS_VERSION = 2;
-const ui = { freq: 0.45, strict: 0.5, volume: 0.85, theme: "mood" };
+const ui = { freq: 0.45, strict: 0.5, volume: 0.85, theme: "mood", crossKho: true, khoMinutes: 0 };
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
   if (saved) {
     Object.assign(ui, saved.ui || {});
     Object.assign(player.settings, saved.player || {});
     player.settings.allow = { ...DEFAULTS.allow, ...(saved.player?.allow || {}) };
+    player.settings.blendStyles = { ...DEFAULTS.blendStyles, ...(saved.player?.blendStyles || {}) };
     if ((saved.v || 1) < 2) {
       player.settings.allow.brake = false;
       player.settings.allow.roll = false;
@@ -126,13 +152,20 @@ function applySettings() {
   $("#s-variety").value = s.variety;
   $("#v-variety").textContent = `${Math.round(s.variety * 100)}%`;
   $("#s-cut").checked = s.allow.cut;
+  $("#s-drop").checked = s.allow.drop !== false;
   $("#s-blend").checked = s.allow.blend;
+  for (const k of BLEND_STYLES) $(`#s-bl-${k}`).checked = s.blendStyles[k] !== false;
+  $("#blend-styles").disabled = !s.allow.blend; // the ways to blend, while blends are on
   $("#s-fade").checked = s.allow.fade;
   $("#s-echo").checked = s.allow.echo !== false;
+  $("#s-wash").checked = s.allow.wash !== false;
   $("#s-brake").checked = s.allow.brake !== false;
   $("#s-roll").checked = s.allow.roll !== false;
   $("#s-vol").value = ui.volume;
   $("#v-vol").textContent = `${Math.round(ui.volume * 100)}`;
+  $("#s-cross").checked = ui.crossKho;
+  $("#s-kmin").value = ui.khoMinutes;
+  $("#v-kmin").textContent = ui.khoMinutes ? `${ui.khoMinutes} phút` : "tắt";
   if (!theme.THEMES[ui.theme]) ui.theme = "mood";
   for (const r of document.querySelectorAll('input[name="look"]')) r.checked = r.value === ui.theme;
   if (theme.setTheme(ui.theme)) recolor();
@@ -160,10 +193,26 @@ $("#s-dmax").addEventListener("input", (e) => {
   if (player.settings.dwellMin > player.settings.dwellMax) player.settings.dwellMin = player.settings.dwellMax;
   applySettings();
 });
-for (const k of ["cut", "blend", "fade", "echo", "brake", "roll"]) {
+for (const k of ["cut", "drop", "blend", "fade", "echo", "wash", "brake", "roll"]) {
   $(`#s-${k}`).addEventListener("change", (e) => ((player.settings.allow[k] = e.target.checked), applySettings()));
 }
+for (const k of BLEND_STYLES) {
+  $(`#s-bl-${k}`).addEventListener("change", (e) => {
+    player.settings.blendStyles[k] = e.target.checked;
+    // A blend the chain planned in a style now off is planned again.
+    if (player.plan && !player.plan.picked && player.plan.tr.type === "blend") player.cancelPlan();
+    player.prefetchedFor = null;
+    applySettings();
+  });
+}
 $("#s-vol").addEventListener("input", (e) => ((ui.volume = +e.target.value), applySettings()));
+$("#s-cross").addEventListener("change", (e) => {
+  ui.crossKho = e.target.checked;
+  if (player.plan && !player.plan.picked) player.cancelPlan(); // planned under the old rule
+  player.prefetchedFor = null;
+  applySettings();
+});
+$("#s-kmin").addEventListener("input", (e) => ((ui.khoMinutes = +e.target.value), applySettings()));
 for (const r of document.querySelectorAll('input[name="look"]')) {
   r.addEventListener("change", () => ((ui.theme = r.value), applySettings()));
 }
@@ -249,6 +298,7 @@ $("#btn-play").addEventListener("click", async () => {
 });
 $("#btn-jump").addEventListener("click", () => player.requestJump());
 $("#btn-next").addEventListener("click", () => player.requestNextSong());
+$("#btn-kho").addEventListener("click", () => switchKho());
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input, textarea, select")) return;
   if (e.code === "Space") {
@@ -257,12 +307,97 @@ document.addEventListener("keydown", (e) => {
     $("#btn-play").click();
   } else if (e.key === "j" || e.key === "J") player.requestJump();
   else if (e.key === "n" || e.key === "N") player.requestNextSong();
+  else if (e.key === "k" || e.key === "K") switchKho();
 });
 player.addEventListener("state", renderTransport);
 player.addEventListener("track", () => {
+  enteredSong();
   renderLibrary();
   renderExits();
 });
+
+// ------------------------------------------------------- sample library chain
+
+// Takes the next sample library into this one, out of sight: the one heard
+// least recently (never heard first), in the shelf's order.
+let preparing = null;
+function prepareNext() {
+  if (!kho.cur || kho.next || preparing) return preparing;
+  const lib = samples.libraries
+    .filter((l) => l.key !== kho.cur && !kho.pinned.has(l.key))
+    .sort((a, b) => (kho.visits.get(a.key) || 0) - (kho.visits.get(b.key) || 0))[0];
+  if (!lib) return null;
+  preparing = (async () => {
+    await api.restore(lib.ids);
+    kho.next = lib.key;
+    await refresh();
+    loader.refreshAll(); // the song playing now learns its ways into the next library
+    viz.invalidate(); // which exits the stage shows depends on the libraries in play
+    renderExits();
+    renderTransport();
+  })().catch(() => {}).finally(() => (preparing = null));
+  return preparing;
+}
+
+// A song of another sample library has started: that library is the one
+// heard now, and the next comes in. The one left behind goes, unless the chain
+// wandered out of a library opened by hand; "Kho khác" (or the timer) swaps
+// the whole library, so then it goes too.
+function enteredSong() {
+  const id = player.cur?.track.id;
+  const lib = id ? libOf(id) : null;
+  if (!lib || lib === kho.cur || (!kho.cur && !kho.pinned.has(lib))) return;
+  const left = kho.cur;
+  const swapped = kho.force;
+  kho.cur = lib;
+  if (kho.next === lib) kho.next = null;
+  kho.force = false;
+  kho.heard = 0;
+  kho.visits.set(lib, Date.now());
+  if (left && (swapped || !kho.pinned.has(left))) {
+    kho.pinned.delete(left);
+    dropLib(left);
+  }
+  prepareNext();
+  viz.invalidate();
+  renderTransport();
+}
+
+function dropLib(key) {
+  const keep = new Set(loader.protect());
+  for (const id of libByKey(key)?.ids || []) {
+    if (keep.has(id)) continue;
+    loader.drop(id);
+    api.remove(id).catch(() => {});
+  }
+  refresh();
+}
+
+// "Kho khác": the next exit goes into the next library, at the nearest good
+// point, the way "Bài khác" finds one for any song.
+async function switchKho() {
+  if (!kho.cur || !player.cur || player.settings.mode !== "chain" || kho.force) return;
+  await prepareNext();
+  if (!kho.next) return;
+  kho.force = true;
+  kho.forceAt = performance.now();
+  player.requestNextSong();
+  viz.invalidate();
+  renderExits();
+  renderTransport();
+}
+
+// The timer counts listening time in the library being heard; a switch that
+// finds no way in after half a minute starts the next library outright.
+setInterval(() => {
+  if (!kho.cur || !player.cur || !player.playing || player.settings.mode !== "chain") return;
+  kho.heard += 2;
+  if (!kho.force && ui.khoMinutes && kho.heard >= ui.khoMinutes * 60) switchKho();
+  if (kho.force && performance.now() - kho.forceAt > 30000 && libOf(player.plan?.tr.to) !== kho.next) {
+    const first = metas.find((m) => m.status === "ready" && libOf(m.id) === kho.next);
+    if (first) play(first.id);
+  }
+}, 2000);
 player.addEventListener("plan", renderExits);
 
 function renderTransport() {
@@ -273,6 +408,13 @@ function renderTransport() {
   btn.disabled = busy || (!player.cur && !metas.some((m) => m.status === "ready"));
   $("#btn-jump").disabled = !player.cur;
   $("#btn-next").disabled = !player.cur || player.settings.mode !== "chain";
+  const k = $("#btn-kho");
+  k.hidden = !kho.cur;
+  k.disabled = !player.cur || player.settings.mode !== "chain" || kho.force;
+  k.setAttribute("aria-pressed", kho.force);
+  const next = libByKey(kho.next);
+  k.title = kho.force ? `Đang tìm điểm nối sang ${next?.name || "kho khác"}`
+    : `Sang kho khác${next ? ` (${next.name})` : ""} ở điểm nối gần nhất (K)`;
 }
 
 // ------------------------------------------------------------------ library
@@ -359,13 +501,28 @@ function paintMinis() {
   }
 }
 
+// A Creative Commons song carries its licence and a link back to where it lives.
+function creditLine(c) {
+  if (!c?.license) return "";
+  const link = (href, text) => href
+    ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`
+    : esc(text);
+  return `<div class="s cc">${link(c.license_url, c.license)}${c.via ? ` · ${link(c.page, c.via)}` : ""}</div>`;
+}
+
+function libCards(libs) {
+  return `<div class="libs">${libs.map((l) => `<button type="button" class="lib" data-act="samples" data-key="${esc(l.key)}">
+      <b>${esc(l.name)}</b><span>${l.ids.length} bài${l.blurb ? ` · ${esc(l.blurb)}` : ""}</span>
+    </button>`).join("")}</div>`;
+}
+
 function trackRow(m) {
   const playing = player.audible()?.entry.track.id === m.id;
   let lead, status;
   if (m.status === "ready") {
     lead = `<canvas class="mini" data-id="${esc(m.id)}" width="76" height="76" aria-hidden="true"></canvas>`;
     const artist = songOf(m).artist;
-    status = `<div class="s">${artist ? `<span class="a">${esc(artist)}</span> · ` : ""}${m.bpm ? m.bpm.toFixed(0) : "?"} BPM · ${esc(m.camelot || "")}</div>`;
+    status = `<div class="s">${artist ? `<span class="a">${esc(artist)}</span> · ` : ""}${m.bpm ? m.bpm.toFixed(0) : "?"} BPM · ${esc(m.camelot || "")}</div>${creditLine(m.credit)}`;
   } else if (m.status === "error") {
     lead = `<span class="pending" style="--p:0;opacity:.5" aria-hidden="true"></span>`;
     status = `<div class="s err">${esc(m.error || "lỗi")}</div>`;
@@ -388,14 +545,21 @@ function trackRow(m) {
 
 let lastListHtml = "";
 function renderLibrary() {
-  const sampleBtn = samples.ids.length
-    ? `<button type="button" class="ghost sample-btn" data-act="samples">Nghe thử ${esc(samples.name)} · ${samples.ids.length} bài</button>`
-    : "";
-  const html = metas.length
-    ? metas.slice().reverse().map(trackRow).join("")
-    : session.multiuser
-      ? `<li class="empty">${ICON.inf}Thư viện của bạn đang trống.<br>Dán link YouTube, SoundCloud, Zing MP3, gõ tên bài, hoặc thả file nhạc (cả file zip) vào đây.<br>Chưa biết thêm gì? Nghe thử một thư viện có sẵn:${sampleBtn}</li>`
-      : `<li class="empty">${ICON.inf}Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.${sampleBtn}</li>`;
+  const shown = metas.filter((m) => shownLib(libOf(m.id))); // the next sample library stays out of sight
+  const have = new Set(shown.map((m) => m.id));
+  const offer = samples.libraries.filter((l) => l.ids.some((id) => !have.has(id))); // not yet wholly here
+  let html;
+  if (shown.length) {
+    html = shown.slice().reverse().map(trackRow).join("");
+    if (offer.length) {
+      html += `<li class="more"><details${moreOpen ? " open" : ""}><summary>Thêm một kho có sẵn · ${offer.length} kho</summary>${libCards(offer)}</details></li>`;
+    }
+  } else {
+    const intro = session.multiuser
+      ? "Thư viện của bạn đang trống.<br>Dán link YouTube, SoundCloud, Zing MP3, Jamendo, gõ tên bài, hoặc thả file nhạc (cả file zip) vào đây."
+      : "Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.";
+    html = `<li class="empty">${ICON.inf}${intro}${offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
+  }
   if (html !== lastListHtml) {
     lastListHtml = html;
     $("#track-list").innerHTML = html;
@@ -424,19 +588,37 @@ function renderLibrary() {
 }
 
 async function loadSamples(btn) {
+  const lib = samples.libraries.find((l) => l.key === btn.dataset.key);
+  if (!lib) return;
+  const note = btn.querySelector("span");
   btn.disabled = true;
-  btn.textContent = "Đang mở thư viện mẫu…";
+  note.textContent = "Đang mở…";
   engine.ctx.resume(); // inside the click: lets the chain start playing below
   try {
-    await api.restore(samples.ids);
+    await api.restore(lib.ids);
+    // Opened by hand: it stays in the library while the chain wanders.
+    kho.pinned.add(lib.key);
+    if (kho.next === lib.key) kho.next = null;
+    if (!kho.cur) {
+      kho.cur = lib.key;
+      kho.heard = 0;
+      kho.visits.set(lib.key, Date.now());
+    }
+    moreOpen = false;
     await refresh();
-    const first = metas.find((m) => m.status === "ready");
+    const first = metas.find((m) => m.status === "ready" && lib.ids.includes(m.id));
     if (first && !player.cur) await play(first.id);
+    prepareNext();
+    renderTransport();
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = `Không mở được: ${err.message}`;
+    note.textContent = `Không mở được: ${err.message}`;
   }
 }
+
+$("#track-list").addEventListener("toggle", (e) => {
+  if (e.target.matches(".more details")) moreOpen = e.target.open;
+}, true);
 
 $("#track-list").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-act]");
@@ -469,6 +651,7 @@ async function refresh() {
   try {
     const r = await api.tracks();
     metas = r.tracks;
+    for (const m of metas) known.set(m.id, m);
     workerState = r.worker;
     loader.setMetas(metas);
     // New pairs were linked in this library: loaded songs pick up their new exits.
@@ -502,12 +685,27 @@ function schedulePoll() {
 
 const isUrl = (s) => /^https?:\/\//i.test(s.trim());
 
+// Hosted: before the first song a visitor brings in (a link, a search result,
+// a file), they confirm they may use it. Asked once per visit, kept nowhere.
+let consented = false;
+async function consent() {
+  await ready();
+  if (!session.multiuser || consented) return true;
+  const dlg = $("#consent");
+  dlg.returnValue = "";
+  dlg.showModal();
+  await new Promise((resolve) => dlg.addEventListener("close", resolve, { once: true }));
+  consented = dlg.returnValue === "yes";
+  return consented;
+}
+
 $("#add-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("#add-input").value.trim();
   if (!text) return;
   const box = $("#search-results");
   const submit = $("#add-form button[type=submit]");
+  if (isUrl(text) && !(await consent())) return;
   submit.disabled = true;
   if (isUrl(text)) {
     box.innerHTML = `<div class="msg">Đang thêm…</div>`;
@@ -545,7 +743,7 @@ $("#add-form").addEventListener("submit", async (e) => {
 
 $("#search-results").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-url]");
-  if (!btn) return;
+  if (!btn || !(await consent())) return;
   btn.disabled = true;
   btn.textContent = "…";
   try {
@@ -578,6 +776,7 @@ function renderUploads() {
 }
 
 async function uploadFiles(files) {
+  if (!files.length || !(await consent())) return;
   const maxMb = session.limits.upload_mb || 80;
   for (const f of files) {
     const u = { name: f.name, p: 0, done: false, error: null, file: f };
@@ -642,8 +841,16 @@ document.addEventListener("drop", (e) => {
 
 // ------------------------------------------------------------- stage text
 
-const KIND = { cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", echo: "echo vang", brake: "phanh đĩa", roll: "cuộn nhịp" };
+const KIND = { cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", echo: "echo vang", wash: "reverb wash", brake: "phanh đĩa", roll: "cuộn nhịp" };
 const KIND_CAP = KIND_VI;
+// A blend named by how the two songs are mixed.
+const BLEND_STYLE = { long: "blend dài", eq: "blend EQ", short: "blend ngắn", filter: "blend lọc", swap: "drop swap",
+  stem: "trao giọng", acapella: "acapella" };
+const kindOf = (tr) => (tr.type === "blend" && BLEND_STYLE[tr.style]) || KIND[tr.type] || tr.type;
+const kindCap = (tr) => {
+  const s = tr.type === "blend" && BLEND_STYLE[tr.style];
+  return s ? s[0].toUpperCase() + s.slice(1) : KIND_CAP[tr.type] || tr.type;
+};
 const CRIT_TAG = { mood: "CÙNG MOOD", tempo: "CÙNG NHỊP", key: "HỢP TÔNG", free: "TỰ DO" };
 
 // Why the chain picked this exit, in the terms of the chosen criterion.
@@ -697,7 +904,8 @@ function renderStage() {
   setHTML($("#rc-title"), esc(song.title || shown.id));
   setHTML($("#rc-meta"), `${song.artist ? `<span class="rc-artist">${esc(song.artist)}</span>` : ""}<span class="mono">${sa.bpm.toFixed(0)} BPM · ${esc(sa.camelot)} · ${esc(sa.key)}</span>`);
   const crit = p.settings.mode === "chain" && CRIT_TAG[p.settings.criterion] ? ` · ${CRIT_TAG[p.settings.criterion]}` : "";
-  setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}${crit}</b> // ${esc(short(shown.meta.channel || shown.meta.title || "", 34))}`);
+  const inLib = libByKey(libOf(shown.id));
+  setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}${crit}</b> // ${inLib ? `${esc(inLib.name)} · ` : ""}${esc(short(song.artist || shown.meta.title || "", 34))}`);
   const listened = Math.max(0, view.now - p.stats.startedAt);
   setHTML($("#ro-tr"), `<span class="mono">∞ ${fmt(listened)}</span><span class="ro-stats"> · ${p.stats.jumps} nhảy · ${p.stats.transitions} chuyển</span>`);
 
@@ -713,7 +921,7 @@ function renderStage() {
   } else if (p.plan) {
     const eta = Math.max(0, p.plan.eta - now);
     const note = bendNote(p.plan.tr);
-    next = `${p.plan.picked ? "Bạn đã chọn: " : "Sắp "}${KIND[p.plan.tr.type] || p.plan.tr.type} sang <strong>${name(p.plan.tr.to)}</strong> · <span class="eta">${fmt(eta)}</span>` +
+    next = `${p.plan.picked ? "Bạn đã chọn: " : "Sắp "}${kindOf(p.plan.tr)} sang <strong>${name(p.plan.tr.to)}</strong> · <span class="eta">${fmt(eta)}</span>` +
       ` · khớp ${Math.round(p.plan.tr.q * 100)}%${criterionNote(T, p.plan.tr)}${note ? ` · ${note}` : ""}${p.plan.target ? "" : " · đang tải"}`;
   } else if (p.settings.mode === "chain") {
     const left = p.dwellStart + p.settings.dwellMin - now;
@@ -751,9 +959,9 @@ $("#canvas-wrap").append(exits);
 
 function renderExits() {
   const T = player.cur?.track;
-  const list = T ? T.transitions.filter((tr) => player.enabled(tr.to)).sort((x, y) => y.q - x.q).slice(0, 8) : [];
+  const list = T ? T.transitions.filter((tr) => player.canTake(T, tr)).sort((x, y) => y.q - x.q).slice(0, 8) : [];
   exits.querySelector("ul").innerHTML = list.map((tr, k) =>
-    `<li><button type="button" data-k="${k}">${KIND_CAP[tr.type]} → ${esc(short(titleOf(tr.to), 32))} <span class="mono">${Math.round(tr.q * 100)}%</span></button></li>`).join("");
+    `<li><button type="button" data-k="${k}">${kindCap(tr)} → ${esc(short(titleOf(tr.to), 32))} <span class="mono">${Math.round(tr.q * 100)}%</span></button></li>`).join("");
   exits.hidden = !list.length;
   exits._list = list;
 }
@@ -762,7 +970,14 @@ exits.addEventListener("click", (e) => {
   if (!btn) return;
   const ok = player.planTransition(exits._list[+btn.dataset.k]);
   btn.classList.toggle("is-bad", !ok);
+  btn.title = ok ? "" : PICK_ERROR[player.pickError] || PICK_ERROR.gone;
 });
+const PICK_ERROR = {
+  busy: "Đang chuyển sang bài khác: chọn lại khi bài sau đã vào hẳn",
+  unreachable: "Từ chỗ đang phát không có đường tới điểm này",
+  soon: "Điểm này tới quá sát: chọn điểm xa hơn một chút",
+  gone: "Điểm này không còn dùng được",
+};
 
 setInterval(() => {
   renderStage();
@@ -811,11 +1026,14 @@ ready().then(() => {
     // Hosted: a library per visit; pairs are linked automatically and shared.
     $("#add-hint").textContent = "Mỗi lần mở trang là một thư viện mới. Bài ai đó đã thêm trước sẽ vào ngay, không phải chờ phân tích.";
     $("#btn-relink").hidden = true;
+    $("#fine").hidden = false;
+    for (const el of document.querySelectorAll("[data-ttl]")) el.textContent = session.limits.audio_ttl_h || 12;
   }
   if (session.limits.upload_mb) $("#upload-limit").textContent = `, tối đa ${session.limits.upload_mb} MB`;
   renderLibrary();
   api.samples().then((s) => {
-    Object.assign(samples, s);
+    samples.libraries = s.libraries || [];
+    samples.ids = [...new Set(samples.libraries.flatMap((l) => l.ids))];
     lastListHtml = "";
     renderLibrary();
   }, () => {});

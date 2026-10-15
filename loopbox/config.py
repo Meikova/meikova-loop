@@ -36,6 +36,11 @@ MAX_SESSION_TRACKS = _env_int("MASHLOOP_MAX_SESSION_TRACKS", 60)
 MAX_PLAYLIST = _env_int("MASHLOOP_MAX_PLAYLIST", 25)
 MAX_UPLOAD_MB = _env_int("MASHLOOP_MAX_UPLOAD_MB", 80)
 SESSION_TTL_S = _env_int("MASHLOOP_SESSION_TTL_H", 12) * 3600
+# Hosted, the sound of a song nobody has used for this long is deleted; what the
+# analysis made stays, so adding the song again only fetches the sound (an
+# uploaded file has to be uploaded again). The sample library and the songs an
+# open library holds are kept.
+AUDIO_TTL_S = _env_int("MASHLOOP_AUDIO_TTL_H", 12) * 3600
 # JavaScript runtime yt-dlp uses for YouTube's player challenges (node or deno).
 JS_RUNTIME = os.environ.get("MASHLOOP_JS_RUNTIME") or "node"
 
@@ -48,9 +53,9 @@ MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60)
 DEVICE = "cuda"  # falls back to cpu at runtime when CUDA is unavailable
 
 # Bump when the analysis output changes in a way that requires re-analysis.
-ANALYSIS_VERSION = 5
+ANALYSIS_VERSION = 6
 # Bump when only the cross-track transition search changes.
-TRANSITIONS_VERSION = 5
+TRANSITIONS_VERSION = 7
 
 for d in (LIBRARY_DIR, PAIRS_DIR, TRANSITIONS_DIR):
     d.mkdir(parents=True, exist_ok=True)

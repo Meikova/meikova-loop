@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import os
 import tempfile
+import threading
 import webbrowser
 import zipfile
 from pathlib import Path
@@ -22,7 +23,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import download, ingest, library, ratelimit, sessions, worker
-from .config import DATA_DIR, HOST, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, WEB_DIR
+from .audio import BITRATE as SOUND_KBPS
+from .audio import encode as encode_sound
+from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
+    WEB_DIR
 
 # Songs waiting to be fetched and analysed, all listeners together: past this
 # the server says it is busy rather than queueing for hours.
@@ -50,8 +54,11 @@ def view_of(x_session: str | None = Header(default=None)) -> sessions.View:
 
 def _public(m: dict) -> dict:
     keys = ("id", "title", "channel", "duration", "thumbnail", "url", "status", "stage", "progress",
-            "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at", "mood", "source")
-    return {k: m.get(k) for k in keys}
+            "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at", "mood", "source", "credit")
+    out = {k: m.get(k) for k in keys}
+    # A vocal stem lets the player hand over one layer at a time.
+    out["stems"] = library.valid_id(m.get("id") or "") and library.has_vocals(m["id"])
+    return out
 
 
 def _meta(tid: str) -> dict:
@@ -74,10 +81,34 @@ def _ip(request: Request) -> str:
 
 
 def _is_new(tid: str) -> bool:
-    """True when adding tid means fetching and analysing it (it is not in the
-    store, nor on its way for someone else)."""
+    """True when adding tid means fetching it, and analysing it unless it was
+    analysed before (it is not in the store, its sound was deleted after going
+    unused, or it is not on its way for someone else)."""
     m = library.read_meta(tid)
-    return not m or m.get("status") == "error"
+    return not m or m.get("status") == "error" or _dropped(m)
+
+
+def _dropped(m: dict) -> bool:
+    return m.get("status") == "ready" and not library.has_audio(m["id"])
+
+
+def _lost(tid: str) -> bool:
+    """An uploaded song whose sound was deleted: only uploading the file again brings it back."""
+    m = library.read_meta(tid) or {}
+    return bool(m) and _dropped(m) and m.get("source") == "upload"
+
+
+def _restore(tid: str) -> bool:
+    """Queues the sound of a song whose audio was deleted after going unused to
+    be fetched again from its link (the analysis is kept, so it is not redone).
+    False for an uploaded song: only uploading the file again brings it back."""
+    m = library.read_meta(tid) or {}
+    if not m or not _dropped(m):
+        return True
+    if m.get("source") == "upload":
+        return False
+    library.update(tid, status="queued", stage="queued", progress=0.0, error=None)
+    return True
 
 
 def _admit(ip: str, v: sessions.View, ids: list[str]) -> tuple[list[str], str | None]:
@@ -116,6 +147,7 @@ def _add(v: sessions.View, tid: str, added: list) -> None:
         v.add(tid)
     except sessions.LimitError as e:
         raise HTTPException(409, str(e))
+    _restore(tid)
     m = library.read_meta(tid) or {}
     if m.get("status") == "ready":
         v.link(tid)
@@ -130,7 +162,7 @@ def new_session(request: Request):
     v = sessions.create()
     return {"sid": v.id, "multiuser": MULTIUSER, "k": base64.b64encode(v.key).decode() if v.key else None,
             "limits": {"tracks": MAX_SESSION_TRACKS if MULTIUSER else None, "playlist": MAX_PLAYLIST,
-                       "upload_mb": MAX_UPLOAD_MB}}
+                       "upload_mb": MAX_UPLOAD_MB, "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None}}
 
 
 @app.get("/api/tracks")
@@ -155,9 +187,13 @@ def add(req: AddRequest, request: Request, v: sessions.View = Depends(view_of)):
     added: list = []
     if req.ids:  # songs already on the server (a restored library, the samples)
         ids = [t for t in req.ids[:MAX_SESSION_TRACKS * 3] if library.valid_id(t) and library.read_meta(t)]
-        keep, note = _admit(ip, v, ids)
+        gone = [t for t in ids if _lost(t)]
+        keep, note = _admit(ip, v, [t for t in ids if t not in gone])
         for tid in keep:
             _add(v, tid, added)
+        if gone:
+            note = "; ".join(filter(None, [note, f"{len(gone)} bài tải lên đã được xoá khỏi server sau "
+                                                f"{AUDIO_TTL_S // 3600} giờ không ai nghe: hãy tải lại file"]))
         return {"added": added, "note": note}
     text = (req.text or "").strip()
     if not text:
@@ -273,10 +309,14 @@ async def upload(request: Request, v: sessions.View = Depends(view_of), x_filena
 
 @app.get("/api/samples")
 def samples():
-    """The sample library offered to an empty library: songs kept analysed on the server."""
-    s = library.samples()
-    ready = [tid for tid in s["ids"] if (library.read_meta(tid) or {}).get("status") == "ready"]
-    return {"name": s["name"], "ids": ready}
+    """The sample libraries, by theme: songs kept analysed on the server that any
+    library can take in whole."""
+    out = []
+    for lib in library.samples()["libraries"]:
+        ready = [tid for tid in lib["ids"] if (library.read_meta(tid) or {}).get("status") == "ready"]
+        if ready:
+            out.append({"key": lib["key"], "name": lib["name"], "blurb": lib["blurb"], "ids": ready})
+    return {"libraries": out}
 
 
 @app.patch("/api/tracks/{tid}")
@@ -345,12 +385,55 @@ def audio(tid: str, request: Request, v: sessions.View = Depends(view_of)):
     _ready(tid)
     _held(v, tid)
     library.touch(tid)
+    if not library.has_audio(tid):  # deleted after going unused, just before this listener asked
+        if _restore(tid):
+            worker.enqueue_ingest(tid)
+            raise HTTPException(409, "bài đang được tải lại")
+        raise HTTPException(409, "bài tải lên đã được xoá khỏi server: hãy tải lại file")
+    return _send_sound(_transport(tid, "audio"), tid, request, v)
+
+
+@app.get("/api/tracks/{tid}/vocals")
+def vocals(tid: str, request: Request, v: sessions.View = Depends(view_of)):
+    """The vocal stem of a sung song, sent the way its audio is (scrambled
+    with its own key, "<id>:v"), to the session that holds the song."""
+    _ready(tid)
+    _held(v, tid)
+    if not library.has_vocals(tid):
+        raise HTTPException(404, "no vocal stem")
+    return _send_sound(_transport(tid, "vocals"), f"{tid}:v", request, v)
+
+
+_encoding: dict[str, threading.Lock] = {}
+_encoding_guard = threading.Lock()
+
+
+def _transport(tid: str, kind: str) -> Path:
+    """The MP3 a browser is sent (library.transport_path), encoded from the
+    stored lossless file the first time it is asked for when the worker has
+    not made it yet; a vocal stem kept as FLAC before MP3 is converted then."""
+    out = library.transport_path(tid, kind)
+    if out.exists():
+        return out
+    with _encoding_guard:
+        lock = _encoding.setdefault(f"{tid}:{kind}", threading.Lock())
+    with lock:
+        if not out.exists():
+            src = library.audio_path(tid) if kind == "audio" else library.track_dir(tid) / "vocals.flac"
+            if not src.exists():
+                raise HTTPException(404, "no such sound")
+            encode_sound(src, out, "mp3", SOUND_KBPS[kind]["mp3"])
+            if kind == "vocals":
+                src.unlink(missing_ok=True)
+    return out
+
+
+def _send_sound(path: Path, kid: str, request: Request, v: sessions.View) -> Response:
     if not MULTIUSER:
-        return FileResponse(library.audio_path(tid), media_type="audio/flac",
-                            headers={"Cache-Control": "private, max-age=86400"})
+        return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=86400"})
     ratelimit.check(_ip(request), "audio")
-    data = np.frombuffer(library.audio_path(tid).read_bytes(), dtype=np.uint8)
-    ks = np.frombuffer(keystream(v.key, tid), dtype=np.uint8)
+    data = np.frombuffer(path.read_bytes(), dtype=np.uint8)
+    ks = np.frombuffer(keystream(v.key, kid), dtype=np.uint8)
     body = (data ^ np.resize(ks, data.size)).tobytes()
     return Response(body, media_type="application/octet-stream",
                     headers={"Cache-Control": "no-store", "X-Mash": "1"})
@@ -373,11 +456,14 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=PORT)
     args = ap.parse_args()
     worker.start()
-    if not MULTIUSER:
+    if MULTIUSER:
+        worker.start_retention(AUDIO_TTL_S, sessions.in_use)
+    else:
         sessions.local().link()  # pairs missing after an update are computed in the background
     if args.open:
         webbrowser.open(f"http://{args.host}:{args.port}")
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning", proxy_headers=True,
+    # No access log: the client addresses are not kept anywhere.
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning", access_log=False, proxy_headers=True,
                 forwarded_allow_ips="127.0.0.1")
 
 

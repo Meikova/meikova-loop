@@ -45,7 +45,7 @@ def register(tid: str, beats: np.ndarray) -> np.ndarray:
         if len(per_beat) == len(beats):
             return _smooth(per_beat)
     y = audio.load(library.audio_path(tid))
-    stems, names = models.separate(y)
+    stems, names, _ = models.separate(y)
     voc = soxr.resample(stems[names.index("vocals")].astype(np.float32), 44100, 22050)
     f0, vflag, _ = librosa.pyin(voc, fmin=65, fmax=1000, sr=22050, frame_length=2048, hop_length=1024)
     times = librosa.times_like(f0, sr=22050, hop_length=1024)
