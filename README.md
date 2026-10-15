@@ -2,27 +2,35 @@
 
 Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
 
-Mash ∞ Loop tải nhạc từ YouTube về máy, nghe kỹ từng beat, rồi phát mãi không
-dứt. Trong một bài, nó nhảy qua lại giữa những đoạn giống nhau đến mức bạn không
-biết mình đang ở lần lặp thứ mấy. Khi đã ở đủ lâu, nó tìm chỗ nối sang bài khác:
-khớp nhịp nếu được, khớp mood nếu không, và cố gắng không làm bạn giật mình.
+**Nghe thử:** https://mashloop.truclv.com
+
+Mash ∞ Loop nghe kỹ từng beat của bài hát rồi phát mãi không dứt. Trong một bài, nó
+nhảy qua lại giữa những đoạn giống nhau đến mức bạn không biết mình đang ở lần lặp
+thứ mấy. Phần ăn tiền là ở **giữa các bài**: khi đã ở đủ lâu, nó tìm chỗ nối sang bài
+khác, khớp nhịp, nắn tempo, giữ mood, rồi mix sang như một DJ không biết mỏi tay.
 
 ![Hai vòng của dấu ∞: bài đang phát bên trái, bài kế tiếp bên phải, chạm nhau ở điểm mix](web/img/og.png)
 
-Mỗi bài là một vòng của dấu ∞. Chỗ hai vòng chạm nhau là chỗ mix. Tên app, logo và
-màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
+Mỗi bài là một vòng của dấu ∞, mang màu của mood bài đó. Chỗ hai vòng chạm nhau là
+chỗ mix, và ánh sáng đi qua điểm giao để chạy sang vòng của bài sau. Tên app, logo
+và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 
 ## Nó làm gì
 
-- **Lặp một bài mãi mãi**, kiểu [Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/)
-  ngày xưa, nhưng tự phân tích audio thay vì xin dữ liệu của Spotify (cửa đó đóng
-  từ cuối 2024 rồi).
-- **Nối cả thư viện thành một chuỗi**: ở mỗi bài một lúc, rồi đi tới điểm nối tốt
-  gần nhất sang bài khác.
-- **Biết ai đang hát**: không nhảy từ giọng nam sang giọng nữ giữa câu, không cắt
+- **Mash cả thư viện thành một chuỗi.** Không chỉ lặp trong một bài như
+  [Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) ngày
+  xưa: ở mỗi bài một lúc, rồi đi tới điểm nối tốt gần nhất sang bài khác.
+- **Bảy kiểu nối bài**, từ nối thẳng không lộ tới blend kiểu DJ (bảng bên dưới).
+- **Nắn tempo để hai bài khớp nhau.** Lệch tới ~12 % vẫn blend được, kể cả nhịp đôi 70 ↔ 140.
+- **Chọn tiêu chí cho bài kế tiếp:** cân bằng, cùng mood, cùng nhịp, hợp tông (vòng
+  Camelot của DJ, có tính cả cao độ bị dịch khi nắn nhịp), hoặc tự do.
+- **Biết ai đang hát:** không nhảy từ giọng nam sang giọng nữ giữa câu, không cắt
   ngang một câu hát khi hai câu có lời khác nhau.
-- **Biết mood**: chuỗi đi dần từ funk sang disco sang pop, chứ không nhảy thẳng từ
-  một bài dance vào một bản ballad piano.
+- **Mỗi bài một màu theo mood**, cả căn phòng đổi màu theo bài đang phát và chuyển
+  dần sang màu bài sau trong lúc mix. Có quầng phổ âm thanh quanh vòng đang phát.
+  Thích yên tĩnh thì chọn Neon hoặc Hổ phách trong *Tinh chỉnh*.
+- **Nhiều nguồn:** link YouTube (cả playlist), SoundCloud, Bandcamp, Zing MP3,
+  Mixcloud; gõ tên bài để tìm trên YouTube; hoặc thả file nhạc, cả nguyên file zip.
 
 ## Các kiểu nối bài
 
@@ -40,39 +48,37 @@ Khi hai bài lệch tempo, bài đang phát tăng hoặc giảm tốc dần tron
 nên giọng ca sĩ cũng bổng hoặc trầm theo một chút. Độ hợp key được chấm theo đúng cao
 độ sau khi đổi.
 
-## Cài đặt
+## Dùng bản trên web
+
+Mở https://mashloop.truclv.com. Mỗi lần mở trang là một thư viện mới, trống trơn,
+của riêng bạn. Chưa biết thêm gì thì bấm *Nghe thử* để mở thư viện mẫu (18 bài làm
+bằng Suno).
+
+- Mỗi thư viện tối đa 10 bài tự thêm. Bài người khác đã thêm trước đó thì vào ngay,
+  không phải chờ phân tích; bài mới mất chừng 20 giây.
+- Rê chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn
+  điểm chuyển. `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
+
+## Chạy trên máy mình
 
 Đã chạy trên Windows 11 với Python 3.13 và một card NVIDIA. Không có GPU vẫn chạy
 được, chỉ là mỗi bài phân tích lâu hơn.
 
 Cần sẵn: Python 3.11 trở lên, [ffmpeg](https://ffmpeg.org/) trong `PATH`, và
-[Node.js](https://nodejs.org/) (yt-dlp dùng nó để giải mã trình phát của YouTube).
+[Node.js](https://nodejs.org/) 20+ (yt-dlp dùng nó để giải mã trình phát của YouTube).
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 .venv\Scripts\pip install --no-deps beat-this demucs
 .venv\Scripts\pip install -r requirements.txt
-```
-
-Lần phân tích đầu tiên sẽ tải model Beat This! và Demucs (khoảng 160 MB).
-
-## Chạy
-
-```powershell
 .\run.ps1          # mở http://127.0.0.1:8765, tự tắt server cũ nếu còn chạy
 ```
 
-Chưa thử trên macOS hay Linux; lệnh tương đương là `python -m loopbox.server --open`.
-
-Gõ tên bài hoặc dán link video / playlist YouTube vào ô *Thêm bài*. Mỗi bài mất
-chừng 15 đến 25 giây để tải và phân tích, xong là tự nối vào thư viện. Bấm phát.
-
-- **Một bài**: lặp mãi bài đang chọn.
-- **Chuỗi**: đi qua cả thư viện.
-- `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
-- Rê chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn
-  điểm chuyển.
+Lần phân tích đầu tiên sẽ tải model Beat This! và Demucs (khoảng 160 MB). Chạy trên
+máy mình thì là bản cá nhân: một thư viện, giữ lại giữa các lần mở, không giới hạn
+số bài. Chưa thử trên macOS hay Linux; lệnh tương đương là
+`python -m loopbox.server --open`.
 
 Dòng lệnh, nếu bạn thích:
 
@@ -83,6 +89,25 @@ Dòng lệnh, nếu bạn thích:
 .venv\Scripts\python -m loopbox.cli relink     # tính lại điểm nối giữa các bài
 ```
 
+## Dựng cho nhiều người
+
+Đặt `MASHLOOP_MULTIUSER=1` là thành bản cho nhiều người: mỗi lượt truy cập một thư
+viện riêng, bài hát và điểm nối giữa từng cặp bài là kho chung trên server.
+`deploy/` có đủ thứ để dựng trên một máy Ubuntu có GPU:
+
+- `pack.py` đóng gói code, `setup.sh` cài venv, deno và service systemd (app chỉ
+  nghe trên `127.0.0.1`).
+- `haproxy.cfg` và `haproxy-setup.sh`: HAProxy đứng trước, TLS bằng Let's Encrypt tự
+  gia hạn.
+- `seed_samples.py`: biến một file zip nhạc thành thư viện mẫu.
+- `mashloop.service`: số bài phân tích song song, giới hạn mỗi thư viện, dung lượng
+  kho nhạc, tất cả là biến môi trường.
+
+Bản trên web có vài lớp chống lạm dụng, để nó không thành một dịch vụ tải nhạc miễn
+phí: giới hạn số bài mỗi thư viện, giới hạn theo IP cho tìm kiếm, bài mới, file tải
+lên và lượt tải audio, link chỉ nhận từ các trang kể trên, và audio chỉ gửi cho đúng
+thư viện đang giữ bài, đã xáo trộn bằng khoá của lượt truy cập đó.
+
 ## Bên trong
 
 Mỗi bài đi qua một dây chuyền nhỏ (`loopbox/analysis/`):
@@ -92,12 +117,15 @@ Mỗi bài đi qua một dây chuyền nhỏ (`loopbox/analysis/`):
 2. **Demucs** tách trống, bass, giọng hát và phần còn lại.
 3. Mỗi beat được mô tả bằng hòa âm (lấy từ phần không có trống), âm sắc, độ lớn,
    nhịp điệu bên trong beat, mức của từng stem, và giọng hát: cao độ cùng âm sắc của
-   riêng stem vocal.
-4. Key đoán bằng profile Albrecht-Shanahan trên stem hòa âm và bass (đúng 10/11 bài
-   thử). Đoạn và câu nhạc tìm từ ma trận tự tương đồng.
+   riêng stem vocal. Mood của cả bài (năng lượng, độ tươi) suy ra từ trống, tempo,
+   độ sáng và trưởng/thứ.
+4. Key đoán bằng profile Albrecht-Shanahan trên stem hòa âm và bass. Đoạn và câu nhạc
+   tìm từ ma trận tự tương đồng.
 5. Điểm nhảy là cặp beat mà cả cửa sổ 8 beat quanh chúng khớp nhau, cùng vị trí
    trong câu nhạc 4 ô nhịp, có crossfade riêng cho từng chỗ (12 ms nếu trống chắc,
    tới 60 ms nếu là nốt ngân). Đoạn cuối bài được nối cầu để không thành cái bẫy.
+6. Điểm nối giữa hai bài được tìm và lưu cho từng cặp, nên một cặp chỉ tính một lần
+   cho tất cả mọi người. Phân tích chạy song song ở nhiều tiến trình dùng chung GPU.
 
 Phần phát (`web/js/`) là Web Audio API thuần, lên lịch trước 0.6 giây và chính xác
 tới từng mẫu. Đường tới điểm chuyển bài được tìm bằng Dijkstra trên đồ thị nhảy.
@@ -109,28 +137,35 @@ Vì không ai ngồi nghe 3 tiếng liền để test được, nên có mấy c
 
 ```powershell
 node tools\sim_player.mjs 180 chain                 # mô phỏng 3 giờ phát trong vài giây
+$env:CRITERION="tempo"; node tools\sim_player.mjs 360 chain   # ... với một tiêu chí chọn bài
 .venv\Scripts\python tools\e2e_test.py 240          # chạy UI thật trong Chrome, ghi âm output ra WAV
 .venv\Scripts\python tools\eval_splices.py          # điểm nhảy khác bản gốc bao nhiêu
 .venv\Scripts\python tools\eval_voice.py            # nhảy đổi ca sĩ, cắt giữa câu, giữ câu nhạc
 .venv\Scripts\python tools\link_report.py           # thư viện được nối với nhau tốt cỡ nào
 ```
 
-Trên thư viện thử 14 bài: 99 % số cặp bài có một cách nối êm, mỗi lần đổi bài mood
-lệch ít hơn khoảng 35 % so với chọn bừa, và 4 phút phát thật trong Chrome không rớt
-tiếng nào.
+Trên thư viện thử 14 bài, mô phỏng 6 giờ cho mỗi tiêu chí: *cùng mood* làm độ lệch
+mood mỗi lần đổi bài giảm từ 0.49 xuống 0.31 (chọn bừa là 0.76), *cùng nhịp* giữ beat
+liền ở 68 % số lần đổi bài với độ lệch tempo trung bình 4.5 %, *hợp tông* cho 85 %
+cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng nào.
 
 ## Nói thật
 
-- Đây là app chạy local cho một người. Server chỉ nghe trên `127.0.0.1`.
-- Chưa có keylock: muốn khớp key mà không đổi nhịp thì cần một engine time-stretch.
 - Các con số ở trên là đo bằng máy. Tai người vẫn là trọng tài cuối cùng.
+- Chưa có keylock: muốn khớp key mà không đổi nhịp thì cần một engine time-stretch.
+- Zing MP3 chập chờn: nhiều bài chỉ dành cho tài khoản VIP. SoundCloud có bài chỉ cho
+  nghe thử 30 giây, những bài đó bị từ chối.
+- Không có Suno: audio của Suno được mã hóa, và app không phá lớp bảo vệ đó. Có file
+  nhạc của mình thì cứ thả vào.
+- Lớp xáo trộn audio chặn được công cụ tải và việc lưu file vu vơ, không phải DRM:
+  trình duyệt bắt buộc phải nhận được âm thanh thì mới phát được.
 - Chọn bản "audio" trên YouTube sẽ tốt hơn bản MV có đoạn mở đầu dài.
 
 ## Bản quyền
 
-Repo này không chứa bất kỳ file nhạc nào. Nhạc bạn tải về nằm trong `data/` trên máy
-bạn và không đi đâu cả. Dùng cho mục đích cá nhân, tôn trọng điều khoản của YouTube
-và quyền của nghệ sĩ.
+Repo này không chứa bất kỳ file nhạc nào. Nhạc bạn tải về nằm trong `data/` và không
+đi đâu cả. Dùng cho mục đích cá nhân, tôn trọng điều khoản của các trang nhạc và
+quyền của nghệ sĩ.
 
 ## Cảm ơn
 
@@ -147,8 +182,10 @@ làm ra nó.
 
 ## English, briefly
 
-A local, endless jukebox. It downloads songs from YouTube, analyses beats, stems and
-singers on your machine, loops each song through its own seamless jump points, and
-mixes the library into one continuous set: beat-matched blends with tempo bending,
-long filtered crossfades between different moods, and a chain that drifts from style
-to style. The UI is in Vietnamese; the code and its comments are in English.
+An endless jukebox that mashes songs together. It analyses beats, stems, singers and
+mood, loops each song through its own seamless jump points, and mixes a library into
+one continuous set: beat-matched blends with tempo bending, long filtered crossfades
+between moods, and a chain that can follow mood, tempo, key, or nothing at all. Try it
+at https://mashloop.truclv.com (a fresh private library per visit, songs from YouTube,
+SoundCloud, Bandcamp, Zing MP3, Mixcloud or your own files), or run it on your own
+machine. The UI is in Vietnamese; the code and its comments are in English.
