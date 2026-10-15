@@ -140,6 +140,11 @@ trò này trước. Phần nặng nhất là của [Beat This!](https://github.c
 [Demucs](https://github.com/facebookresearch/demucs), [librosa](https://librosa.org/) và
 [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
+## License
+
+[MIT](LICENSE). Áp dụng cho code trong repo này; nhạc bạn tải về vẫn thuộc về người
+làm ra nó.
+
 ## English, briefly
 
 A local, endless jukebox. It downloads songs from YouTube, analyses beats, stems and
