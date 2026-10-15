@@ -23,6 +23,63 @@ const FX = new Set(["echo", "brake", "roll"]);
 const BEND_BEATS = 16;
 // A drop is a cut that does not require alike music: one switch covers both.
 export const allowKey = (type) => (type === "drop" ? "cut" : type);
+// Hand-overs that keep the beat running: the next song comes in locked to it.
+const BEAT_MATCHED = new Set(["cut", "drop", "blend"]);
+
+// What the chain looks for in the next song (settings.criterion). Every
+// criterion is a weighting, never a filter, so the chain cannot get stuck in
+// a song with no exit that fits: it waits a little longer for a good one, and
+// past dwellMax takes what there is.
+//   mood: utility lost per unit of mood distance
+//   beat: lost by a hand-over that does not keep the beat (fade, echo, ...)
+//   tempo: lost per octave of tempo gap (bending, or the BPMs apart)
+//   key: gained per unit of key fit on the Camelot wheel, centred on 0.6
+//   explore: weight of the recency penalty; noise: random spread
+export const CRITERIA = {
+  balanced: { mood: MOOD_WEIGHT, beat: 0, tempo: 0, key: 0, explore: 1, noise: 0.03 },
+  mood: { mood: 3.0, beat: 0, tempo: 0, key: 0, explore: 1, noise: 0.03 },
+  tempo: { mood: 0.15, beat: 0.45, tempo: 3, key: 0, explore: 1, noise: 0.03 },
+  key: { mood: 0.15, beat: 0, tempo: 0, key: 0.9, explore: 1, noise: 0.03 },
+  free: { mood: 0, beat: 0, tempo: 0, key: 0, explore: 2, noise: 0.4 },
+};
+
+const parseCamelot = (s) => {
+  const m = /^(\d{1,2})([AB])$/.exec(s || "");
+  return m ? { n: +m[1], l: m[2] } : null;
+};
+
+// How well two keys sit together for a DJ (the Camelot wheel): same key 1,
+// a step round the wheel 0.85, the relative major or minor 0.8, two steps
+// 0.35, anything else 0. B's key moves with the pitch shift of the bridge
+// (a semitone up is 7 steps round the wheel).
+const wheelStep = (n, semis) => ((((n - 1 + 7 * Math.round(semis)) % 12) + 12) % 12) + 1;
+
+// A Camelot key moved by a pitch shift, as the listener hears it in the mix.
+export function shiftCamelot(cam, semis = 0) {
+  const k = parseCamelot(cam);
+  return k ? `${wheelStep(k.n, semis)}${k.l}` : cam;
+}
+
+export function keyFit(camA, camB, semis = 0) {
+  const a = parseCamelot(camA), b = parseCamelot(camB);
+  if (!a || !b) return 0.6;
+  const nb = wheelStep(b.n, semis);
+  const d = Math.min((a.n - nb + 12) % 12, (nb - a.n + 12) % 12);
+  if (a.l === b.l) return d === 0 ? 1 : d === 1 ? 0.85 : d === 2 ? 0.35 : 0;
+  return d === 0 ? 0.8 : 0;
+}
+
+// The tempo gap a transition has to cover, in octaves: the bending of a
+// beat-matched hand-over, or how far apart the two songs' tempos are
+// (double and half time count as the same tempo).
+export function tempoGap(bpmA, bpmB, tr) {
+  if (BEAT_MATCHED.has(tr.type)) {
+    return Math.abs(Math.log2(tr.rate || 1)) + Math.abs(Math.log2(tr.pre || 1)) + ((tr.m || 1) !== 1 ? 0.04 : 0);
+  }
+  if (!bpmA || !bpmB) return 0.15;
+  const r = Math.log2(bpmB / bpmA);
+  return Math.abs(r - Math.round(r));
+}
 
 function sampleCurve(fn, n = 256) {
   const c = new Float32Array(n);
@@ -46,6 +103,7 @@ export const DEFAULTS = {
   // a median 13 s after dwellMin, the wait mostly being the next phrase start).
   waitCost: 0.05,
   variety: 0.5,
+  criterion: "balanced", // see CRITERIA
   allow: { cut: true, blend: true, fade: true, echo: true, brake: false, roll: false },
 };
 
@@ -565,6 +623,21 @@ export class Player extends EventTarget {
     return scale * (0.8 * Math.max(0, 1 - idx / window) + 0.06 * plays);
   }
 
+  // How much the chain wants this transition, apart from its quality and the
+  // wait for it: the kind of hand-over, the chosen criterion, and whether the
+  // song was heard lately.
+  _appeal(T, tr) {
+    const c = CRITERIA[this.settings.criterion] || CRITERIA.balanced;
+    let u = (TYPE_BIAS[tr.type] ?? 0) - c.mood * (tr.mood ?? 0) - c.explore * this._recency(tr.to);
+    if (c.beat || c.tempo || c.key) {
+      const meta = this.loader.metas?.get(tr.to);
+      if (c.beat && !BEAT_MATCHED.has(tr.type)) u -= c.beat;
+      if (c.tempo) u -= c.tempo * tempoGap(T.analysis.bpm, meta?.bpm, tr);
+      if (c.key) u += c.key * (keyFit(T.analysis.camelot, meta?.camelot, tr.semis ?? 0) - 0.6);
+    }
+    return u;
+  }
+
   // Loads the songs this one is most likely to hand over to, so that an exit
   // only a beat or two away can still be taken.
   _prefetch(force = false) {
@@ -576,7 +649,7 @@ export class Player extends EventTarget {
     const best = new Map();
     for (const tr of T.transitions) {
       if (!this.settings.allow[allowKey(tr.type)] || tr.to === T.id || !this.enabled(tr.to)) continue;
-      const u = tr.q + TYPE_BIAS[tr.type] - MOOD_WEIGHT * (tr.mood ?? 0) - this._recency(tr.to);
+      const u = tr.q + this._appeal(T, tr);
       if (!best.has(tr.to) || u > best.get(tr.to)) best.set(tr.to, u);
     }
     this.prefetchIds = [...best.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]);
@@ -604,8 +677,8 @@ export class Player extends EventTarget {
       if (arrive && trigger === this.cur.beat) arrival = Infinity;
       if (!isFinite(arrival)) continue;
       if (arrival < LOAD_LEAD && !this.loader.has(tr.to)) continue;
-      const u = tr.q - lambda * arrival - this._recency(tr.to) + (TYPE_BIAS[tr.type] ?? 0)
-        - MOOD_WEIGHT * (tr.mood ?? 0) + Math.random() * 0.03;
+      const noise = (CRITERIA[s.criterion] || CRITERIA.balanced).noise;
+      const u = tr.q - lambda * arrival + this._appeal(T, tr) + Math.random() * noise;
       if (!best || u > best.u) best = { tr, u, trigger, arrival };
     }
     if (!best && late) best = this._emergencyExit(T, items);
@@ -669,7 +742,7 @@ export class Player extends EventTarget {
     }
     let pick = null;
     for (const tr of items) {
-      const u = tr.q - this._recency(tr.to);
+      const u = tr.q + this._appeal(T, tr) - (TYPE_BIAS[tr.type] ?? 0);
       if (!pick || u > pick.u) pick = { to: tr.to, u };
     }
     if (!pick) return null;

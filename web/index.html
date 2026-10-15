@@ -107,6 +107,28 @@
       </div>
 
       <div id="tab-settings" class="tab" role="tabpanel">
+        <section class="group" aria-labelledby="g-look">
+          <h2 class="label" id="g-look">Màu</h2>
+          <fieldset class="kinds looks">
+            <legend class="sub">Ánh sáng của căn phòng</legend>
+            <label class="kind look">
+              <input type="radio" name="look" value="mood">
+              <span class="swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span><b>Theo mood</b>mỗi bài một màu, đổi dần khi mix</span>
+            </label>
+            <label class="kind look">
+              <input type="radio" name="look" value="neon">
+              <span class="swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span><b>Neon</b>màu rực, nền đêm</span>
+            </label>
+            <label class="kind look">
+              <input type="radio" name="look" value="amber">
+              <span class="swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span><b>Hổ phách</b>vàng ấm như bản đầu</span>
+            </label>
+          </fieldset>
+        </section>
+
         <section class="group" aria-labelledby="g-jump">
           <h2 class="label" id="g-jump">Trong một bài</h2>
           <label class="row">
@@ -122,6 +144,29 @@
 
         <section class="group" aria-labelledby="g-chain">
           <h2 class="label" id="g-chain">Chuỗi bài</h2>
+          <fieldset class="choices">
+            <legend class="sub">Chọn bài kế tiếp theo</legend>
+            <label class="choice">
+              <input type="radio" name="criterion" value="balanced">
+              <span><b>Cân bằng</b>nối mượt là chính, mood gần nhau</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="criterion" value="mood">
+              <span><b>Cùng mood</b>chỉ sang bài cùng không khí</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="criterion" value="tempo">
+              <span><b>Cùng nhịp</b>giữ beat liền mạch, BPM gần nhau</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="criterion" value="key">
+              <span><b>Hợp tông</b>tông nhạc hợp nhau, kiểu DJ hoà âm</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="criterion" value="free">
+              <span><b>Tự do</b>bài nào cũng được, miễn nối mượt</span>
+            </label>
+          </fieldset>
           <label class="row">
             <span class="row__head"><span>Ở mỗi bài ít nhất</span><em id="v-dmin" class="mono"></em></span>
             <input id="s-dmin" type="range" min="20" max="600" step="10">

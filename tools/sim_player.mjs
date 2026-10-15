@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Track } from "../web/js/graph.js";
-import { Player } from "../web/js/player.js";
+import { keyFit, Player, tempoGap } from "../web/js/player.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LIB = path.join(ROOT, "data", "library");
@@ -127,6 +127,7 @@ const engine = {
 // ------------------------------------------------------------------- loader
 const cache = new Map();
 const loader = {
+  metas: new Map(metas.map((m) => [m.id, m])),
   readyCount: () => metas.length,
   has: (id) => cache.has(id),
   async get(id) {
@@ -147,6 +148,8 @@ const player = new Player(engine, loader);
 player.settings.mode = mode;
 if (process.argv[5]) player.settings.keep = +process.argv[5];
 if (process.argv[6]) player.settings.waitCost = +process.argv[6];
+// CRITERION=mood|tempo|key|free picks what the chain looks for (default balanced).
+if (process.env.CRITERION) player.settings.criterion = process.env.CRITERION;
 player.settings.dwellMin = 60;
 player.settings.dwellMax = 150;
 player.enabled = () => true;
@@ -183,6 +186,7 @@ let rapid = 0;
 const jumpGaps = [];
 const leaveWaits = [];
 const moodsTaken = [];
+const changes = []; // per song change: beat kept?, tempo gap (octaves), key fit
 let songStart = null;
 let lastJumpT = -Infinity;
 const counts = {};
@@ -219,7 +223,15 @@ while (now < end) {
     // enters it: at a cut/fade, or at the end of a blend.)
     if (["blendStart", "fxStart", "cut", "drop", "fade"].includes(e.kind) && songStart !== null) {
       leaveWaits.push(e.t - songStart - player.settings.dwellMin);
-      if (e.tr) moodsTaken.push(e.tr.mood ?? 0);
+      if (e.tr) {
+        moodsTaken.push(e.tr.mood ?? 0);
+        const from = loader.metas.get(e.fromTrack ?? e.track.id), to = loader.metas.get(e.tr.to);
+        changes.push({
+          matched: ["cut", "drop", "blend"].includes(e.tr.type),
+          gap: tempoGap(from?.bpm, to?.bpm, e.tr),
+          key: keyFit(from?.camelot, to?.camelot, e.tr.semis ?? 0),
+        });
+      }
     }
     if (["start", "promote", "cut", "drop", "fade", "echo", "brake", "roll"].includes(e.kind)) songStart = e.t;
     counts[e.kind] = (counts[e.kind] || 0) + 1;
@@ -276,6 +288,10 @@ if (moodsTaken.length) {
   }
   const mean = (a) => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
   console.log(`mood distance per song change: ${mean(moodsTaken).toFixed(2)} (all pairs: ${mean(all).toFixed(2)})`);
+  const pct = (f) => `${Math.round((100 * changes.filter(f).length) / Math.max(1, changes.length))}%`;
+  console.log(`criterion ${player.settings.criterion}: beat kept ${pct((c) => c.matched)}, ` +
+    `tempo gap ${(100 * (2 ** mean(changes.map((c) => c.gap)) - 1)).toFixed(1)}% mean, ` +
+    `keys compatible ${pct((c) => c.key >= 0.8)}, songs played ${seconds.size}/${metas.length}`);
 }
 if (leaveWaits.length) {
   leaveWaits.sort((a, b) => a - b);

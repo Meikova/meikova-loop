@@ -1,7 +1,8 @@
 import { api, Loader } from "./api.js";
 import { Engine } from "./engine.js";
-import { DEFAULTS, Player } from "./player.js";
-import { bendNote, fmt, KIND_VI, short, splitTitle, trackHue, Viz } from "./viz.js";
+import { CRITERIA, DEFAULTS, keyFit, Player, shiftCamelot } from "./player.js";
+import * as theme from "./theme.js";
+import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -14,6 +15,7 @@ const viz = new Viz($("#viz"), player, {
   center: $("#ring-center"),
   tip: $("#viz-tip"),
   onPick: (tr) => player.planTransition(tr),
+  onCaption: () => renderStage(),
 });
 
 let metas = [];
@@ -65,7 +67,7 @@ const STORE = "loopbox.settings.v1";
 // 2: the abrupt effects (brake, roll) became opt-in; older saved settings that
 // had them on from the first release of effects are switched off once.
 const SETTINGS_VERSION = 2;
-const ui = { freq: 0.45, strict: 0.5, volume: 0.85 };
+const ui = { freq: 0.45, strict: 0.5, volume: 0.85, theme: "mood" };
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
   if (saved) {
@@ -110,6 +112,8 @@ function applySettings() {
   $("#v-dmin").textContent = fmt(s.dwellMin);
   $("#s-dmax").value = s.dwellMax;
   $("#v-dmax").textContent = fmt(s.dwellMax);
+  if (!CRITERIA[s.criterion]) s.criterion = "balanced";
+  for (const r of document.querySelectorAll('input[name="criterion"]')) r.checked = r.value === s.criterion;
   $("#s-variety").value = s.variety;
   $("#v-variety").textContent = `${Math.round(s.variety * 100)}%`;
   $("#s-cut").checked = s.allow.cut;
@@ -120,6 +124,9 @@ function applySettings() {
   $("#s-roll").checked = s.allow.roll !== false;
   $("#s-vol").value = ui.volume;
   $("#v-vol").textContent = `${Math.round(ui.volume * 100)}`;
+  if (!theme.THEMES[ui.theme]) ui.theme = "mood";
+  for (const r of document.querySelectorAll('input[name="look"]')) r.checked = r.value === ui.theme;
+  if (theme.setTheme(ui.theme)) recolor();
   document.querySelectorAll('input[type="range"]').forEach(syncRange);
   for (const b of document.querySelectorAll(".mode button")) {
     const on = b.dataset.mode === s.mode;
@@ -148,7 +155,29 @@ for (const k of ["cut", "blend", "fade", "echo", "brake", "roll"]) {
   $(`#s-${k}`).addEventListener("change", (e) => ((player.settings.allow[k] = e.target.checked), applySettings()));
 }
 $("#s-vol").addEventListener("input", (e) => ((ui.volume = +e.target.value), applySettings()));
+for (const r of document.querySelectorAll('input[name="look"]')) {
+  r.addEventListener("change", () => ((ui.theme = r.value), applySettings()));
+}
+
+// The theme tiles preview their colours with three songs of this library.
+function renderLooks() {
+  const ids = theme.spreadIds();
+  for (const tile of document.querySelectorAll(".look")) {
+    const cols = theme.preview(tile.querySelector("input").value, ids);
+    tile.querySelectorAll(".swatch i").forEach((dot, k) => dot.style.setProperty("--c", theme.css(cols[k])));
+  }
+}
 $("#s-variety").addEventListener("input", (e) => ((player.settings.variety = +e.target.value), applySettings()));
+for (const r of document.querySelectorAll('input[name="criterion"]')) {
+  r.addEventListener("change", () => {
+    player.settings.criterion = r.value;
+    // An exit the chain chose under the old criterion is chosen again; one
+    // the listener picked on the stage stays.
+    if (player.plan && !player.plan.picked) player.cancelPlan();
+    player.prefetchedFor = null;
+    applySettings();
+  });
+}
 for (const b of document.querySelectorAll(".mode button")) {
   b.addEventListener("click", () => {
     player.settings.mode = b.dataset.mode;
@@ -245,12 +274,29 @@ const STAGES = {
   jumps: "tìm điểm nhảy", analyzed: "xong phân tích", linking: "nối với thư viện", ready: "sẵn sàng", error: "lỗi",
 };
 
-// Mini loops: each ready track drawn as a small beat ring from its analysis.
-const miniCache = new Map(); // id -> Promise<ImageBitmap|HTMLCanvasElement>
+// Mini loops: each ready track drawn as a small beat ring from its analysis,
+// in its own colours, so the library reads as a palette of moods.
+const analysisCache = new Map(); // id -> Promise<analysis|null>
+const miniCache = new Map(); // `${id}|${palette}` -> Promise<HTMLCanvasElement|null>
+
+function analysisOf(id) {
+  if (!analysisCache.has(id)) {
+    analysisCache.set(id, api.analysis(id).catch(() => {
+      analysisCache.delete(id);
+      return null;
+    }));
+  }
+  return analysisCache.get(id);
+}
 
 function miniRing(id) {
-  if (!miniCache.has(id)) {
-    miniCache.set(id, api.analysis(id).then((a) => {
+  const key = `${id}|${theme.paletteVersion()}`;
+  if (!miniCache.has(key)) {
+    miniCache.set(key, analysisOf(id).then((a) => {
+      if (!a) {
+        miniCache.delete(key);
+        return null;
+      }
       const size = 76;
       const c = document.createElement("canvas");
       c.width = size;
@@ -259,28 +305,42 @@ function miniRing(id) {
       const r = size / 2 - 7;
       const end = a.duration;
       const lmax = Math.max(...a.loud), lmin = Math.min(...a.loud);
+      const colors = theme.beatColors(id, a.color);
       ctx.lineWidth = 6;
       for (let b = 0; b < a.beats.length; b++) {
         const t0 = a.beats[b], t1 = b + 1 < a.beats.length ? a.beats[b + 1] : end;
         ctx.globalAlpha = 0.35 + 0.65 * ((a.loud[b] - lmin) / Math.max(1, lmax - lmin));
-        ctx.strokeStyle = a.color[b];
+        ctx.strokeStyle = colors[b];
         ctx.beginPath();
         ctx.arc(size / 2, size / 2, r, -Math.PI / 2 + (Math.PI * 2 * t0) / end, -Math.PI / 2 + (Math.PI * 2 * t1) / end + 0.01);
         ctx.stroke();
       }
       return c;
-    }).catch(() => {
-      miniCache.delete(id);
-      return null;
     }));
   }
-  return miniCache.get(id);
+  return miniCache.get(key);
+}
+
+function forget(id) {
+  analysisCache.delete(id);
+  for (const k of [...miniCache.keys()]) if (k.startsWith(`${id}|`)) miniCache.delete(k);
+}
+
+// Colours changed (another theme, or the library's moods moved): repaint.
+function recolor() {
+  miniCache.clear();
+  for (const c of document.querySelectorAll("canvas.mini[data-id]")) delete c.dataset.painted;
+  paintMinis();
+  viz.invalidate();
+  renderLooks();
+  if (setlistEl) setlistEl.dataset.html = "";
 }
 
 function paintMinis() {
+  const palette = theme.paletteVersion();
   for (const c of document.querySelectorAll("canvas.mini[data-id]")) {
-    if (c.dataset.painted) continue;
-    c.dataset.painted = "1";
+    if (c.dataset.painted === palette) continue;
+    c.dataset.painted = palette;
     miniRing(c.dataset.id).then((img) => {
       if (!img) return;
       const ctx = c.getContext("2d");
@@ -361,7 +421,7 @@ $("#track-list").addEventListener("click", async (e) => {
       if (!confirm(`Xoá "${m.title}" khỏi thư viện?`)) return;
       if (player.cur?.track.id === id) player.stop();
       loader.drop(id);
-      miniCache.delete(id);
+      forget(id);
       await api.remove(id);
       break;
   }
@@ -374,6 +434,7 @@ async function refresh() {
     metas = r.tracks;
     workerState = r.worker;
     loader.setMetas(metas);
+    if (theme.setMoods(metas.filter((m) => m.status === "ready"))) recolor();
     // An old server process (started before an update) is still serving: its
     // results would not match the files on disk. Servers older than this check
     // do not send the flag at all.
@@ -457,6 +518,27 @@ $("#search-results").addEventListener("click", async (e) => {
 
 const KIND = { cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", echo: "echo vang", brake: "phanh đĩa", roll: "cuộn nhịp" };
 const KIND_CAP = KIND_VI;
+const CRIT_TAG = { mood: "CÙNG MOOD", tempo: "CÙNG NHỊP", key: "HỢP TÔNG", free: "TỰ DO" };
+
+// Why the chain picked this exit, in the terms of the chosen criterion.
+function criterionNote(T, tr) {
+  const m = byId().get(tr.to);
+  switch (player.settings.criterion) {
+    case "mood": {
+      const d = tr.mood ?? 0;
+      return ` · ${d < 0.25 ? "mood rất gần" : d < 0.5 ? "mood gần" : "mood hơi khác"}`;
+    }
+    case "tempo":
+      return m?.bpm ? ` · ${Math.round(T.analysis.bpm)} → ${Math.round(m.bpm)} BPM` : "";
+    case "key": {
+      if (!m?.camelot) return "";
+      const fit = keyFit(T.analysis.camelot, m.camelot, tr.semis ?? 0);
+      return ` · tông ${esc(T.analysis.camelot)} → ${esc(shiftCamelot(m.camelot, tr.semis ?? 0))}${fit >= 0.8 ? ", hợp" : fit > 0.3 ? ", gần hợp" : ""}`;
+    }
+    default:
+      return "";
+  }
+}
 
 function setHTML(el, html) {
   if (el.innerHTML !== html) el.innerHTML = html;
@@ -476,14 +558,20 @@ function renderStage() {
     setHTML($("#next-info"), "");
     return;
   }
-  const a = T.analysis;
-  const b = p.blend;
+  // The mix as heard (the stage holds it until its end reaches the speakers).
+  const held = viz.mixNow;
+  const b = held?.blend ? held.m : null;
+  const fx = held && !held.blend ? held.m : null;
   const blending = b && view.now >= b.times[0];
   setHTML($("#rc-kicker"), blending ? "ĐANG BLEND" : p.settings.mode === "chain" ? "ĐANG PHÁT · CHUỖI" : "ĐANG PHÁT · LẶP MÃI");
-  const song = songOf(T.meta);
-  setHTML($("#rc-title"), esc(song.title || T.id));
-  setHTML($("#rc-meta"), `${song.artist ? `<span class="rc-artist">${esc(song.artist)}</span>` : ""}<span class="mono">${a.bpm.toFixed(0)} BPM · ${esc(a.camelot)} · ${esc(a.key)}</span>`);
-  setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}</b> // ${esc(short(T.meta.channel || T.meta.title || "", 34))}`);
+  // Past the middle of a blend the caption has moved into the next loop.
+  const shown = viz.captionTrack?.analysis ? viz.captionTrack : T;
+  const sa = shown.analysis;
+  const song = songOf(shown.meta);
+  setHTML($("#rc-title"), esc(song.title || shown.id));
+  setHTML($("#rc-meta"), `${song.artist ? `<span class="rc-artist">${esc(song.artist)}</span>` : ""}<span class="mono">${sa.bpm.toFixed(0)} BPM · ${esc(sa.camelot)} · ${esc(sa.key)}</span>`);
+  const crit = p.settings.mode === "chain" && CRIT_TAG[p.settings.criterion] ? ` · ${CRIT_TAG[p.settings.criterion]}` : "";
+  setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}${crit}</b> // ${esc(short(shown.meta.channel || shown.meta.title || "", 34))}`);
   const listened = Math.max(0, view.now - p.stats.startedAt);
   setHTML($("#ro-tr"), `<span class="mono">∞ ${fmt(listened)}</span><span class="ro-stats"> · ${p.stats.jumps} nhảy · ${p.stats.transitions} chuyển</span>`);
 
@@ -494,13 +582,13 @@ function renderStage() {
     const k = Math.min(1, (now - b.times[0]) / (b.times[b.L] - b.times[0]));
     const note = bendNote(b.tr);
     next = `Đang blend sang <strong>${name(b.B.id)}</strong> · <span class="eta">${Math.round(k * 100)}%</span>${note ? ` · ${note}` : ""}`;
-  } else if (p.fx) {
-    next = `Đang ${KIND[p.fx.tr.type]} sang <strong>${name(p.fx.B.id)}</strong>`;
+  } else if (fx) {
+    next = `Đang ${KIND[fx.tr.type]} sang <strong>${name(fx.B.id)}</strong>`;
   } else if (p.plan) {
     const eta = Math.max(0, p.plan.eta - now);
     const note = bendNote(p.plan.tr);
     next = `${p.plan.picked ? "Bạn đã chọn: " : "Sắp "}${KIND[p.plan.tr.type] || p.plan.tr.type} sang <strong>${name(p.plan.tr.to)}</strong> · <span class="eta">${fmt(eta)}</span>` +
-      ` · khớp ${Math.round(p.plan.tr.q * 100)}%${note ? ` · ${note}` : ""}${p.plan.target ? "" : " · đang tải"}`;
+      ` · khớp ${Math.round(p.plan.tr.q * 100)}%${criterionNote(T, p.plan.tr)}${note ? ` · ${note}` : ""}${p.plan.target ? "" : " · đang tải"}`;
   } else if (p.settings.mode === "chain") {
     const left = p.dwellStart + p.settings.dwellMin - now;
     next = left > 0
@@ -512,11 +600,16 @@ function renderStage() {
   setHTML($("#next-info"), next);
 }
 
-// Setlist: the session as a chain of linked loops.
+// Setlist: the session as a chain of linked loops, each in its song's colour.
+const setlistEl = $("#history");
 function renderSetlist() {
-  const hist = player.history.filter((h) => h.at <= engine.audibleTime()).slice(-10);
-  const html = hist.map((h) => `<li data-via="${h.via}" style="--hue:hsl(${trackHue(h.id)} 72% 62%)"><span class="loop" aria-hidden="true"></span><span>${esc(short(titleOf(h.id), 30))}</span><span class="sr">, vào bằng ${h.via === "start" ? "bắt đầu" : KIND[h.via] || h.via}</span></li>`).join("");
-  const ol = $("#history");
+  const hist = player.history.filter((h) => h.at <= engine.audibleTime()).slice(-11);
+  const col = (id) => theme.css(theme.songColor(id));
+  const html = hist.slice(-10).map((h, k, list) => {
+    const prev = k ? list[k - 1] : hist.length > list.length ? hist[0] : null;
+    return `<li data-via="${h.via}" style="--hue:${col(h.id)}${prev ? `;--from:${col(prev.id)}` : ""}"><span class="loop" aria-hidden="true"></span><span>${esc(short(titleOf(h.id), 30))}</span><span class="sr">, vào bằng ${h.via === "start" ? "bắt đầu" : KIND[h.via] || h.via}</span></li>`;
+  }).join("");
+  const ol = setlistEl;
   if (ol.dataset.html !== html) {
     ol.dataset.html = html;
     ol.innerHTML = html;
@@ -583,6 +676,7 @@ setInterval(() => {
 })();
 
 applySettings();
+renderLooks();
 renderTransport();
 renderStage();
 placeIndicators();

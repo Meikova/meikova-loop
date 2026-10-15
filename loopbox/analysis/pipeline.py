@@ -11,6 +11,7 @@ from . import features as featmod
 from . import jumps as jumpmod
 from . import models, similarity, structure
 from .beats import HR_HOP
+from .mood import song_mood
 
 
 def analyze(tid: str, on_stage: Callable[[str, float], None] = lambda s, p: None) -> dict:
@@ -52,6 +53,7 @@ def analyze(tid: str, on_stage: Callable[[str, float], None] = lambda s, p: None
 
     on_stage("jumps", 0.85)
     jr = jumpmod.find(feat, pos, meter, scales, beats, env, env_rate, phrase)
+    md = song_mood(feat, bpm, 0 if key["mode"] == "major" else 1)
 
     analysis = {
         "version": ANALYSIS_VERSION,
@@ -75,6 +77,7 @@ def analyze(tid: str, on_stage: Callable[[str, float], None] = lambda s, p: None
         "jumps": jr["jumps"],
         "lbp": jr["lbp"],
         "fallback": jr["fallback"],
+        "mood": {"energy": md["energy"], "valence": md["valence"]},
     }
     library.write_json(library.analysis_path(tid), analysis)
     np.savez_compressed(
@@ -91,6 +94,7 @@ def analyze(tid: str, on_stage: Callable[[str, float], None] = lambda s, p: None
         "camelot": key["camelot"], "meter": meter, "beats": len(beats),
         "jumps": len(jr["jumps"]), "lbp": jr["lbp"], "fallback": jr["fallback"],
         "analysis_version": ANALYSIS_VERSION, "analysis_seconds": round(time.time() - t0, 1),
+        "mood": analysis["mood"],
     }
     on_stage("analyzed", 0.95)
     return stats
@@ -106,9 +110,12 @@ def recompute_jumps(tid: str) -> dict:
     jr = jumpmod.find(feat, f["pos"], int(f["meter"]), scales, f["beats"], f["onset_env"], float(f["env_rate"]),
                       f["phrase"])
     analysis = library.read_json(library.analysis_path(tid))
-    analysis.update(jumps=jr["jumps"], lbp=jr["lbp"], fallback=jr["fallback"])
+    md = song_mood(feat, float(f["bpm"]), int(f["key_mode"]))
+    analysis.update(jumps=jr["jumps"], lbp=jr["lbp"], fallback=jr["fallback"],
+                    mood={"energy": md["energy"], "valence": md["valence"]})
     library.write_json(library.analysis_path(tid), analysis)
     f["lbp"] = np.array(jr["lbp"])
     np.savez_compressed(library.features_path(tid), **f)
-    library.update(tid, jumps=len(jr["jumps"]), lbp=jr["lbp"], fallback=jr["fallback"])
+    library.update(tid, jumps=len(jr["jumps"]), lbp=jr["lbp"], fallback=jr["fallback"],
+                   mood={"energy": md["energy"], "valence": md["valence"]})
     return jr

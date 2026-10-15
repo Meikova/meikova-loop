@@ -2,30 +2,52 @@
 
 @property --pulse { syntax: "<number>"; inherits: true; initial-value: 0; }
 
+/* The light of the room is the colour of the song that is playing (theme.js
+   sets these numbers; CSS animates them, so every colour built from them
+   changes together). acc = this song, acc2 = the next one, g = the ground. */
+@property --acc-l { syntax: "<number>"; inherits: true; initial-value: 0.8; }
+@property --acc-c { syntax: "<number>"; inherits: true; initial-value: 0.1; }
+@property --acc-h { syntax: "<number>"; inherits: true; initial-value: 40; }
+@property --acc2-l { syntax: "<number>"; inherits: true; initial-value: 0.8; }
+@property --acc2-c { syntax: "<number>"; inherits: true; initial-value: 0.1; }
+@property --acc2-h { syntax: "<number>"; inherits: true; initial-value: 40; }
+@property --gh { syntax: "<number>"; inherits: true; initial-value: 40; }
+@property --gc { syntax: "<number>"; inherits: true; initial-value: 0.012; }
+@property --fill-a { syntax: "<number>"; inherits: true; initial-value: 0; }
+
 :root {
   color-scheme: dark;
 
-  /* Ground and surfaces: one warm hue, depth by lightness only. */
-  --ink-0: oklch(0.16 0.008 60);
-  --ink-1: oklch(0.195 0.009 60);
-  --ink-2: oklch(0.235 0.01 60);
-  --ink-3: oklch(0.29 0.011 60);
-  --line: oklch(0.36 0.012 60 / 0.7);
-  --line-soft: oklch(0.36 0.012 60 / 0.35);
+  /* Ground and surfaces: the song's hue at a whisper of chroma, depth by
+     lightness only. */
+  --ink-0: oklch(0.16 var(--gc) var(--gh));
+  --ink-1: oklch(0.195 calc(var(--gc) * 1.1) var(--gh));
+  --ink-2: oklch(0.235 calc(var(--gc) * 1.15) var(--gh));
+  --ink-3: oklch(0.29 calc(var(--gc) * 1.2) var(--gh));
+  --line: oklch(0.36 calc(var(--gc) * 1.3) var(--gh) / 0.7);
+  --line-soft: oklch(0.36 calc(var(--gc) * 1.3) var(--gh) / 0.35);
 
-  --text: oklch(0.95 0.01 80);
-  --text-muted: oklch(0.76 0.012 70);
-  --text-faint: oklch(0.63 0.012 70);
+  --text: oklch(0.95 calc(var(--gc) * 0.6) var(--gh));
+  --text-muted: oklch(0.76 calc(var(--gc) * 0.8) var(--gh));
+  --text-faint: oklch(0.63 calc(var(--gc) * 0.8) var(--gh));
 
-  /* The one light. */
-  --amber: oklch(0.83 0.13 72);
-  --amber-hi: oklch(0.88 0.12 78);
-  --amber-lo: oklch(0.83 0.13 72 / 0.16);
-  --on-amber: oklch(0.2 0.02 60);
+  /* The light. */
+  --acc: var(--acc-l) var(--acc-c) var(--acc-h);
+  --acc2: var(--acc2-l) var(--acc2-c) var(--acc2-h);
+  --accent: oklch(var(--acc));
+  --accent-hi: oklch(calc(var(--acc-l) + 0.06) calc(var(--acc-c) * 0.85) calc(var(--acc-h) + 4));
+  --accent-lo: oklch(var(--acc) / 0.16);
+  --on-accent: oklch(0.2 calc(var(--acc-c) * 0.3) var(--acc-h));
+  --accent-2: oklch(var(--acc2));
   --danger: oklch(0.74 0.14 30);
 
-  --glow: 0 0 0 1px oklch(0.83 0.13 72 / 0.55), 0 0 28px -6px oklch(0.83 0.13 72 / 0.75);
-  --focus: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--amber), 0 0 18px oklch(0.83 0.13 72 / 0.45);
+  --glow: 0 0 0 1px oklch(var(--acc) / 0.55), 0 0 28px -6px oklch(var(--acc) / 0.75);
+  --focus: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--accent), 0 0 18px oklch(var(--acc) / 0.45);
+
+  /* A song change re-lights the room over a bar or two, not in a blink. */
+  transition: --acc-l 1.4s var(--ease-in-out), --acc-c 1.4s var(--ease-in-out), --acc-h 1.4s var(--ease-in-out),
+    --acc2-l 1.4s var(--ease-in-out), --acc2-c 1.4s var(--ease-in-out), --acc2-h 1.4s var(--ease-in-out),
+    --gh 2s var(--ease-in-out), --gc 2s var(--ease-in-out), --fill-a 1.2s var(--ease-out);
 
   --font-display: "Unbounded", "Be Vietnam Pro", system-ui, sans-serif;
   --font-text: "Be Vietnam Pro", system-ui, sans-serif;
@@ -88,7 +110,7 @@ body {
   background: transparent;
 }
 
-::selection { background: var(--amber); color: var(--on-amber); }
+::selection { background: var(--accent); color: var(--on-accent); }
 
 h1, h2, p { margin: 0; }
 
@@ -124,16 +146,19 @@ kbd {
 
 /* --------------------------------------------------------------- field */
 
-/* One light field for the page; the stage's state moves it. */
+/* One light field for the page: the playing song's colour where its loop is,
+   the next song's colour where the next loop grows in, and a low glow of
+   both from the floor. The bass moves it (--pulse, from viz.js). */
 .field {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(42% 52% at var(--key-x, 38%) 46%, oklch(0.83 0.13 72 / calc(0.06 + var(--pulse) * 0.035)), transparent 70%),
-    radial-gradient(36% 46% at var(--fill-x, 78%) 60%, var(--fill, oklch(0.6 0.08 40 / 0.05)), transparent 72%),
-    radial-gradient(120% 80% at 50% 120%, oklch(0.22 0.02 60 / 0.9), transparent 60%),
+    radial-gradient(44% 54% at var(--key-x, 38%) 46%, oklch(var(--acc) / calc(0.07 + var(--pulse) * 0.06)), transparent 70%),
+    radial-gradient(38% 48% at var(--fill-x, 78%) 56%, oklch(var(--acc2) / calc(var(--fill-a) * (1 + var(--pulse) * 0.4))), transparent 72%),
+    radial-gradient(70% 46% at 22% 112%, oklch(0.3 calc(var(--acc-c) * 0.55) var(--acc-h) / 0.55), transparent 70%),
+    radial-gradient(70% 46% at 80% 112%, oklch(0.3 calc(var(--acc2-c) * 0.55) var(--acc2-h) / 0.45), transparent 70%),
     var(--ink-0);
   transition: --pulse var(--dur-base) var(--ease-out);
 }
@@ -176,14 +201,14 @@ kbd {
 
 .brand__path {
   fill: none;
-  stroke: var(--amber);
+  stroke: var(--accent);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-dasharray: 120;
   stroke-dashoffset: 0;
 }
 
-.brand__dot { fill: var(--amber-hi); filter: drop-shadow(0 0 3px oklch(0.83 0.13 72 / 0.9)); }
+.brand__dot { fill: var(--accent-hi); filter: drop-shadow(0 0 3px oklch(var(--acc) / 0.9)); }
 
 @media (prefers-reduced-motion: no-preference) {
   .js .brand__path { animation: draw-inf var(--dur-slower) var(--ease-out) both; }
@@ -196,7 +221,7 @@ kbd {
 .to-panel { display: none; }
 
 /* Segmented control (mode switch and panel tabs): hairline pill with a
-   filled amber indicator that slides to the selected option. */
+   filled accent indicator that slides to the selected option. */
 .seg {
   position: relative;
   display: inline-grid;
@@ -205,7 +230,7 @@ kbd {
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: var(--round);
-  background: oklch(0.195 0.009 60 / 0.6);
+  background: oklch(0.195 var(--gc) var(--gh) / 0.6);
   isolation: isolate;
 }
 
@@ -225,11 +250,11 @@ kbd {
 
 .seg button:hover { color: var(--text); }
 
-/* The chosen option gets its own amber fill the moment the sliding
-   indicator arrives under it, so its label is always dark on amber. */
+/* The chosen option gets its own accent fill the moment the sliding
+   indicator arrives under it, so its label is always dark on the accent. */
 .seg button.on {
-  color: var(--on-amber);
-  background: var(--amber);
+  color: var(--on-accent);
+  background: var(--accent);
   transition: color 1ms linear var(--dur-slow), background-color 1ms linear var(--dur-slow);
 }
 
@@ -242,8 +267,8 @@ kbd {
   width: var(--ind-w, 0);
   transform: translateX(var(--ind-x, 0));
   border-radius: var(--round);
-  background: var(--amber);
-  box-shadow: 0 0 18px -6px oklch(0.83 0.13 72 / 0.8);
+  background: var(--accent);
+  box-shadow: 0 0 18px -6px oklch(var(--acc) / 0.8);
   transition: transform var(--dur-slow) var(--ease-spring), width var(--dur-slow) var(--ease-out);
 }
 
@@ -281,7 +306,7 @@ kbd {
   text-overflow: ellipsis;
 }
 
-.readout b { color: var(--amber); font-weight: 500; }
+.readout b { color: var(--accent); font-weight: 500; }
 
 .readout--tl { left: var(--space-5); }
 
@@ -317,7 +342,7 @@ kbd {
 .rc-kicker {
   font: 500 var(--step--2) / 1.4 var(--font-mono);
   letter-spacing: 0.08em;
-  color: var(--amber);
+  color: var(--accent);
 }
 
 .rc-title {
@@ -356,7 +381,7 @@ kbd {
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: oklch(0.21 0.01 60 / 0.92);
+  background: oklch(0.21 var(--gc) var(--gh) / 0.92);
   backdrop-filter: blur(8px);
   font-size: var(--step--1);
   line-height: 1.45;
@@ -366,7 +391,7 @@ kbd {
 
 .tip b { font-weight: 600; }
 
-.tip .mono { color: var(--amber); }
+.tip .mono { color: var(--accent); }
 
 .tip small { display: block; color: var(--text-faint); font-size: var(--step--2); margin-top: 2px; }
 
@@ -394,7 +419,7 @@ kbd {
   white-space: normal;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: oklch(0.2 0.01 60 / 0.95);
+  background: oklch(0.2 var(--gc) var(--gh) / 0.95);
 }
 
 .exits ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
@@ -413,7 +438,7 @@ kbd {
 
 .exits button:hover, .exits button:focus-visible { background: var(--ink-3); color: var(--text); }
 
-.exits button .mono { color: var(--amber); font-size: var(--step--2); margin-left: 4px; }
+.exits button .mono { color: var(--accent); font-size: var(--step--2); margin-left: 4px; }
 
 .exits button.is-bad { color: var(--danger); }
 
@@ -430,7 +455,7 @@ kbd {
 
 .next strong { color: var(--text); font-weight: 600; }
 
-.next .eta { font-family: var(--font-mono); color: var(--amber); font-variant-numeric: tabular-nums; }
+.next .eta { font-family: var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
 
 /* The deck: one floating pill, like Aether's single control. */
 .deck {
@@ -440,7 +465,7 @@ kbd {
   padding: 6px 8px;
   border: 1px dashed var(--line);
   border-radius: var(--round);
-  background: oklch(0.195 0.009 60 / 0.72);
+  background: oklch(0.195 var(--gc) var(--gh) / 0.72);
   backdrop-filter: blur(14px);
 }
 
@@ -479,8 +504,8 @@ kbd {
   height: 56px;
   border: 0;
   border-radius: 50%;
-  background: var(--amber);
-  color: var(--on-amber);
+  background: var(--accent);
+  color: var(--on-accent);
   box-shadow: var(--glow);
   transition: transform var(--dur-instant) var(--ease-out), background-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-base) var(--ease-out);
@@ -507,7 +532,7 @@ kbd {
 .deck__play:disabled { cursor: progress; }
 
 @media (hover: hover) {
-  .deck__play:hover { background: var(--amber-hi); box-shadow: 0 0 0 1px oklch(0.88 0.12 78 / 0.7), 0 0 40px -6px oklch(0.83 0.13 72 / 0.95); }
+  .deck__play:hover { background: var(--accent-hi); box-shadow: 0 0 0 1px oklch(var(--acc) / 0.7), 0 0 40px -6px oklch(var(--acc) / 0.95); }
 }
 
 .deck__play:focus-visible { box-shadow: var(--focus), var(--glow); }
@@ -552,28 +577,33 @@ kbd {
   white-space: nowrap;
 }
 
+/* The link glyph says how the songs were joined; its colour runs from the
+   song before to the song after. */
 .setlist li + li::before {
   content: "";
   width: 22px;
   height: 10px;
   margin: 0 6px 0 4px;
-  background: var(--via-glyph) center / contain no-repeat;
-  opacity: 0.9;
+  background: linear-gradient(90deg, var(--from, var(--text-faint)), var(--hue));
+  mask: var(--via-glyph) center / contain no-repeat;
+  opacity: 0.95;
 }
 
-.setlist li[data-via="cut"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5h22M11 0v10' stroke='%23ad9d86' stroke-width='1.2' fill='none'/></svg>"); }
+.setlist li[data-via="cut"]::before, .setlist li[data-via="fade"]::before, .setlist li[data-via="brake"]::before { opacity: 0.7; }
 
-.setlist li[data-via="blend"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M11 5c3-4 8-4 8 0s-5 4-8 0-8-4-8 0 5 4 8 0z' stroke='%23f2b75e' stroke-width='1.3' fill='none'/></svg>"); }
+.setlist li[data-via="cut"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5h22M11 0v10' stroke='%23000' stroke-width='1.2' fill='none'/></svg>"); }
 
-.setlist li[data-via="drop"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5h22M11 0v10M8 1h6' stroke='%23f2b75e' stroke-width='1.2' fill='none'/></svg>"); }
+.setlist li[data-via="blend"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M11 5c3-4 8-4 8 0s-5 4-8 0-8-4-8 0 5 4 8 0z' stroke='%23000' stroke-width='1.3' fill='none'/></svg>"); }
 
-.setlist li[data-via="echo"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><circle cx='5' cy='5' r='3.5' stroke='%23f2b75e' stroke-width='1.2' fill='none'/><circle cx='12' cy='5' r='2.5' stroke='%23f2b75e' stroke-width='1' fill='none' opacity='.6'/><circle cx='18' cy='5' r='1.6' stroke='%23f2b75e' stroke-width='1' fill='none' opacity='.35'/></svg>"); }
+.setlist li[data-via="drop"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5h22M11 0v10M8 1h6' stroke='%23000' stroke-width='1.2' fill='none'/></svg>"); }
 
-.setlist li[data-via="brake"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5c6 0 10-0.5 14-3M17 1v8' stroke='%23ad9d86' stroke-width='1.2' fill='none'/></svg>"); }
+.setlist li[data-via="echo"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><circle cx='5' cy='5' r='3.5' stroke='%23000' stroke-width='1.2' fill='none'/><circle cx='12' cy='5' r='2.5' stroke='%23000' stroke-width='1' fill='none' opacity='.6'/><circle cx='18' cy='5' r='1.6' stroke='%23000' stroke-width='1' fill='none' opacity='.35'/></svg>"); }
 
-.setlist li[data-via="roll"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M1 8V2M6 8V2M10 8V2M13 8V2M15.5 8V2M17.5 8V2M19 8V2' stroke='%23f2b75e' stroke-width='1.1' fill='none'/></svg>"); }
+.setlist li[data-via="brake"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5c6 0 10-0.5 14-3M17 1v8' stroke='%23000' stroke-width='1.2' fill='none'/></svg>"); }
 
-.setlist li[data-via="fade"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5h22' stroke='%23ad9d86' stroke-width='1.2' stroke-dasharray='2 2.5' fill='none'/></svg>"); }
+.setlist li[data-via="roll"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M1 8V2M6 8V2M10 8V2M13 8V2M15.5 8V2M17.5 8V2M19 8V2' stroke='%23000' stroke-width='1.1' fill='none'/></svg>"); }
+
+.setlist li[data-via="fade"] { --via-glyph: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 10'><path d='M0 5h22' stroke='%23000' stroke-width='1.2' stroke-dasharray='2 2.5' fill='none'/></svg>"); }
 
 .setlist .loop {
   width: 12px;
@@ -598,7 +628,11 @@ kbd {
   flex-direction: column;
   min-height: 0;
   border-left: 1px solid var(--line-soft);
-  background: oklch(0.18 0.009 60 / 0.82);
+  /* Frosted: the room's light reaches the library too. */
+  background:
+    linear-gradient(180deg, oklch(var(--acc) / 0.05), transparent 30%),
+    oklch(0.17 var(--gc) var(--gh) / 0.58);
+  backdrop-filter: blur(22px) saturate(1.25);
 }
 
 .panel > .tabs { margin: var(--space-4) var(--space-4) 0; display: grid; }
@@ -627,7 +661,7 @@ kbd {
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.add__field:focus-within { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-lo); }
+.add__field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-lo); }
 
 .add__field svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--text-faint); stroke-width: 1.6; stroke-linecap: round; }
 
@@ -645,10 +679,10 @@ kbd {
 .add__field button, .ghost, .result button {
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid oklch(0.83 0.13 72 / 0.55);
+  border: 1px solid oklch(var(--acc) / 0.55);
   border-radius: 10px;
-  background: var(--amber-lo);
-  color: var(--amber-hi);
+  background: var(--accent-lo);
+  color: var(--accent-hi);
   font-weight: 600;
   font-size: var(--step--1);
   transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out), color var(--dur-fast);
@@ -657,7 +691,7 @@ kbd {
 .add__field button:active, .ghost:active, .result button:active { transform: scale(0.97); }
 
 @media (hover: hover) {
-  .add__field button:hover, .ghost:hover, .result button:not(:disabled):hover { background: var(--amber); color: var(--on-amber); }
+  .add__field button:hover, .ghost:hover, .result button:not(:disabled):hover { background: var(--accent); color: var(--on-accent); }
 }
 
 .result button:disabled { border-color: var(--line); background: none; color: var(--text-faint); cursor: default; }
@@ -690,7 +724,7 @@ kbd {
 
 .results .msg { padding: 12px 14px; font-size: var(--step--1); color: var(--text-muted); }
 
-.worker { min-height: 1.5em; margin: var(--space-4) 0 var(--space-2); font-size: var(--step--2); color: var(--amber); }
+.worker { min-height: 1.5em; margin: var(--space-4) 0 var(--space-2); font-size: var(--step--2); color: var(--accent); }
 
 .worker:empty { margin: var(--space-2) 0 0; }
 
@@ -746,17 +780,17 @@ kbd {
   .track:hover { background: var(--ink-2); }
   .track:hover .mini { transform: rotate(90deg); }
   .track .acts button:hover { color: var(--text); background: var(--ink-3); }
-  .track .acts button[data-act="play"]:hover { color: var(--on-amber); background: var(--amber); }
+  .track .acts button[data-act="play"]:hover { color: var(--on-accent); background: var(--accent); }
   .track .acts button[data-act="delete"]:hover { color: var(--danger); }
   /* Secondary actions wait for the pointer; touch and keyboard always see them. */
   .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]) { opacity: 0; }
 }
 
-.track.playing { background: linear-gradient(90deg, var(--amber-lo), transparent 70%); }
+.track.playing { background: linear-gradient(90deg, var(--accent-lo), transparent 70%); }
 
-.track.playing::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+.track.playing::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
 
-.track.playing .t { color: var(--amber-hi); }
+.track.playing .t { color: var(--accent-hi); }
 
 @media (prefers-reduced-motion: no-preference) {
   .track.playing .mini { animation: spin 14s linear infinite; }
@@ -768,19 +802,19 @@ kbd {
 
 .progress { height: 2px; margin-top: 6px; background: var(--ink-3); border-radius: 2px; overflow: hidden; }
 
-.progress i { display: block; height: 100%; background: var(--amber); box-shadow: 0 0 8px var(--amber); transition: width var(--dur-slow) var(--ease-out); }
+.progress i { display: block; height: 100%; background: var(--accent); box-shadow: 0 0 8px var(--accent); transition: width var(--dur-slow) var(--ease-out); }
 
 .pending {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: conic-gradient(var(--amber) calc(var(--p) * 1turn), var(--ink-3) 0);
+  background: conic-gradient(var(--accent) calc(var(--p) * 1turn), var(--ink-3) 0);
   mask: radial-gradient(circle, transparent 13px, #000 14px);
 }
 
 .empty { padding: var(--space-5) var(--space-2); text-align: center; color: var(--text-muted); font-size: var(--step--1); }
 
-.empty svg { width: 64px; height: 32px; display: block; margin: 0 auto var(--space-3); fill: none; stroke: var(--amber); stroke-width: 2; stroke-linecap: round; opacity: 0.8; }
+.empty svg { width: 64px; height: 32px; display: block; margin: 0 auto var(--space-3); fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; opacity: 0.8; }
 
 /* Settings */
 .group { display: grid; gap: var(--space-4); padding-bottom: var(--space-5); margin-bottom: var(--space-5); border-bottom: 1px solid var(--line-soft); }
@@ -791,9 +825,9 @@ kbd {
 
 .row__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); font-size: var(--step--1); }
 
-.row__head em { color: var(--amber); font-size: var(--step--2); text-align: right; }
+.row__head em { color: var(--accent); font-size: var(--step--2); text-align: right; }
 
-/* Range: hairline track, amber fill (set by --v from JS), thumb a small loop. */
+/* Range: hairline track, accent fill (set by --v from JS), thumb a small loop. */
 input[type="range"] {
   --v: 50%;
   width: 100%;
@@ -808,12 +842,12 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--amber) var(--v), var(--ink-3) var(--v));
+  background: linear-gradient(90deg, var(--accent) var(--v), var(--ink-3) var(--v));
 }
 
 input[type="range"]::-moz-range-track { height: 2px; border-radius: 2px; background: var(--ink-3); }
 
-input[type="range"]::-moz-range-progress { height: 2px; background: var(--amber); }
+input[type="range"]::-moz-range-progress { height: 2px; background: var(--accent); }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -822,8 +856,8 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: -7px;
   border-radius: 50%;
   background: var(--ink-0);
-  border: 3px solid var(--amber);
-  box-shadow: 0 0 10px oklch(0.83 0.13 72 / 0.5);
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 10px oklch(var(--acc) / 0.5);
   transition: transform var(--dur-fast) var(--ease-spring);
 }
 
@@ -832,7 +866,7 @@ input[type="range"]::-moz-range-thumb {
   height: 10px;
   border-radius: 50%;
   background: var(--ink-0);
-  border: 3px solid var(--amber);
+  border: 3px solid var(--accent);
 }
 
 input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.25); }
@@ -866,11 +900,86 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .kind b { display: block; font-size: var(--step--1); font-weight: 600; color: var(--text-muted); }
 
-.kind:has(input:checked) { border-color: oklch(0.83 0.13 72 / 0.6); background: var(--amber-lo); }
+.kind:has(input:checked) { border-color: oklch(var(--acc) / 0.6); background: var(--accent-lo); }
 
-.kind:has(input:checked) svg { stroke: var(--amber); }
+.kind:has(input:checked) svg { stroke: var(--accent); }
 
 .kind:has(input:checked) b { color: var(--text); }
+
+/* What the chain looks for: one row per criterion, a small loop for a radio. */
+.choices { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+
+.choices .sub { padding: 0; margin-bottom: 6px; font-size: var(--step--1); }
+
+.choice {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--ink-1);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background-color var(--dur-fast), transform var(--dur-instant);
+}
+
+.choice input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 2px solid var(--text-faint);
+  border-radius: 50%;
+  background: var(--ink-0);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base) var(--ease-out);
+}
+
+.choice input:focus-visible { outline: none; box-shadow: none; }
+
+.choice:has(input:focus-visible) { box-shadow: var(--focus); }
+
+.choice span { font-size: var(--step--2); line-height: 1.4; color: var(--text-faint); }
+
+.choice b { display: inline; margin-right: 8px; font-size: var(--step--1); font-weight: 600; color: var(--text-muted); }
+
+.choice:has(input:checked) { border-color: oklch(var(--acc) / 0.6); background: var(--accent-lo); }
+
+.choice:has(input:checked) input { border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--ink-0), inset 0 0 0 8px var(--accent), 0 0 10px -2px var(--accent); }
+
+.choice:has(input:checked) b { color: var(--text); }
+
+.choice:active { transform: scale(0.985); }
+
+@media (hover: hover) {
+  .choice:hover { border-color: var(--line); }
+}
+
+/* Theme tiles: three dots of the colours the theme would give this library. */
+.swatch { display: flex; height: 20px; align-items: center; padding-left: 2px; }
+
+.swatch i {
+  width: 16px;
+  height: 16px;
+  margin-right: -5px;
+  border-radius: 50%;
+  background: var(--c, var(--ink-3));
+  box-shadow: 0 0 0 2px var(--ink-1);
+  transition: background-color var(--dur-slow) var(--ease-out), transform var(--dur-base) var(--ease-spring);
+}
+
+.look:has(input:checked) .swatch i { box-shadow: 0 0 0 2px var(--ink-1), 0 0 12px -2px var(--c); }
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .look:hover .swatch i:nth-child(1) { transform: translateX(-2px); }
+  .look:hover .swatch i:nth-child(3) { transform: translateX(2px); }
+}
+
+.tip .dot { display: inline-block; width: 8px; height: 8px; margin: 0 4px 1px 2px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
 
 .kind:has(input:focus-visible) { box-shadow: var(--focus); }
 

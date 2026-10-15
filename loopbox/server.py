@@ -24,7 +24,7 @@ class PatchRequest(BaseModel):
 
 def _public(m: dict) -> dict:
     keys = ("id", "title", "channel", "duration", "thumbnail", "url", "status", "stage", "progress",
-            "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at")
+            "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at", "mood")
     return {k: m.get(k) for k in keys}
 
 

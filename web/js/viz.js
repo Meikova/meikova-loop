@@ -4,8 +4,15 @@
 // whose loop grows in and touches it there: the two loops make the ∞, and the
 // crossing is where the mix happens. After the hand-over the new loop glides
 // to the centre and the old one shrinks away.
+//
+// Each loop is painted in its song's colour (theme.js); the room takes the
+// colour of the playing song, and around its loop a halo of the live spectrum
+// breathes with the music.
+
+import * as theme from "./theme.js";
 
 const TAU = Math.PI * 2;
+const HALO_BANDS = 48;
 const reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
 export const KIND_VI = {
   cut: "Nối thẳng", drop: "Drop vào đoạn mới", blend: "Blend khớp nhịp", fade: "Crossfade",
@@ -27,12 +34,6 @@ export function bendNote(tr) {
   return notes.join(" · ");
 }
 const SECOND_RATIO = 0.7; // the next song's loop, relative to the playing one
-
-export function trackHue(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
 
 export function fmt(s) {
   s = Math.max(0, Math.floor(s));
@@ -79,6 +80,7 @@ function seeded(seed) {
 }
 
 const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 class Ring {
@@ -89,22 +91,29 @@ class Ring {
     this.y = null;
     this.r = 0;
     this.rot = -Math.PI / 2; // song start at twelve o'clock
+    // Which way time runs round the loop: +1 clockwise, -1 counter-clockwise.
+    // Neighbours in the ∞ turn opposite ways, so the path through the crossing
+    // is one stroke of a figure eight.
+    this.dir = 1;
     this.alpha = 0;
     this.fill = 1;
     this.target = null;
     this.layer = null;
     this.layerKey = "";
+    this.col = null; // eased toward the song's colour (or the accent while it plays)
   }
 }
 
 export class Viz {
-  constructor(canvas, player, { center, tip, onPick } = {}) {
+  constructor(canvas, player, { center, tip, onPick, onCaption } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.player = player;
     this.center = center;
     this.tip = tip;
     this.onPick = onPick || (() => {});
+    this.onCaption = onCaption || (() => {});
+    this._captionId = null;
     this.titles = new Map();
     this.rings = new Map();
     this.primaryId = null;
@@ -113,10 +122,18 @@ export class Viz {
     this.lastBeatKey = "";
     this.lastEventT = 0;
     this.flashes = [];
+    this.ripples = [];
+    this.heads = { lead: null, ghost: null };
+    this.leadId = null;
+    this.lastCross = null;
     this.pointer = null;
     this.hover = null;
     this.armed = null; // touch: an exit tapped once, waiting for the confirming tap
     this.fieldAt = 0;
+    this.bands = new Float32Array(HALO_BANDS); // the live spectrum, 0..1, smoothed
+    this.bass = 0;
+    this.accent = null; // the room's colour as the canvas sees it, eased
+    this.secondCol = null;
     this.last = performance.now();
     this.ro = new ResizeObserver(() => this._resize());
     this.ro.observe(canvas.parentElement);
@@ -156,26 +173,30 @@ export class Viz {
   }
 
   // Where the loops sit: one in the middle, or two touching (side by side on
-  // wide stages, stacked as an 8 on tall ones).
-  _layout(two) {
+  // wide stages, stacked as an 8 on tall ones). `swap` (0..1) is how far a
+  // blend has got: the weight passes from the playing loop to the next one,
+  // and halfway through they are the same size.
+  _layout(two, swap = 0) {
     const { w, h } = this;
     const k = SECOND_RATIO;
     if (!two) return { a: { x: w / 2, y: h / 2, r: Math.min(w, h) * 0.37 } };
+    const s = easeInOut(Math.max(0, Math.min(1, swap)));
+    const fa = 1 - (1 - k) * s, fb = k + (1 - k) * s;
     if (w >= h * 1.05) {
       const R = Math.min(h * 0.37, (w * 0.86) / (2 * (1 + k)));
       const x0 = (w - 2 * R * (1 + k)) / 2;
       return {
-        a: { x: x0 + R, y: h / 2, r: R, face: 0 },
-        b: { x: x0 + 2 * R + k * R, y: h / 2, r: k * R, face: Math.PI },
-        cross: { x: x0 + 2 * R, y: h / 2 },
+        a: { x: x0 + fa * R, y: h / 2, r: fa * R, face: 0 },
+        b: { x: x0 + 2 * fa * R + fb * R, y: h / 2, r: fb * R, face: Math.PI },
+        cross: { x: x0 + 2 * fa * R, y: h / 2 },
       };
     }
     const R = Math.min(w * 0.37, (h * 0.86) / (2 * (1 + k)));
     const y0 = (h - 2 * R * (1 + k)) / 2;
     return {
-      a: { x: w / 2, y: y0 + R, r: R, face: Math.PI / 2 },
-      b: { x: w / 2, y: y0 + 2 * R + k * R, r: k * R, face: -Math.PI / 2 },
-      cross: { x: w / 2, y: y0 + 2 * R },
+      a: { x: w / 2, y: y0 + fa * R, r: fa * R, face: Math.PI / 2 },
+      b: { x: w / 2, y: y0 + 2 * fa * R + fb * R, r: fb * R, face: -Math.PI / 2 },
+      cross: { x: w / 2, y: y0 + 2 * fa * R },
     };
   }
 
@@ -188,9 +209,26 @@ export class Viz {
     return (TAU * t) / track.end;
   }
 
+  // Angle on the stage for a time in the song, with the loop's turn and direction.
+  _angle(ring, t) {
+    return ring.rot + ring.dir * this._ang(ring.track, t);
+  }
+
   _point(ring, t, radius) {
-    const a = ring.rot + this._ang(ring.track, t);
+    const a = this._angle(ring, t);
     return [ring.x + radius * Math.cos(a), ring.y + radius * Math.sin(a)];
+  }
+
+  // The beat that is playing at time t of a song, and how far into it.
+  _beatAt(track, t) {
+    const beats = track.beats;
+    let lo = 0, hi = beats.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (beats[mid] <= t) lo = mid;
+      else hi = mid - 1;
+    }
+    return { beat: lo, frac: Math.max(0, Math.min(1, (t - beats[lo]) / track.dur[lo])) };
   }
 
   // ---------------------------------------------------------------- layers
@@ -214,6 +252,9 @@ export class Viz {
     const ang = (t) => this._ang(track, t);
     const at = (t, r) => [r * Math.cos(ang(t)), r * Math.sin(ang(t))];
     const rin = RL - th / 2 - 3;
+    const chord = theme.lift(theme.accentOf(track.id), 0.04);
+    const colors = theme.beatColors(track.id, a.color);
+    const ink = theme.inkOf(track.id);
 
     // Jump chords, weakest first so the best sit on top.
     const edges = [];
@@ -222,7 +263,7 @@ export class Viz {
     ctx.lineWidth = 1;
     for (const [i, j, s] of edges) {
       const ok = s <= maxScore;
-      ctx.strokeStyle = ok ? `rgba(246, 196, 120, ${(0.08 + 0.42 * (1 - s / Math.max(maxScore, 0.01))).toFixed(3)})` : "rgba(255,240,220,0.03)";
+      ctx.strokeStyle = ok ? theme.css(chord, 0.08 + 0.42 * (1 - s / Math.max(maxScore, 0.01))) : theme.css(ink, 0.03);
       this._chordPath(ctx, rin, ang(track.beats[i] + track.dur[i]), ang(track.beats[j]));
       ctx.stroke();
     }
@@ -232,7 +273,7 @@ export class Viz {
     for (let b = 0; b < track.n; b++) {
       const lv = (a.loud[b] - loudMin) / Math.max(1, loudMax - loudMin);
       const count = 2 + Math.round(9 * lv);
-      ctx.fillStyle = a.color[b];
+      ctx.fillStyle = colors[b];
       for (let k = 0; k < count; k++) {
         const t = track.beats[b] + rnd() * track.dur[b];
         const spread = (rnd() + rnd() + rnd() - 1.5) / 1.5; // roughly normal, -1..1
@@ -249,7 +290,7 @@ export class Viz {
     for (let b = 0; b < track.n; b++) {
       const lv = (a.loud[b] - loudMin) / Math.max(1, loudMax - loudMin);
       ctx.globalAlpha = 0.3 + 0.7 * lv;
-      ctx.strokeStyle = a.color[b];
+      ctx.strokeStyle = colors[b];
       ctx.lineWidth = th * (a.pos[b] === 0 ? 1 : 0.78);
       ctx.beginPath();
       ctx.arc(0, 0, RL, ang(track.beats[b]), ang(track.beats[b] + track.dur[b]) + 0.002);
@@ -259,7 +300,7 @@ export class Viz {
 
     // The dial: a hairline tick every 15 s, longer on the minute.
     const r0 = RL + th / 2 + 8;
-    ctx.strokeStyle = "rgba(240, 225, 200, 0.22)";
+    ctx.strokeStyle = theme.css(ink, 0.22);
     ctx.lineWidth = 1;
     for (let t = 0; t <= track.end; t += 15) {
       const long = Math.round(t) % 60 === 0;
@@ -272,7 +313,7 @@ export class Viz {
     }
 
     // Section starts, just inside the dial.
-    ctx.strokeStyle = "rgba(255, 244, 228, 0.55)";
+    ctx.strokeStyle = theme.css(ink, 0.55);
     ctx.lineWidth = 1.4;
     for (const s of a.sections) {
       const [x1, y1] = at(track.beats[s], RL + th / 2 + 1);
@@ -288,7 +329,7 @@ export class Viz {
       const t = this._exitTime(track, tr);
       if (t === null) continue;
       const [x, y] = at(t, this._exitRadius(RL));
-      ctx.fillStyle = `hsla(${trackHue(tr.to)}, 78%, 66%, ${(0.4 + 0.55 * tr.q).toFixed(3)})`;
+      ctx.fillStyle = theme.css(theme.songColor(tr.to), 0.4 + 0.55 * tr.q);
       ctx.beginPath();
       ctx.arc(x, y, tr.type === "cut" ? 4 : 3.1, 0, TAU);
       ctx.fill();
@@ -331,11 +372,28 @@ export class Viz {
     ctx.save();
     ctx.translate(ring.x, ring.y);
     ctx.rotate(ring.rot);
+    ctx.scale(1, ring.dir);
     this._chordPath(ctx, rin, this._ang(T, T.beats[i] + T.dur[i]), this._ang(T, T.beats[j]));
     ctx.restore();
   }
 
   // ----------------------------------------------------------------- state
+
+  // The mix (a blend or an effect) the listener is hearing. The scheduler runs
+  // a lookahead ahead of the speakers and lets go of a mix before its end is
+  // heard; the stage holds on to it until then, so the next loop does not dim
+  // and come back at every hand-over.
+  _mix(view) {
+    const p = this.player;
+    const live = p.blend || p.fx;
+    if (live) {
+      const blend = live === p.blend;
+      this.held = { m: live, blend, end: blend ? live.times[live.L] : live.times[live.times.length - 1] };
+    } else if (this.held && (!view || view.now >= this.held.end)) {
+      this.held = null;
+    }
+    return this.held;
+  }
 
   _roles(view) {
     const p = this.player;
@@ -343,14 +401,20 @@ export class Viz {
     let second = null;
     let secondTr = null;
     let placeholder = null;
-    const b = p.blend;
-    const f = p.fx;
-    if (b && view && view.now >= b.times[0] && primary && primary.id === b.A.id) {
-      second = b.B;
-      secondTr = b.tr;
-    } else if (f && primary && primary.id === f.A.id) {
-      second = f.B;
-      secondTr = f.tr;
+    // A mix is scheduled a lookahead before it is heard, and the plan is gone
+    // by then: the mix itself keeps the next loop on stage from that moment.
+    const mx = this.mixNow;
+    if (p.plan) this.lastPlan = p.plan;
+    if (mx && primary && primary.id === mx.m.A.id) {
+      second = mx.m.B;
+      secondTr = mx.m.tr;
+    } else if (p.cur && primary && p.cur.track.id !== primary.id && p.history.at(-1)?.via !== "start") {
+      // Same for a cut, a drop or a fade: the scheduler is already in the
+      // next song while the listener is still in this one. Keep the ∞ until
+      // the light gets to the crossing.
+      second = p.cur.track;
+      const tr = this.lastPlan?.tr;
+      secondTr = tr && tr.to === second.id ? tr : null;
     } else if (p.plan && primary && p.plan.from === primary.id) {
       secondTr = p.plan.tr;
       if (p.plan.target) second = p.plan.target;
@@ -373,7 +437,7 @@ export class Viz {
   _update(view, dt) {
     const { primary, second, secondTr, placeholder } = this._roles(view);
     const two = !!(second || placeholder);
-    const L = this._layout(two);
+    const L = this._layout(two, second && this.mixNow?.blend ? this._mixProgress(view) : 0);
     const k = this.reduced ? 1 : 1 - Math.exp(-dt / 0.22);
     const kRot = this.reduced ? 1 : 1 - Math.exp(-dt / 0.3);
 
@@ -390,7 +454,10 @@ export class Viz {
         ring.y = L.a.y;
         ring.r = L.a.r;
         ring.fill = this.reduced || before ? 1 : 0; // the very first loop sweeps in
-        if (before) ring.r = L.a.r * 0.7;
+        if (before) {
+          ring.r = L.a.r * 0.7;
+          ring.dir = -before.dir;
+        }
       }
       this.primaryId = primary.id;
     }
@@ -408,12 +475,14 @@ export class Viz {
       if (two && secondTr) {
         // Turn the loop so the exit beat faces the next song.
         const t = this._exitTime(primary, secondTr);
-        if (t !== null) ring.target.rot = L.a.face - this._ang(primary, t);
+        if (t !== null) ring.target.rot = L.a.face - ring.dir * this._ang(primary, t);
       }
       if (second) {
         const sr = this._ring(second, "second");
-        const entry = this._entryTime(second, secondTr);
-        const rot = L.b.face - this._ang(second, entry);
+        // The next loop runs the other way round (set while it is still
+        // faint, never on a loop the listener is watching).
+        if (sr.alpha < 0.3) sr.dir = -ring.dir;
+        const rot = secondTr ? L.b.face - sr.dir * this._ang(second, this._entryTime(second, secondTr)) : sr.rot;
         if (sr.x === null) {
           sr.x = L.b.x + (L.b.x - L.a.x) * 0.25;
           sr.y = L.b.y + (L.b.y - L.a.y) * 0.25;
@@ -450,6 +519,9 @@ export class Viz {
       const fadeK = this.reduced ? Math.min(1, dt / 0.16) : k;
       ring.alpha += (tg.alpha - ring.alpha) * fadeK;
       if (tg.rot !== undefined) ring.rot += wrapAngle(tg.rot - ring.rot) * kRot;
+      // The playing loop wears the room's accent; the others their own colour.
+      const want = ring.role === "primary" ? theme.accentOf(ring.track.id) : theme.songColor(ring.track.id);
+      ring.col = theme.ease(ring.col, want, this.reduced ? 1 : 1 - Math.exp(-dt / 0.5));
       if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
       if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) this.rings.delete(id);
     }
@@ -462,16 +534,25 @@ export class Viz {
     this.last = now;
     const ctx = this.ctx;
     const view = this.player.audible();
+    this.mixNow = this._mix(view);
     this._update(view, dt);
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
 
     this._beatPulse(view, dt);
+    this._spectrum(dt);
+    const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
+    this._roomColor(primary, view, dt);
     if (this.idle > 0.01) this._drawIdle(ctx, now, this.idle);
 
-    const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
+    this.heads = this._heads(primary, view);
+    this._trackCrossing(now);
+    this.capPlace = this._captionPlace(primary, view);
+    this.captionTrack = this.capPlace.ring?.track || null;
+
     this._drawLights(ctx, primary);
+    if (this.heads.lead && !this.reduced) this._drawHalo(ctx, this.heads.lead);
 
     // Back to front: leaving, the next song, the playing song.
     const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
@@ -480,14 +561,46 @@ export class Viz {
     if (this.cross && primary && primary.alpha > 0.4) this._drawCross(ctx, view, now);
 
     if (primary && view) this._drawLive(ctx, primary, view, now);
-    const b = this.player.blend;
-    if (b && view && view.now >= b.times[0]) {
-      const sr = this.rings.get(b.B.id);
-      if (sr) this._drawBlendHead(ctx, sr, b, view.now);
-    }
     this._drawHover(ctx);
-    this._placeCenter(primary);
+    this._placeCenter(this.capPlace);
     this._updateField(primary, now);
+  }
+
+  // Where the light is. On the playing loop, until a blend reaches the
+  // crossing: from there it runs on round the next loop, and the playing loop
+  // keeps a ghost of it that fades as that song fades out.
+  _heads(primary, view) {
+    if (!primary || !view) return { lead: null, ghost: null };
+    const T = primary.track;
+    const e = view.entry;
+    const frac = Math.max(0, Math.min(1, ((view.now - e.t) * (e.rate || 1)) / T.dur[e.beat]));
+    const onA = this._head(primary, e.beat, frac);
+    const b = this.mixNow?.blend ? this.mixNow.m : null;
+    const sr = b && view.now >= b.times[0] ? this.rings.get(b.B.id) : null;
+    if (!sr || sr.role !== "second" || sr.alpha < 0.05) return { lead: onA, ghost: null };
+    let k = 0;
+    while (k + 1 < b.times.length && b.times[k + 1] <= view.now) k++;
+    k = Math.min(k, b.L - 1);
+    const f = Math.max(0, Math.min(1, (view.now - b.times[k]) / (b.times[k + 1] - b.times[k])));
+    // tB holds B's audio time at each master beat, whatever the beat ratio.
+    const at = this._beatAt(sr.track, b.tB[k] + f * (b.tB[k + 1] - b.tB[k]));
+    return { lead: this._head(sr, at.beat, at.frac), ghost: { ...onA, alpha: 1 - this._mixProgress(view) } };
+  }
+
+  _head(ring, beat, frac) {
+    const T = ring.track;
+    return { ring, beat, frac, angle: this._angle(ring, T.beats[beat] + frac * T.dur[beat]) };
+  }
+
+  // The caption sits in the loop that has the song: the playing one, or the
+  // next one once a blend is past halfway (where the bass changes hands). It
+  // dips out and back in as it crosses over.
+  _captionPlace(primary, view) {
+    const b = this.mixNow?.blend ? this.mixNow.m : null;
+    const sr = b ? this.rings.get(b.B.id) : null;
+    if (!primary || !sr || sr.role !== "second") return { ring: primary, dip: 1 };
+    const k = this._mixProgress(view);
+    return { ring: k >= 0.5 ? sr : primary, dip: Math.min(1, Math.abs(k - 0.5) * 8) };
   }
 
   _beatPulse(view, dt) {
@@ -501,16 +614,152 @@ export class Viz {
     }
   }
 
+  // How the mix is going: 0 before the hand-over starts, 1 once the next song has it.
+  _mixProgress(view) {
+    const mx = this.mixNow;
+    if (!view || !mx || view.now < mx.m.times[0]) return 0;
+    return Math.min(1, (view.now - mx.m.times[0]) / Math.max(1e-3, mx.end - mx.m.times[0]));
+  }
+
+  // The room's colour: the playing song's, passing into the next song's as
+  // the mix goes on. The page gets the same colour through CSS (_updateField).
+  _roomColor(primary, view, dt) {
+    const second = [...this.rings.values()].find((r) => r.role === "second");
+    const nextId = second?.track.id || this.placeholder?.id || null;
+    const a = primary ? theme.accentOf(primary.track.id) : theme.idleAccent();
+    const target = nextId ? theme.mix(a, theme.accentOf(nextId), this._mixProgress(view)) : a;
+    const k = this.reduced ? 1 : 1 - Math.exp(-dt / 0.6);
+    this.accent = theme.ease(this.accent, target, k);
+    this.secondCol = nextId ? theme.ease(this.secondCol, theme.songColor(nextId), k) : null;
+    this.nextId = nextId;
+  }
+
+  // The live spectrum, from the analyser after the master bus. Log-spaced
+  // bands, a gentle tilt so the highs register, and the volume knob taken
+  // back out so the halo shows the music, not the listening level.
+  _spectrum(dt) {
+    const eng = this.player.engine;
+    const an = eng?.analyser;
+    const live = an && this.player.playing && !this.reduced;
+    const rel = 1 - Math.exp(-dt / 0.2);
+    if (!live) {
+      for (let i = 0; i < HALO_BANDS; i++) this.bands[i] *= 1 - rel;
+      this.bass *= 1 - rel;
+      return;
+    }
+    if (!this._fbuf || this._fbuf.length !== an.frequencyBinCount) {
+      this._fbuf = new Float32Array(an.frequencyBinCount);
+      const hz = an.context.sampleRate / an.fftSize;
+      const lo = Math.log(40), hi = Math.log(14000);
+      this._edges = [];
+      for (let i = 0; i <= HALO_BANDS; i++) {
+        const f = Math.exp(lo + ((hi - lo) * i) / HALO_BANDS);
+        this._edges.push(Math.min(an.frequencyBinCount - 1, Math.max(1, Math.round(f / hz))));
+      }
+      this._centre = Array.from({ length: HALO_BANDS }, (_, i) => Math.exp(lo + ((hi - lo) * (i + 0.5)) / HALO_BANDS));
+    }
+    an.getFloatFrequencyData(this._fbuf);
+    if (!this._avg) this._avg = new Float32Array(HALO_BANDS);
+    const comp = -20 * Math.log10(Math.max(1e-3, eng.master.gain.value));
+    const att = 1 - Math.exp(-dt / 0.035);
+    const slow = 1 - Math.exp(-dt / 1.6);
+    let bass = 0, nb = 0;
+    for (let i = 0; i < HALO_BANDS; i++) {
+      const b0 = this._edges[i], b1 = Math.max(b0 + 1, this._edges[i + 1]);
+      let s = 0;
+      for (let j = b0; j < b1; j++) s += Math.pow(10, this._fbuf[j] / 10);
+      const db = 10 * Math.log10(s / (b1 - b0) + 1e-12) + comp + 3 * Math.log2(this._centre[i] / 150);
+      const level = Math.max(0, Math.min(1, (db + 72) / 44));
+      // A dense mix keeps every band near the top: show a little of the
+      // level and mostly what rises above the band's own recent average,
+      // so the halo hits with the kick and the snare instead of standing still.
+      this._avg[i] += (level - this._avg[i]) * slow;
+      const v = Math.max(0, Math.min(1, 0.4 * level + 2.2 * (level - this._avg[i])));
+      this.bands[i] += (v - this.bands[i]) * (v > this.bands[i] ? att : rel);
+      if (this._centre[i] < 160) {
+        bass += this.bands[i];
+        nb++;
+      }
+    }
+    this.bass = nb ? bass / nb : 0;
+  }
+
+  // The halo: the spectrum drawn around the playing loop, mirrored about the
+  // playhead, lows at the playhead and highs on the far side. The music seems
+  // to come out of the loop where it is being played.
+  _drawHalo(ctx, head) {
+    const ring = head.ring;
+    if (ring.alpha < 0.05 || ring.fill < 1) return;
+    let peak = 0;
+    for (let i = 0; i < HALO_BANDS; i++) peak = Math.max(peak, this.bands[i]);
+    if (peak < 0.02) return;
+    const T = ring.track;
+    const a0 = head.angle;
+    const th = this._thickness(ring.r);
+    const r0 = ring.r + th / 2 + 1;
+    const H = ring.r * 0.1 * Math.min(1.3, theme.glowGain());
+    const N = 180;
+    const amp = (k) => {
+      const u = 1 - Math.abs((k / N) * 2 - 1); // 1 at the playhead, 0 opposite
+      const x = (1 - u) * (HALO_BANDS - 1);
+      const i = Math.floor(x), f = x - i;
+      const v = this.bands[i] * (1 - f) + (this.bands[Math.min(HALO_BANDS - 1, i + 1)] || 0) * f;
+      return v * v * (0.55 + 0.45 * u);
+    };
+    const col = ring.col || theme.accentOf(T.id);
+    const hi = theme.lift(col, 0.1);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = ring.alpha;
+    // A soft breath of light under the hairlines.
+    const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H);
+    g.addColorStop(0, theme.css(col, 0.16));
+    g.addColorStop(1, theme.css(col, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let k = 0; k <= N; k++) {
+      const a = a0 + Math.PI + (k / N) * TAU;
+      const r = r0 + amp(k) * H;
+      const x = ring.x + r * Math.cos(a), y = ring.y + r * Math.sin(a);
+      if (k) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    }
+    ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
+    ctx.closePath();
+    ctx.fill();
+    // The spectrum itself: hairlines, like the dial's ticks, grouped by
+    // brightness so the whole halo costs four strokes.
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = "round";
+    const groups = [[], [], [], []];
+    for (let k = 0; k < N; k++) {
+      const v = amp(k);
+      if (v < 0.015) continue;
+      groups[Math.min(3, Math.floor(v * 4))].push([a0 + Math.PI + (k / N) * TAU, v]);
+    }
+    groups.forEach((bars, q) => {
+      if (!bars.length) return;
+      ctx.strokeStyle = theme.css(hi, 0.3 + 0.18 * q);
+      ctx.beginPath();
+      for (const [a, v] of bars) {
+        const c = Math.cos(a), s = Math.sin(a);
+        ctx.moveTo(ring.x + (r0 + 2) * c, ring.y + (r0 + 2) * s);
+        ctx.lineTo(ring.x + (r0 + 3 + v * H) * c, ring.y + (r0 + 3 + v * H) * s);
+      }
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
   _drawLights(ctx, primary) {
+    const gain = theme.glowGain();
     for (const ring of this.rings.values()) {
-      if (ring.alpha < 0.02 || ring.x === null) continue;
+      if (ring.alpha < 0.02 || ring.x === null || !ring.col) continue;
       const isP = ring === primary;
-      const hue = isP ? null : trackHue(ring.track.id);
-      const base = isP ? 0.07 + 0.07 * this.pulse : 0.07;
+      const base = (isP ? 0.07 + 0.05 * this.pulse + 0.09 * this.bass : 0.07) * gain;
       const g = ctx.createRadialGradient(ring.x, ring.y, ring.r * 0.2, ring.x, ring.y, ring.r * 1.55);
-      const col = isP ? `rgba(246, 184, 92, ${base * ring.alpha})` : `hsla(${hue}, 70%, 60%, ${base * ring.alpha})`;
-      g.addColorStop(0, col);
-      g.addColorStop(1, "rgba(0,0,0,0)");
+      g.addColorStop(0, theme.css(ring.col, base * ring.alpha));
+      g.addColorStop(1, theme.css(ring.col, 0));
       ctx.fillStyle = g;
       ctx.fillRect(ring.x - ring.r * 1.6, ring.y - ring.r * 1.6, ring.r * 3.2, ring.r * 3.2);
     }
@@ -518,7 +767,7 @@ export class Viz {
 
   _drawRing(ctx, ring) {
     if (ring.alpha < 0.01 || ring.x === null) return;
-    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.baseR.toFixed(1)}`;
+    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.baseR.toFixed(1)}|${theme.paletteVersion()}`;
     if (ring.layerKey !== key) {
       ring.layer = this._buildLayer(ring.track);
       ring.layerKey = key;
@@ -529,7 +778,7 @@ export class Viz {
     ctx.globalAlpha = Math.min(1, ring.alpha);
     ctx.translate(ring.x, ring.y);
     ctx.rotate(ring.rot);
-    ctx.scale(s, s);
+    ctx.scale(s, s * ring.dir);
     if (ring.fill < 1) {
       const f = easeOut(ring.fill);
       ctx.beginPath();
@@ -541,13 +790,16 @@ export class Viz {
     ctx.drawImage(L.canvas, -L.S / 2, -L.S / 2, L.S, L.S);
     ctx.restore();
 
-    // A soft dark pool in the middle of the playing loop keeps its caption
-    // readable over the chords (contrast, rulebook A2.1).
-    if (ring.role === "primary") {
+    // A soft dark pool in the middle of the loop that holds the caption keeps
+    // it readable over the chords (contrast, rulebook A2.1).
+    if (ring === this.capPlace?.ring) {
+      const a = ring.alpha * this.capPlace.dip;
+      const gr = theme.ground(ring.col || theme.accentOf(ring.track.id));
+      const pool = { l: 0.15, c: gr.c, h: gr.h };
       const g = ctx.createRadialGradient(ring.x, ring.y, 0, ring.x, ring.y, ring.r * 0.72);
-      g.addColorStop(0, `rgba(20, 16, 12, ${0.86 * ring.alpha})`);
-      g.addColorStop(0.62, `rgba(20, 16, 12, ${0.62 * ring.alpha})`);
-      g.addColorStop(1, "rgba(20, 16, 12, 0)");
+      g.addColorStop(0, theme.css(pool, 0.86 * a));
+      g.addColorStop(0.62, theme.css(pool, 0.62 * a));
+      g.addColorStop(1, theme.css(pool, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(ring.x, ring.y, ring.r * 0.72, 0, TAU);
@@ -558,7 +810,7 @@ export class Viz {
     if (ring.role === "primary" && ring.alpha > 0.3 && ring.fill >= 1) {
       ctx.save();
       ctx.globalAlpha = ring.alpha * 0.7;
-      ctx.fillStyle = "rgba(240, 225, 200, 0.7)";
+      ctx.fillStyle = theme.css(theme.inkOf(ring.track.id), 0.7);
       ctx.font = `400 ${Math.max(9, Math.min(11, ring.r * 0.04))}px "JetBrains Mono", monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -572,9 +824,8 @@ export class Viz {
   }
 
   _drawPlaceholder(ctx, ph, now) {
-    const hue = trackHue(ph.id);
     ctx.save();
-    ctx.strokeStyle = `hsla(${hue}, 70%, 65%, 0.55)`;
+    ctx.strokeStyle = theme.css(theme.songColor(ph.id), 0.55);
     ctx.lineWidth = 1.5;
     ctx.setLineDash([3, 7]);
     ctx.lineDashOffset = this.reduced ? 0 : -now / 60;
@@ -582,51 +833,57 @@ export class Viz {
     ctx.arc(ph.x, ph.y, ph.r, 0, TAU);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(240, 225, 200, 0.6)";
+    ctx.fillStyle = theme.css(theme.inkOf(ph.id), 0.6);
     ctx.font = '400 11px "JetBrains Mono", monospace';
     ctx.textAlign = "center";
     ctx.fillText("ĐANG TẢI", ph.x, ph.y + 4);
     ctx.restore();
   }
 
-  // The crossing: where the two loops touch, the mix glows.
+  // The crossing: where the two loops touch, the mix glows in both colours,
+  // and its progress ring turns from this song's colour into the next one's.
   _drawCross(ctx, view, now) {
     const c = this.cross;
-    const b = this.player.blend;
-    const f = this.player.fx;
-    let k = 0;
-    if (b && view && view.now >= b.times[0]) k = Math.min(1, (view.now - b.times[0]) / (b.times[b.L] - b.times[0]));
-    else if (f && view && view.now >= f.times[0]) {
-      k = Math.min(1, (view.now - f.times[0]) / (f.times[f.times.length - 1] - f.times[0]));
-    }
+    const k = this._mixProgress(view);
+    const primary = this.rings.get(this.primaryId);
+    const ca = primary?.col || this.accent;
+    const cb = this.secondCol || ca;
+    const mid = this.accent || ca;
     const breathe = this.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 420);
-    const R = 16 + 26 * k;
+    const R = (16 + 26 * k) * (1 + 0.25 * this.bass);
     const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
-    g.addColorStop(0, `rgba(255, 214, 150, ${0.55 + 0.35 * k})`);
-    g.addColorStop(0.35, `rgba(246, 184, 92, ${0.18 + 0.12 * breathe})`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
+    g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
+    g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * theme.glowGain()));
+    g.addColorStop(1, theme.css(mid, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = "#fff4e0";
+    ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
     ctx.beginPath();
     ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
     ctx.fill();
     if (k > 0) {
-      ctx.strokeStyle = "rgba(255, 214, 150, 0.9)";
+      const start = -Math.PI / 2;
+      const cg = ctx.createConicGradient ? ctx.createConicGradient(start, c.x, c.y) : null;
+      if (cg) {
+        cg.addColorStop(0, theme.css(theme.lift(ca, 0.06), 0.95));
+        cg.addColorStop(Math.max(0.01, k), theme.css(theme.lift(theme.mix(ca, cb, k), 0.06), 0.95));
+        cg.addColorStop(1, theme.css(cb, 0.95));
+      }
+      ctx.strokeStyle = cg || theme.css(theme.lift(mid, 0.06), 0.9);
       ctx.lineWidth = 2;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.arc(c.x, c.y, 11, -Math.PI / 2, -Math.PI / 2 + TAU * k);
+      ctx.arc(c.x, c.y, 11, start, start + TAU * k);
       ctx.stroke();
+      ctx.lineCap = "butt";
     }
   }
 
   _drawLive(ctx, ring, view, now) {
     const T = ring.track;
-    const { entry } = view;
     const p = this.player;
-    const th = this._thickness(ring.r);
 
     // New audible events start a flash along the jump that was taken.
     for (const ev of p.recentEvents(this.lastEventT)) {
@@ -634,19 +891,22 @@ export class Viz {
     }
     this.lastEventT = view.now;
     this.flashes = this.flashes.filter((f) => now - f.t0 < 900);
+    const col = ring.col || theme.accentOf(T.id);
+    const white = theme.lift(col, 0.3);
     for (const f of this.flashes) {
       const a = 1 - (now - f.t0) / 900;
-      ctx.strokeStyle = `rgba(255, 246, 232, ${(0.9 * a).toFixed(3)})`;
+      ctx.strokeStyle = theme.css(white, 0.9 * a);
       ctx.lineWidth = 2.4;
       this._chordWorld(ctx, ring, f.i, f.j);
       ctx.stroke();
     }
 
-    // The route the player will take to the planned exit: an amber thread.
+    // The route the player will take to the planned exit: a bright thread
+    // that turns toward the next song's colour.
     const plan = p.plan;
     if (plan && plan.from === T.id) {
       ctx.save();
-      ctx.strokeStyle = "rgba(255, 200, 120, 0.85)";
+      ctx.strokeStyle = theme.css(theme.lift(theme.mix(col, theme.songColor(plan.tr.to), 0.35), 0.1), 0.88);
       ctx.lineWidth = 1.8;
       ctx.setLineDash([5, 6]);
       ctx.lineDashOffset = this.reduced ? 0 : -now / 40;
@@ -659,7 +919,7 @@ export class Viz {
       if (t !== null) {
         const [x, y] = this._point(ring, t, this._exitRadius(ring.r));
         const pulse = this.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(now / 200);
-        ctx.strokeStyle = `hsla(${trackHue(plan.tr.to)}, 85%, 72%, ${0.5 + 0.5 * pulse})`;
+        ctx.strokeStyle = theme.css(theme.lift(theme.songColor(plan.tr.to), 0.06), 0.5 + 0.5 * pulse);
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(x, y, 7 + 3 * pulse, 0, TAU);
@@ -667,45 +927,73 @@ export class Viz {
       }
     }
 
-    // Playhead.
-    const beat = entry.beat;
-    const frac = Math.max(0, Math.min(1, ((view.now - entry.t) * (entry.rate || 1)) / T.dur[beat]));
-    const a1 = ring.rot + this._ang(T, T.beats[beat]);
-    const a2 = ring.rot + this._ang(T, T.beats[beat] + T.dur[beat]);
-    ctx.strokeStyle = "rgba(255, 248, 236, 0.95)";
-    ctx.lineWidth = th + 5;
-    ctx.beginPath();
-    ctx.arc(ring.x, ring.y, ring.r, a1, a2);
-    ctx.stroke();
-    const ah = a1 + (a2 - a1) * frac;
-    const hx = ring.x + ring.r * Math.cos(ah), hy = ring.y + ring.r * Math.sin(ah);
-    const glow = 14 + 10 * this.pulse;
-    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
-    g.addColorStop(0, "rgba(255, 220, 160, 0.9)");
-    g.addColorStop(1, "rgba(246, 184, 92, 0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(hx, hy, glow * 2, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = "#fff8ec";
-    ctx.beginPath();
-    ctx.arc(hx, hy, th * 0.42, 0, TAU);
-    ctx.fill();
+    // The light, and the ghost it leaves on the song it has crossed out of.
+    const { lead, ghost } = this.heads;
+    if (ghost && ghost.alpha > 0.02) this._drawHead(ctx, ghost, ghost.alpha * 0.7, false);
+    if (lead) this._drawHead(ctx, lead, 1, true);
+    this._drawRipples(ctx, now);
   }
 
-  // During a blend the next song plays too: its own playhead, beat-locked.
-  _drawBlendHead(ctx, ring, b, now) {
-    let k = 0;
-    while (k + 1 < b.times.length && b.times[k + 1] <= now) k++;
-    k = Math.min(k, b.L - 1);
-    const frac = Math.max(0, Math.min(1, (now - b.times[k]) / (b.times[k + 1] - b.times[k])));
-    // tB holds B's audio time at each master beat, whatever the beat ratio.
-    const t = b.tB[k] + frac * (b.tB[k + 1] - b.tB[k]);
-    const [x, y] = this._point(ring, t, ring.r);
-    ctx.fillStyle = `hsla(${trackHue(ring.track.id)}, 90%, 82%, 0.95)`;
+  // A playhead: the beat lit on the loop, a glow and a bright core. The ghost
+  // keeps only a dimmed beat and a small core.
+  _drawHead(ctx, h, alpha, full) {
+    const ring = h.ring;
+    const T = ring.track;
+    const th = this._thickness(ring.r);
+    const col = ring.col || theme.accentOf(T.id);
+    const a1 = this._angle(ring, T.beats[h.beat]);
+    const a2 = this._angle(ring, T.beats[h.beat] + T.dur[h.beat]);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, ring.alpha) * alpha;
+    ctx.strokeStyle = theme.css(theme.lift(col, 0.3), full ? 0.95 : 0.6);
+    ctx.lineWidth = th + (full ? 5 : 2);
     ctx.beginPath();
-    ctx.arc(x, y, this._thickness(ring.r) * 0.45, 0, TAU);
+    ctx.arc(ring.x, ring.y, ring.r, a1, a2, ring.dir < 0);
+    ctx.stroke();
+    const hx = ring.x + ring.r * Math.cos(h.angle), hy = ring.y + ring.r * Math.sin(h.angle);
+    if (full) {
+      const glow = (14 + 8 * this.pulse + 10 * this.bass) * Math.sqrt(theme.glowGain());
+      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
+      g.addColorStop(0, theme.css(theme.lift(col, 0.12), 0.9));
+      g.addColorStop(1, theme.css(col, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(hx, hy, glow * 2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = theme.css(theme.lift(col, 0.4));
+    ctx.beginPath();
+    ctx.arc(hx, hy, th * (full ? 0.42 : 0.28), 0, TAU);
     ctx.fill();
+    ctx.restore();
+  }
+
+  // The moment the light crosses into the next loop, the crossing rings out
+  // once in the next song's colour.
+  _trackCrossing(now) {
+    const lead = this.heads.lead;
+    const id = lead ? lead.ring.track.id : null;
+    // A cut or a fade hands over in the frame where the ∞ comes apart, so
+    // the crossing is remembered for a moment.
+    const cross = this.lastCross && now - this.lastCross.at < 300 ? this.lastCross : null;
+    if (id && this.leadId && id !== this.leadId && cross && !this.reduced) {
+      this.ripples.push({ x: cross.x, y: cross.y, t0: now, col: lead.ring.col || theme.songColor(id) });
+    }
+    this.leadId = id;
+    if (this.cross) this.lastCross = { ...this.cross, at: now };
+  }
+
+  _drawRipples(ctx, now) {
+    this.ripples = this.ripples.filter((r) => now - r.t0 < 900);
+    for (const r of this.ripples) {
+      const u = (now - r.t0) / 900;
+      const e = easeOut(u);
+      ctx.strokeStyle = theme.css(theme.lift(r.col, 0.15), 0.85 * (1 - u));
+      ctx.lineWidth = 2 * (1 - u) + 0.6;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 8 + 52 * e, 0, TAU);
+      ctx.stroke();
+    }
   }
 
   _drawIdle(ctx, now, alpha) {
@@ -717,9 +1005,10 @@ export class Viz {
       const d = 1 + s * s;
       return [cx + (a * c) / d, cy + (a * s * c) / d];
     };
+    const col = this.accent || theme.idleAccent();
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = "rgba(240, 225, 200, 0.16)";
+    ctx.strokeStyle = theme.css(theme.lift(col, 0.2), 0.16);
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i <= 240; i++) {
@@ -731,15 +1020,15 @@ export class Viz {
     const u0 = this.reduced ? 0.6 : (now / 7000) * TAU;
     for (let k = 0; k < 28; k++) {
       const [x, y] = pt(u0 - k * 0.025);
-      ctx.fillStyle = `rgba(246, 184, 92, ${((1 - k / 28) * 0.55).toFixed(3)})`;
+      ctx.fillStyle = theme.css(col, (1 - k / 28) * 0.55);
       ctx.beginPath();
       ctx.arc(x, y, 2.6 * (1 - k / 40), 0, TAU);
       ctx.fill();
     }
     const [hx, hy] = pt(u0);
     const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 26);
-    g.addColorStop(0, "rgba(255, 220, 160, 0.85)");
-    g.addColorStop(1, "rgba(246, 184, 92, 0)");
+    g.addColorStop(0, theme.css(theme.lift(col, 0.12), 0.85));
+    g.addColorStop(1, theme.css(col, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(hx, hy, 26, 0, TAU);
@@ -750,16 +1039,21 @@ export class Viz {
 
   // ---------------------------------------------------------------- caption
 
-  _placeCenter(primary) {
+  _placeCenter(place) {
     const el = this.center;
     if (!el) return;
+    const ring = place.ring;
+    if ((ring?.track.id || null) !== this._captionId) {
+      this._captionId = ring?.track.id || null;
+      this.onCaption(); // the page writes the new song's title before it fades in
+    }
     let x, y, w, size, o;
-    if (primary && primary.alpha > 0.05) {
-      x = primary.x;
-      y = primary.y;
-      w = primary.r * 1.32;
-      size = Math.max(15, Math.min(38, primary.r * 0.125));
-      o = Math.min(1, primary.alpha * (primary.fill < 1 ? easeOut(primary.fill) : 1));
+    if (ring && ring.alpha > 0.05) {
+      x = ring.x;
+      y = ring.y;
+      w = ring.r * 1.32;
+      size = Math.max(15, Math.min(38, ring.r * 0.125));
+      o = Math.min(1, ring.alpha * (ring.fill < 1 ? easeOut(ring.fill) : 1)) * place.dip;
     } else {
       x = this.w / 2;
       y = Math.min(this.h - 60, this.idleCaptionY || this.h * 0.78);
@@ -775,9 +1069,9 @@ export class Viz {
     el.style.setProperty("--rc-w", `${w}px`);
     el.style.setProperty("--rc-size", `${size}px`);
     el.style.setProperty("--rc-o", o.toFixed(2));
-    el.dataset.mode = primary ? "ring" : "idle";
+    el.dataset.mode = ring ? "ring" : "idle";
     // Small loops (phones, the ∞ layout) keep the title and drop the details.
-    el.dataset.size = primary && primary.r < 125 ? "s" : "m";
+    el.dataset.size = ring && ring.r < 125 ? "s" : "m";
   }
 
   // The page's light field follows the loops (atmospheric field, ~10 updates/s).
@@ -789,13 +1083,15 @@ export class Viz {
     const vw = window.innerWidth || 1;
     if (primary) root.setProperty("--key-x", `${(((rect.left + primary.x) / vw) * 100).toFixed(1)}%`);
     const second = [...this.rings.values()].find((r) => r.role === "second");
-    if (second) {
-      root.setProperty("--fill-x", `${(((rect.left + second.x) / vw) * 100).toFixed(1)}%`);
-      root.setProperty("--fill", `hsla(${trackHue(second.track.id)}, 60%, 55%, 0.09)`);
-    } else {
-      root.setProperty("--fill", "oklch(0.6 0.08 40 / 0.04)");
-    }
-    root.setProperty("--pulse", this.pulse.toFixed(2));
+    const place = second || this.placeholder;
+    if (place) root.setProperty("--fill-x", `${(((rect.left + place.x) / vw) * 100).toFixed(1)}%`);
+    // CSS eases these over a second or so; the targets go out unsmoothed.
+    const view = this.player.audible();
+    const a = primary ? theme.accentOf(primary.track.id) : theme.idleAccent();
+    const target = this.nextId ? theme.mix(a, theme.accentOf(this.nextId), this._mixProgress(view)) : a;
+    const second2 = this.nextId ? theme.songColor(this.nextId) : null;
+    theme.applyPage(target, second2, this.nextId ? 0.1 * theme.glowGain() : 0);
+    root.setProperty("--pulse", Math.min(1.4, 0.6 * this.pulse + 0.9 * this.bass).toFixed(2));
   }
 
   // ------------------------------------------------------------- pointer
@@ -857,17 +1153,10 @@ export class Viz {
       const d = Math.hypot(dx, dy);
       const th = this._thickness(ring.r);
       if (Math.abs(d - ring.r) > th * 1.5) continue;
-      let a = (Math.atan2(dy, dx) - ring.rot) % TAU;
+      let a = ((Math.atan2(dy, dx) - ring.rot) * ring.dir) % TAU;
       if (a < 0) a += TAU;
       const t = (a / TAU) * ring.track.end;
-      const beats = ring.track.beats;
-      let lo = 0, hi = beats.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi + 1) >> 1;
-        if (beats[mid] <= t) lo = mid;
-        else hi = mid - 1;
-      }
-      return { kind: "beat", ring, beat: lo, t, x: px, y: py };
+      return { kind: "beat", ring, beat: this._beatAt(ring.track, t).beat, t, x: px, y: py };
     }
     return null;
   }
@@ -890,7 +1179,8 @@ export class Viz {
     if (h.kind === "beat") {
       const ring = h.ring;
       const T = ring.track;
-      ctx.strokeStyle = "rgba(255, 210, 140, 0.95)";
+      const hi = theme.lift(ring.col || theme.accentOf(T.id), 0.12);
+      ctx.strokeStyle = theme.css(hi, 0.95);
       ctx.lineWidth = 1.6;
       const limit = this.player.maxScore(T);
       const outs = T.jumps[h.beat].filter((e) => e.score <= limit || e.bridge);
@@ -898,12 +1188,12 @@ export class Viz {
         this._chordWorld(ctx, ring, h.beat, e.to);
         ctx.stroke();
       }
-      const a1 = ring.rot + this._ang(T, T.beats[h.beat]);
-      const a2 = ring.rot + this._ang(T, T.beats[h.beat] + T.dur[h.beat]);
-      ctx.strokeStyle = "rgba(255, 210, 140, 0.9)";
+      const a1 = this._angle(ring, T.beats[h.beat]);
+      const a2 = this._angle(ring, T.beats[h.beat] + T.dur[h.beat]);
+      ctx.strokeStyle = theme.css(hi, 0.9);
       ctx.lineWidth = this._thickness(ring.r) + 8;
       ctx.beginPath();
-      ctx.arc(ring.x, ring.y, ring.r, a1, a2);
+      ctx.arc(ring.x, ring.y, ring.r, a1, a2, ring.dir < 0);
       ctx.stroke();
       const name = esc(short(this.titles.get(T.id) || T.meta.title || "", 34));
       const n = outs.length;
@@ -914,7 +1204,7 @@ export class Viz {
       return;
     }
     // Exit dot.
-    ctx.strokeStyle = "rgba(255, 246, 232, 0.95)";
+    ctx.strokeStyle = theme.css(theme.lift(theme.songColor(h.tr.to), 0.2), 0.95);
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(h.x, h.y, 8, 0, TAU);
@@ -924,7 +1214,7 @@ export class Viz {
     const action = this.armed === tr ? "Chạm lần nữa để chuyển ở điểm này" : "Bấm để chuyển ở điểm này";
     const note = bendNote(tr);
     this._showTip(
-      `<b>${KIND_VI[tr.type] || tr.type}</b> → ${title}<br><span class="mono">khớp ${Math.round(tr.q * 100)}%</span>` +
+      `<b>${KIND_VI[tr.type] || tr.type}</b> → <span class="dot" style="--c:${theme.css(theme.songColor(tr.to))}"></span>${title}<br><span class="mono">khớp ${Math.round(tr.q * 100)}%</span>` +
         `${note ? `<small>${esc(note)}</small>` : ""}<small>${action}</small>`,
       h.x, h.y,
     );

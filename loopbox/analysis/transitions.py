@@ -24,6 +24,7 @@ import numpy as np
 from .. import library
 from ..config import TRANSITIONS_VERSION
 from . import similarity as sim
+from .mood import song_mood
 from .structure import _CAMELOT_MAJOR, _CAMELOT_MINOR, PHRASE_4BAR, PHRASE_SECTION
 
 CUT_MAX_RATE = 0.035     # B alone absorbs this much at a cut
@@ -91,22 +92,7 @@ def _intensity(f: dict) -> np.ndarray:
 
 
 def _mood(f: dict) -> dict:
-    """Song-level mood: drive (drums), tempo feel (folded into 80-160 BPM),
-    brightness (MFCC 1, the spectral tilt), how sung it is, major or minor,
-    and dynamic range."""
-    fold = math.log2(max(1.0, f["bpm"]))
-    while fold < math.log2(80):
-        fold += 1
-    while fold >= math.log2(160):
-        fold -= 1
-    return {
-        "drums": float(np.median(sim.drum_presence(f))),
-        "fold": fold,
-        "bright": float(f["mfcc"][:, :, 0].mean()),
-        "vocal": float(f["vocal"].mean()),
-        "major": 1.0 if f["key_mode"] == 0 else 0.0,
-        "dyn": float(np.percentile(f["loud"], 90) - np.percentile(f["loud"], 10)),
-    }
+    return song_mood(f, f["bpm"], f["key_mode"])
 
 
 # Spread of song brightness in a typical library; fixes the scale of that term.
@@ -178,6 +164,17 @@ def _quality(score: float, rng: tuple[float, float]) -> float:
 
 def _steady(f: dict, ibi: np.ndarray) -> np.ndarray:
     return np.abs(np.log(ibi / np.median(f["dur"]))) <= math.log(1 + MAX_LOCAL_TEMPO_DRIFT)
+
+
+BEAT_EVENNESS = 0.22  # a beat inside a blend window may differ this much from the window's mean
+
+
+def _even(f: dict, starts: np.ndarray, length: int) -> np.ndarray:
+    """True for windows whose every beat is close to the window's mean beat. A
+    steady mean can hide one long beat (a pause, a beat the tracker missed):
+    the other song, locked beat by beat, would fall a beat out of step there."""
+    d = _gather(f["dur"], starts, length)
+    return (np.abs(np.log(d / d.mean(1, keepdims=True))) <= math.log(1 + BEAT_EVENNESS)).all(1)
 
 
 def cuts(fa: dict, fb: dict, to: str) -> list[dict]:
@@ -311,7 +308,8 @@ def blends(fa: dict, fb: dict, to: str) -> list[dict]:
             rate = dur_b[None, :] / dur_a[:, None]
             lr = np.abs(np.log(rate))
             ok = ((lr <= math.log(1 + BRIDGE_MAX))
-                  & _steady(fa, dur_a / L)[:, None] & _steady(fb, dur_b / span)[None, :])
+                  & _steady(fa, dur_a / L)[:, None] & _steady(fb, dur_b / span)[None, :]
+                  & _even(fa, A, L)[:, None] & _even(fb, B, span)[None, :])
             if not ok.any():
                 continue
             k = np.arange(L)

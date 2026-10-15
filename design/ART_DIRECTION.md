@@ -6,12 +6,18 @@ corner labels; tabular). All three verified for every Vietnamese glyph (`font_ch
 Scale: title clamp(22px, 2.6vw, 44px) at line-height 1.15, tracking -0.02em; body 14-15px / 1.55; labels
 11-12px mono, tracked +0.08em, Latin uppercase only (Vietnamese labels stay sentence case, E3).
 
-**Color.** Ground `--ink-0` oklch(0.16 0.008 60) warm black, raised surfaces step up in lightness only
-(`--ink-1` 0.195, `--ink-2` 0.235). One emissive light, amber phosphor `--amber` oklch(0.83 0.13 72):
-playhead, crossing glow, play button, slider fill, active states, focus, selection. Text `--text`
-oklch(0.95 0.01 80), muted oklch(0.74 0.012 70) (≥ 4.5:1 on `--ink-2`). Data colors (timbre rings,
-destination hues) appear only inside the visualization and as a 6px swatch in lists. Error oklch(0.72 0.14
-30), used for one line of text, never a fill.
+**Color.** One emissive light, and it is the colour of the song that is playing (`web/js/theme.js`).
+Each song gets a colour from its mood: energy and valence from the analysis, spread over the library by
+rank, mapped around a hue wheel (content green, joyful amber, excited orange, tense red, gloomy violet,
+sad blue, calm teal) at L 0.79. That colour is `--accent` (`--acc-l/c/h`, registered and animated over
+1.4 s): playhead, crossing glow, play button, slider fill, active states, focus, selection. During a
+mix it passes into the next song's colour (`--accent-2`) with the mix's progress. Ground `--ink-0`
+oklch(0.16 · `--gh`) carries the song's hue at chroma ~0.016; surfaces step up in lightness only. Each
+loop's beats keep their timbre colouring, folded into ±40° of the song's hue, so a loop is one colour
+world and the ∞ is two. Presets: *Theo mood* (default), *Neon* (chroma 0.24, night-blue ground),
+*Hổ phách* (the first design: fixed amber oklch(0.83 0.13 72), rainbow timbre rings). Text stays near
+white with a trace of the ground hue (≥ 4.5:1 on `--ink-2`). Error oklch(0.74 0.14 30), used for one
+line of text, never a fill.
 
 **Composition.** Desktop: a stage that owns the screen (left, fluid) and one panel (right, 380px). The
 stage's focal point is the loop; its title sits inside the ring; corner readouts in mono frame it like an
