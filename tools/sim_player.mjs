@@ -25,7 +25,8 @@ const read = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
 // store holds songs whose transitions were never exported).
 const only = process.env.SIM_IDS ? new Set(fs.readFileSync(process.env.SIM_IDS, "utf8").split(/\s+/).filter(Boolean)) : null;
 const metas = fs.readdirSync(LIB).filter((d) => !only || only.has(d))
-  .map((d) => ({ ...read(path.join(LIB, d, "meta.json")), stems: fs.existsSync(path.join(LIB, d, "vocals.flac")) }))
+  .map((d) => ({ ...read(path.join(LIB, d, "meta.json")),
+    stems: ["vocals.mp3", "vocals.flac"].some((f) => fs.existsSync(path.join(LIB, d, f))) }))
   .filter((m) => m.status === "ready");
 
 // ---------------------------------------------------------------- fake audio
@@ -58,12 +59,20 @@ class FakeVoice {
     this.engine = engine;
     this.track = track;
     this.gain = { gain: new FakeParam(this, "gain") };
+    this.fx = { gain: new FakeParam(this, "fx") };
     this.level = { low: 1, mid: 1, high: 1 };
     this.bandAt = { low: -Infinity, mid: -Infinity, high: -Infinity };
     this.started = null;
     this.stretched = false;
+    this.semis = 0;
     this.shift = 0;
     this.stopTime = Infinity;
+  }
+  loop(when, from, to, rate, until) {
+    fxLog.loop++;
+    if (!(to > from + 0.05 && from >= 0 && until > when && rate > 0.8 && rate < 1.25)) {
+      problems.push(`loop ${from}-${to} from ${when} to ${until} at ${rate} on ${this.track.id}`);
+    }
   }
   // EQ moves on one band must come in time order and stay in range (dB).
   _band(name, when, db) {
@@ -101,8 +110,13 @@ class FakeVoice {
   startSilent(when, offset) {
     this.start(when, offset);
   }
-  setRate(when, rate) {
-    if (!(rate > 0.8 && rate < 1.2)) problems.push(`rate ${rate}`);
+  setRate(when, rate, pos, semis) {
+    if (!(rate > 0.78 && rate < 1.27)) problems.push(`rate ${rate}`);
+    if (semis != null) {
+      if (!this.stretched) problems.push(`pitch set on a plain voice of ${this.track.id}`);
+      if (!(Math.abs(semis) <= 2)) problems.push(`semis ${semis}`);
+      this.semis = semis;
+    }
   }
   gainCurve(v, when, dur) {
     try {
@@ -131,7 +145,7 @@ class FakeVoice {
     this.stopTime = t;
   }
 }
-const fxLog = { echo: 0, roll: 0, wash: 0 };
+const fxLog = { echo: 0, roll: 0, wash: 0, riser: 0, impact: 0, spin: 0, gate: 0, flanger: 0, loop: 0, shifted: 0 };
 const engine = {
   ctx: { state: "running", resume: async () => {}, suspend: async () => {} },
   get now() {
@@ -146,14 +160,37 @@ const engine = {
   },
   canStretch: true,
   stretched: 0,
-  async stretchVoice(track, from, to, vocals) {
+  async stretchVoice(track, from, to, vocals, semis = 0) {
     if (!(to > from && from >= 0)) problems.push(`stretch window ${from}-${to} on ${track.id}`);
+    if (!(Math.abs(semis) <= 2 && Number.isInteger(semis))) problems.push(`stretch shifted by ${semis}`);
     const v = new FakeVoice(this, track);
     v.stretched = true;
+    v.semis = semis;
     v.hasVocals = !!vocals;
     this.stretched++;
+    if (semis) fxLog.shifted++;
     this.voices.add(v);
     return v;
+  },
+  riser(start, end) {
+    fxLog.riser++;
+    if (!(end > start + 1)) problems.push(`riser ${start}-${end}`);
+  },
+  impact() {
+    fxLog.impact++;
+  },
+  spinback(voice, when, pos, dur, rate) {
+    fxLog.spin++;
+    if (!(dur > 0.2 && pos > 0 && rate > 0.8 && rate < 1.25)) problems.push(`spinback at ${pos} for ${dur} at ${rate}`);
+    voice.fadeOut(when - 0.004, 0.008);
+  },
+  gate(voice, times) {
+    fxLog.gate++;
+    for (let k = 1; k < times.length; k++) if (!(times[k] > times[k - 1])) problems.push(`gate beat times not rising at ${times[k]}`);
+  },
+  flanger(voice, start, end) {
+    fxLog.flanger++;
+    if (!(end > start)) problems.push(`flanger ${start}-${end}`);
   },
   stopAll() {
     for (const v of this.voices) v.release(now);
@@ -203,6 +240,8 @@ if (process.argv[5]) player.settings.keep = +process.argv[5];
 if (process.argv[6]) player.settings.waitCost = +process.argv[6];
 // CRITERION=mood|tempo|key|free picks what the chain looks for (default balanced).
 if (process.env.CRITERION) player.settings.criterion = process.env.CRITERION;
+// ALL_KINDS=1 switches on every kind of transition, the abrupt ones too.
+if (process.env.ALL_KINDS) for (const k of Object.keys(player.settings.allow)) player.settings.allow[k] = true;
 player.settings.dwellMin = 60;
 player.settings.dwellMax = 150;
 player.enabled = () => true;
@@ -245,11 +284,25 @@ let lastJumpT = -Infinity;
 const counts = {};
 const styles = {};
 let keylocked = 0;
+let ramped = 0;
+// The walk stuck near the end: jumps back from the last branch point with no
+// other jump between them (the longest such run, in jumps and in seconds).
+let endRun = 0, endRunFrom = null, endRunMax = 0, endRunSecs = 0;
+// SEEKS=1: the listener taps the ring every 97 s; each seek must land on the
+// next beat with the meter carrying on.
+const seeks = { asked: 0, landed: 0, inMeter: 0, refused: 0 };
+let nextSeek = 97;
+let rampedLocked = 0;
 const seconds = new Map();
 let lastLog = 0;
 const step = 0.04;
 while (now < end) {
   now += step;
+  if (process.env.SEEKS && now >= nextSeek) {
+    nextSeek += 97;
+    seeks.asked++;
+    if (!player.seek(Math.floor(Math.random() * player.cur.track.n))) seeks.refused++;
+  }
   try {
     player._tick();
   } catch (e) {
@@ -266,6 +319,18 @@ while (now < end) {
       maxDev = Math.max(maxDev, Math.abs(e.t - expected));
     }
     if (e.kind === "jump" && last && e.beat === 0 && last.beat === last.track.n - 1) fellOff++;
+    if (e.kind === "jump" && e.track.lbp >= 0 && e.from >= e.track.lbp && !e.seek) {
+      if (endRun++ === 0) endRunFrom = e.t;
+      if (endRun > endRunMax) endRunMax = endRun;
+      endRunSecs = Math.max(endRunSecs, e.t - endRunFrom);
+    } else if (!["seq", "blend", "fxBeat"].includes(e.kind)) {
+      endRun = 0;
+    }
+    if (e.kind === "jump" && e.seek) {
+      seeks.landed++;
+      const pos = e.track.analysis.pos;
+      if (!pos || e.from + 1 >= e.track.n || pos[e.beat] === pos[e.from + 1]) seeks.inMeter++;
+    }
     if (e.kind === "jump") {
       if (e.t - lastJumpT < 1.5) rapid++;
       if (isFinite(lastJumpT)) jumpGaps.push(e.t - lastJumpT);
@@ -288,10 +353,15 @@ while (now < end) {
         });
       }
     }
-    if (["start", "promote", "cut", "drop", "fade", "echo", "wash", "brake", "roll"].includes(e.kind)) songStart = e.t;
+    if (["start", "promote", "cut", "drop", "fade", "echo", "wash", "brake", "roll", "riser", "spin", "gate", "flanger",
+      "gap"].includes(e.kind)) songStart = e.t;
     counts[e.kind] = (counts[e.kind] || 0) + 1;
     if (e.kind === "blendStart" && e.tr) styles[e.tr.style || "?"] = (styles[e.tr.style || "?"] || 0) + 1;
     if (e.tr && ["blendStart", "cut", "drop"].includes(e.kind) && e.tr.keylock) keylocked++;
+    if (e.kind === "blendStart" && e.tr && Math.abs((e.tr.pre || 1) - 1) > 0.004) {
+      ramped++;
+      if (Math.abs(e.rate - 1) > 0.003) rampedLocked++; // A did ramp toward B (on its key-locked voice)
+    }
     seconds.set(e.track.id, (seconds.get(e.track.id) || 0) + e.track.dur[e.beat] / e.rate);
     last = e;
     steps++;
@@ -319,7 +389,14 @@ console.log(`\nsimulated ${minutes} min in ${mode} mode over ${metas.length} tra
 console.log(`steps ${steps}, max schedule deviation ${(maxDev * 1000).toFixed(4)} ms, fell off the end ${fellOff}x`);
 console.log(`events`, counts);
 console.log(`blend styles`, styles, `| key-locked hand-overs ${keylocked} (stretch voices prepared ${engine.stretched})`);
+console.log(`tempo ramps ${ramped} (A ramped on its key-locked voice in ${rampedLocked}), effects and engine calls`,
+  JSON.stringify(fxLog));
 console.log(`jumps ${player.stats.jumps} (${(player.stats.jumps / minutes).toFixed(1)}/min), back-to-back (<1.5 s apart) ${rapid}, transitions ${player.stats.transitions}`);
+console.log(`stuck near the end: longest run ${endRunMax} jumps back from the end, ${endRunSecs.toFixed(0)} s`);
+if (process.env.SEEKS) {
+  console.log(`seeks: asked ${seeks.asked}, refused ${seeks.refused} (mid hand-over), landed ${seeks.landed}, meter kept ${seeks.inMeter}`);
+  if (seeks.landed !== seeks.asked - seeks.refused) problems.push(`seeks landed ${seeks.landed} of ${seeks.asked - seeks.refused}`);
+}
 const via = {};
 for (const h of player.history) via[h.via] = (via[h.via] || 0) + 1;
 console.log(`last ${player.history.length} song changes by kind`, via);

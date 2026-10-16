@@ -1053,6 +1053,13 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .kinds:disabled .kind input { cursor: not-allowed; }
 
+/* How far a blend may match (key shift, tempo ramp), under the ways to blend. */
+.kinds + .choices { margin-top: var(--space-4); }
+
+.choices:disabled .choice { opacity: 0.45; cursor: not-allowed; }
+
+.choices:disabled .choice input { cursor: not-allowed; }
+
 /* What the chain looks for: one row per criterion, a small loop for a radio. */
 .choices { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
 

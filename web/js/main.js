@@ -15,6 +15,7 @@ const viz = new Viz($("#viz"), player, {
   center: $("#ring-center"),
   tip: $("#viz-tip"),
   onPick: (tr) => player.planTransition(tr),
+  onSeek: (track, beat) => player.seek(beat),
   onCaption: () => renderStage(),
 });
 
@@ -97,7 +98,9 @@ document.fonts?.ready.then(placeIndicators);
 // ------------------------------------------------------------------ settings
 
 const STORE = "loopbox.settings.v1";
-const BLEND_STYLES = ["long", "eq", "short", "filter", "swap", "stem", "acapella"];
+const BLEND_STYLES = ["long", "eq", "short", "filter", "swap", "stem", "acapella", "loop", "mashup", "double"];
+// Every kind of transition, each with its switch (#s-<kind>).
+const KINDS = ["cut", "drop", "blend", "fade", "echo", "wash", "riser", "flanger", "gap", "brake", "roll", "spin", "gate"];
 // 2: the abrupt effects (brake, roll) became opt-in; older saved settings that
 // had them on from the first release of effects are switched off once.
 const SETTINGS_VERSION = 2;
@@ -151,16 +154,13 @@ function applySettings() {
   for (const r of document.querySelectorAll('input[name="criterion"]')) r.checked = r.value === s.criterion;
   $("#s-variety").value = s.variety;
   $("#v-variety").textContent = `${Math.round(s.variety * 100)}%`;
-  $("#s-cut").checked = s.allow.cut;
-  $("#s-drop").checked = s.allow.drop !== false;
-  $("#s-blend").checked = s.allow.blend;
+  for (const k of KINDS) $(`#s-${k}`).checked = s.allow[k] !== false;
   for (const k of BLEND_STYLES) $(`#s-bl-${k}`).checked = s.blendStyles[k] !== false;
-  $("#blend-styles").disabled = !s.allow.blend; // the ways to blend, while blends are on
-  $("#s-fade").checked = s.allow.fade;
-  $("#s-echo").checked = s.allow.echo !== false;
-  $("#s-wash").checked = s.allow.wash !== false;
-  $("#s-brake").checked = s.allow.brake !== false;
-  $("#s-roll").checked = s.allow.roll !== false;
+  $("#s-keyshift").checked = s.keyShift !== false;
+  $("#s-tempo").checked = s.tempoRamp !== false;
+  // The ways to blend, and how far a blend may match, while blends are on.
+  $("#blend-styles").disabled = !s.allow.blend;
+  $("#blend-match").disabled = !s.allow.blend;
   $("#s-vol").value = ui.volume;
   $("#v-vol").textContent = `${Math.round(ui.volume * 100)}`;
   $("#s-cross").checked = ui.crossKho;
@@ -193,18 +193,20 @@ $("#s-dmax").addEventListener("input", (e) => {
   if (player.settings.dwellMin > player.settings.dwellMax) player.settings.dwellMin = player.settings.dwellMax;
   applySettings();
 });
-for (const k of ["cut", "drop", "blend", "fade", "echo", "wash", "brake", "roll"]) {
+for (const k of KINDS) {
   $(`#s-${k}`).addEventListener("change", (e) => ((player.settings.allow[k] = e.target.checked), applySettings()));
 }
+// A blend the chain planned under a switch now off is planned again.
+const replanBlend = () => {
+  if (player.plan && !player.plan.picked && player.plan.tr.type === "blend") player.cancelPlan();
+  player.prefetchedFor = null;
+  applySettings();
+};
 for (const k of BLEND_STYLES) {
-  $(`#s-bl-${k}`).addEventListener("change", (e) => {
-    player.settings.blendStyles[k] = e.target.checked;
-    // A blend the chain planned in a style now off is planned again.
-    if (player.plan && !player.plan.picked && player.plan.tr.type === "blend") player.cancelPlan();
-    player.prefetchedFor = null;
-    applySettings();
-  });
+  $(`#s-bl-${k}`).addEventListener("change", (e) => ((player.settings.blendStyles[k] = e.target.checked), replanBlend()));
 }
+$("#s-keyshift").addEventListener("change", (e) => ((player.settings.keyShift = e.target.checked), replanBlend()));
+$("#s-tempo").addEventListener("change", (e) => ((player.settings.tempoRamp = e.target.checked), replanBlend()));
 $("#s-vol").addEventListener("input", (e) => ((ui.volume = +e.target.value), applySettings()));
 $("#s-cross").addEventListener("change", (e) => {
   ui.crossKho = e.target.checked;
@@ -841,11 +843,15 @@ document.addEventListener("drop", (e) => {
 
 // ------------------------------------------------------------- stage text
 
-const KIND = { cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", echo: "echo vang", wash: "reverb wash", brake: "phanh đĩa", roll: "cuộn nhịp" };
+const KIND = {
+  cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", echo: "echo vang", wash: "reverb wash",
+  riser: "build-up", flanger: "flanger", gap: "ngắt lặng", brake: "phanh đĩa", roll: "cuộn nhịp", spin: "spinback",
+  gate: "gate",
+};
 const KIND_CAP = KIND_VI;
 // A blend named by how the two songs are mixed.
 const BLEND_STYLE = { long: "blend dài", eq: "blend EQ", short: "blend ngắn", filter: "blend lọc", swap: "drop swap",
-  stem: "trao giọng", acapella: "acapella" };
+  stem: "trao giọng", acapella: "acapella", loop: "blend vòng lặp", mashup: "mashup", double: "double drop" };
 const kindOf = (tr) => (tr.type === "blend" && BLEND_STYLE[tr.style]) || KIND[tr.type] || tr.type;
 const kindCap = (tr) => {
   const s = tr.type === "blend" && BLEND_STYLE[tr.style];
@@ -915,7 +921,7 @@ function renderStage() {
   if (blending) {
     const k = Math.min(1, (now - b.times[0]) / (b.times[b.L] - b.times[0]));
     const note = bendNote(b.tr);
-    next = `Đang blend sang <strong>${name(b.B.id)}</strong> · <span class="eta">${Math.round(k * 100)}%</span>${note ? ` · ${note}` : ""}`;
+    next = `Đang ${kindOf(b.tr)} sang <strong>${name(b.B.id)}</strong> · <span class="eta">${Math.round(k * 100)}%</span>${note ? ` · ${note}` : ""}`;
   } else if (fx) {
     next = `Đang ${KIND[fx.tr.type]} sang <strong>${name(fx.B.id)}</strong>`;
   } else if (p.plan) {
@@ -929,7 +935,7 @@ function renderStage() {
       ? `Có thể chuyển bài sau <span class="eta">${fmt(left)}</span>, ở điểm nối tốt gần nhất`
       : `Đang chờ điểm nối tốt gần nhất…`;
   } else {
-    next = "Lặp mãi bài này. Chạm một chấm ngoài vòng để tự chọn điểm chuyển bài.";
+    next = "Lặp mãi bài này. Chạm lên vòng để phát từ đoạn đó, chạm một chấm ngoài vòng để chuyển bài.";
   }
   setHTML($("#next-info"), next);
 }

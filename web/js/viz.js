@@ -16,17 +16,21 @@ const HALO_BANDS = 48;
 const reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
 export const KIND_VI = {
   cut: "Nối thẳng", drop: "Drop vào đoạn mới", blend: "Blend khớp nhịp", fade: "Crossfade",
-  echo: "Echo vang", wash: "Reverb wash", brake: "Phanh đĩa", roll: "Cuộn nhịp",
+  echo: "Echo vang", wash: "Reverb wash", riser: "Build-up", flanger: "Flanger", gap: "Ngắt lặng 1 beat",
+  brake: "Phanh đĩa", roll: "Cuộn nhịp", spin: "Spinback", gate: "Gate",
 };
 
-// What the bridge does to the tempo, in words: "nắn nhịp 5%", "nhịp đôi".
+// What the bridge does to the tempo and the key, in words: "hai bài cùng
+// kéo tempo 6%", "dịch tông +1", "nhịp đôi".
 export function bendNote(tr) {
   const notes = [];
   const pre = tr.pre || 1;
-  if (Math.abs(pre - 1) > 0.004) notes.push(`hai bài cùng nắn nhịp ${Math.round(Math.abs(pre - 1) * 100)}%`);
+  if (Math.abs(pre - 1) > 0.004) notes.push(`hai bài cùng kéo tempo ${Math.round(Math.abs(pre - 1) * 100)}%, giữ tông`);
   else if (tr.rate && Math.abs(tr.rate - 1) > 0.015 && (tr.type === "cut" || tr.type === "drop" || tr.type === "blend")) {
     notes.push(`bài sau ${tr.rate > 1 ? "nhanh" : "chậm"} ${Math.round(Math.abs(tr.rate - 1) * 100)}% lúc vào${tr.keylock ? ", giữ tông" : ""}`);
   }
+  if (tr.semis) notes.push(`bài sau dịch tông ${tr.semis > 0 ? "+" : "−"}${Math.abs(tr.semis)}`);
+  if (tr.loop) notes.push(`lặp ${Math.round(tr.loop / 4) || 1} ô nhịp của bài trước`);
   if (tr.m === 2) notes.push("bài sau nhịp đôi");
   if (tr.m === 0.5) notes.push("bài sau nửa nhịp");
   if (tr.type === "fade" && tr.seconds) notes.push(`chuyển dần trong ${Math.round(tr.seconds)} giây`);
@@ -104,14 +108,18 @@ class Ring {
   }
 }
 
+// The section a beat is in, by its role in the song (structure.roles).
+const ROLE_VI = { intro: "Intro", verse: "Verse", chorus: "Điệp khúc", breakdown: "Đoạn lắng", drop: "Drop", outro: "Outro" };
+
 export class Viz {
-  constructor(canvas, player, { center, tip, onPick, onCaption } = {}) {
+  constructor(canvas, player, { center, tip, onPick, onSeek, onCaption } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.player = player;
     this.center = center;
     this.tip = tip;
     this.onPick = onPick || (() => {});
+    this.onSeek = onSeek || (() => false);
     this.onCaption = onCaption || (() => {});
     this._captionId = null;
     this.titles = new Map();
@@ -1126,6 +1134,21 @@ export class Viz {
       const p = pos(e);
       this.pointer = p;
       const hit = this._hitTest(p.x, p.y);
+      if (hit?.kind === "beat" && this._seekable(hit)) {
+        // A beat of the playing song: play from there (on a touch screen,
+        // the first tap shows where, a second tap on the ring goes).
+        if (p.type !== "mouse" && this.armed !== "seek") {
+          this.armed = "seek";
+          this.hover = hit;
+          return;
+        }
+        this.armed = null;
+        const ok = this.onSeek(hit.ring.track, hit.beat);
+        this.pickFeedback = { kind: "seek", ok, at: performance.now(), x: hit.x, y: hit.y, t: hit.ring.track.beats[hit.beat] };
+        this.hover = null;
+        if (p.type !== "mouse") this.pointer = null;
+        return;
+      }
       if (hit?.kind !== "exit") {
         this.armed = null;
         if (p.type !== "mouse") this.hover = hit;
@@ -1139,7 +1162,7 @@ export class Viz {
       }
       this.armed = null;
       const ok = this.onPick(hit.tr);
-      this.pickFeedback = { ok, at: performance.now(), tr: hit.tr, x: hit.x, y: hit.y };
+      this.pickFeedback = { kind: "pick", ok, at: performance.now(), tr: hit.tr, x: hit.x, y: hit.y };
       this.hover = null;
       if (p.type !== "mouse") this.pointer = null;
     });
@@ -1176,7 +1199,7 @@ export class Viz {
   _drawHover(ctx) {
     if (this.pointer && this.pointer.type === "mouse") this.hover = this._hitTest(this.pointer.x, this.pointer.y);
     const h = this.hover;
-    this.canvas.style.cursor = h?.kind === "exit" ? "pointer" : "";
+    this.canvas.style.cursor = h?.kind === "exit" || (h?.kind === "beat" && this._seekable(h)) ? "pointer" : "";
     const fb = this.pickFeedback && performance.now() - this.pickFeedback.at < 1800 ? this.pickFeedback : null;
     // Right after a pick the loop turns under the pointer; the confirmation
     // wins over whatever beat slides beneath it, unless another exit is hovered.
@@ -1209,8 +1232,12 @@ export class Viz {
       ctx.stroke();
       const name = esc(short(this.titles.get(T.id) || T.meta.title || "", 34));
       const n = outs.length;
+      const role = this._roleAt(T, h.beat);
+      const action = !this._seekable(h) ? ""
+        : this.armed === "seek" ? "<small>Chạm lần nữa để phát từ đây</small>" : "<small>Bấm để phát từ đây</small>";
       this._showTip(
-        `<span class="mono">${fmt(T.beats[h.beat])}</span> · ${n ? `${n} nhánh nhảy` : "không có nhánh"}<small>${name}</small>`,
+        `<span class="mono">${fmt(T.beats[h.beat])}</span>${role ? ` · ${role}` : ""} · ${n ? `${n} nhánh nhảy` : "không có nhánh"}` +
+          `<small>${name}</small>${action}`,
         h.x, h.y,
       );
       return;
@@ -1232,8 +1259,26 @@ export class Viz {
     );
   }
 
+  // A beat the listener may play from: on the playing song's ring.
+  _seekable(hit) {
+    return hit.ring.track === this.player.cur?.track;
+  }
+
+  _roleAt(T, beat) {
+    const roles = T.analysis.roles || [];
+    let r = null;
+    for (const s of roles) if (s.start <= beat) r = s.role;
+    return ROLE_VI[r] || "";
+  }
+
   _feedbackHtml() {
     const f = this.pickFeedback;
+    if (f.kind === "seek") {
+      if (f.ok) return `<b>Phát từ <span class="mono">${fmt(f.t)}</span></b><small>Vào ngay ở nhịp kế tiếp</small>`;
+      return this.player.seekError === "busy"
+        ? `<b>Đang chuyển sang bài khác</b><small>Chọn lại khi bài sau đã vào hẳn</small>`
+        : `<b>Chưa có bài nào đang phát</b>`;
+    }
     if (f.ok) return `<b>Đã chọn điểm nối này</b><small>Vòng đang xoay về phía bài kế tiếp</small>`;
     return {
       busy: `<b>Đang chuyển sang bài khác</b><small>Chọn lại khi bài sau đã vào hẳn</small>`,

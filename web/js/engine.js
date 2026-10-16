@@ -22,6 +22,13 @@ const toGain = (db) => (db <= KILL_DB ? 0 : dbToGain(db));
 // Crossover points of the isolator EQ, like a DJ mixer's three-band isolator.
 const LOW_X = 200;
 const HIGH_X = 2500;
+// Levels of the synthesised accents, against the master bus (measured in
+// Chrome against the songs' own level: the riser peaks a few dB under the
+// music, the impact sits on the downbeat without pumping the limiter).
+const RISER_PEAK_DB = -2;
+const IMPACT_SUB_DB = -10;
+const IMPACT_NOISE_DB = -14;
+const FLANGER_SEND = 0.6;
 
 function butter(ctx, type, freq) {
   const f = ctx.createBiquadFilter();
@@ -84,11 +91,12 @@ export class Engine {
   }
 
   // A voice reading [from, to] s of the track through Signalsmith Stretch, so
-  // its tempo can change with its pitch kept; with `vocals` (the stem's
-  // AudioBuffer) both go through one stretcher, four channels, so they stay
-  // sample-aligned and the voice can be taken out of the mix. Resolves once
-  // the audio is loaded into the worklet (prepared ahead of the transition).
-  async stretchVoice(track, from, to, vocals = null) {
+  // its tempo can change with its pitch kept (or its pitch moved by `semis`
+  // semitones, with its tempo kept); with `vocals` (the stem's AudioBuffer)
+  // both go through one stretcher, four channels, so they stay sample-aligned
+  // and the voice can be taken out of the mix. Resolves once the audio is
+  // loaded into the worklet (prepared ahead of the transition).
+  async stretchVoice(track, from, to, vocals = null, semis = 0) {
     const { default: SignalsmithStretch } = await import("../vendor/signalsmith-stretch-1.3.2.mjs");
     const channels = vocals ? 4 : 2;
     const node = await SignalsmithStretch(this.ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [channels] });
@@ -99,9 +107,177 @@ export class Engine {
     const chans = [take(track.buffer, 0), take(track.buffer, 1)];
     if (vocals) chans.push(take(vocals, 0), take(vocals, 1));
     await node.addBuffers(chans, chans.map((c) => c.buffer));
-    const v = new Voice(this, track, { node, from: a / sr, to: b / sr, channels, latency: await node.latency() });
+    const v = new Voice(this, track, { node, from: a / sr, to: b / sr, channels, latency: await node.latency(), semis });
     this.voices.add(v);
     return v;
+  }
+
+  // Two seconds of stereo white noise, made once (risers, impacts).
+  _noise() {
+    if (this.noiseBuf) return this.noiseBuf;
+    const sr = this.ctx.sampleRate;
+    const buf = this.ctx.createBuffer(2, sr * 2, sr);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    this.noiseBuf = buf;
+    return buf;
+  }
+
+  // Build-up: white noise through a band-pass that climbs from 400 Hz to
+  // 9 kHz with a rising resonance, swelling from nothing to a few dB under the
+  // music over [start, end], cut on the downbeat (the impact takes over).
+  riser(start, end) {
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this._noise();
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(400, start);
+    bp.frequency.exponentialRampToValueAtTime(9000, end);
+    bp.Q.setValueAtTime(0.8, start);
+    bp.Q.linearRampToValueAtTime(4, end);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(dbToGain(-30), start);
+    g.gain.exponentialRampToValueAtTime(dbToGain(RISER_PEAK_DB), end - 0.01);
+    g.gain.linearRampToValueAtTime(0, end + 0.005);
+    src.connect(bp).connect(g).connect(this.master);
+    src.start(start);
+    src.stop(end + 0.05);
+    this._keep([src, bp, g], end + 0.1);
+  }
+
+  // Impact on the downbeat: a sub that falls from 90 to 40 Hz and dies over
+  // 1.2 s, and a short burst of noise into the hall reverb.
+  impact(when) {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    osc.frequency.setValueAtTime(90, when);
+    osc.frequency.exponentialRampToValueAtTime(40, when + 0.6);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0, when);
+    og.gain.linearRampToValueAtTime(dbToGain(IMPACT_SUB_DB), when + 0.005);
+    og.gain.exponentialRampToValueAtTime(0.001, when + 1.2);
+    osc.connect(og).connect(this.master);
+    osc.start(when);
+    osc.stop(when + 1.3);
+    const n = ctx.createBufferSource();
+    n.buffer = this._noise();
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 2500;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0, when);
+    ng.gain.linearRampToValueAtTime(dbToGain(IMPACT_NOISE_DB), when + 0.003);
+    ng.gain.exponentialRampToValueAtTime(0.001, when + 0.25);
+    const verb = ctx.createConvolver();
+    verb.buffer = this._impulse();
+    const vg = ctx.createGain();
+    vg.gain.value = 0.5;
+    n.connect(lp).connect(ng);
+    ng.connect(this.master);
+    ng.connect(verb).connect(vg).connect(this.master);
+    n.start(when);
+    n.stop(when + 0.3);
+    this._keep([osc, og, n, lp, ng, verb, vg], when + 5);
+  }
+
+  // Spinback: the platter thrown backwards. The seconds before the read head
+  // (`pos`, s into the track), reversed, played from where the song is,
+  // speeding up to three times then winding down, darkening and fading over
+  // `dur`; the song itself is cut.
+  spinback(voice, when, pos, dur, rate = 1) {
+    const ctx = this.ctx;
+    const buf = voice.track.buffer;
+    const sr = buf.sampleRate;
+    const b = Math.max(1, Math.min(buf.length, Math.round(pos * sr)));
+    const a = Math.max(0, b - Math.round(4 * sr));
+    const rev = ctx.createBuffer(buf.numberOfChannels, b - a, sr);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const d = buf.getChannelData(c).subarray(a, b);
+      const o = rev.getChannelData(c);
+      for (let i = 0, n = d.length; i < n; i++) o[i] = d[n - 1 - i];
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = rev;
+    const p = src.playbackRate;
+    p.setValueAtTime(rate, when);
+    p.linearRampToValueAtTime(3 * rate, when + 0.25 * dur);
+    p.exponentialRampToValueAtTime(0.3 * rate, when + dur);
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(16000, when);
+    lp.frequency.exponentialRampToValueAtTime(900, when + dur);
+    const level = dbToGain(voice.track.analysis.gain_db);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(level, when + 0.008);
+    g.gain.setValueAtTime(level, when + 0.4 * dur);
+    g.gain.linearRampToValueAtTime(0, when + dur);
+    src.connect(lp).connect(g).connect(this.master);
+    src.start(when);
+    src.stop(when + dur + 0.05);
+    voice.fadeOut(when - 0.004, 0.008);
+    this._keep([src, lp, g], when + dur + 0.2);
+  }
+
+  // Gate: the song chopped by a gate on its beats (`times`, beat starts),
+  // open on every eighth for the first bar, every sixteenth after and every
+  // thirty-second on the last beat, each opening ~55 % of its slice with 2 ms
+  // edges, under a rising high-pass.
+  gate(voice, times, meter = 4) {
+    const g = voice.fx.gain;
+    const beats = times.length - 1;
+    const t0 = times[0];
+    const t1 = times[beats];
+    voice.hpSweep(t0, 30, 700, t1 - t0);
+    g.setValueAtTime(1, t0);
+    for (let k = 0; k < beats; k++) {
+      const div = k < meter ? 2 : k < beats - 1 ? 4 : 8;
+      const slice = (times[k + 1] - times[k]) / div;
+      for (let q = 0; q < div; q++) {
+        const s = times[k] + q * slice;
+        const on = s + 0.55 * slice;
+        g.setValueAtTime(1, Math.max(s, on - 0.002));
+        g.linearRampToValueAtTime(0, on);
+        g.setValueAtTime(0, s + slice - 0.002);
+        g.linearRampToValueAtTime(1, s + slice);
+      }
+    }
+  }
+
+  // Jet flanger: the song (before its fader) through a short delay swept from
+  // 0.5 to 8 ms and back toward 2 ms, with feedback, mixed in as the window
+  // goes on, under a rising high-pass; the dry song is cut at the end and the
+  // flanged tail rings on for a moment under the next one.
+  flanger(voice, start, end) {
+    const ctx = this.ctx;
+    const send = ctx.createGain();
+    const dl = ctx.createDelay(0.05);
+    const fb = ctx.createGain();
+    const wet = ctx.createGain();
+    send.gain.setValueAtTime(0, start);
+    send.gain.linearRampToValueAtTime(FLANGER_SEND, start + 0.5 * (end - start));
+    send.gain.setValueAtTime(FLANGER_SEND, end - 0.01);
+    send.gain.linearRampToValueAtTime(0, end + 0.01);
+    dl.delayTime.setValueAtTime(0.0005, start);
+    dl.delayTime.exponentialRampToValueAtTime(0.008, start + 0.7 * (end - start));
+    dl.delayTime.exponentialRampToValueAtTime(0.002, end + 0.3);
+    fb.gain.value = 0.5;
+    wet.gain.setValueAtTime(0.8, start);
+    wet.gain.setValueAtTime(0.8, end);
+    wet.gain.linearRampToValueAtTime(0, end + 0.4);
+    voice.trim.connect(send);
+    send.connect(dl);
+    dl.connect(fb).connect(dl);
+    dl.connect(wet).connect(this.master);
+    voice.hpSweep(start, 20, 180, end - start);
+    // The flanged copy adds to the dry song: the dry dips a little to keep the level.
+    voice.fx.gain.setValueAtTime(1, start);
+    voice.fx.gain.linearRampToValueAtTime(dbToGain(-1.5), start + 0.5 * (end - start));
+    this._keep([send, dl, fb, wet], end + 0.6);
   }
 
   stopAll(fade = 0.08) {
@@ -227,14 +403,16 @@ export class Engine {
 const VOCAL_MODES = { full: [1, 0], instrumental: [1, -1], acapella: [0, 1] };
 
 export class Voice {
-  // `stretch`: { node, from, channels } for a key-locked voice (Engine.stretchVoice):
-  // the track read through Signalsmith Stretch, tempo changed with pitch kept.
+  // `stretch`: { node, from, channels, semis } for a key-locked voice
+  // (Engine.stretchVoice): the track read through Signalsmith Stretch, tempo
+  // changed with pitch kept, pitch moved by `semis` semitones.
   constructor(engine, track, stretch = null) {
     const ctx = engine.ctx;
     this.engine = engine;
     this.track = track;
     this.stretch = stretch;
     this.stretched = !!stretch;
+    this.semis = stretch?.semis || 0;
     this.shift = 0; // read position minus the beat time it plays (set by the player)
     // Before the EQ: the track (mainGain) and, when attached, its vocal stem
     // (vocGain), summed, so the stem can take the voice out or leave it alone.
@@ -263,9 +441,12 @@ export class Voice {
       }
       this.src = null;
     } else {
+      // Each read head has its own gain, so a loop can crossfade one pass
+      // into the next (Voice.loop).
       this.src = ctx.createBufferSource();
       this.src.buffer = track.buffer;
-      this.src.connect(this.mainGain);
+      this.srcGain = ctx.createGain();
+      this.src.connect(this.srcGain).connect(this.mainGain);
     }
     // Three-band isolator: low (< 200 Hz), mid, high (> 2.5 kHz), one gain each,
     // so a band can be dipped or killed (the bass swap of a DJ mix).
@@ -287,16 +468,25 @@ export class Voice {
     this.hp.Q.value = Math.SQRT1_2;
     this.trim = ctx.createGain();
     this.trim.gain.value = dbToGain(track.analysis.gain_db);
+    // A unity gain for effects that chop or dip the song (gate, flanger),
+    // apart from the fader the player automates.
+    this.fx = ctx.createGain();
     this.gain = ctx.createGain();
     this.gain.gain.value = 0;
-    this.sum.connect(this.lp).connect(this.hp).connect(this.trim).connect(this.gain).connect(engine.master);
+    this.sum.connect(this.lp).connect(this.hp).connect(this.trim).connect(this.fx).connect(this.gain).connect(engine.master);
     if (this.src) {
+      // A looping voice outlives its first read head: it is freed on its own
+      // schedule (Voice.loop).
       this.src.onended = () => {
-        engine.voices.delete(this);
-        this.gain.disconnect();
+        if (!this.loopSources) this._free();
       };
     }
     this.stopped = false;
+  }
+
+  _free() {
+    this.engine.voices.delete(this);
+    this.gain.disconnect();
   }
 
   start(when, offset, rate, fadeIn) {
@@ -316,7 +506,12 @@ export class Voice {
 
   _read(when, offset, rate) {
     if (this.stretch) {
-      this.stretch.node.schedule({ active: true, input: offset - this.stretch.from, output: when, outputTime: when, rate, semitones: 0 });
+      // A transposed voice keeps its formants, so a singer moved two
+      // semitones still sounds like themselves.
+      this.stretch.node.schedule({
+        active: true, input: offset - this.stretch.from, output: when, outputTime: when, rate, semitones: this.semis,
+        formantCompensation: this.semis !== 0,
+      });
       return;
     }
     this.src.playbackRate.setValueAtTime(rate, when);
@@ -324,11 +519,16 @@ export class Voice {
   }
 
   // `pos`: the read position at `when` (a key-locked voice resyncs to it on
-  // every beat; a plain voice just follows its rate).
-  setRate(when, rate, pos = null) {
+  // every beat; a plain voice just follows its rate). `semis`: a key-locked
+  // voice's pitch from then on (a transposed song gliding home).
+  setRate(when, rate, pos = null, semis = null) {
     if (this.stretch) {
       const change = { output: when, outputTime: when, rate };
       if (pos != null) change.input = pos - this.stretch.from;
+      if (semis != null) {
+        change.semitones = semis;
+        this.semis = semis;
+      }
       this.stretch.node.schedule(change);
       return;
     }
@@ -340,14 +540,59 @@ export class Voice {
   // (a plain voice; a key-locked one gets it from Engine.stretchVoice).
   attachVocals(buffer, when, offset, rate) {
     if (!buffer || this.stretch || this.voc) return;
-    const s = this.engine.ctx.createBufferSource();
+    const ctx = this.engine.ctx;
+    const s = ctx.createBufferSource();
     s.buffer = buffer;
     s.playbackRate.setValueAtTime(rate, when);
-    s.connect(this.vocGain);
+    this.vocSrcGain = ctx.createGain();
+    s.connect(this.vocSrcGain).connect(this.vocGain);
     s.start(when, Math.max(0, offset));
     if (this.stopWhen != null) s.stop(this.stopWhen);
     this.voc = s;
     this.hasVocals = true;
+  }
+
+  // A loop of [from, to] s of the track: from `when` (the read head reaching
+  // `to` on its first pass) the region plays again and again until `until`,
+  // each pass crossfaded into the next over `xf` s around the seam, the vocal
+  // stem looped alongside. A key-locked voice loops inside the stretcher (its
+  // read head wraps from `to` back to `from`, the seam smoothed by the
+  // stretch itself), set now: the read head is still before `to`.
+  loop(when, from, to, rate, until, xf = 0.015) {
+    const len = (to - from) / rate;
+    if (!(len > 0.05)) return;
+    if (this.stretch) {
+      this.stretch.node.schedule({ loopStart: from - this.stretch.from, loopEnd: to - this.stretch.from });
+      return;
+    }
+    const ctx = this.engine.ctx;
+    this.loopSources = this.loopSources || [];
+    const heads = [[this.track.buffer, this.mainGain, this.srcGain]];
+    if (this.voc) heads.push([this.voc.buffer, this.vocGain, this.vocSrcGain]);
+    let playing = heads.map((h) => h[2]);
+    for (let t = when; t < until - 0.01; t += len) {
+      const next = [];
+      for (const [buffer, dest] of heads) {
+        const s = ctx.createBufferSource();
+        s.buffer = buffer;
+        s.playbackRate.value = rate;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t - xf / 2);
+        g.gain.linearRampToValueAtTime(1, t + xf / 2);
+        s.connect(g).connect(dest);
+        s.start(t - xf / 2, Math.max(0, from - (xf / 2) * rate));
+        s.stop(Math.min(until, t + len + xf) + 0.02);
+        this.loopSources.push(s);
+        next.push(g);
+      }
+      for (const g of playing) {
+        g.gain.setValueAtTime(1, t - xf / 2);
+        g.gain.linearRampToValueAtTime(0, t + xf / 2);
+      }
+      playing = next;
+    }
+    const ms = Math.max(0, (until - ctx.currentTime) * 1000) + 500;
+    setTimeout(() => this._free(), ms);
   }
 
   // full | instrumental (voice out) | acapella (voice alone), over `ramp` s.
@@ -391,16 +636,29 @@ export class Voice {
     this.stopped = true;
     this.stopWhen = when;
     if (this.stretch) {
-      this.stretch.node.schedule({ active: false, output: when, outputTime: when });
+      // Never a stop scheduled into the stretcher: its time map applies the
+      // earliest change it holds at once (a stop meant for the end of a blend
+      // would silence it now). Its fader is already down by then (every
+      // caller fades first); it is muted there and freed just after.
+      try {
+        this.gain.gain.setValueAtTime(0, when);
+      } catch (_) {
+        /* inside a curve that ends at 0 anyway */
+      }
       const ms = Math.max(0, (when - this.engine.ctx.currentTime) * 1000) + 500;
       setTimeout(() => this.dispose(), ms);
       return;
     }
-    try {
-      this.src.stop(when);
-      if (this.voc) this.voc.stop(when);
-    } catch (_) {
-      /* already stopped */
+    for (const s of [this.src, this.voc, ...(this.loopSources || [])]) {
+      try {
+        s?.stop(when);
+      } catch (_) {
+        /* already stopped */
+      }
+    }
+    if (this.loopSources) {
+      const ms = Math.max(0, (when - this.engine.ctx.currentTime) * 1000) + 500;
+      setTimeout(() => this._free(), ms);
     }
   }
 

@@ -229,6 +229,21 @@
               <span><b>Reverb wash</b>tan vào tiếng vang, cho bài khác hẳn</span>
             </label>
             <label class="kind">
+              <input id="s-riser" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 17C12 17 20 13 26 4"/><path d="M30 3v14"/><circle cx="35" cy="10" r="3"/></svg>
+              <span><b>Build-up</b>dồn lên bằng tiếng gió, vào bằng cú nổ</span>
+            </label>
+            <label class="kind">
+              <input id="s-flanger" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 10c3-6 6-6 9 0s6 6 9 0 6-6 9 0"/><circle cx="35" cy="10" r="3"/></svg>
+              <span><b>Flanger</b>bài trước quét tiếng phản lực rồi đi</span>
+            </label>
+            <label class="kind">
+              <input id="s-gap" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="9" cy="10" r="6"/><path d="M18 10h4" stroke-dasharray="1 3"/><circle cx="31" cy="10" r="6"/></svg>
+              <span><b>Ngắt lặng</b>im một nhịp rồi bài sau nổ vào</span>
+            </label>
+            <label class="kind">
               <input id="s-brake" type="checkbox">
               <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="12" cy="10" r="7"/><path d="M20 10h6M29 6v8"/></svg>
               <span><b>Phanh đĩa</b>dừng hẳn rồi vào, đột ngột</span>
@@ -237,6 +252,16 @@
               <input id="s-roll" type="checkbox">
               <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M4 15v-10M11 15v-10M16 15v-10M20 15v-10M23 15v-10M25.5 15v-10"/><circle cx="33" cy="10" r="5"/></svg>
               <span><b>Cuộn nhịp</b>lặp dồn rồi drop, đột ngột</span>
+            </label>
+            <label class="kind">
+              <input id="s-spin" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M20 4a7 7 0 1 0 7 7"/><path d="M27 6v5h-5"/></svg>
+              <span><b>Spinback</b>quay ngược đĩa rồi vào, đột ngột</span>
+            </label>
+            <label class="kind">
+              <input id="s-gate" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 15V5h4v10h3V5h3v10h2V5h2v10h1.5V5"/><circle cx="31" cy="10" r="5"/></svg>
+              <span><b>Gate</b>băm nhịp bài trước, đột ngột</span>
             </label>
           </fieldset>
           <fieldset class="kinds" id="blend-styles">
@@ -275,6 +300,32 @@
               <input id="s-bl-acapella" type="checkbox">
               <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M17 14v-5a3 3 0 0 1 6 0v5"/><path d="M4 16h8M28 16h8" opacity=".5"/></svg>
               <span><b>Acapella</b>giọng bài sau trên nhạc bài trước</span>
+            </label>
+            <label class="kind">
+              <input id="s-bl-mashup" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M8 13v-4a3 3 0 0 1 6 0v4"/><path d="M4 17h32" opacity=".5"/><path d="M18 9h18" stroke-dasharray="2 2"/></svg>
+              <span><b>Mashup</b>giọng bài sau hát trọn 16–32 ô nhịp trên nhạc bài trước</span>
+            </label>
+            <label class="kind">
+              <input id="s-bl-double" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M4 16l8-10M12 6v10"/><path d="M22 16l8-10M30 6v10"/></svg>
+              <span><b>Double drop</b>hai đoạn drop nổ cùng lúc</span>
+            </label>
+            <label class="kind">
+              <input id="s-bl-loop" type="checkbox">
+              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M5 10a5 5 0 0 1 10 0a5 5 0 0 1-10 0"/><path d="M15 10a5 5 0 0 1 10 0" opacity=".5"/><circle cx="32" cy="10" r="5"/></svg>
+              <span><b>Vòng lặp</b>lặp vài ô nhịp bài trước làm outro để blend vào</span>
+            </label>
+          </fieldset>
+          <fieldset class="choices" id="blend-match">
+            <legend class="sub">Khớp tông và nhịp khi blend</legend>
+            <label class="choice">
+              <input id="s-keyshift" type="checkbox">
+              <span><b>Dịch tông bài sau</b>tới 2 nửa cung cho hợp tông bài trước, rồi trượt dần về tông gốc</span>
+            </label>
+            <label class="choice">
+              <input id="s-tempo" type="checkbox">
+              <span><b>Kéo tempo dần</b>bài trước kéo tempo về phía bài sau qua vài câu nhạc, nối được hai bài lệch tới 18 %</span>
             </label>
           </fieldset>
         </section>

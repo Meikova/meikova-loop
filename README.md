@@ -20,10 +20,12 @@ và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 - **Mash cả thư viện thành một chuỗi.** Không chỉ lặp trong một bài như
   [Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) ngày
   xưa: ở mỗi bài một lúc, rồi đi tới điểm nối tốt gần nhất sang bài khác.
-- **Tám kiểu nối bài và bảy cách blend**, từ nối thẳng không lộ tới blend kiểu DJ
-  (bảng bên dưới). Bật tắt từng kiểu trong *Tinh chỉnh*.
+- **Mười ba kiểu nối bài và mười cách blend**, từ nối thẳng không lộ tới mashup
+  kiểu DJ (bảng bên dưới). Bật tắt từng kiểu trong *Tinh chỉnh*.
 - **Nắn tempo mà giữ tông (key lock).** Lệch tới 8 % vẫn blend được, kể cả nhịp đôi
-  70 ↔ 140, và giọng ca sĩ không bị bổng hay trầm đi.
+  70 ↔ 140, và giọng ca sĩ không bị bổng hay trầm đi. Lệch xa hơn (tới 18 %) thì bài
+  trước kéo tempo dần về phía bài sau. Hai bài lệch tông thì bài sau được dịch tới hai
+  nửa cung cho hợp, rồi trượt dần về tông gốc.
 - **Nối vào đúng đoạn:** ra ở cuối câu nhạc, vào đầu điệp khúc hay chỗ drop của bài
   sau, không chỉ vào đầu bài.
 - **Chọn tiêu chí cho bài kế tiếp:** cân bằng, cùng mood, cùng nhịp, hợp tông (vòng
@@ -47,10 +49,15 @@ và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 | Crossfade dài | Hai bài khác mood | 5 đến 11 giây, lọc âm: bài cũ tối dần, bài mới sáng dần |
 | Echo | Cuối một câu hát | Bài cũ tan thành tiếng vọng của chính nó |
 | Wash | Cuối một đoạn | Bài cũ chìm vào reverb, bài mới bước ra từ đó |
-| Phanh đĩa, cuộn nhịp | Khi bạn muốn | Đột ngột. Tắt sẵn, bật trong *Tinh chỉnh* nếu thích kịch tính |
+| Build-up | Vào một đoạn drop hay điệp khúc | Bài cũ mỏng dần dưới tiếng gió dâng lên, bài mới nổ vào cùng một cú impact |
+| Flanger | Cuối một câu | Bài cũ quét tiếng phản lực rồi đi |
+| Ngắt lặng | Bài cũ đang to, bài mới vào mạnh | Im đúng một nhịp, rồi bài mới vào trên phách mạnh |
+| Phanh đĩa, cuộn nhịp, spinback, gate | Khi bạn muốn | Đột ngột. Tắt sẵn, bật trong *Tinh chỉnh* nếu thích kịch tính |
 
-Bảy cách blend: dài, đổi EQ (bass, mid, treble lần lượt), ngắn, quét filter, đổi chỗ
-ở drop, chỉ phần nhạc (tách giọng), và acapella (giọng bài sau hát trên nền bài trước).
+Mười cách blend: dài, đổi EQ (bass, mid, treble lần lượt), ngắn, quét filter, đổi chỗ
+ở drop, trao giọng (tách giọng), acapella (giọng bài sau hát trên nền bài trước),
+mashup (như acapella nhưng trọn 16–32 ô nhịp), double drop (hai đoạn drop nổ cùng lúc),
+và vòng lặp (lặp vài ô nhịp bài trước làm outro cho những bài không có outro).
 
 Khi hai bài lệch tempo, bài sau vào đúng tốc độ bài trước rồi trượt dần về tốc độ
 gốc, giữ nguyên tông nhờ time-stretch. Hai bài lệch tông hẳn thì không blend, hai bộ
@@ -69,8 +76,9 @@ bấm *Kho khác*.
   không phải chờ phân tích; bài mới mất chừng 20 giây.
 - File âm thanh không ai nghe trong 12 giờ thì tự xoá. Trang không lưu dữ liệu cá
   nhân nào, và là dự án vui, phi thương mại.
-- Rê chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn
-  điểm chuyển. `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
+- Bấm lên vòng để phát từ đoạn đó (vào ngay ở nhịp kế tiếp, không lệch nhịp). Rê
+  chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn điểm
+  chuyển. `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
 
 ## Chạy trên máy mình
 
@@ -189,9 +197,11 @@ cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng n
 - [x] Audio MP3 192 kbps (giọng 160 kbps) thay cho FLAC, nhẹ hơn nhiều.
 - [x] Audio tự xoá sau 12 giờ, hỏi đồng ý trước khi thêm bài, không lưu dữ liệu cá nhân.
 - [x] Chấm chuyển bài chỉ hiện chỗ đi được, và nói rõ vì sao khi chưa tới được.
-- [ ] Dịch tông ±1–2 nửa cung, kéo tempo dần qua vài câu, tự tạo outro bằng vòng lặp.
-- [ ] Mashup dài, double drop.
-- [ ] Build-up, spinback, gate, quét flanger, ngắt lặng 1 beat.
+- [x] Dịch tông ±1–2 nửa cung, kéo tempo dần qua vài câu, tự tạo outro bằng vòng lặp:
+  số cặp bài blend khớp nhịp được tăng từ 14 % lên 42 %.
+- [x] Mashup dài, double drop.
+- [x] Build-up, spinback, gate, quét flanger, ngắt lặng 1 beat.
+- [x] Bấm lên vòng để phát từ đoạn đó; hết bị kẹt lặp mãi một đoạn gần cuối bài.
 
 ## Bản quyền
 
@@ -216,9 +226,10 @@ làm ra nó.
 
 An endless jukebox that mashes songs together. It analyses beats, stems, singers and
 mood, loops each song through its own seamless jump points, and mixes a library into
-one continuous set: beat-matched, key-locked blends (seven styles, stem-aware), long
-filtered crossfades between moods, and a chain that can follow mood, tempo, key, or
-nothing at all. Try it
+one continuous set: beat-matched, key-locked blends (ten styles, stem-aware, with key
+shifts and tempo ramps), mashups and double drops, long filtered crossfades between
+moods, DJ accents (build-ups, flangers, drop-outs), and a chain that can follow mood,
+tempo, key, or nothing at all. Try it
 at https://mashloop.truclv.com (a fresh private library per visit, songs from YouTube,
 SoundCloud, Bandcamp, Zing MP3, Mixcloud or your own files), or run it on your own
 machine. The UI is in Vietnamese; the code and its comments are in English.

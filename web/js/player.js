@@ -5,6 +5,10 @@
 const LOOKAHEAD = 0.6;
 const TICK_MS = 40;
 const SPLICE_XFADE = 0.012;
+const SEEK_XFADE = 0.04; // a seek lands anywhere, not on an analysed splice: a gentler crossfade
+// Passes through the last branch point, landing near the end each time with
+// no other jump in between, after which it jumps as far back as it can.
+const END_PASSES = 3;
 const RAMP_BEATS = 32;
 const JUMP_COOLDOWN = 4;
 const LOAD_LEAD = 3; // seconds needed to fetch and decode a song that is not prefetched
@@ -13,22 +17,40 @@ const LOAD_LEAD = 3; // seconds needed to fetch and decode a song that is not pr
 const PREP_LEAD = 5;
 const PREFETCH_LEAD = 20; // start loading likely next songs this long before leaving is allowed
 // Smooth hand-overs first: beat-matched moves, then long filtered crossfades
-// and echoes; the abrupt effects (brake, roll) last and off by default.
-const TYPE_BIAS = { cut: 0.08, drop: 0.02, blend: 0.06, fade: 0.0, echo: -0.08, wash: -0.06, roll: -0.12, brake: -0.15 };
+// and echoes, then the accents (build-up, flanger, a beat of silence); the
+// abrupt effects (brake, roll, spinback, gate) last and off by default.
+const TYPE_BIAS = {
+  cut: 0.08, drop: 0.02, blend: 0.06, fade: 0.0, echo: -0.08, wash: -0.06, riser: -0.06, flanger: -0.08, gap: -0.1,
+  roll: -0.12, gate: -0.12, brake: -0.15, spin: -0.15,
+};
 // Variety: the same kind twice in a row, and an effect soon after another,
 // sound like a machine at work (listeners rate predictable transitions lower).
 const SAME_KIND_PENALTY = 0.15;
 const RECENT_FX_PENALTY = 0.3;
+// The signature blends (a mashup, a double drop, a loop) are a treat: the
+// same one again within three hand-overs costs as much as a recent effect.
+const SIGNATURE = new Set(["mashup", "double", "loop"]);
 // Utility lost per unit of mood distance between the songs: the chain drifts
 // from style to style rather than lurching from a dance track to a ballad.
 const MOOD_WEIGHT = 0.35;
 // Effect transitions: the old song winds down over a few beats (echo, wash,
-// brake, roll) and the new one comes in on its own tempo, no beat matching needed.
-const FX = new Set(["echo", "wash", "brake", "roll"]);
+// brake, roll, build-up, spinback, gate, flanger, a beat of silence) and the
+// new one comes in on its own tempo, no beat matching needed.
+const FX = new Set(["echo", "wash", "brake", "roll", "riser", "spin", "gate", "flanger", "gap"]);
+// Effects after which the new song comes in filtered, under the old one's tail.
+const FX_UNDER_TAIL = new Set(["echo", "wash", "flanger"]);
 const KILL = -60; // dB: a band switched off (engine.KILL_DB)
 // Beats over which the playing song bends toward the meeting tempo before a
-// tempo-bridged junction.
+// tempo-bridged junction: at least 16, more for a wider gap, so the ramp
+// stays under a quarter of a percent per beat (key-locked, its pitch kept).
 const BEND_BEATS = 16;
+const BEND_PER_BEAT = 0.0025;
+const bendBeats = (pre) => Math.min(32, Math.max(BEND_BEATS, Math.ceil(Math.abs(Math.log(pre || 1)) / BEND_PER_BEAT)));
+const bends = (tr) => Math.abs((tr.pre || 1) - 1) > 0.004;
+// Beats per semitone over which a transposed song glides back to its own
+// pitch once it plays alone: under 5 cents a second at 120 BPM, a drift
+// nobody hears.
+const PITCH_BEATS = 48;
 // The setting that switches a kind of transition on or off.
 export const allowKey = (type) => type;
 // Hand-overs that keep the beat running: the next song comes in locked to it.
@@ -108,18 +130,25 @@ const db = (d) => Math.pow(10, d / 20);
 //   filter    B rises under A, which holds and is cut on the last downbeat.
 //   swap      B builds up under A to -3 dB by three quarters, full on its drop
 //             at the end, where A is cut.
-function blendFaders(style, xP, xBar) {
-  const cutAtEnd = style === "filter" || style === "swap";
+//   double    B builds up under A the same way to its drop at the middle
+//             (xP), then both drops play at full together; A is cut at the end.
+//   mashup    B (its voice alone) up within the first beat and held; A (its
+//             band alone) held until the final bars (xS), then out by the end.
+function blendFaders(style, xP, xBar, xS = 0.875) {
+  const cutAtEnd = style === "filter" || style === "swap" || style === "double";
   const fB = (x) => {
     if (style === "short") return Math.sin((Math.PI / 2) * clamp01(x / xP));
     if (style === "filter") return db(-1) * Math.sin((Math.PI / 2) * clamp01(x / 0.5));
     if (style === "swap") return x < 0.75 ? db(-3) * Math.sin((Math.PI / 2) * (x / 0.75)) : db(-3 + (3 * (x - 0.75)) / 0.25);
+    if (style === "double") return x < xP ? db(-3) * Math.sin((Math.PI / 2) * (x / xP)) : 1;
+    if (style === "mashup") return Math.sin((Math.PI / 2) * clamp01(x / 0.02));
     if (x < xBar) return 0.5 * Math.sin((Math.PI / 2) * (x / xBar));
     if (x < xP) return db(-6 + (4 * (x - xBar)) / Math.max(1e-6, xP - xBar));
     return db(-2 + (2 * (x - xP)) / Math.max(1e-6, 1 - xP));
   };
   const fA = (x) => {
     if (cutAtEnd) return x < 0.985 ? 1 : (1 - x) / 0.015;
+    if (style === "mashup") return x < xS ? 1 : Math.cos((Math.PI / 2) * clamp01((x - xS) / (1 - xS)));
     return x < xP ? 1 : Math.cos((Math.PI / 2) * clamp01((x - xP) / (1 - xP)));
   };
   const share = (x, who) => {
@@ -127,6 +156,9 @@ function blendFaders(style, xP, xBar) {
     // Chrome, this keeps the middle of a filter hand-over at the others' level.
     if (style === "filter") return who === "A" ? 1 - 0.2 * x : 0.5 + 0.5 * x;
     if (style === "swap") return who === "A" ? 1 : 0.45; // B without its bass and its highs down
+    if (style === "double") return who === "A" ? (x < xP ? 1 : 0.6) : x < xP ? 0.45 : 1;
+    // A band without its voice keeps ~80 % of its power, a voice alone ~30 %.
+    if (style === "mashup") return who === "A" ? 0.8 : x < xS ? 0.3 : 0.3 + (0.7 * (x - xS)) / (1 - xS);
 
     return (who === "A") === (x < xP) ? 1 : 0.6; // the song without its bass carries ~60 % of its power
   };
@@ -149,9 +181,19 @@ export const DEFAULTS = {
   waitCost: 0.05,
   variety: 0.5,
   criterion: "balanced", // see CRITERIA
-  allow: { cut: true, drop: true, blend: true, fade: true, echo: true, wash: true, brake: false, roll: false },
+  allow: {
+    cut: true, drop: true, blend: true, fade: true, echo: true, wash: true, riser: true, flanger: true, gap: true,
+    brake: false, roll: false, spin: false, gate: false,
+  },
   // How a blend may mix the two songs (each switched off, the chain picks among the rest).
-  blendStyles: { long: true, eq: true, short: true, filter: true, swap: true, stem: true, acapella: true },
+  blendStyles: {
+    long: true, eq: true, short: true, filter: true, swap: true, stem: true, acapella: true, loop: true, mashup: true,
+    double: true,
+  },
+  // Key lock beyond tempo: the next song transposed up to two semitones to sit
+  // in the playing one's key, and the playing one ramped toward a far tempo.
+  keyShift: true,
+  tempoRamp: true,
 };
 
 export class Player extends EventTarget {
@@ -175,11 +217,14 @@ export class Player extends EventTarget {
     this.prefetchedFor = null;
     this.cooldown = 0;
     this.ramp = null;
+    this.pitchRamp = null;
     this.hold = 1;
     this.blend = null;
     this.fx = null;
     this.plan = null;
     this.jumpNow = false;
+    this.seekTarget = null;
+    this.endPasses = 0;
     this.urgent = false;
     this.history = [];
     this.timeline = [];
@@ -229,6 +274,31 @@ export class Player extends EventTarget {
 
   requestJump() {
     this.jumpNow = true;
+  }
+
+  // The listener tapped the ring: play from that beat of the playing song, on
+  // the next beat. Refused (false) while a hand-over to another song is under
+  // way; seekError says why ("busy", or "gone": nothing playing).
+  seek(beat) {
+    this.seekError = null;
+    if (!this.cur) return ((this.seekError = "gone"), false);
+    if (this.blend || this.fx) return ((this.seekError = "busy"), false);
+    const T = this.cur.track;
+    this.seekTarget = Math.max(0, Math.min(T.n - 1, Math.round(beat)));
+    return true;
+  }
+
+  // Where a seek to beat b lands: on the beat of b's bar that sits where the
+  // beat about to play would have sat, so the meter carries straight on.
+  _seekBeat(T, i, b) {
+    const pos = T.analysis.pos;
+    const meter = T.analysis.meter || 4;
+    if (!pos) return b;
+    let d = b;
+    for (let k = 0; k < meter && d > 0 && pos[d] !== 0; k++) d--;
+    if (pos[d] !== 0) return b;
+    const next = i + 1 < T.n ? pos[i + 1] : (pos[i] + 1) % meter;
+    return Math.max(0, Math.min(T.n - 1, d + next));
   }
 
   // Forget the planned exit (settings changed); a bent tempo bends back.
@@ -287,6 +357,17 @@ export class Player extends EventTarget {
     }
   }
 
+  // Pitch (semitones) for the next beat of a transposed song gliding back to
+  // its own; null when nothing is gliding.
+  _pitch() {
+    const p = this.pitchRamp;
+    if (!p) return null;
+    p.k++;
+    const v = p.from + (p.to - p.from) * Math.min(1, p.k / p.n);
+    if (p.k >= p.n) this.pitchRamp = null;
+    return v;
+  }
+
   // Where a transition is triggered on the walk: blends and effects begin when
   // the walk arrives at a beat; cuts, drops and fades happen after a beat ends.
   _triggerOf(tr) {
@@ -297,7 +378,10 @@ export class Player extends EventTarget {
 
   // Abandon the planned exit; a song bent toward a meeting tempo bends back.
   _dropPlan() {
-    this.plan?.stretch?.dispose(); // a key-locked voice prepared for it, never started
+    // Key-locked voices prepared for it and never started (the next song's,
+    // and the playing one's for a tempo ramp that had not begun).
+    this.plan?.stretch?.dispose();
+    this.plan?.stretchA?.dispose();
     this.plan = null;
     if (this.cur && Math.abs(this.cur.rate - 1) > 1e-3 && !this.blend && !this.fx) this._rampTo(1, BEND_BEATS);
   }
@@ -308,7 +392,8 @@ export class Player extends EventTarget {
     if (this.blend) {
       const b = this.blend;
       const k = b.k + 1;
-      if (k < b.L) return { kind: "blend", track: T, beat: b.a + k, rate: b.rateA, k };
+      // Over a loop of A, A's clock goes round the loop.
+      if (k < b.L) return { kind: "blend", track: T, beat: b.a + (b.loop ? k % b.loop : k), rate: b.rateA, k };
       return { kind: "promote", track: b.B, beat: b.b + Math.round(b.m * b.L), rate: b.ratesB[b.L - 1] };
     }
 
@@ -318,6 +403,20 @@ export class Player extends EventTarget {
       const f = this.fx;
       if (i < f.end && i + 1 < T.n) return { kind: "fxBeat", track: T, beat: i + 1, rate: this.cur.rate };
       return { kind: "fxDrop", track: f.B, beat: f.tr.j, rate: 1, tr: f.tr };
+    }
+
+    if (this.seekTarget != null) {
+      // The planned exit was routed from where the song was: it is dropped
+      // (the chain plans again from the new place), and a key-locked glide
+      // home ends here, the song back at its own tempo and pitch.
+      const beat = this._seekBeat(T, i, this.seekTarget);
+      this.seekTarget = null;
+      if (this.plan) this._dropPlan();
+      this.ramp = null;
+      this.pitchRamp = null;
+      this.hold = 1;
+      this.endPasses = 0;
+      return { kind: "jump", track: T, beat, rate: 1, shift: 0, xf: SEEK_XFADE, seek: true };
     }
 
     if (this.cooldown > 0) this.cooldown--;
@@ -334,13 +433,26 @@ export class Player extends EventTarget {
     if (plan) {
       const tr = plan.tr;
       // Tempo bridge: in the bars before the junction the playing song eases
-      // toward the meeting tempo, so the next one can come in at it.
+      // toward the meeting tempo, so the next one can come in at it. It ramps
+      // key-locked, on a voice of its own prepared for it (plan.stretchA),
+      // once the route has made its last jump; without that voice in time it
+      // does not ramp, and the next song covers the whole gap.
       const pre = tr.pre || 1;
       if (!plan.bent && Math.abs(pre - 1) > 1e-4) {
         const beatsLeft = (plan.eta - t) / (T.dur[i] / this.cur.rate);
-        if (beatsLeft <= BEND_BEATS + 1) {
+        const free = plan.bendFrom == null || i >= plan.bendFrom;
+        if (beatsLeft <= (plan.bendBeats || BEND_BEATS) + 1 && free && plan.stretchA) {
           plan.bent = true;
-          this._rampTo(pre, Math.max(2, Math.floor(beatsLeft) - 1));
+          if (beatsLeft >= 5) {
+            plan.swapA = true;
+            this._rampTo(pre, Math.max(2, Math.floor(beatsLeft) - 1));
+          }
+        } else if (beatsLeft < 5) {
+          plan.bent = true;
+        }
+        if (plan.bent && !plan.swapA && plan.stretchA) {
+          plan.stretchA.dispose();
+          plan.stretchA = null;
         }
       }
       const routeJump = plan.jumps.get(i);
@@ -369,14 +481,16 @@ export class Player extends EventTarget {
         const e = T.jumps[i].find((x) => x.to === routeJump);
         return { kind: "jump", track: T, beat: routeJump, rate: this._rate(), shift: e ? e.shift : 0, xf: e ? e.xf : SPLICE_XFADE };
       } else if (i + 1 < T.n) {
-        return { kind: "seq", track: T, beat: i + 1, rate: this._rate() };
+        return { kind: "seq", track: T, beat: i + 1, rate: this._rate(), semis: this._pitch() };
       }
       if (this.plan) this._dropPlan();
     }
 
     const jump = this._walk(T, i, t);
-    if (jump) return { kind: "jump", track: T, beat: jump.to, rate: this._rate(), shift: jump.shift, xf: jump.xf };
-    if (i + 1 < T.n) return { kind: "seq", track: T, beat: i + 1, rate: this._rate() };
+    if (jump) {
+      return { kind: "jump", track: T, beat: jump.to, rate: this._rate(), shift: jump.shift, xf: jump.xf, forced: !!jump.forced };
+    }
+    if (i + 1 < T.n) return { kind: "seq", track: T, beat: i + 1, rate: this._rate(), semis: this._pitch() };
     // Fell off the end (no backward jump available): loop to the first beat.
     return { kind: "jump", track: T, beat: 0, rate: this._rate(), shift: 0, xf: 0.04 };
   }
@@ -387,8 +501,8 @@ export class Player extends EventTarget {
   _walk(T, i, t) {
     const s = this.settings;
     if (i >= T.lbp && T.lbp >= 0) {
-      const back = T.jumps[i].filter((e) => e.to <= i).sort((a, b) => a.score - b.score);
-      if (back.length) return back[0];
+      const back = T.jumps[i].filter((e) => e.to <= i);
+      if (back.length) return { ...this._endJump(T, back), forced: true };
     }
     if (this.cooldown > 0) return null;
     // A key-locked song still gliding back to its own tempo holds its course:
@@ -419,7 +533,31 @@ export class Player extends EventTarget {
       }
     }
     this.jumpNow = false;
+    this.endPasses = 0;
     return pick;
+  }
+
+  // The last branch point always jumps back, or the song would run out. Its
+  // jumps are drawn like the walk's (good ones first, away from where it has
+  // landed before), not always the best one: that one alone can lead into a
+  // stretch near the end with no other way out, played again and again. And
+  // when the walk keeps coming back here with no other jump in between, it
+  // takes the jump that goes furthest back.
+  _endJump(T, back) {
+    this.endPasses++;
+    if (this.endPasses >= END_PASSES) {
+      this.endPasses = 0;
+      return back.reduce((a, e) => (e.to < a.to ? e : a));
+    }
+    const visits = this._visits(T);
+    const best = Math.min(...back.map((e) => e.score));
+    const w = back.map((e) => Math.exp(-(e.score - best) / 0.15) / (1 + 1.5 * visits[e.to]));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    for (let k = 0; k < back.length; k++) {
+      r -= w[k];
+      if (r <= 0) return back[k];
+    }
+    return back[back.length - 1];
   }
 
   _visits(T) {
@@ -436,7 +574,22 @@ export class Player extends EventTarget {
     const T = step.track;
     switch (step.kind) {
       case "seq":
-        if (prev.voice.stretched && !this.ramp && !this.blend && Math.abs(step.rate - 1) < 1e-4) {
+        if (this.plan?.swapA && this.plan.stretchA) {
+          // A tempo ramp begins: the playing song moves onto its key-locked
+          // voice, crossfaded over 30 ms, and ramps on it from here.
+          const x = 0.03;
+          const v = this.plan.stretchA;
+          this.plan.stretchA = null;
+          this.plan.swapA = false;
+          v.shift = prev.voice.shift || 0;
+          v.semis = prev.voice.semis || 0; // still gliding home from a key shift, it carries on
+          v.start(t - x / 2, T.beats[step.beat] + v.shift - (x / 2) * step.rate, step.rate, x);
+          prev.voice.fadeOut(t - x / 2, x);
+          this.cur = { ...prev, beat: step.beat, rate: step.rate, voice: v };
+          break;
+        }
+        if (prev.voice.stretched && !this.ramp && !this.pitchRamp && !this.blend && !prev.voice.semis
+          && Math.abs(step.rate - 1) < 1e-4) {
           // The key-locked glide is over: a plain voice takes over the read
           // head, crossfaded over 30 ms.
           const x = 0.03;
@@ -447,7 +600,9 @@ export class Player extends EventTarget {
           this.cur = { ...prev, beat: step.beat, rate: 1, voice: v };
           break;
         }
-        if (step.rate !== prev.rate) prev.voice.setRate(t, step.rate, T.beats[step.beat] + (prev.voice.shift || 0));
+        if (step.rate !== prev.rate || step.semis != null) {
+          prev.voice.setRate(t, step.rate, T.beats[step.beat] + (prev.voice.shift || 0), step.semis);
+        }
         this.cur = { ...prev, beat: step.beat, rate: step.rate };
         break;
 
@@ -459,12 +614,15 @@ export class Player extends EventTarget {
         v.start(t - x / 2, T.beats[step.beat] + step.shift - (x / 2) * step.rate, step.rate, x);
         prev.voice.fadeOut(t - x / 2, x);
         this.cur = { track: T, beat: step.beat, rate: step.rate, voice: v };
+        if (!v.stretched) this.pitchRamp = null; // a plain voice plays at the song's own pitch
         this.cooldown = JUMP_COOLDOWN;
-        this.lastJumpAt = t;
+        // The forced jump back from the end does not hold off the walk's own
+        // jumps: a short stretch near the end must not shut them out.
+        if (!step.forced) this.lastJumpAt = t;
         if (step.kind === "jump") {
           this.stats.jumps++;
           this._visits(T)[step.beat] += 1;
-          this._log(t, "jump", { from: prev.beat });
+          this._log(t, "jump", { from: prev.beat, seek: !!step.seek });
         } else {
           // B glides from the meeting tempo back to its own.
           this._rampTo(1, RAMP_BEATS, step.rate);
@@ -486,16 +644,17 @@ export class Player extends EventTarget {
       case "fxDrop": {
         const tr = step.tr;
         const v = this.engine.voice(T);
-        if (tr.type === "echo" || tr.type === "wash") {
+        if (FX_UNDER_TAIL.has(tr.type)) {
           // On the downbeat, under the ringing tail, the new song comes in
           // low-passed and opens over two bars, its bass back within one.
           const bar = (T.analysis.meter || 4) * T.dur[step.beat];
           v.setBand("low", t, -12);
           v.start(t, T.beats[step.beat], 1, 0.03);
-          v.sweep(t, tr.type === "wash" ? 900 : 500, 18000, 2 * bar);
+          v.sweep(t, tr.type === "echo" ? 500 : 900, 18000, 2 * bar);
           v.rampBand("low", t, 0, bar);
         } else {
-          // After a brake or a roll it lands on the beat.
+          // After a brake, a roll, a build-up, a spinback, a gate or a beat
+          // of silence it lands on the beat.
           v.start(t, T.beats[step.beat], 1, 0.006);
         }
         this.cur = { track: T, beat: step.beat, rate: 1, voice: v };
@@ -547,7 +706,10 @@ export class Player extends EventTarget {
         b.voiceB.setRate(t, step.rate, b.B.beats[step.beat] + b.voiceB.shift);
         this.cur = { track: b.B, beat: step.beat, rate: step.rate, voice: b.voiceB };
         this._rampTo(1, RAMP_BEATS, step.rate);
-        this._enterTrack(b.B, t, "blend");
+        // A transposed B glides back to its own pitch now that it plays alone.
+        const semis = b.voiceB.semis || 0;
+        this.pitchRamp = semis ? { from: semis, to: 0, k: 0, n: Math.round(Math.abs(semis) * PITCH_BEATS) } : null;
+        this._enterTrack(b.B, t, "blend", blendStyle(b.tr, b.A.analysis.meter || 4));
         this._log(t, "promote");
         break;
       }
@@ -576,15 +738,17 @@ export class Player extends EventTarget {
     } else if (step.rate !== prev.rate) {
       voiceA.setRate(t, step.rate);
     }
-    // Master clock: A's beats at A's rate. B's rate per beat makes the stretch
-    // of B laid over each A beat last exactly as long: one B beat, two (B in
-    // double time, m = 2) or half of one (B in half time, m = 0.5).
+    // Master clock: A's beats at A's rate (round and round its loop, for a
+    // blend over a loop of A). B's rate per beat makes the stretch of B laid
+    // over each A beat last exactly as long: one B beat, two (B in double
+    // time, m = 2) or half of one (B in half time, m = 0.5).
     const m = tr.m || 1;
+    const n = tr.loop || 0;
     const times = [t];
     const ratesB = [];
     const tB = [B.beats[tr.b] + tr.shift_ms / 1000];
     for (let k = 0; k < L; k++) {
-      const dM = A.dur[tr.a + k] / step.rate;
+      const dM = A.dur[tr.a + (n ? k % n : k)] / step.rate;
       times.push(times[k] + dM);
       let span = 0;
       if (m >= 1) for (let q = 0; q < m; q++) span += B.dur[Math.min(B.n - 1, tr.b + m * k + q)];
@@ -603,9 +767,16 @@ export class Player extends EventTarget {
       voiceB.attachVocals(plan.vocals.B, t, tB[0], ratesB[0]);
       voiceA.attachVocals(plan.vocals.A, t, A.beats[tr.a] + (voiceA.shift || 0), step.rate);
     }
+    if (n) {
+      // A's first pass through the loop plays on; every pass after it is the
+      // loop again (its stem too), until A is gone.
+      const from = A.beats[tr.a] + (voiceA.shift || 0);
+      voiceA.loop(times[n], from, from + (times[n] - times[0]) * step.rate, step.rate, times[L] + 0.05);
+    }
+    plan.stretchA?.dispose(); // prepared for a tempo ramp that did not happen
     this._mixBlend(tr, A, voiceA, voiceB, times, L, outStart);
     voiceA.stopAt(times[L] + 0.05);
-    this.blend = { A, B, a: tr.a, b: tr.b, L, m, k: 0, rateA: step.rate, ratesB, voiceB, times, tB, tr };
+    this.blend = { A, B, a: tr.a, b: tr.b, L, m, loop: n, k: 0, rateA: step.rate, ratesB, voiceB, times, tB, tr };
     this.ramp = null;
     this.hold = step.rate;
     this.plan = null;
@@ -623,12 +794,16 @@ export class Player extends EventTarget {
   // swap builds B up thin under A (no bass, highs down) and cuts A on B's drop.
   // With both vocal stems, a hand-over goes by layers: B comes in without its
   // voice, which takes over from A's at the swap ("stem"), or B's voice alone
-  // sings over A's band before B's own band comes in ("acapella").
+  // sings over A's band before B's own band comes in ("acapella"; at length,
+  // "mashup"). A double drop builds B up under A to both drops at once; a
+  // blend over a loop of A is mixed as a regular one, the loop without A's
+  // voice when it was sung.
   _mixBlend(tr, A, voiceA, voiceB, times, L, outStart) {
     const meter = A.analysis.meter || 4;
     const style = blendStyle(tr, meter);
     const layered = style === "stem" || style === "acapella";
-    const base = layered ? (L >= 16 * meter ? "long" : L >= 8 * meter ? "eq" : "short") : style;
+    const regular = L >= 16 * meter ? "long" : L >= 8 * meter ? "eq" : "short";
+    const base = layered || style === "loop" ? regular : style;
     const t0 = times[0];
     const tEnd = times[L];
     const total = tEnd - t0;
@@ -638,7 +813,10 @@ export class Player extends EventTarget {
     const beat = at(P) - at(P - 1);
     const xP = (tP - t0) / total;
     const xBar = Math.min(xP, (at(meter) - t0) / total);
-    const f = blendFaders(base, xP, xBar);
+    // The mashup's final bars, where B's band comes in: two of sixteen, four of thirty-two.
+    const endBars = L >= 32 * meter ? 4 : 2;
+    const tS = style === "mashup" ? at(L - endBars * meter) : tEnd;
+    const f = blendFaders(base, xP, xBar, (tS - t0) / total);
     voiceB.gainCurve(f.B, t0, total);
     // A's curve may start a little later (after a splice into the window): it
     // is the same curve, entered where it stands at that time.
@@ -660,6 +838,31 @@ export class Player extends EventTarget {
       voiceB.rampBand("low", tEnd - swap, 0, 2 * swap);
       return;
     }
+    if (style === "double") {
+      // B thin under A (no bass, highs down) up to its drop in the middle;
+      // from the drop both play at full, the bass B's alone; A is cut at the end.
+      voiceB.setBand("low", t0, KILL);
+      voiceB.setBand("high", t0, -12);
+      voiceB.rampBand("high", at(P - meter), 0, tP - at(P - meter));
+      voiceB.rampBand("low", tP - swap, 0, 2 * swap);
+      voiceA.rampBand("low", tP - swap, KILL, 2 * swap);
+      return;
+    }
+    if (style === "mashup") {
+      // B's voice alone over A's band from the first beat; in the final bars
+      // B's band rises under its voice while A goes, the bass swapped halfway
+      // through them.
+      const tSw = at(L - (endBars >> 1) * meter);
+      voiceA.vocals(t0, "instrumental", beat);
+      voiceB.vocals(t0, "acapella");
+      voiceB.vocals(tS, "full", tEnd - tS);
+      voiceB.setBand("low", t0, KILL);
+      voiceB.rampBand("low", tSw - swap, 0, 2 * swap);
+      voiceA.rampBand("low", tSw - swap, KILL, 2 * swap);
+      voiceA.rampBand("high", tS, -12, tEnd - tS);
+      return;
+    }
+    if (style === "loop" && tr.stems) voiceA.vocals(t0, "instrumental", beat);
     if (layered) {
       voiceA.vocals(t0, "full");
       if (style === "stem") {
@@ -701,8 +904,10 @@ export class Player extends EventTarget {
 
   // Effect transitions. The window is the last `beats` beats of A: an echo
   // feeds a dark delay that rings on, a brake slows the platter to a stop, a
-  // roll replays the window's first beat in shrinking slices. Then B comes in
-  // on its own tempo at the end of the window.
+  // roll replays the window's first beat in shrinking slices, a build-up
+  // rises to an impact, a spinback throws the platter backwards, a gate chops
+  // the song, a flanger sweeps it, a gap leaves its last beat silent. Then B
+  // comes in on its own tempo at the end of the window.
   _startFx(step, prev, t) {
     const tr = step.tr;
     const A = step.track;
@@ -736,6 +941,25 @@ export class Player extends EventTarget {
       voiceA.fadeOut(end - 0.005, 0.01);
     } else if (tr.type === "brake") {
       voiceA.brake(t, end, rate);
+    } else if (tr.type === "riser") {
+      // Build-up: the song thins out under a rising noise sweep and is cut on
+      // the downbeat, where an impact lands with the new song.
+      voiceA.hpSweep(t, 30, 1200, end - t);
+      this.engine.riser(t, end);
+      this.engine.impact(end);
+      voiceA.fadeOut(end - 0.005, 0.01);
+    } else if (tr.type === "spin") {
+      this.engine.spinback(voiceA, t, A.beats[step.beat] + (voiceA.shift || 0), end - t, rate);
+    } else if (tr.type === "gate") {
+      this.engine.gate(voiceA, times, A.analysis.meter || 4);
+      voiceA.fadeOut(end - 0.005, 0.01);
+    } else if (tr.type === "flanger") {
+      this.engine.flanger(voiceA, t, end);
+      voiceA.fadeOut(end - 0.005, 0.01);
+    } else if (tr.type === "gap") {
+      // A beat of silence: the song stops dead (its last hit let ring a few
+      // ms), and the new one hits on the next downbeat.
+      voiceA.fadeOut(t, 0.04);
     } else {
       // Roll: the window's first beat repeated whole four times, then in
       // halves, quarters and eighths (two bars), getting louder; shorter
@@ -761,17 +985,21 @@ export class Player extends EventTarget {
 
   // ------------------------------------------------------------ chain planning
 
-  _enterTrack(track, t, via) {
+  _enterTrack(track, t, via, style = null) {
+    // Only a blend hands over a transposed song (its glide home set at the promote).
+    if (via !== "blend") this.pitchRamp = null;
     this.dwellStart = t;
     this.plan = null;
     this.urgent = false;
+    this.endPasses = 0;
+    this.seekTarget = null; // a seek asked for the song that is leaving
     this.prefetchedFor = null;
     this.prefetchIds = [];
     // Let the new song settle before the first random jump.
     this.lastJumpAt = t;
     this.cooldown = Math.max(this.cooldown, JUMP_COOLDOWN * 2);
     if (via !== "start") this.stats.transitions++;
-    this.history.push({ id: track.id, at: t, via });
+    this.history.push({ id: track.id, at: t, via, style });
     if (this.history.length > 50) this.history.shift();
     this.loader.refreshTransitions(track);
     this.dispatchEvent(new CustomEvent("track", { detail: { track, via, at: t } }));
@@ -798,6 +1026,7 @@ export class Player extends EventTarget {
     const h = this.history;
     if (h.length && h[h.length - 1].via === tr.type) u -= SAME_KIND_PENALTY;
     if (FX.has(tr.type) && h.slice(-3).some((e) => FX.has(e.via))) u -= RECENT_FX_PENALTY;
+    if (tr.type === "blend" && SIGNATURE.has(tr.style) && h.slice(-3).some((e) => e.style === tr.style)) u -= RECENT_FX_PENALTY;
     if (c.beat || c.tempo || c.key) {
       const meta = this.loader.metas?.get(tr.to);
       if (c.beat && !BEAT_MATCHED.has(tr.type)) u -= c.beat;
@@ -848,6 +1077,8 @@ export class Player extends EventTarget {
       if (!isFinite(arrival)) continue;
       if (arrival < LOAD_LEAD && !this.loader.has(tr.to)) continue;
       if (arrival < PREP_LEAD && (tr.stems || (tr.keylock && this.engine.canStretch))) continue;
+      // A tempo ramp needs its voice before the ramp begins.
+      if (bends(tr) && arrival < PREP_LEAD + bendBeats(tr.pre) * T.dur[this.cur.beat]) continue;
       const noise = (CRITERIA[s.criterion] || CRITERIA.balanced).noise;
       const u = tr.q - lambda * arrival + this._appeal(T, tr) + Math.random() * noise;
       if (!best || u > best.u) best = { tr, u, trigger, arrival };
@@ -904,7 +1135,14 @@ export class Player extends EventTarget {
     const curStart = t - T.dur[this.cur.beat] / this.cur.rate;
     const arrive = this._triggerOf(best.tr).arrive;
     const eta = curStart + best.arrival + (arrive ? 0 : T.dur[best.trigger]);
-    const plan = { tr: best.tr, jumps, target: null, eta, from: T.id, picked };
+    const plan = { tr: best.tr, jumps, target: null, eta, from: T.id, picked, trigger: best.trigger };
+    if (bends(best.tr)) {
+      // The tempo ramp runs on the stretch of the route after its last jump
+      // (route() lists the jumps from the target backwards).
+      const last = jumps.size ? jumps.values().next().value : null;
+      plan.bendFrom = last ?? this.cur.beat;
+      plan.bendBeats = bendBeats(best.tr.pre);
+    }
     this.plan = plan;
     this.loader.get(best.tr.to).then(
       (track) => {
@@ -921,17 +1159,20 @@ export class Player extends EventTarget {
   }
 
   // What a transition needs beyond the next song's audio, made ready while the
-  // walk heads for it: both songs' vocal stems (a hand-over by layers) and a
-  // key-locked voice of the next song (its tempo changed, its pitch kept),
-  // reading from just before its entry through the blend and the glide back
-  // to its own tempo. Until then the plan is not ready; a failure marks the
+  // walk heads for it: both songs' vocal stems (a hand-over by layers), a
+  // key-locked voice of the next song (its tempo changed, or its key, its
+  // pitch otherwise kept), reading from just before its entry through the
+  // blend and the glides back to its own tempo and pitch, and, for a tempo
+  // ramp, a key-locked voice of the playing song over the ramp and the blend.
+  // Until the next song's part is ready the plan is not; a failure marks the
   // transition so the chain does not plan it again.
   _prepare(plan, A) {
     const tr = plan.tr;
     const B = plan.target;
     const layered = !!tr.stems;
     const lock = !!tr.keylock && this.engine.canStretch;
-    if (!layered && !lock) {
+    const ramp = bends(tr) && this.engine.canStretch;
+    if (!layered && !lock && !ramp) {
       plan.ready = true;
       return;
     }
@@ -943,10 +1184,11 @@ export class Player extends EventTarget {
       if (lock) {
         const entry = tr.type === "blend" ? tr.b : tr.j;
         const from = Math.max(0, B.beats[entry] + (tr.shift_ms || 0) / 1000 - 1);
-        const beats = (tr.type === "blend" ? Math.ceil((tr.m || 1) * tr.len) : 0) + RAMP_BEATS + 16;
+        const glide = Math.max(RAMP_BEATS, Math.abs(tr.semis || 0) * PITCH_BEATS);
+        const beats = (tr.type === "blend" ? Math.ceil((tr.m || 1) * tr.len) : 0) + glide + 16;
         let span = 0;
         for (let k = entry; k < Math.min(B.n, entry + beats); k++) span += B.dur[k];
-        const v = await this.engine.stretchVoice(B, from, from + span + 4, layered ? vb : null);
+        const v = await this.engine.stretchVoice(B, from, from + span + 4, layered ? vb : null, tr.semis || 0);
         if (this.plan !== plan) {
           v.dispose();
           return;
@@ -954,6 +1196,20 @@ export class Player extends EventTarget {
         plan.stretch = v;
       }
       plan.ready = true;
+      if (ramp) {
+        // From the first beat the ramp may start on to the end of the blend
+        // (and 24 beats past the trigger, room to ramp back if it is dropped).
+        const first = Math.max(plan.bendFrom ?? 0, plan.trigger - plan.bendBeats - 2);
+        const last = Math.min(A.n - 1, Math.max(tr.a + (tr.loop || tr.len), plan.trigger + 24));
+        const shiftA = this.cur?.voice?.shift || 0;
+        const v = await this.engine.stretchVoice(A, Math.max(0, A.beats[first] + shiftA - 1), A.beats[last] + shiftA + 2,
+          layered ? va : null);
+        if (this.plan !== plan || plan.bent) {
+          v.dispose();
+          return;
+        }
+        plan.stretchA = v;
+      }
     }).catch(() => {
       tr.failed = true;
       if (this.plan === plan) this._dropPlan();
@@ -961,12 +1217,15 @@ export class Player extends EventTarget {
   }
 
   // Whether a transition can be taken at all here: not failed before, its
-  // blend style switched on, and its vocal stems on the server when it hands
-  // over by layers.
+  // blend style switched on, its vocal stems on the server when it hands
+  // over by layers, and the key shift or tempo ramp it needs switched on
+  // (both need the key-locked voice).
   _usable(T, tr) {
     if (tr.failed) return false;
     if (tr.type === "blend" && this.settings.blendStyles?.[blendStyle(tr, T.analysis.meter || 4)] === false) return false;
     if (tr.stems && !(this.loader.metas?.get(T.id)?.stems && this.loader.metas?.get(tr.to)?.stems)) return false;
+    if (tr.semis && !(this.settings.keyShift !== false && this.engine.canStretch)) return false;
+    if (bends(tr) && !(this.settings.tempoRamp !== false && this.engine.canStretch)) return false;
     return true;
   }
 
