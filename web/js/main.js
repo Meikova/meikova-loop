@@ -589,6 +589,17 @@ function renderLibrary() {
   renderTransport();
 }
 
+// The sample library the empty stage offers: one drawn at random per visit.
+let stageSampleKey = null;
+function stageSample() {
+  const libs = samples.libraries;
+  if (!libs.length) return null;
+  if (!libs.some((l) => l.key === stageSampleKey)) stageSampleKey = libs[Math.floor(Math.random() * libs.length)].key;
+  return libs.find((l) => l.key === stageSampleKey);
+}
+
+$("#rc-cta").addEventListener("click", (e) => loadSamples(e.currentTarget));
+
 async function loadSamples(btn) {
   const lib = samples.libraries.find((l) => l.key === btn.dataset.key);
   if (!lib) return;
@@ -892,16 +903,27 @@ function renderStage() {
   const view = player.audible();
   const p = player;
   const T = view?.entry.track;
+  const cta = $("#rc-cta");
   if (!T) {
     const empty = !metas.some((m) => m.status === "ready");
+    // An empty library: one sample library offered right on the stage.
+    const lib = empty ? stageSample() : null;
     setHTML($("#rc-kicker"), "HAI VÒNG ĐANG CHỜ");
     setHTML($("#rc-title"), empty ? "Thêm một bài để có vòng đầu tiên" : "Chọn một bài để bắt đầu vòng lặp");
-    setHTML($("#rc-meta"), empty ? "Gõ tên bài ở ô Thêm bài trong thư viện" : "Bấm phát, hoặc nút ▶ ở một bài trong thư viện");
+    setHTML($("#rc-meta"), !empty ? "Bấm phát, hoặc nút ▶ ở một bài trong thư viện"
+      : lib ? "Gõ tên bài ở ô Thêm bài trong thư viện, hoặc nghe thử ngay" : "Gõ tên bài ở ô Thêm bài trong thư viện");
+    cta.hidden = !lib;
+    if (lib && !cta.disabled) {
+      cta.dataset.key = lib.key;
+      cta.querySelector("span").textContent = `Nghe thử kho ${lib.name}`;
+    }
     setHTML($("#ro-tl"), `<b>MASH ∞ LOOP</b> // ${p.settings.mode === "chain" ? "chuỗi" : "một bài"} · chưa phát`);
     setHTML($("#ro-tr"), `<span class="mono">∞ 0:00</span><span class="ro-stats"> · chưa có vòng nào</span>`);
     setHTML($("#next-info"), "");
     return;
   }
+  cta.hidden = true;
+  cta.disabled = false;
   // The mix as heard (the stage holds it until its end reaches the speakers).
   const held = viz.mixNow;
   const b = held?.blend ? held.m : null;
@@ -1047,6 +1069,7 @@ ready().then(() => {
     samples.ids = [...new Set(samples.libraries.flatMap((l) => l.ids))];
     lastListHtml = "";
     renderLibrary();
+    renderStage(); // the empty stage can offer one of them now
   }, () => {});
 }).catch(() => {});
 refresh().then(schedulePoll);

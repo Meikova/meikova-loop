@@ -84,6 +84,7 @@ function seeded(seed) {
 }
 
 const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -1015,45 +1016,257 @@ export class Viz {
     }
   }
 
-  _drawIdle(ctx, now, alpha) {
-    // The waiting instrument: the ∞ itself, with a light running along it.
+  // ------------------------------------------------------------------ idle
+  //
+  // The waiting instrument, before any song plays: the ∞ as two ghost loops,
+  // each made like a real one (faint beats whose weight follows a loudness
+  // contour, a stippled halo of dust), the left in the room's colour, the
+  // right in a colour drifting round the mood wheel: a song still to come.
+  // They breathe slowly; jump chords come and go inside them; a light runs
+  // the ∞ with a tail and a few sparks, takes each loop's colour as it crosses
+  // the middle, and leaves a ripple there. Under the pointer the path glows.
+  // Reduced motion: the same picture, still.
+
+  // A little above the middle: the caption hangs under it, and the two weigh as one.
+  _idleGeom() {
     const a = Math.min(this.w * 0.36, this.h * 0.95);
-    const cx = this.w / 2, cy = this.h / 2;
-    const pt = (u) => {
-      const s = Math.sin(u), c = Math.cos(u);
-      const d = 1 + s * s;
-      return [cx + (a * c) / d, cy + (a * s * c) / d];
-    };
-    const col = this.accent || theme.idleAccent();
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = theme.css(theme.lift(col, 0.2), 0.16);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    for (let i = 0; i <= 240; i++) {
-      const [x, y] = pt((i / 240) * TAU);
-      if (i) ctx.lineTo(x, y);
-      else ctx.moveTo(x, y);
-    }
-    ctx.stroke();
-    const u0 = this.reduced ? 0.6 : (now / 7000) * TAU;
-    for (let k = 0; k < 28; k++) {
-      const [x, y] = pt(u0 - k * 0.025);
-      ctx.fillStyle = theme.css(col, (1 - k / 28) * 0.55);
+    return { a, cx: this.w / 2, cy: this.h * 0.42, th: Math.max(3, a * 0.024) };
+  }
+
+  // A point of the lemniscate (u: 0..2π; the right loop where cos u > 0, the
+  // crossing at u = ±π/2), and the unit normal there.
+  _idlePt(g, u) {
+    const s = Math.sin(u), c = Math.cos(u);
+    const d = 1 + s * s;
+    return [g.cx + (g.a * c) / d, g.cy + (g.a * s * c) / d];
+  }
+
+  _idleNormal(g, u) {
+    const [x1, y1] = this._idlePt(g, u - 0.002), [x2, y2] = this._idlePt(g, u + 0.002);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    return [-(y2 - y1) / len, (x2 - x1) / len];
+  }
+
+  // The colour of the loop still to come: the mood theme's wheel turning
+  // slowly (once in 90 s) from a third of the way round the room's colour;
+  // the amber preset keeps its one colour.
+  _idleSecond(colA, t) {
+    if (theme.themeName() === "amber") return colA;
+    return theme.fit({ l: colA.l, c: Math.max(colA.c, 0.1), h: (colA.h + 110 + 360 * ((t / 90) % 1)) % 360 });
+  }
+
+  // One ghost loop drawn once (redrawn when its colour has moved a few degrees).
+  _idleLayer(side, col) {
+    const st = this.idleSt;
+    const key = `${this.w}x${this.h}@${this.dpr}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}`;
+    const have = st.layers[side];
+    if (have && have.key === key) return have.canvas;
+    const g = this._idleGeom();
+    const c = have?.canvas || document.createElement("canvas");
+    c.width = Math.round(this.w * this.dpr);
+    c.height = Math.round(this.h * this.dpr);
+    const ctx = c.getContext("2d");
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.w, this.h);
+    const rnd = seeded(side > 0 ? 7741 : 3319);
+    const N = 112; // beats round the loop
+    const u0 = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    let walk = 0.5;
+    for (let i = 0; i < N; i++) {
+      const ua = u0 + (Math.PI * i) / N, ub = u0 + (Math.PI * (i + 1)) / N;
+      walk = Math.max(0, Math.min(1, walk + (rnd() - 0.5) * 0.3));
+      // Thin to nothing toward the crossing, where the two loops meet.
+      const end = Math.pow(Math.sin((Math.PI * (i + 0.5)) / N), 0.6);
+      const loud = (0.3 + 0.7 * walk) * end;
+      const tone = { l: col.l - 0.05 + 0.1 * rnd(), c: col.c, h: col.h + (rnd() - 0.5) * 26 };
+      ctx.strokeStyle = theme.css(tone, 0.12 + 0.42 * loud);
+      ctx.lineWidth = g.th * (i % 4 === 0 ? 1 : 0.74) * (0.7 + 0.3 * end);
       ctx.beginPath();
-      ctx.arc(x, y, 2.6 * (1 - k / 40), 0, TAU);
-      ctx.fill();
+      for (let q = 0; q <= 3; q++) {
+        const [x, y] = this._idlePt(g, ua + ((ub - ua) * q) / 3 - (q === 3 ? 0.002 : 0));
+        if (q) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+      const count = 2 + Math.round(7 * loud);
+      ctx.fillStyle = theme.css(tone);
+      for (let k = 0; k < count; k++) {
+        const u = ua + rnd() * (ub - ua);
+        const [x, y] = this._idlePt(g, u);
+        const [nx, ny] = this._idleNormal(g, u);
+        const spread = (rnd() + rnd() + rnd() - 1.5) / 1.5;
+        const off = spread * g.th * 2.6;
+        ctx.globalAlpha = (0.1 + 0.4 * rnd() * (1 - Math.abs(spread))) * end;
+        ctx.beginPath();
+        ctx.arc(x + nx * off, y + ny * off, 0.5 + rnd() * 0.9, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
-    const [hx, hy] = pt(u0);
-    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 26);
-    g.addColorStop(0, theme.css(theme.lift(col, 0.12), 0.85));
-    g.addColorStop(1, theme.css(col, 0));
-    ctx.fillStyle = g;
+    st.layers[side] = { key, canvas: c };
+    return c;
+  }
+
+  // Jump chords inside a loop: each lives 9-15 s, fading in and out, then
+  // comes back between two other points of the same loop.
+  _idleChord(side, t) {
+    const span = 0.5 + Math.random() * 1.6;
+    const ua = (side > 0 ? -Math.PI / 2 : Math.PI / 2) + 0.25 + Math.random() * (Math.PI - 0.5 - span);
+    return { side, ua, ub: ua + span, t0: t, life: 9 + Math.random() * 6 };
+  }
+
+  _drawIdle(ctx, now, alpha) {
+    const g = this._idleGeom();
+    const t = now / 1000;
+    const still = this.reduced;
+    const st = this.idleSt || (this.idleSt = { layers: {}, chords: [], sparks: [], ripples: [], lastCos: null, lastT: t });
+    if (!st.chords.length) {
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < 6; k++) {
+          const ch = this._idleChord(side, t);
+          ch.t0 -= Math.random() * ch.life; // already under way, not all at once
+          st.chords.push(ch);
+        }
+      }
+    }
+    const colA = this.accent || theme.idleAccent();
+    const colB = this._idleSecond(colA, still ? 0 : t);
+    const loopCol = (side) => (side > 0 ? colB : colA);
+    // The light's colour along the ∞: one loop's, then the other's across the middle.
+    const colAt = (u) => theme.mix(colA, colB, clamp01(0.5 + 3 * Math.cos(u)));
+    const breath = still ? 0.5 : 0.5 - 0.5 * Math.cos((TAU * t) / 4.8);
+
+    ctx.save();
+    // The two ghost loops, breathing.
+    ctx.globalAlpha = alpha * (0.76 + 0.24 * breath);
+    for (const side of [-1, 1]) ctx.drawImage(this._idleLayer(side, loopCol(side)), 0, 0, this.w, this.h);
+
+    // The path itself, a hairline.
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 1;
+    for (const side of [-1, 1]) {
+      ctx.strokeStyle = theme.css(theme.lift(loopCol(side), 0.12), 0.18);
+      ctx.beginPath();
+      const u0 = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+      for (let i = 0; i <= 120; i++) {
+        const [x, y] = this._idlePt(g, u0 + (Math.PI * i) / 120);
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Jump chords, curving in toward the loop's middle.
+    for (let k = 0; k < st.chords.length; k++) {
+      let ch = st.chords[k];
+      if (!still && t - ch.t0 > ch.life) ch = st.chords[k] = this._idleChord(ch.side, t);
+      const life = still ? 0.5 : (t - ch.t0) / ch.life;
+      const o = Math.sin(Math.PI * clamp01(life));
+      if (o < 0.02) continue;
+      const [x1, y1] = this._idlePt(g, ch.ua), [x2, y2] = this._idlePt(g, ch.ub);
+      const mx = g.cx + ch.side * g.a * 0.52, my = g.cy;
+      ctx.strokeStyle = theme.css(theme.lift(loopCol(ch.side), 0.06), 0.15 * o);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(mx + ((x1 + x2) / 2 - mx) * 0.2, my + ((y1 + y2) / 2 - my) * 0.2, x2, y2);
+      ctx.stroke();
+    }
+
+    // Under the pointer, the nearest stretch of the path lights up.
+    if (this.pointer && !still) {
+      let best = null;
+      for (let i = 0; i < 240; i++) {
+        const u = (TAU * i) / 240;
+        const [x, y] = this._idlePt(g, u);
+        const d = Math.hypot(x - this.pointer.x, y - this.pointer.y);
+        if (!best || d < best.d) best = { d, x, y, u };
+      }
+      if (best.d < 70) {
+        const k = 1 - best.d / 70;
+        const glow = ctx.createRadialGradient(best.x, best.y, 0, best.x, best.y, 40);
+        glow.addColorStop(0, theme.css(theme.lift(colAt(best.u), 0.1), 0.35 * k));
+        glow.addColorStop(1, theme.css(colAt(best.u), 0));
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(best.x, best.y, 40, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    // The light: once round the ∞ in 8 s, its tail fading and thinning.
+    const uH = still ? 0.6 : (t / 8) * TAU;
+    const TAIL = 64;
+    let prev = this._idlePt(g, uH);
+    for (let k = 1; k <= TAIL; k++) {
+      const u = uH - k * 0.016;
+      const p = this._idlePt(g, u);
+      const f = 1 - k / TAIL;
+      ctx.strokeStyle = theme.css(colAt(u), 0.75 * f * f);
+      ctx.lineWidth = 0.6 + 2.6 * f;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(prev[0], prev[1]);
+      ctx.lineTo(p[0], p[1]);
+      ctx.stroke();
+      prev = p;
+    }
+    const [hx, hy] = this._idlePt(g, uH);
+    const colH = colAt(uH);
+    const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, 30);
+    halo.addColorStop(0, theme.css(theme.lift(colH, 0.14), 0.9));
+    halo.addColorStop(0.35, theme.css(colH, 0.35));
+    halo.addColorStop(1, theme.css(colH, 0));
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(hx, hy, 26, 0, TAU);
+    ctx.arc(hx, hy, 30, 0, TAU);
     ctx.fill();
+    ctx.fillStyle = theme.css(theme.lift(colH, 0.18));
+    ctx.beginPath();
+    ctx.arc(hx, hy, 2.4, 0, TAU);
+    ctx.fill();
+
+    if (!still) {
+      const dt = Math.min(0.1, Math.max(0, t - st.lastT));
+      st.lastT = t;
+      // A few sparks shed by the light, drifting just off the path.
+      if (Math.random() < dt * 12 && st.sparks.length < 24) {
+        const [nx, ny] = this._idleNormal(g, uH);
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const v = 3 + Math.random() * 7;
+        st.sparks.push({ x: hx, y: hy, vx: nx * v * side + (Math.random() - 0.5) * 3, vy: ny * v * side + (Math.random() - 0.5) * 3,
+          t0: t, col: colH });
+      }
+      // A ripple where the light crosses the middle (every 4 s).
+      const cs = Math.cos(uH);
+      if (st.lastCos != null && Math.sign(cs) !== Math.sign(st.lastCos)) st.ripples.push({ t0: t, col: colH });
+      st.lastCos = cs;
+      for (const s of st.sparks) {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+      }
+      st.sparks = st.sparks.filter((s) => t - s.t0 < 1);
+      st.ripples = st.ripples.filter((r) => t - r.t0 < 1.6);
+      for (const s of st.sparks) {
+        const f = 1 - (t - s.t0);
+        ctx.fillStyle = theme.css(theme.lift(s.col, 0.1), 0.45 * f);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 0.3 + 0.8 * f, 0, TAU);
+        ctx.fill();
+      }
+      for (const r of st.ripples) {
+        const e = easeOut((t - r.t0) / 1.6);
+        ctx.strokeStyle = theme.css(theme.lift(r.col, 0.1), 0.32 * (1 - e));
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(g.cx, g.cy, 6 + 58 * e, 0, TAU);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
-    this.idleCaptionY = cy + a * 0.354 + 74;
+    // The caption hangs from just under the ∞ (its lowest point is a / 2√2,
+    // plus the dust around it), whatever its height.
+    this.idleCaptionY = g.cy + g.a * 0.354 + 3 * g.th + 22;
   }
 
   // ---------------------------------------------------------------- caption
