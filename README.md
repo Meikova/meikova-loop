@@ -4,6 +4,10 @@ Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
 
 **Nghe thử:** https://mashloop.truclv.com
 
+- [x] **15/10** Bản đầu: lặp vô hạn, nối bài khớp nhịp, màu theo mood, bản web cho nhiều người.
+- [x] **16/10** Key lock, tách giọng, 9 kho có sẵn, thêm các kiểu chuyển bài (mashup, double drop, build-up…), bấm vòng để tua.
+- [x] **17/10** Chế độ "Như một set DJ", vòng ∞ mới lúc chờ.
+
 Mash ∞ Loop nghe kỹ từng beat của bài hát rồi phát mãi không dứt. Trong một bài, nó
 nhảy qua lại giữa những đoạn giống nhau đến mức bạn không biết mình đang ở lần lặp
 thứ mấy. Phần ăn tiền là ở **giữa các bài**: khi đã ở đủ lâu, nó tìm chỗ nối sang bài
@@ -186,27 +190,6 @@ cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng n
 - Lớp xáo trộn audio chặn được công cụ tải và việc lưu file vu vơ, không phải DRM:
   trình duyệt bắt buộc phải nhận được âm thanh thì mới phát được.
 - Chọn bản "audio" trên YouTube sẽ tốt hơn bản MV có đoạn mở đầu dài.
-
-## Nhật ký
-
-- [x] **15/10/2026.** Bản đầu: lặp vô hạn trong một bài, nối bài khớp nhịp, chạy trên máy mình.
-- [x] Màu theo mood, ánh sáng chạy qua dấu ∞, chọn tiêu chí cho bài kế.
-- [x] Bản web cho nhiều người: thư viện riêng mỗi lượt, kho bài chung, chống lạm dụng.
-- [x] **16/10/2026.** Key lock: nắn tempo mà không đổi tông.
-- [x] Tách giọng hát: blend chỉ phần nhạc, acapella, không để hai giọng chồng nhau.
-- [x] Nối theo cấu trúc bài: ra ở cuối câu nhạc, vào điệp khúc hay drop.
-- [x] Thêm Wash và bảy cách blend, bật tắt riêng từng cái.
-- [x] 9 kho có sẵn, tự nối xuyên kho, nút *Kho khác*.
-- [x] Audio MP3 192 kbps (giọng 160 kbps) thay cho FLAC, nhẹ hơn nhiều.
-- [x] Audio tự xoá sau 12 giờ, hỏi đồng ý trước khi thêm bài, không lưu dữ liệu cá nhân.
-- [x] Chấm chuyển bài chỉ hiện chỗ đi được, và nói rõ vì sao khi chưa tới được.
-- [x] Dịch tông ±1–2 nửa cung, kéo tempo dần qua vài câu, tự tạo outro bằng vòng lặp:
-  số cặp bài blend khớp nhịp được tăng từ 14 % lên 42 %.
-- [x] Mashup dài, double drop.
-- [x] Build-up, spinback, gate, quét flanger, ngắt lặng 1 beat.
-- [x] Bấm lên vòng để phát từ đoạn đó; hết bị kẹt lặp mãi một đoạn gần cuối bài.
-- [x] **17/10/2026.** Tiêu chí "Như một set DJ" và nhìn trước một bước khi chọn bài.
-- [x] Chuyển được theo mọi hướng năng lượng (dịu ↔ sôi), acapella với nhạc bài sau lên dần.
 
 ## Bản quyền
 
