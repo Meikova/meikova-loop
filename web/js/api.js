@@ -175,6 +175,7 @@ export class Loader extends EventTarget {
       const buffer = await this.engine.ctx.decodeAudioData(audio);
       const track = new Track(meta, analysis, buffer);
       track.transitions = trans.items;
+      track.onward = trans.onward || null; // each destination's own best ways on
       entry.track = track;
       return track;
     })();
@@ -191,8 +192,9 @@ export class Loader extends EventTarget {
 
   async refreshTransitions(track) {
     try {
-      const { items } = await api.transitions(track.id);
+      const { items, onward } = await api.transitions(track.id);
       track.transitions = items;
+      track.onward = onward || null;
       this.dispatchEvent(new CustomEvent("transitions", { detail: track }));
     } catch (_) {
       /* keep the old list */

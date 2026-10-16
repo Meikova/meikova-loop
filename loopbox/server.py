@@ -443,7 +443,7 @@ def _send_sound(path: Path, kid: str, request: Request, v: sessions.View) -> Res
 def transitions(tid: str, v: sessions.View = Depends(view_of)):
     _ready(tid)
     _held(v, tid)
-    return {"items": v.transitions(tid)}
+    return {"items": v.transitions(tid), "onward": v.onward(tid)}
 
 
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")

@@ -339,6 +339,12 @@ def _bent_voice(pre: np.ndarray, rb: np.ndarray, voice_before_a: np.ndarray, voi
             | ((np.abs(np.log(rb)) > big) & (voice_b > 0.3)))
 
 
+def _rise_fall(ia: np.ndarray, ib: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """How far the intensity goes up and down from A (rows) to B (columns)."""
+    d = ib[None, :] - ia[:, None]
+    return np.maximum(d, 0.0), np.maximum(-d, 0.0)
+
+
 def _steady(f: dict, ibi: np.ndarray) -> np.ndarray:
     return np.abs(np.log(ibi / np.median(f["dur"]))) <= math.log(1 + MAX_LOCAL_TEMPO_DRIFT)
 
@@ -556,9 +562,11 @@ def blends(fa: dict, fb: dict, to: str, stems: bool = False) -> list[dict]:
                      + (HALF_DOUBLE_PENALTY if m != 1 else 0.0))
             # Longer blends need cleaner material; short ones are a little rougher.
             base = {32 * meter: 0.2, 16 * meter: 0.22, 8 * meter: 0.25, 4 * meter: 0.3}.get(L, 0.36)
-            # Where B is left playing alone should feel like where A was.
+            # Where B is left playing alone should feel like where A was (the
+            # styles made to lift a set, below, may rise freely).
             b_after = np.minimum(B + span, fb["n"] - 1)
-            jolt = np.abs(fa["intensity"][A][:, None] - fb["intensity"][b_after][None, :])
+            rise, fall = _rise_fall(fa["intensity"][A], fb["intensity"][b_after])
+            jolt = rise + fall
             S = (base + kp + 0.6 * d_h + 1.2 * clash + pen_e + 0.4 * d_r + 0.2 * d_t + pen_t - bonus
                  + 0.4 * jolt + 0.35 * md + SHIFT_COST * np.abs(semis))
             S0 = np.where(ok, S, np.inf)
@@ -585,19 +593,20 @@ def blends(fa: dict, fb: dict, to: str, stems: bool = False) -> list[dict]:
             styles = {"long" if L >= 16 * meter else "eq" if L == 8 * meter else "short": np.where(plain, S0, np.inf)}
             special = {}  # the signature styles, each scored on its own
             if L in (4 * meter, 8 * meter):
+                # A filter hand-over is also how a DJ crosses a change of energy.
                 apart = ((kp >= 0.35) | (d_h > 0.4)) & (lr <= math.log(1.03))
-                styles["filter"] = np.where(apart & ~voc_bad, S0 - 0.4 * kp - 0.2 * d_h + 0.08, np.inf)
+                styles["filter"] = np.where(apart & ~voc_bad, S0 - 0.4 * kp - 0.2 * d_h + 0.08 - 0.2 * jolt, np.inf)
             if L in (8 * meter, 16 * meter):
                 end_b = B + span
                 on_drop = np.zeros(len(B), bool)
                 inside = end_b < fb["n"]
                 on_drop[inside] = drop_b[end_b[inside]]
-                styles["swap"] = np.where(on_drop[None, :] & plain, S0 - 0.15, np.inf)
+                styles["swap"] = np.where(on_drop[None, :] & plain, S0 - 0.15 - 0.4 * rise, np.inf)
                 if m == 1:
                     half = L // 2
                     both_drop = drop_a[A + half][:, None] & drop_b[B + half][None, :]
                     fits = both_drop & plain & (kp <= 0.1) & (d_h < 0.35) & (d_r < 0.35)
-                    special["double"] = np.where(fits, S0 - 0.04, np.inf)
+                    special["double"] = np.where(fits, S0 - 0.04 - 0.4 * rise, np.inf)
             if stems:
                 styles["stem"] = np.where(voc_bad & quiet, S0 - 1.2 * clash + 0.05, np.inf)
                 if L == 8 * meter:
@@ -801,13 +810,14 @@ def fades(fa: dict, fb: dict, to: str, kpen: float, limit: int = FADES_PER_PAIR,
     post = np.array([fb["loud"][b:b + 2 * meter].mean() for b in B]) + fb["gain_db"]
     pen_e = 0.04 * np.maximum(0.0, np.abs(pre[:, None] - post[None, :]) - 3.0)
     # Where it leaves and enters by the songs' structure (B's intro, a drop, a
-    # chorus, wherever in the song it is), in a valley of A (an outro, a
-    # breakdown), into a B moment of like intensity.
+    # chorus, wherever in the song it is), a little better in a valley of A (an
+    # outro, a breakdown). A long filtered crossfade is the way across a change
+    # of mood and energy, so a change of intensity costs it little.
     fit = FIT_WEIGHT * (fa["exit_fit"][A][:, None] + fb["entry_fit"][B][None, :])
     ia, ib = fa["intensity"][A], fb["intensity"][B]
     jolt = np.abs(ia[:, None] - ib[None, :])
     S = (0.55 + 0.5 * da[:, None] + 0.5 * db[None, :] + 1.0 * clash + 0.7 * kpen + pen_e - fit
-         + 0.45 * jolt + 0.2 * ia[:, None])
+         + 0.2 * jolt + 0.1 * ia[:, None])
     S = np.where(drums_clash, np.inf, S)
     best_b = S.argmin(1)
     cands = [{"a": int(A[ai]), "b": int(B[best_b[ai]]), "score": float(S[ai, best_b[ai]])} for ai in range(len(A))
@@ -879,13 +889,16 @@ def effects(fa: dict, fb: dict, to: str, kpen: float, keep: float = FX_KEEP, kin
     # How far apart the tempos are (double and half time count as alike).
     lt = abs(math.log2(fb["bpm"] / fa["bpm"]))
     tempo_far = float(abs(lt - round(lt)) > math.log2(1.06))
+    # An echo, a wash or a flanger leaves A whatever comes next, and B comes in
+    # under the tail filtered and opening up: a change of energy either way
+    # costs them little.
     scores = {
         "echo": (0.55 + 0.8 * cut_line - 0.15 * line_end + 0.25 * b_voc + 0.5 * kpen + pen_lvl - sec_a - sec_b
-                 + 0.5 * jolt + 0.3 * md),
+                 + 0.25 * jolt + 0.3 * md),
         # The long tail blurs whatever differs: the wider the gap between the
         # songs, the better a wash fits (and the less an echo does).
         "wash": (0.62 + 0.8 * cut_line - 0.1 * line_end + 0.2 * b_voc + 0.4 * kpen + pen_lvl - sec_a - sec_b
-                 + 0.3 * jolt - 0.2 * min(md, 1.5) - 0.1 * tempo_far),
+                 + 0.15 * jolt - 0.2 * min(md, 1.5) - 0.1 * tempo_far),
         "brake": 0.6 + 0.8 * cut_line + 0.2 * b_voc + 0.6 * pen_lvl - 0.12 * hit_b - sec_a - sec_b + 0.6 * md,
         "roll": (0.6 + 0.6 * cut_line + 0.45 * (1 - drums_end) + 0.2 * b_voc - 0.15 * hit_b - sec_a - sec_b
                  + 0.6 * md),
@@ -898,7 +911,7 @@ def effects(fa: dict, fb: dict, to: str, kpen: float, keep: float = FX_KEEP, kin
         "gate": (0.6 + 0.6 * cut_line + 0.45 * (1 - drums_end) + 0.2 * b_voc - 0.12 * hit_b - sec_a - sec_b
                  + 0.5 * md),
         "flanger": (0.6 + 0.8 * cut_line - 0.1 * line_end + 0.2 * b_voc + 0.4 * kpen + pen_lvl - sec_a - sec_b
-                    + 0.4 * jolt + 0.15 * md),
+                    + 0.25 * jolt + 0.15 * md),
         # Silence only means something after a loud A, before a strong B.
         "gap": (0.6 + 0.9 * cut_line + 0.2 * b_voc + 0.3 * (1 - hit_b) + 0.2 * (1 - loud_a) - 0.1 * peak_b + pen_lvl
                 - sec_a - sec_b + 0.4 * md),
@@ -970,10 +983,12 @@ def drops(fa: dict, fb: dict, to: str) -> list[dict]:
     sec_b = FIT_WEIGHT * fb["entry_fit"][J][None, :]
     # Nothing overlaps at a drop, so a key change reads as a modulation (a
     # semitone up is a pop classic) rather than a clash: key weighs less here.
-    jolt = np.abs(fa["intensity"][X - 1][:, None] - fb["intensity"][J][None, :])
+    # A drop is how a set lifts: from a calmer A into B's drop or chorus is
+    # what it is for; dropping from full energy into a quiet stretch is not.
+    rise, fall = _rise_fall(fa["intensity"][X - 1], fb["intensity"][J])
     S = (0.45 + 0.35 * kp + cut_line + 0.5 * d_r + 0.4 * d_drums - 0.1 * energy_b
          + _tempo_penalty(lr, CUT_MAX_RATE, 0.12) - sec_a - sec_b
-         + 1.0 * jolt + 0.8 * mood_distance(fa, fb))
+         + 0.3 * rise + 1.0 * fall + 0.8 * mood_distance(fa, fb))
     S = np.where(ok, S, np.inf)
     best_b = S.argmin(1)
     cands = [{"x": int(X[ai]), "j": int(J[best_b[ai]]), "score": float(S[ai, best_b[ai]]),
@@ -1007,11 +1022,45 @@ def pair(a: str, b: str) -> dict:
         spare = effects(fa, fb, b, kpen, keep=np.inf, kinds=("echo", "wash"), per_pair=1)
         fade = min(spare, key=lambda t: t["score"]) if spare else None
     # The planner steers the chain toward songs of a near mood, so a session
-    # drifts from style to style instead of lurching.
+    # drifts from style to style instead of lurching; and, shaping a set, by
+    # the energy each hand-over leads into.
     md = round(mood_distance(fa, fb), 3)
     for t in items + ([fade] if fade else []):
         t["mood"] = md
+        t["oe"] = _exit_energy(fa, t)
+        t["ie"] = _entry_energy(fb, t)
     return {"items": items, "fade": fade, "tempo_ratio": round(fb["bpm"] / fa["bpm"], 4), "key_distance": kd}
+
+
+def _song_energy(f: dict, rel: float) -> float:
+    """A section's energy across songs: the song's own (drums and tempo) times
+    how intense the section is within it."""
+    return round(float(f["mood"]["energy"]) * (0.4 + 0.6 * rel), 3)
+
+
+def _exit_energy(fa: dict, t: dict) -> float:
+    """0..1: A's energy over the eight bars before it starts to give way."""
+    meter = fa["meter"]
+    if t["type"] == "blend":
+        end = t["a"]
+    else:
+        end = t["i"] + 1 - t.get("beats", 1) if t["type"] in FX_BEATS else t["i"] + 1  # where the effect starts
+    end = min(max(1, int(end)), fa["n"])
+    return _song_energy(fa, float(fa["intensity"][max(0, end - 8 * meter):end].mean()))
+
+
+def _entry_energy(fb: dict, t: dict) -> float:
+    """0..1: how much energy B has where it plays on alone after a hand-over,
+    across songs (its own energy: drums and tempo) and within it (the section's
+    intensity over the next eight bars): a dance track's drop near 1, its
+    breakdown about half that, a ballad's chorus low."""
+    meter = fb["meter"]
+    if t["type"] == "blend":
+        start = t["b"] + int(round(t.get("m", 1) * t["len"]))
+    else:
+        start = t["j"] if t.get("j") is not None else 0
+    start = min(max(0, int(start)), fb["n"] - 1)
+    return _song_energy(fb, float(fb["intensity"][start:start + 8 * meter].mean()))
 
 
 
@@ -1140,10 +1189,35 @@ def assemble(ids: list[str]) -> dict[str, list[dict]]:
     return out
 
 
+# The ways on from a song the chain looks at one step ahead: those that keep
+# the beat (a crossfade or an effect is nearly always there, so they tell
+# songs apart no better than noise), best first.
+ONWARD_KINDS = frozenset({"cut", "drop", "blend"})
+ONWARD_KEEP = 8
+
+
+def onward(assembled: dict[str, list[dict]]) -> dict[str, list[list]]:
+    """Per song of a library, its destinations with the quality of the best
+    beat-matched transition to each, best first: what the chain finds one song
+    further on, so it does not walk into a song it can only fade out of."""
+    out = {}
+    for a, items in assembled.items():
+        best: dict[str, float] = {}
+        for t in items:
+            if t["type"] in ONWARD_KINDS and t["q"] > best.get(t["to"], -1.0):
+                best[t["to"]] = t["q"]
+        out[a] = [[b, round(q, 3)] for b, q in sorted(best.items(), key=lambda kv: -kv[1])[:ONWARD_KEEP]]
+    return out
+
+
 def export(ids: list[str]) -> None:
     """Writes the assembled lists as data/transitions/<id>.json for the test tools."""
-    for tid, items in assemble(ids).items():
-        library.write_json(library.transitions_path(tid), {"version": TRANSITIONS_VERSION, "from": tid, "items": items})
+    lists = assemble(ids)
+    ahead = onward(lists)
+    for tid, items in lists.items():
+        on = {d: ahead.get(d, []) for d in {t["to"] for t in items}}
+        library.write_json(library.transitions_path(tid),
+                           {"version": TRANSITIONS_VERSION, "from": tid, "items": items, "onward": on})
     write_marker()
 
 

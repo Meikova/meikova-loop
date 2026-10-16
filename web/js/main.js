@@ -1,6 +1,6 @@
 import { api, hooks, Loader, ready, session } from "./api.js";
 import { Engine } from "./engine.js";
-import { CRITERIA, DEFAULTS, keyFit, Player, shiftCamelot } from "./player.js";
+import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
 import * as theme from "./theme.js";
 import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
 
@@ -857,7 +857,10 @@ const kindCap = (tr) => {
   const s = tr.type === "blend" && BLEND_STYLE[tr.style];
   return s ? s[0].toUpperCase() + s.slice(1) : KIND_CAP[tr.type] || tr.type;
 };
-const CRIT_TAG = { mood: "CÙNG MOOD", tempo: "CÙNG NHỊP", key: "HỢP TÔNG", free: "TỰ DO" };
+const CRIT_TAG = { mood: "CÙNG MOOD", tempo: "CÙNG NHỊP", key: "HỢP TÔNG", set: "SET DJ", free: "TỰ DO" };
+// Where a set stands, for the hand-over about to happen.
+const SET_PHASE = { warmup: "khởi động", cruise: "giữ nhịp", build: "đẩy lên", peak: "lên đỉnh", breather: "khoảng nghỉ",
+  lift: "bùng lại" };
 
 // Why the chain picked this exit, in the terms of the chosen criterion.
 function criterionNote(T, tr) {
@@ -874,6 +877,8 @@ function criterionNote(T, tr) {
       const fit = keyFit(T.analysis.camelot, m.camelot, tr.semis ?? 0);
       return ` · tông ${esc(T.analysis.camelot)} → ${esc(shiftCamelot(m.camelot, tr.semis ?? 0))}${fit >= 0.8 ? ", hợp" : fit > 0.3 ? ", gần hợp" : ""}`;
     }
+    case "set":
+      return ` · set: ${SET_PHASE[setPhase(player.stats.transitions).phase]}`;
     default:
       return "";
   }

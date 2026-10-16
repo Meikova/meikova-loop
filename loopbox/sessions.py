@@ -26,6 +26,7 @@ class View:
         self.link_ver = 0
         self._assembled_key = None
         self._assembled = {}
+        self._onward = {}
         self._assemble_lock = threading.Lock()
 
     # -- songs
@@ -48,14 +49,23 @@ class View:
 
     # -- transitions
     def transitions(self, tid: str) -> list[dict]:
+        return self._lists()[0].get(tid, [])
+
+    def onward(self, tid: str) -> dict[str, list]:
+        """For each song tid leads to, that song's best ways on (one step ahead)."""
+        lists, ahead = self._lists()
+        return {d: ahead.get(d, []) for d in {t["to"] for t in lists.get(tid, [])}}
+
+    def _lists(self) -> tuple[dict, dict]:
         from .analysis import transitions
         ready = tuple(sorted(self.ready_ids()))
         key = (ready, self.link_ver)
         with self._assemble_lock:
             if key != self._assembled_key:
                 self._assembled = transitions.assemble(list(ready))
+                self._onward = transitions.onward(self._assembled)
                 self._assembled_key = key
-            return self._assembled.get(tid, [])
+            return self._assembled, self._onward
 
     def link(self, tid: str | None = None) -> None:
         """Schedules the missing pairs: of one newly ready song with the rest,

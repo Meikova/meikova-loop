@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Track } from "../web/js/graph.js";
-import { keyFit, Player, tempoGap } from "../web/js/player.js";
+import { CRITERIA, keyFit, Player, setPhase, tempoGap } from "../web/js/player.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LIB = path.join(ROOT, "data", "library");
@@ -224,7 +224,9 @@ const loader = {
       const meta = metas.find((m) => m.id === id);
       const t = new Track(meta, read(path.join(LIB, id, "analysis.json")), null);
       const tp = path.join(ROOT, "data", "transitions", `${id}.json`);
-      t.transitions = fs.existsSync(tp) ? read(tp).items : [];
+      const data = fs.existsSync(tp) ? read(tp) : { items: [] };
+      t.transitions = data.items;
+      t.onward = data.onward || null;
       cache.set(id, t);
     }
     return cache.get(id);
@@ -238,8 +240,10 @@ const player = new Player(engine, loader);
 player.settings.mode = mode;
 if (process.argv[5]) player.settings.keep = +process.argv[5];
 if (process.argv[6]) player.settings.waitCost = +process.argv[6];
-// CRITERION=mood|tempo|key|free picks what the chain looks for (default balanced).
+// CRITERION=mood|tempo|key|set|free picks what the chain looks for (default balanced).
 if (process.env.CRITERION) player.settings.criterion = process.env.CRITERION;
+// AHEAD=0: no looking one song ahead (to compare with).
+if (process.env.AHEAD === "0") for (const c of Object.values(CRITERIA)) c.ahead = 0;
 // ALL_KINDS=1 switches on every kind of transition, the abrupt ones too.
 if (process.env.ALL_KINDS) for (const k of Object.keys(player.settings.allow)) player.settings.allow[k] = true;
 player.settings.dwellMin = 60;
@@ -247,8 +251,21 @@ player.settings.dwellMax = 150;
 player.enabled = () => true;
 // Plan history per visit, to explain long waits (DEBUG_WAIT=1 prints them).
 let planLog = [];
+// Per hand-over, as planned: how well the chain could carry on from the song
+// it chose (one step ahead), and where its energy sat against the set's target.
+const handovers = [];
+let planned = null;
+// Hand-overs by the energy where they leave and where they enter (calm, mid,
+// driving: the terciles of the sample libraries' exits, 0.51 and 0.72).
+const energyClass = (x) => (x < 0.51 ? 0 : x < 0.72 ? 1 : 2);
+const moves = new Array(9).fill(0);
 const origSet = player._setPlan.bind(player);
 player._setPlan = (T, best, prev, t, picked) => {
+  planned = {
+    onward: player._onwardScore(T, best.tr.to),
+    rank: best.tr.ie != null ? player._energyRank(T, best.tr.ie) : null,
+    target: setPhase(player.stats.transitions).target,
+  };
   origSet(T, best, prev, t, picked);
   planLog.push(`plan ${best.tr.type}->${best.tr.to.slice(0, 5)} q=${best.tr.q} at ${t.toFixed(1)} eta ${(player.plan.eta - t).toFixed(1)}s`);
 };
@@ -343,6 +360,9 @@ while (now < end) {
     // enters it: at a cut/fade, or at the end of a blend.)
     if (["blendStart", "fxStart", "cut", "drop", "fade"].includes(e.kind) && songStart !== null) {
       leaveWaits.push(e.t - songStart - player.settings.dwellMin);
+      if (planned) handovers.push(planned);
+      planned = null;
+      if (e.tr?.oe != null && e.tr?.ie != null) moves[energyClass(e.tr.oe) * 3 + energyClass(e.tr.ie)]++;
       if (e.tr) {
         moodsTaken.push(e.tr.mood ?? 0);
         const from = loader.metas.get(e.fromTrack ?? e.track.id), to = loader.metas.get(e.tr.to);
@@ -393,6 +413,29 @@ console.log(`tempo ramps ${ramped} (A ramped on its key-locked voice in ${ramped
   JSON.stringify(fxLog));
 console.log(`jumps ${player.stats.jumps} (${(player.stats.jumps / minutes).toFixed(1)}/min), back-to-back (<1.5 s apart) ${rapid}, transitions ${player.stats.transitions}`);
 console.log(`stuck near the end: longest run ${endRunMax} jumps back from the end, ${endRunSecs.toFixed(0)} s`);
+const nMoves = moves.reduce((a, b) => a + b, 0);
+if (nMoves) {
+  const pc = (k) => `${Math.round((100 * moves[k]) / nMoves)}%`.padStart(4);
+  const NAMES = ["calm", "mid", "drive"];
+  console.log(`energy moves (from \\ to calm mid drive) over ${nMoves}: ` +
+    NAMES.map((n, i) => `${n} ${pc(3 * i)} ${pc(3 * i + 1)} ${pc(3 * i + 2)}`).join(" | "));
+}
+if (handovers.length) {
+  const mean = (a) => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
+  const on = handovers.map((h) => h.onward);
+  const dead = on.filter((x) => x < 0.3).length;
+  const withE = handovers.filter((h) => h.rank != null);
+  const tg = withE.map((h) => h.target), rk = withE.map((h) => h.rank);
+  const mt = mean(tg), mr = mean(rk);
+  const cov = mean(withE.map((h) => (h.target - mt) * (h.rank - mr)));
+  const sd = (a, m) => Math.sqrt(mean(a.map((x) => (x - m) ** 2)));
+  const corr = cov / Math.max(1e-9, sd(tg, mt) * sd(rk, mr));
+  const breathers = withE.filter((h) => h.target < 0.3);
+  console.log(`one step ahead: mean onward quality ${mean(on).toFixed(2)}, dead ends (under 0.3) ${dead} of ${on.length}`);
+  console.log(`set energy: off target by ${mean(withE.map((h) => Math.abs(h.rank - h.target))).toFixed(2)} on average, ` +
+    `correlation with the target ${corr.toFixed(2)}, breathers landed in the calmest third ` +
+    `${breathers.filter((h) => h.rank < 0.34).length} of ${breathers.length}`);
+}
 if (process.env.SEEKS) {
   console.log(`seeks: asked ${seeks.asked}, refused ${seeks.refused} (mid hand-over), landed ${seeks.landed}, meter kept ${seeks.inMeter}`);
   if (seeks.landed !== seeks.asked - seeks.refused) problems.push(`seeks landed ${seeks.landed} of ${seeks.asked - seeks.refused}`);

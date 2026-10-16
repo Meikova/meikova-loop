@@ -55,7 +55,7 @@ DEVICE = "cuda"  # falls back to cpu at runtime when CUDA is unavailable
 # Bump when the analysis output changes in a way that requires re-analysis.
 ANALYSIS_VERSION = 6
 # Bump when only the cross-track transition search changes.
-TRANSITIONS_VERSION = 8
+TRANSITIONS_VERSION = 10
 
 for d in (LIBRARY_DIR, PAIRS_DIR, TRANSITIONS_DIR):
     d.mkdir(parents=True, exist_ok=True)

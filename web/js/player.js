@@ -65,13 +65,42 @@ const BEAT_MATCHED = new Set(["cut", "drop", "blend"]);
 //   tempo: lost per octave of tempo gap (bending, or the BPMs apart)
 //   key: gained per unit of key fit on the Camelot wheel, centred on 0.6
 //   explore: weight of the recency penalty; noise: random spread
+//   ahead: weight of how well the chain could carry on from the next song
+//          (one step ahead), so it does not walk into a dead end
+//   arc: weight of the set's energy shape (setPhase)
+//   vary: lost by a hand-over that keeps the energy where it is, after three
+//          in a row that did: the chain moves up or down now and then
 export const CRITERIA = {
-  balanced: { mood: MOOD_WEIGHT, beat: 0, tempo: 0, key: 0, explore: 1, noise: 0.03 },
-  mood: { mood: 3.0, beat: 0, tempo: 0, key: 0, explore: 1, noise: 0.03 },
-  tempo: { mood: 0.15, beat: 0.45, tempo: 3, key: 0, explore: 1, noise: 0.03 },
-  key: { mood: 0.15, beat: 0, tempo: 0, key: 0.9, explore: 1, noise: 0.03 },
-  free: { mood: 0, beat: 0, tempo: 0, key: 0, explore: 2, noise: 0.4 },
+  balanced: { mood: MOOD_WEIGHT, beat: 0, tempo: 0, key: 0, explore: 1, noise: 0.03, ahead: 0.15, arc: 0, vary: 0.12 },
+  mood: { mood: 3.0, beat: 0, tempo: 0, key: 0, explore: 1, noise: 0.03, ahead: 0.15, arc: 0, vary: 0.12 },
+  tempo: { mood: 0.15, beat: 0.45, tempo: 3, key: 0, explore: 1, noise: 0.03, ahead: 0.15, arc: 0, vary: 0.12 },
+  key: { mood: 0.15, beat: 0, tempo: 0, key: 0.9, explore: 1, noise: 0.03, ahead: 0.15, arc: 0, vary: 0.12 },
+  set: { mood: 0.3, beat: 0.15, tempo: 0, key: 0, explore: 1, noise: 0.03, ahead: 0.3, arc: 0.9, vary: 0 },
+  free: { mood: 0, beat: 0, tempo: 0, key: 0, explore: 2, noise: 0.4, ahead: 0, arc: 0, vary: 0 },
 };
+// Energies this close count as the same level (the energy scale is 0..1).
+const FLAT_ENERGY = 0.12;
+
+// A DJ set's energy, hand-over by hand-over. The target is a place among the
+// energies the playing song's exits lead into (0 the calmest, 1 the most
+// driving), so it fits any library: a warm-up over the first four songs, then
+// rounds of six that move every way a set does: cruising, building to the
+// peak, a breather (a section with the drums out, a calmer song), and the
+// lift straight out of it back to full energy (the drop after a breakdown),
+// held one more song before the round starts again.
+const SET_WARMUP = [0.3, 0.45, 0.6, 0.7];
+const SET_ROUND = [0.7, 0.85, 0.95, 0.15, 0.9, 0.8];
+const SET_ROUND_PHASE = ["cruise", "build", "peak", "breather", "lift", "peak"];
+export function setPhase(n) {
+  if (n < SET_WARMUP.length) return { target: SET_WARMUP[n], phase: "warmup" };
+  const k = (n - SET_WARMUP.length) % SET_ROUND.length;
+  return { target: SET_ROUND[k], phase: SET_ROUND_PHASE[k] };
+}
+// The hand-overs made to lift a set (a build-up, a drop, a swap on B's drop,
+// both drops at once, a beat of silence before the hit) and those made to
+// let it down (an echo, a wash, a long crossfade, a flanger, a filter blend).
+const LIFTS = (tr) => ["riser", "drop", "gap"].includes(tr.type) || (tr.type === "blend" && ["swap", "double"].includes(tr.style));
+const SETTLES = (tr) => ["echo", "wash", "fade", "flanger"].includes(tr.type) || (tr.type === "blend" && tr.style === "filter");
 
 const parseCamelot = (s) => {
   const m = /^(\d{1,2})([AB])$/.exec(s || "");
@@ -134,6 +163,9 @@ const db = (d) => Math.pow(10, d / 20);
 //             (xP), then both drops play at full together; A is cut at the end.
 //   mashup    B (its voice alone) up within the first beat and held; A (its
 //             band alone) held until the final bars (xS), then out by the end.
+//   acapella  the same over eight bars: B's voice up at once, A (its band
+//             alone) held to the middle, then out by the end; B's own band
+//             rises under its voice from a quarter to three quarters.
 function blendFaders(style, xP, xBar, xS = 0.875) {
   const cutAtEnd = style === "filter" || style === "swap" || style === "double";
   const fB = (x) => {
@@ -142,6 +174,7 @@ function blendFaders(style, xP, xBar, xS = 0.875) {
     if (style === "swap") return x < 0.75 ? db(-3) * Math.sin((Math.PI / 2) * (x / 0.75)) : db(-3 + (3 * (x - 0.75)) / 0.25);
     if (style === "double") return x < xP ? db(-3) * Math.sin((Math.PI / 2) * (x / xP)) : 1;
     if (style === "mashup") return Math.sin((Math.PI / 2) * clamp01(x / 0.02));
+    if (style === "acapella") return Math.sin((Math.PI / 2) * clamp01(x / 0.04));
     if (x < xBar) return 0.5 * Math.sin((Math.PI / 2) * (x / xBar));
     if (x < xP) return db(-6 + (4 * (x - xBar)) / Math.max(1e-6, xP - xBar));
     return db(-2 + (2 * (x - xP)) / Math.max(1e-6, 1 - xP));
@@ -151,6 +184,8 @@ function blendFaders(style, xP, xBar, xS = 0.875) {
     if (style === "mashup") return x < xS ? 1 : Math.cos((Math.PI / 2) * clamp01((x - xS) / (1 - xS)));
     return x < xP ? 1 : Math.cos((Math.PI / 2) * clamp01((x - xP) / (1 - xP)));
   };
+  // B's band comes up under its voice (acapella, mashup): its share of B's power.
+  const bandIn = (x, from, to) => 0.3 + 0.7 * clamp01((x - from) / Math.max(1e-6, to - from));
   const share = (x, who) => {
     // A high-pass up to 400 Hz takes little of a full mix's power; measured in
     // Chrome, this keeps the middle of a filter hand-over at the others' level.
@@ -158,7 +193,8 @@ function blendFaders(style, xP, xBar, xS = 0.875) {
     if (style === "swap") return who === "A" ? 1 : 0.45; // B without its bass and its highs down
     if (style === "double") return who === "A" ? (x < xP ? 1 : 0.6) : x < xP ? 0.45 : 1;
     // A band without its voice keeps ~80 % of its power, a voice alone ~30 %.
-    if (style === "mashup") return who === "A" ? 0.8 : x < xS ? 0.3 : 0.3 + (0.7 * (x - xS)) / (1 - xS);
+    if (style === "mashup") return who === "A" ? 0.8 : bandIn(x, xS, 1);
+    if (style === "acapella") return who === "A" ? 0.8 : bandIn(x, 0.25, 0.75);
 
     return (who === "A") === (x < xP) ? 1 : 0.6; // the song without its bass carries ~60 % of its power
   };
@@ -628,7 +664,7 @@ export class Player extends EventTarget {
           this._rampTo(1, RAMP_BEATS, step.rate);
           const via = step.tr?.type === "drop" ? "drop" : "cut";
           this._log(t, via, { from: prev.beat, fromTrack: prev.track.id, tr: step.tr });
-          this._enterTrack(T, t, via);
+          this._enterTrack(T, t, via, step.tr);
         }
         break;
       }
@@ -662,7 +698,7 @@ export class Player extends EventTarget {
         this.ramp = null;
         this.hold = 1;
         this._log(t, tr.type, { fromTrack: prev.track.id, tr });
-        this._enterTrack(T, t, tr.type);
+        this._enterTrack(T, t, tr.type, tr);
         if (tr.type === "echo") this.cooldown = Math.max(this.cooldown, 12);
         break;
       }
@@ -687,7 +723,7 @@ export class Player extends EventTarget {
         // No jumps while the old song is still fading out underneath.
         this.cooldown = Math.max(this.cooldown, Math.ceil(secs / T.dur[step.beat]) + 2);
         this._log(t, "fade", { from: prev.beat, fromTrack: prev.track.id, tr: step.tr });
-        this._enterTrack(T, t, "fade");
+        this._enterTrack(T, t, "fade", step.tr);
         break;
       }
 
@@ -709,7 +745,7 @@ export class Player extends EventTarget {
         // A transposed B glides back to its own pitch now that it plays alone.
         const semis = b.voiceB.semis || 0;
         this.pitchRamp = semis ? { from: semis, to: 0, k: 0, n: Math.round(Math.abs(semis) * PITCH_BEATS) } : null;
-        this._enterTrack(b.B, t, "blend", blendStyle(b.tr, b.A.analysis.meter || 4));
+        this._enterTrack(b.B, t, "blend", b.tr);
         this._log(t, "promote");
         break;
       }
@@ -803,7 +839,7 @@ export class Player extends EventTarget {
     const style = blendStyle(tr, meter);
     const layered = style === "stem" || style === "acapella";
     const regular = L >= 16 * meter ? "long" : L >= 8 * meter ? "eq" : "short";
-    const base = layered || style === "loop" ? regular : style;
+    const base = style === "stem" || style === "loop" ? regular : style;
     const t0 = times[0];
     const tEnd = times[L];
     const total = tEnd - t0;
@@ -813,8 +849,9 @@ export class Player extends EventTarget {
     const beat = at(P) - at(P - 1);
     const xP = (tP - t0) / total;
     const xBar = Math.min(xP, (at(meter) - t0) / total);
-    // The mashup's final bars, where B's band comes in: two of sixteen, four of thirty-two.
-    const endBars = L >= 32 * meter ? 4 : 2;
+    // The mashup's final quarter, where B's band rises under its voice: four
+    // bars of sixteen, eight of thirty-two.
+    const endBars = Math.max(1, Math.round(L / meter / 4));
     const tS = style === "mashup" ? at(L - endBars * meter) : tEnd;
     const f = blendFaders(base, xP, xBar, (tS - t0) / total);
     voiceB.gainCurve(f.B, t0, total);
@@ -871,13 +908,17 @@ export class Player extends EventTarget {
         voiceA.vocals(tP - beat, "instrumental", beat);
         voiceB.vocals(tP - beat / 2, "full", beat);
       } else {
-        // B's voice alone over A's band, then B's band on the swap.
+        // B's voice alone over A's band (A's voice out), then B's own band
+        // rising under it, a little more every beat from a quarter of the way
+        // to three quarters, where the bass swaps; A's highs go from the middle.
+        const tRise = at(L >> 2);
+        const tSwap = at((3 * L) >> 2);
         voiceA.vocals(t0, "instrumental", beat);
         voiceB.vocals(t0, "acapella");
-        voiceB.vocals(tP - beat / 2, "full", beat);
+        voiceB.vocals(tRise, "full", tSwap - tRise);
         voiceB.setBand("low", t0, KILL);
-        voiceB.rampBand("low", tP - swap, 0, 2 * swap);
-        voiceA.rampBand("low", tP - swap, KILL, 2 * swap);
+        voiceB.rampBand("low", tSwap - swap, 0, 2 * swap);
+        voiceA.rampBand("low", tSwap - swap, KILL, 2 * swap);
         voiceA.rampBand("high", tP, -12, tEnd - tP);
         return;
       }
@@ -985,9 +1026,13 @@ export class Player extends EventTarget {
 
   // ------------------------------------------------------------ chain planning
 
-  _enterTrack(track, t, via, style = null) {
+  // `tr`: the transition that led here (none at the start).
+  _enterTrack(track, t, via, tr = null) {
     // Only a blend hands over a transposed song (its glide home set at the promote).
     if (via !== "blend") this.pitchRamp = null;
+    const style = tr?.type === "blend" ? blendStyle(tr, track.analysis.meter || 4) : null;
+    // Whether it kept the energy where it was (unknown: counted as a move).
+    const flat = tr?.oe != null && tr?.ie != null && Math.abs(tr.ie - tr.oe) < FLAT_ENERGY;
     this.dwellStart = t;
     this.plan = null;
     this.urgent = false;
@@ -999,7 +1044,7 @@ export class Player extends EventTarget {
     this.lastJumpAt = t;
     this.cooldown = Math.max(this.cooldown, JUMP_COOLDOWN * 2);
     if (via !== "start") this.stats.transitions++;
-    this.history.push({ id: track.id, at: t, via, style });
+    this.history.push({ id: track.id, at: t, via, style, flat });
     if (this.history.length > 50) this.history.shift();
     this.loader.refreshTransitions(track);
     this.dispatchEvent(new CustomEvent("track", { detail: { track, via, at: t } }));
@@ -1033,7 +1078,53 @@ export class Player extends EventTarget {
       if (c.tempo) u -= c.tempo * tempoGap(T.analysis.bpm, meta?.bpm, tr);
       if (c.key) u += c.key * (keyFit(T.analysis.camelot, meta?.camelot, tr.semis ?? 0) - 0.6);
     }
+    if (c.ahead) u += c.ahead * (this._onwardScore(T, tr.to) - 0.5);
+    if (c.arc && tr.ie != null) {
+      // A breather counts more: it is the one hand-over a set cannot do
+      // without. The lift and the breather each prefer the moves made for them.
+      const { target, phase } = setPhase(this.stats.transitions);
+      u -= c.arc * (phase === "breather" ? 1.6 : 1) * Math.abs(this._energyRank(T, tr.ie) - target);
+      if (phase === "lift" && LIFTS(tr)) u += 0.15;
+      if (phase === "breather" && SETTLES(tr)) u += 0.1;
+    }
+    if (c.vary && tr.oe != null && tr.ie != null && Math.abs(tr.ie - tr.oe) < FLAT_ENERGY) {
+      const last = h.slice(-3);
+      if (last.length === 3 && last.every((e) => e.flat)) u -= c.vary;
+    }
     return u;
+  }
+
+  // How well the chain could carry on from song d with the beat kept: the
+  // mean quality of its three best beat-matched ways on to songs in the chain
+  // and not just heard (0 for each one missing), from the summary the server
+  // sends with T's exits; 0.5 (no opinion) without one.
+  _onwardScore(T, d) {
+    const list = T.onward?.[d];
+    if (!list) return 0.5;
+    const recent = new Set([T.id, d, ...this.history.slice(-4).map((h) => h.id)]);
+    const qs = [];
+    for (const [to, q] of list) {
+      if (recent.has(to) || !this.enabled(to)) continue;
+      qs.push(q);
+      if (qs.length === 3) break;
+    }
+    return qs.reduce((a, b) => a + b, 0) / 3;
+  }
+
+  // Where an energy sits among those T's exits lead into, 0..1 (mid-rank for ties).
+  _energyRank(T, ie) {
+    if (this.ranks?.list !== T.transitions) {
+      const v = T.transitions.map((x) => x.ie).filter((x) => x != null).sort((a, b) => a - b);
+      this.ranks = { list: T.transitions, v };
+    }
+    const v = this.ranks.v;
+    if (v.length < 2) return 0.5;
+    let below = 0, upTo = 0;
+    for (const x of v) {
+      if (x < ie) below++;
+      if (x <= ie) upTo++;
+    }
+    return (below + upTo) / 2 / v.length;
   }
 
   // Loads the songs this one is most likely to hand over to, so that an exit

@@ -27,6 +27,10 @@ Environment=PATH=/root/truc_ai/mashloop/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/root/truc_ai/mashloop/.venv/bin/python -m loopbox.server
 Restart=always
 RestartSec=3
+# Stopped at once: every file is written under a temporary name and renamed,
+# unfinished analyses are queued again on start, and sessions live in memory
+# anyway, so a graceful stop buys nothing (it took the full 90 s timeout).
+KillSignal=SIGKILL
 # Worker processes share the GPU with other services; keep them nice.
 Nice=5
 

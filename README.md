@@ -29,7 +29,9 @@ và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 - **Nối vào đúng đoạn:** ra ở cuối câu nhạc, vào đầu điệp khúc hay chỗ drop của bài
   sau, không chỉ vào đầu bài.
 - **Chọn tiêu chí cho bài kế tiếp:** cân bằng, cùng mood, cùng nhịp, hợp tông (vòng
-  Camelot của DJ), hoặc tự do.
+  Camelot của DJ), như một set DJ (khởi động, lên dần tới đỉnh, cứ vài bài lại có
+  một khoảng nghỉ rồi lên lại), hoặc tự do. Tiêu chí nào cũng nhìn trước một bước:
+  không chọn bài mà từ đó chỉ còn cách crossfade đi tiếp.
 - **Biết ai đang hát:** không nhảy từ giọng nam sang giọng nữ giữa câu, không cắt
   ngang một câu hát, không để hai giọng hát chồng nhau. Có stem giọng hát riêng nên
   blend được chỉ phần nhạc, hoặc để giọng bài sau hát trên nền bài trước.
@@ -55,8 +57,9 @@ và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
 | Phanh đĩa, cuộn nhịp, spinback, gate | Khi bạn muốn | Đột ngột. Tắt sẵn, bật trong *Tinh chỉnh* nếu thích kịch tính |
 
 Mười cách blend: dài, đổi EQ (bass, mid, treble lần lượt), ngắn, quét filter, đổi chỗ
-ở drop, trao giọng (tách giọng), acapella (giọng bài sau hát trên nền bài trước),
-mashup (như acapella nhưng trọn 16–32 ô nhịp), double drop (hai đoạn drop nổ cùng lúc),
+ở drop, trao giọng (tách giọng), acapella (giọng bài sau hát trên nền bài trước, nhạc
+bài sau lên dần bên dưới), mashup (như acapella nhưng trọn 16–32 ô nhịp), double drop
+(hai đoạn drop nổ cùng lúc),
 và vòng lặp (lặp vài ô nhịp bài trước làm outro cho những bài không có outro).
 
 Khi hai bài lệch tempo, bài sau vào đúng tốc độ bài trước rồi trượt dần về tốc độ
@@ -202,6 +205,8 @@ cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng n
 - [x] Mashup dài, double drop.
 - [x] Build-up, spinback, gate, quét flanger, ngắt lặng 1 beat.
 - [x] Bấm lên vòng để phát từ đoạn đó; hết bị kẹt lặp mãi một đoạn gần cuối bài.
+- [x] **17/10/2026.** Tiêu chí "Như một set DJ" và nhìn trước một bước khi chọn bài.
+- [x] Chuyển được theo mọi hướng năng lượng (dịu ↔ sôi), acapella với nhạc bài sau lên dần.
 
 ## Bản quyền
 
