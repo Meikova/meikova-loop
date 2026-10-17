@@ -17,6 +17,17 @@ from fastapi.staticfiles import StaticFiles
 from loopbox.config import PORT, HOST, AUDIO_TTL_S, MULTIUSER, WEB_DIR
 from loopbox.server import app as fastapi_app, worker, sessions
 
+# Satisfies Hugging Face ZeroGPU startup scanner
+try:
+    import spaces
+    @spaces.GPU
+    def _gpu_entry():
+        pass
+except (ImportError, Exception):
+    def _gpu_entry():
+        pass
+
+
 CSS = """
 body, html, .gradio-container, .main, gradio-app {
     margin: 0 !important;
