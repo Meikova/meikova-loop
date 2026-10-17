@@ -273,8 +273,15 @@ for (const k of BLEND_STYLES) {
   $(`#s-bl-${k}`).addEventListener("change", (e) => ((player.settings.blendStyles[k] = e.target.checked), replanBlend()));
 }
 $("#s-keyshift").addEventListener("change", (e) => ((player.settings.keyShift = e.target.checked), replanBlend()));
-$("#s-tempo").addEventListener("change", (e) => ((player.settings.tempoRamp = e.target.checked), replanBlend()));
-$("#s-vol").addEventListener("input", (e) => ((ui.volume = +e.target.value), applySettings()));
+$("#s-vol").addEventListener("input", (e) => {
+  ui.volume = +e.target.value;
+  if (ui.volume > 0) {
+    isMuted = false;
+    const mb = $("#btn-mute");
+    if (mb) mb.dataset.muted = "false";
+  }
+  applySettings();
+});
 $("#s-cross").addEventListener("change", (e) => {
   ui.crossKho = e.target.checked;
   if (player.plan && !player.plan.picked) player.cancelPlan(); // planned under the old rule
@@ -371,6 +378,104 @@ $("#btn-play").addEventListener("click", async () => {
 $("#btn-jump").addEventListener("click", () => player.requestJump());
 $("#btn-next").addEventListener("click", () => player.requestNextSong());
 $("#btn-kho").addEventListener("click", () => switchKho());
+
+// --- Deck controls: Lock, Timer, Night EQ, Quick Mute ---
+const lockBtn = $("#btn-lock");
+if (lockBtn) {
+  lockBtn.addEventListener("click", () => {
+    player.toggleLoopLock();
+    applySettings();
+  });
+}
+
+let isMuted = false;
+let prevVol = ui.volume || 0.8;
+const muteBtn = $("#btn-mute");
+function toggleMute() {
+  if (!isMuted) {
+    prevVol = ui.volume > 0 ? ui.volume : 0.8;
+    ui.volume = 0;
+    isMuted = true;
+  } else {
+    ui.volume = prevVol > 0 ? prevVol : 0.8;
+    isMuted = false;
+  }
+  if (muteBtn) muteBtn.dataset.muted = isMuted;
+  $("#s-vol").value = ui.volume;
+  applySettings();
+}
+if (muteBtn) muteBtn.addEventListener("click", toggleMute);
+
+let nightMode = false;
+const nightBtn = $("#btn-night");
+if (nightBtn) {
+  nightBtn.addEventListener("click", () => {
+    nightMode = !nightMode;
+    engine.setNightMode(nightMode);
+    nightBtn.setAttribute("aria-pressed", nightMode);
+  });
+}
+
+const timerBtn = $("#btn-timer");
+const timerPopover = $("#timer-popover");
+if (timerBtn && timerPopover) {
+  timerBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isHidden = timerPopover.hidden;
+    timerPopover.hidden = !isHidden;
+    timerBtn.setAttribute("aria-expanded", !isHidden);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!timerPopover.hidden && !e.target.closest("#timer-popover, #btn-timer")) {
+      timerPopover.hidden = true;
+      timerBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  document.querySelectorAll(".timer-opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.timer;
+      document.querySelectorAll(".timer-opt").forEach((b) => b.classList.remove("on"));
+      btn.classList.add("on");
+      if (val === "0") {
+        player.clearSleepTimer();
+      } else if (val === "song") {
+        player.setSleepTimer(0, "song");
+      } else {
+        player.setSleepTimer(parseFloat(val), "time");
+      }
+      timerPopover.hidden = true;
+      timerBtn.setAttribute("aria-expanded", "false");
+    });
+  });
+
+  player.addEventListener("sleep-timer-tick", (e) => {
+    const detail = e.detail;
+    const label = $("#timer-label");
+    const badge = $("#timer-badge");
+    if (!detail) {
+      timerBtn.removeAttribute("data-active");
+      if (label) label.textContent = "Hẹn giờ";
+      if (badge) badge.textContent = "Tắt";
+      document.querySelectorAll(".timer-opt").forEach((b) => b.classList.toggle("on", b.dataset.timer === "0"));
+      return;
+    }
+    timerBtn.setAttribute("data-active", "true");
+    if (detail.mode === "song") {
+      if (label) label.textContent = "Hết bài";
+      if (badge) badge.textContent = "Hết bài";
+      document.querySelectorAll(".timer-opt").forEach((b) => b.classList.toggle("on", b.dataset.timer === "song"));
+    } else {
+      const m = Math.floor(detail.remaining / 60);
+      const s = detail.remaining % 60;
+      const text = `${m}:${s < 10 ? "0" : ""}${s}`;
+      if (label) label.textContent = text;
+      if (badge) badge.textContent = text;
+    }
+  });
+}
+
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input, textarea, select")) return;
   if (e.code === "Space") {
@@ -380,6 +485,11 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "j" || e.key === "J") player.requestJump();
   else if (e.key === "n" || e.key === "N") player.requestNextSong();
   else if (e.key === "k" || e.key === "K") switchKho();
+  else if (e.key === "l" || e.key === "L") { player.toggleLoopLock(); applySettings(); }
+  else if (e.key === "t" || e.key === "T") { if (timerBtn) timerBtn.click(); }
+  else if (e.key === "m" || e.key === "M") { toggleMute(); }
+  else if (e.key === "e" || e.key === "E") { if (nightBtn) nightBtn.click(); }
+  else if (e.key === "?") { $("#btn-shortcuts-modal")?.click(); }
 });
 player.addEventListener("state", renderTransport);
 player.addEventListener("track", () => {
@@ -487,6 +597,14 @@ function renderTransport() {
   const next = libByKey(kho.next);
   k.title = kho.force ? `Đang tìm điểm nối sang ${next?.name || "kho khác"}`
     : `Sang kho khác${next ? ` (${next.name})` : ""} ở điểm nối gần nhất (K)`;
+
+  const isLocked = player.settings.mode === "single";
+  const lb = $("#btn-lock");
+  if (lb) {
+    lb.setAttribute("aria-pressed", isLocked);
+    lb.disabled = !player.cur;
+    lb.title = isLocked ? "Đang khoá bài này lặp mãi (L)" : "Khoá lặp bài này mãi (L)";
+  }
 }
 
 // ------------------------------------------------------------------ library
@@ -963,6 +1081,22 @@ mobileModal?.addEventListener("click", (e) => {
     rect.left <= e.clientX &&
     e.clientX <= rect.left + rect.width;
   if (!inside) mobileModal.close();
+});
+
+// Shortcuts & Help Modal
+const shortcutsModal = $("#shortcuts-modal");
+export const openShortcuts = () => shortcutsModal?.showModal();
+export const closeShortcuts = () => shortcutsModal?.close();
+$("#btn-shortcuts-modal")?.addEventListener("click", openShortcuts);
+$("#shortcuts-modal-close")?.addEventListener("click", closeShortcuts);
+shortcutsModal?.addEventListener("click", (e) => {
+  const rect = shortcutsModal.getBoundingClientRect();
+  const inside =
+    rect.top <= e.clientY &&
+    e.clientY <= rect.top + rect.height &&
+    rect.left <= e.clientX &&
+    e.clientX <= rect.left + rect.width;
+  if (!inside) shortcutsModal.close();
 });
 
 // Drop files anywhere on the page.

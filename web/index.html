@@ -54,7 +54,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
         <span>Cài Mobile</span>
       </button>
-      <span class="keys" aria-hidden="true"><kbd>Space</kbd><kbd>J</kbd><kbd>N</kbd><kbd>K</kbd></span>
+      <button type="button" class="btn-shortcuts" id="btn-shortcuts-modal" aria-label="Phím tắt & Trợ giúp" title="Phím tắt & Trợ giúp (?)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Phím tắt</span>
+      </button>
       <a class="to-panel" href="#panel">Thư viện</a>
     </div>
   </header>
@@ -78,6 +81,11 @@
       <p class="next" id="next-info" aria-live="polite"></p>
 
       <div class="deck" role="group" aria-label="Điều khiển phát">
+        <button type="button" class="deck__btn deck__lock" id="btn-lock" title="Khoá lặp bài này mãi (L)" aria-pressed="false">
+          <svg class="i-unlock" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+          <svg class="i-lock" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Khoá</span>
+        </button>
         <button type="button" class="deck__btn" id="btn-jump" title="Nhảy ngay trong bài (J)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c3-9 13-9 16 0"/><path d="M16 13l4 4 3-4"/></svg>
           <span>Nhảy</span>
@@ -85,7 +93,7 @@
         <button type="button" class="deck__play" id="btn-play" title="Phát / tạm dừng (Space)" aria-label="Phát">
           <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
           <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>
-          <svg class="i-load" viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>
+          <svg class="i-load" viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z"/></svg>
         </button>
         <button type="button" class="deck__btn" id="btn-next" title="Chuyển sang bài khác ở điểm nối gần nhất (N)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="5"/><circle cx="17" cy="12" r="4"/></svg>
@@ -95,12 +103,39 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9 12 4.5 20.5 9 12 13.5z"/><path d="M3.5 13 12 17.5 20.5 13"/><path d="M3.5 17 12 21.5 20.5 17" opacity=".55"/></svg>
           <span>Kho khác</span>
         </button>
-        <label class="deck__vol" title="Âm lượng">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+        <div class="deck__timer-wrap">
+          <button type="button" class="deck__btn deck__timer" id="btn-timer" title="Hẹn giờ tắt nhạc (T)" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span id="timer-label">Hẹn giờ</span>
+          </button>
+          <div class="timer-popover" id="timer-popover" hidden role="dialog" aria-label="Chọn thời gian hẹn giờ tắt">
+            <div class="timer-popover__head">
+              <span class="timer-popover__title">Hẹn giờ tắt nhạc</span>
+              <span class="timer-popover__badge mono" id="timer-badge">Tắt</span>
+            </div>
+            <div class="timer-popover__opts">
+              <button type="button" class="timer-opt on" data-timer="0">Tắt</button>
+              <button type="button" class="timer-opt" data-timer="15">15 phút</button>
+              <button type="button" class="timer-opt" data-timer="30">30 phút</button>
+              <button type="button" class="timer-opt" data-timer="45">45 phút</button>
+              <button type="button" class="timer-opt" data-timer="60">60 phút</button>
+              <button type="button" class="timer-opt" data-timer="song">Hết bài</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="deck__btn deck__night" id="btn-night" title="Lọc âm đêm / Ấm dịu tai (E)" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <span>Đêm</span>
+        </button>
+        <div class="deck__vol" title="Âm lượng">
+          <button type="button" class="btn-mute" id="btn-mute" title="Tắt / Bật tiếng (M)" aria-label="Tắt hoặc bật tiếng">
+            <svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+            <svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
           <span class="sr">Âm lượng</span>
           <input id="s-vol" type="range" min="0" max="1" step="0.01">
           <em id="v-vol" class="mono"></em>
-        </label>
+        </div>
       </div>
 
       <ol class="setlist" id="history" aria-label="Các bài đã phát trong phiên này"></ol>
@@ -471,10 +506,48 @@
     </div>
   </dialog>
 
+  <!-- Modal Phím tắt & Trợ giúp -->
+  <dialog class="consent shortcuts-modal" id="shortcuts-modal" aria-labelledby="shortcuts-modal-title">
+    <div class="mobile-modal__head">
+      <div class="mobile-modal__title-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <h2 id="shortcuts-modal-title">Phím tắt & Hướng dẫn</h2>
+      </div>
+      <button type="button" class="mobile-modal__close" id="shortcuts-modal-close" aria-label="Đóng">✕</button>
+    </div>
+
+    <div class="shortcuts-grid">
+      <div class="shortcuts-group">
+        <h3 class="shortcuts-group__title">Điều khiển phát nhạc</h3>
+        <dl class="shortcuts-list">
+          <div class="shortcut-row"><dt><kbd>Space</kbd></dt><dd>Phát hoặc tạm dừng</dd></div>
+          <div class="shortcut-row"><dt><kbd>J</kbd></dt><dd>Nhảy phách trong bài (Jump)</dd></div>
+          <div class="shortcut-row"><dt><kbd>N</kbd></dt><dd>Chuyển bài khác ở điểm nối gần nhất</dd></div>
+          <div class="shortcut-row"><dt><kbd>K</kbd></dt><dd>Sang kho bài khác</dd></div>
+          <div class="shortcut-row"><dt><kbd>L</kbd></dt><dd>Khoá lặp bài này mãi (Loop Lock)</dd></div>
+        </dl>
+      </div>
+
+      <div class="shortcuts-group">
+        <h3 class="shortcuts-group__title">Tiện ích & Âm thanh</h3>
+        <dl class="shortcuts-list">
+          <div class="shortcut-row"><dt><kbd>T</kbd></dt><dd>Bật/tắt hẹn giờ tắt (Sleep Timer)</dd></div>
+          <div class="shortcut-row"><dt><kbd>M</kbd></dt><dd>Tắt / Bật tiếng nhanh (Mute)</dd></div>
+          <div class="shortcut-row"><dt><kbd>E</kbd></dt><dd>Bật/tắt lọc âm đêm dịu tai (Night EQ)</dd></div>
+          <div class="shortcut-row"><dt><kbd>?</kbd></dt><dd>Mở bảng phím tắt này</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="shortcuts-tips">
+      <p>💡 <b>Mẹo nghe nhạc:</b> Nhấp chuột/chạm vào bất kỳ điểm nào trên vòng tròn canvas để tua tới đoạn beat đó. Hẹn giờ sẽ tự động giảm dần âm lượng trong 8 giây cuối trước khi dừng hẳn.</p>
+    </div>
+  </dialog>
+
   <script type="module" src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("sw.js?v=10").then((reg) => {
+      navigator.serviceWorker.register("sw.js?v=11").then((reg) => {
         reg.update();
       }).catch(() => {});
     }

@@ -3,6 +3,23 @@ import os
 import sys
 from pathlib import Path
 
+# Fix Python 3.12 asyncio bug: ValueError: Invalid file descriptor: -1 on BaseEventLoop.__del__
+try:
+    from asyncio.selector_events import BaseSelectorEventLoop
+    _orig_close_self_pipe = BaseSelectorEventLoop._close_self_pipe
+    def _safe_close_self_pipe(self):
+        try:
+            if getattr(self, '_ssock', None) is not None and self._ssock.fileno() != -1:
+                _orig_close_self_pipe(self)
+            else:
+                self._ssock = None
+                self._csock = None
+        except Exception:
+            pass
+    BaseSelectorEventLoop._close_self_pipe = _safe_close_self_pipe
+except Exception:
+    pass
+
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))

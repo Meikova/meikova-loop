@@ -61,7 +61,12 @@ export class Engine {
     this.limiter.release.value = 0.15;
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 1024;
-    this.master.connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
+    this.nightFilter = this.ctx.createBiquadFilter();
+    this.nightFilter.type = "highshelf";
+    this.nightFilter.frequency.value = 4500;
+    this.nightFilter.gain.value = 0;
+    this.nightMode = false;
+    this.master.connect(this.nightFilter).connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
     this.voices = new Set();
     this._bgAudio = null;
     this._shouldBePlaying = false;
@@ -93,6 +98,25 @@ export class Engine {
     const now = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(now);
     this.master.gain.setValueAtTime(v, now);
+  }
+
+  fadeVolume(targetVol, duration = 5) {
+    this._targetVol = targetVol;
+    if (!this.master || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const cur = this.master.gain.value;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setValueAtTime(cur, now);
+    this.master.gain.linearRampToValueAtTime(targetVol, now + Math.max(0.05, duration));
+  }
+
+  setNightMode(enabled) {
+    this.nightMode = !!enabled;
+    if (!this.nightFilter || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.nightFilter.gain.cancelScheduledValues(now);
+    this.nightFilter.gain.setValueAtTime(this.nightFilter.gain.value, now);
+    this.nightFilter.gain.linearRampToValueAtTime(this.nightMode ? -4.5 : 0, now + 0.35);
   }
 
   _initBgAnchor() {

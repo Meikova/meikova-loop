@@ -358,11 +358,81 @@ export class Player extends EventTarget {
     this.userPaused = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.clearSleepTimer();
     this.engine.stopAnchor(true);
     this.engine.stopAll();
     this.reset();
     this.dispatchEvent(new Event("state"));
     this.dispatchEvent(new Event("expired"));
+  }
+
+  setSleepTimer(minutes, mode = "time") {
+    this.clearSleepTimer();
+    const durationSec = mode === "song" ? 0 : Math.round(minutes * 60);
+    const endAt = mode === "song" ? null : Date.now() + durationSec * 1000;
+    const initialVol = this.engine.targetVol;
+
+    this.sleepTimer = {
+      mode,
+      minutes,
+      durationSec,
+      endAt,
+      initialVol,
+      fading: false,
+      startedTrack: this.cur?.track?.id || null,
+      interval: null,
+    };
+
+    if (mode === "time") {
+      this.sleepTimer.interval = setInterval(async () => {
+        if (!this.sleepTimer) return;
+        const remaining = Math.max(0, Math.round((this.sleepTimer.endAt - Date.now()) / 1000));
+
+        // Smart fade-out in last 8 seconds
+        if (remaining <= 8 && remaining > 0 && !this.sleepTimer.fading && this.playing) {
+          this.sleepTimer.fading = true;
+          this.engine.fadeVolume(0, remaining);
+        }
+
+        this.dispatchEvent(new CustomEvent("sleep-timer-tick", {
+          detail: { remaining, mode: "time", minutes: this.sleepTimer.minutes }
+        }));
+
+        if (remaining <= 0) {
+          const restoreVol = this.sleepTimer.initialVol;
+          this.clearSleepTimer();
+          await this.pause();
+          this.engine.setVolume(restoreVol);
+        }
+      }, 1000);
+
+      this.dispatchEvent(new CustomEvent("sleep-timer-tick", {
+        detail: { remaining: durationSec, mode: "time", minutes }
+      }));
+    } else if (mode === "song") {
+      this.dispatchEvent(new CustomEvent("sleep-timer-tick", {
+        detail: { remaining: null, mode: "song", minutes: 0 }
+      }));
+    }
+  }
+
+  clearSleepTimer() {
+    if (this.sleepTimer) {
+      if (this.sleepTimer.interval) clearInterval(this.sleepTimer.interval);
+      if (this.sleepTimer.fading && this.sleepTimer.initialVol != null) {
+        this.engine.setVolume(this.sleepTimer.initialVol);
+      }
+      this.sleepTimer = null;
+      this.dispatchEvent(new CustomEvent("sleep-timer-tick", { detail: null }));
+    }
+  }
+
+  toggleLoopLock() {
+    const isLocked = this.settings.mode === "single";
+    this.settings.mode = isLocked ? "chain" : "single";
+    this.dispatchEvent(new CustomEvent("lock-change", { detail: { locked: !isLocked } }));
+    this.dispatchEvent(new Event("state"));
+    return !isLocked;
   }
 
   requestJump() {
@@ -1105,6 +1175,13 @@ export class Player extends EventTarget {
     if (this.history.length > 50) this.history.shift();
     this.loader.refreshTransitions(track);
     this.dispatchEvent(new CustomEvent("track", { detail: { track, via, at: t } }));
+
+    if (this.sleepTimer?.mode === "song" && via !== "start") {
+      this.clearSleepTimer();
+      setTimeout(async () => {
+        await this.pause();
+      }, 300);
+    }
   }
 
   // Penalty for going back to a song heard recently or often; negative (a
