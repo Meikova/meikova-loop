@@ -24,5 +24,6 @@ fastapi
 uvicorn
 pydantic
 yt-dlp[default]
-# test only
-playwright
+demucs
+beat-this
+onnxruntime
