@@ -1,9 +1,12 @@
-const CACHE_NAME = "mashloop-v1";
+const CACHE_NAME = "mashloop-v5";
 const STATIC_ASSETS = [
   "/",
   "/css/app.css",
   "/img/favicon.svg",
-  "/img/og.png",
+  "/img/icon-192.png",
+  "/img/icon-512.png",
+  "/img/apple-touch-icon.png",
+  "/audio/silence.mp3",
   "/js/main.js",
   "/js/api.js",
   "/js/engine.js",
@@ -16,10 +19,10 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener("install", (e) => {
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => {})
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {
@@ -34,23 +37,21 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
 
-  // Never intercept API requests or audio streams
-  if (url.pathname.startsWith("/api/")) {
+  // Never intercept API requests, dynamic range audio streams, or websockets
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/audio/stream")) {
     return;
   }
 
-  // Cache-first for static UI assets and fonts
+  // Network-first strategy: always fetch latest from server, fallback to cache if offline
   e.respondWith(
-    caches.match(e.request).then((hit) => {
-      if (hit) return hit;
-      return fetch(e.request).then((resp) => {
-        if (!resp || resp.status !== 200) {
-          return resp;
+    fetch(e.request)
+      .then((resp) => {
+        if (resp && resp.status === 200) {
+          const toCache = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, toCache)).catch(() => {});
         }
-        const toCache = resp.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(e.request, toCache)).catch(() => {});
         return resp;
-      });
-    })
+      })
+      .catch(() => caches.match(e.request))
   );
 });

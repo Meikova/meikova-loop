@@ -340,6 +340,7 @@ let busy = false;
 
 async function play(id) {
   // Resume inside the click itself: browsers only unlock audio on a user gesture.
+  engine.unlockAudio();
   engine.ctx.resume();
   try {
     setBusy(true);
@@ -358,8 +359,10 @@ function setBusy(b) {
 
 $("#btn-play").addEventListener("click", async () => {
   if (busy) return;
-  if (player.cur) await player.togglePause();
-  else {
+  if (player.cur) {
+    await player.togglePause();
+  } else {
+    engine.unlockAudio();
     const first = metas.find((m) => m.status === "ready" && m.enabled !== false) || metas.find((m) => m.status === "ready");
     if (first) await play(first.id);
   }

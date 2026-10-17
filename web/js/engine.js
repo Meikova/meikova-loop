@@ -127,17 +127,17 @@ export class Engine {
           this._onExternalPause();
         }
       });
-
-      document.addEventListener("visibilitychange", () => {
-        // ONLY resume if user wants playback and hasn't paused!
-        if (this._shouldBePlaying && this.ctx && this.ctx.state === "suspended") {
-          this.ctx.resume().catch(() => {});
-          if (this._bgAudio && this._bgAudio.paused) {
-            this._bgAudio.play().catch(() => {});
-          }
-        }
-      });
     } catch (_) {}
+  }
+
+  unlockAudio() {
+    this._shouldBePlaying = true;
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {});
+    }
+    if (this._bgAudio && this._bgAudio.paused) {
+      this._bgAudio.play().catch(() => {});
+    }
   }
 
   startAnchor() {
