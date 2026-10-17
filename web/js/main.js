@@ -918,19 +918,31 @@ async function refresh() {
     // do not send the flag at all.
     serverStale = !("stale_server" in r) || r.stale_server;
     renderLibrary();
-  } catch (_) {
-    $("#worker").textContent = "Mất kết nối tới server";
+    return true;
+  } catch (err) {
+    const msg = err?.message || "";
+    if (msg.includes("quá nhiều") || msg.includes("429")) {
+      $("#worker").textContent = msg;
+    } else if (msg.includes("502") || msg.includes("503") || msg.includes("Failed to fetch")) {
+      $("#worker").textContent = "Đang kết nối lại server…";
+    } else {
+      $("#worker").textContent = "Mất kết nối tới server";
+    }
+    return false;
   }
 }
 
 let pollTimer = null;
+let pollInterval = 5000;
 function schedulePoll() {
   clearTimeout(pollTimer);
   const working = metas.some((m) => m.status !== "ready" && m.status !== "error") || workerState?.current;
+  const delay = working ? 1200 : pollInterval;
   pollTimer = setTimeout(async () => {
-    await refresh();
+    const ok = await refresh();
+    pollInterval = ok ? 5000 : Math.min(30000, Math.round(pollInterval * 1.5));
     schedulePoll();
-  }, working ? 1200 : 5000);
+  }, delay);
 }
 
 // --------------------------------------------------------------- add / search

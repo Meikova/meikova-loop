@@ -1,574 +1,1188 @@
 <!doctype html>
 <html lang="vi">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Mash ∞ Loop</title>
-  <meta name="description" content="Mash ∞ Loop: nghe một bài mãi không dứt, hoặc nối cả thư viện thành một vòng nhạc vô tận.">
-  <meta name="theme-color" content="#16120e">
-  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="img/icon-512.png">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://mashloop.truclv.com/">
-  <meta property="og:title" content="Mash ∞ Loop">
-  <meta property="og:description" content="Nghe một bài mãi không dứt, hoặc mash cả thư viện thành một chuỗi nhạc vô tận. Mỗi bài là một vòng của dấu ∞, chỗ hai vòng chạm nhau là chỗ mix.">
-  <!-- Absolute: link previews (Facebook, Zalo, Slack) do not resolve relative images. -->
-  <meta property="og:image" content="https://mashloop.truclv.com/img/og.png">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.json">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <script>document.documentElement.classList.add("js");</script>
-  <link rel="stylesheet" href="css/app.css">
-</head>
-<body>
-  <div class="field" aria-hidden="true"></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Mash ∞ Loop</title>
+    <meta
+      name="description"
+      content="Mash ∞ Loop: nghe một bài mãi không dứt, hoặc nối cả thư viện thành một vòng nhạc vô tận."
+    />
+    <meta name="theme-color" content="#16120e" />
+    <link rel="icon" href="img/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="img/apple-touch-icon.png"
+    />
+    <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="img/icon-512.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mashloop.truclv.com/" />
+    <meta property="og:title" content="Mash ∞ Loop" />
+    <meta
+      property="og:description"
+      content="Nghe một bài mãi không dứt, hoặc mash cả thư viện thành một chuỗi nhạc vô tận. Mỗi bài là một vòng của dấu ∞, chỗ hai vòng chạm nhau là chỗ mix."
+    />
+    <!-- Absolute: link previews (Facebook, Zalo, Slack) do not resolve relative images. -->
+    <meta
+      property="og:image"
+      content="https://mashloop.truclv.com/img/og.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <div class="field" aria-hidden="true"></div>
 
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Mash ∞ Loop, tải lại trang">
-      <span class="brand__word">Mash</span>
-      <svg class="brand__inf" viewBox="0 0 48 24" aria-hidden="true">
-        <path class="brand__path" d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/>
-        <circle class="brand__dot" r="2.4" cx="24" cy="12"/>
-      </svg>
-      <span class="brand__word">Loop</span>
-    </a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Mash ∞ Loop, tải lại trang">
+        <span class="brand__word">Mash</span>
+        <svg class="brand__inf" viewBox="0 0 48 24" aria-hidden="true">
+          <path
+            class="brand__path"
+            d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"
+          />
+          <circle class="brand__dot" r="2.4" cx="24" cy="12" />
+        </svg>
+        <span class="brand__word">Loop</span>
+      </a>
 
-    <div class="seg mode" role="radiogroup" aria-label="Chế độ phát">
-      <span class="seg__ind" aria-hidden="true"></span>
-      <button type="button" data-mode="single" role="radio">Một bài</button>
-      <button type="button" data-mode="chain" role="radio">Chuỗi</button>
-    </div>
-
-    <div class="topbar__end">
-      <button type="button" class="btn-mobile-pill" id="btn-mobile-modal" aria-label="Cài đặt trên điện thoại Android & iOS">
-        <svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-        <span>Cài Mobile</span>
-      </button>
-      <button type="button" class="btn-shortcuts" id="btn-shortcuts-modal" aria-label="Phím tắt & Trợ giúp" title="Phím tắt & Trợ giúp (?)">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span>Phím tắt</span>
-      </button>
-      <a class="to-panel" href="#panel">Thư viện</a>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="stage" aria-label="Sân khấu">
-      <p class="readout readout--tl" id="ro-tl"><b>MASH ∞ LOOP</b> // chưa phát</p>
-      <p class="readout readout--tr" id="ro-tr"><span class="mono">∞ 0:00</span></p>
-
-      <div class="canvas-wrap" id="canvas-wrap">
-        <canvas id="viz" aria-label="Vòng beat của bài đang phát, các cung là điểm nhảy, các chấm bên ngoài là điểm nối sang bài khác" role="img"></canvas>
-        <div class="ring-center" id="ring-center">
-          <p class="rc-kicker" id="rc-kicker">Hai vòng đang chờ</p>
-          <h1 class="rc-title" id="rc-title">Chọn một bài để bắt đầu vòng lặp</h1>
-          <p class="rc-meta" id="rc-meta">Mỗi bài là một vòng của dấu ∞</p>
-          <button type="button" class="rc-cta" id="rc-cta" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg><span>Nghe thử</span></button>
-        </div>
-        <div class="tip" id="viz-tip" role="status" hidden></div>
-      </div>
-
-      <p class="next" id="next-info" aria-live="polite"></p>
-
-      <div class="deck" role="group" aria-label="Điều khiển phát">
-        <button type="button" class="deck__btn deck__lock" id="btn-lock" title="Khoá lặp bài này mãi (L)" aria-pressed="false">
-          <svg class="i-unlock" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-          <svg class="i-lock" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <span>Khoá</span>
-        </button>
-        <button type="button" class="deck__btn" id="btn-jump" title="Nhảy ngay trong bài (J)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c3-9 13-9 16 0"/><path d="M16 13l4 4 3-4"/></svg>
-          <span>Nhảy</span>
-        </button>
-        <button type="button" class="deck__play" id="btn-play" title="Phát / tạm dừng (Space)" aria-label="Phát">
-          <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
-          <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>
-          <svg class="i-load" viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z"/></svg>
-        </button>
-        <button type="button" class="deck__btn" id="btn-next" title="Chuyển sang bài khác ở điểm nối gần nhất (N)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="5"/><circle cx="17" cy="12" r="4"/></svg>
-          <span>Bài khác</span>
-        </button>
-        <button type="button" class="deck__btn" id="btn-kho" title="Sang kho khác ở điểm nối gần nhất (K)" aria-pressed="false" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9 12 4.5 20.5 9 12 13.5z"/><path d="M3.5 13 12 17.5 20.5 13"/><path d="M3.5 17 12 21.5 20.5 17" opacity=".55"/></svg>
-          <span>Kho khác</span>
-        </button>
-        <div class="deck__timer-wrap">
-          <button type="button" class="deck__btn deck__timer" id="btn-timer" title="Hẹn giờ tắt nhạc (T)" aria-haspopup="dialog" aria-expanded="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>
-            <span id="timer-label">Hẹn giờ</span>
-          </button>
-          <div class="timer-popover" id="timer-popover" hidden role="dialog" aria-label="Chọn thời gian hẹn giờ tắt">
-            <div class="timer-popover__head">
-              <span class="timer-popover__title">Hẹn giờ tắt nhạc</span>
-              <span class="timer-popover__badge mono" id="timer-badge">Tắt</span>
-            </div>
-            <div class="timer-popover__opts">
-              <button type="button" class="timer-opt on" data-timer="0">Tắt</button>
-              <button type="button" class="timer-opt" data-timer="15">15 phút</button>
-              <button type="button" class="timer-opt" data-timer="30">30 phút</button>
-              <button type="button" class="timer-opt" data-timer="45">45 phút</button>
-              <button type="button" class="timer-opt" data-timer="60">60 phút</button>
-              <button type="button" class="timer-opt" data-timer="song">Hết bài</button>
-            </div>
-          </div>
-        </div>
-        <div class="deck__eq-wrap">
-          <button type="button" class="deck__btn deck__eq" id="btn-eq" title="Hiệu ứng âm thanh / EQ Presets (E)" aria-haspopup="dialog" aria-expanded="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-            <span id="eq-label">EQ</span>
-          </button>
-          <div class="eq-popover" id="eq-popover" hidden role="dialog" aria-label="Chọn hiệu ứng âm thanh">
-            <div class="eq-popover__head">
-              <span class="eq-popover__title">Hiệu ứng EQ</span>
-              <span class="eq-popover__badge mono" id="eq-badge">Chuẩn</span>
-            </div>
-            <div class="eq-popover__opts">
-              <button type="button" class="eq-opt on" data-eq="flat">Chuẩn (Gốc)</button>
-              <button type="button" class="eq-opt" data-eq="night">Âm đêm dịu</button>
-              <button type="button" class="eq-opt" data-eq="bass">Bass Boost</button>
-              <button type="button" class="eq-opt" data-eq="vocal">Tôn giọng</button>
-              <button type="button" class="eq-opt" data-eq="lofi">Lofi Chill</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="deck__vol" title="Âm lượng">
-          <button type="button" class="btn-mute" id="btn-mute" title="Tắt / Bật tiếng (M)" aria-label="Tắt hoặc bật tiếng">
-            <svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
-            <svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-          </button>
-          <span class="sr">Âm lượng</span>
-          <input id="s-vol" type="range" min="0" max="1" step="0.01">
-          <em id="v-vol" class="mono"></em>
-        </div>
-      </div>
-
-      <ol class="setlist" id="history" aria-label="Các bài đã phát trong phiên này"></ol>
-    </section>
-
-    <aside class="panel" id="panel" aria-label="Thư viện và tinh chỉnh">
-      <div class="seg tabs" role="tablist" aria-label="Bảng điều khiển">
+      <div class="seg mode" role="radiogroup" aria-label="Chế độ phát">
         <span class="seg__ind" aria-hidden="true"></span>
-        <button type="button" data-tab="library" role="tab" class="on" aria-selected="true" aria-controls="tab-library">Thư viện</button>
-        <button type="button" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">Tinh chỉnh</button>
+        <button type="button" data-mode="single" role="radio">Một bài</button>
+        <button type="button" data-mode="chain" role="radio">Chuỗi</button>
       </div>
 
-      <div id="tab-library" class="tab on" role="tabpanel">
-        <form id="add-form" class="add" autocomplete="off">
-          <label class="label" for="add-input">Thêm bài vào thư viện</label>
-          <div class="add__field">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-            <input id="add-input" type="text" inputmode="search" enterkeyhint="search" placeholder="Tên bài, link YouTube, Spotify, SoundCloud, Zing MP3, TikTok, FB, album, playlist…">
-            <button type="submit">Tìm</button>
-          </div>
-          <label class="drop" id="drop" for="file-input">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg>
-            <span><b>Tải file nhạc lên</b>hoặc thả vào đây · MP3, M4A, FLAC, WAV, cả file zip<span id="upload-limit"></span></span>
-          </label>
-          <div class="desktop-row" id="desktop-row" hidden>
-            <button type="button" class="btn-desktop" id="btn-desktop-files">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3-3 3 3"/></svg>
-              <span>Chọn file từ máy</span>
+      <div class="topbar__end">
+        <button
+          type="button"
+          class="btn-mobile-pill"
+          id="btn-mobile-modal"
+          aria-label="Cài đặt trên điện thoại Android & iOS"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
+          </svg>
+          <span>Cài Mobile</span>
+        </button>
+        <button
+          type="button"
+          class="btn-shortcuts"
+          id="btn-shortcuts-modal"
+          aria-label="Phím tắt & Trợ giúp"
+          title="Phím tắt & Trợ giúp (?)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>Phím tắt</span>
+        </button>
+        <a class="to-panel" href="#panel">Thư viện</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="stage" aria-label="Sân khấu">
+        <p class="readout readout--tl" id="ro-tl">
+          <b>MASH ∞ LOOP</b> // chưa phát
+        </p>
+        <p class="readout readout--tr" id="ro-tr">
+          <span class="mono">∞ 0:00</span>
+        </p>
+
+        <div class="canvas-wrap" id="canvas-wrap">
+          <canvas
+            id="viz"
+            aria-label="Vòng beat của bài đang phát, các cung là điểm nhảy, các chấm bên ngoài là điểm nối sang bài khác"
+            role="img"
+          ></canvas>
+          <div class="ring-center" id="ring-center">
+            <p class="rc-kicker" id="rc-kicker">Hai vòng đang chờ</p>
+            <h1 class="rc-title" id="rc-title">
+              Chọn một bài để bắt đầu vòng lặp
+            </h1>
+            <p class="rc-meta" id="rc-meta">Mỗi bài là một vòng của dấu ∞</p>
+            <button type="button" class="rc-cta" id="rc-cta" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5.5v13l11-6.5z" /></svg
+              ><span>Nghe thử</span>
             </button>
-            <button type="button" class="btn-desktop" id="btn-desktop-folder">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-              <span>Chọn thư mục nhạc</span>
-            </button>
           </div>
-          <input id="file-input" class="sr" type="file" accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.webm,.zip,application/zip" multiple>
-          <p class="hint" id="add-hint">Hỗ trợ link đơn, album & playlist (YouTube, Spotify, SoundCloud, Zing MP3, TikTok, Facebook…). Tự động nạp danh sách vào chuỗi.</p>
-        </form>
-        <div id="search-results" class="results" aria-live="polite"></div>
-        <p id="worker" class="worker" aria-live="polite"></p>
-        <div class="shelf-head"><h2 class="label">Các vòng trong thư viện</h2><span id="lib-count" class="mono"></span></div>
-        <ul id="track-list" class="tracks"></ul>
-      </div>
-
-      <div id="tab-settings" class="tab" role="tabpanel">
-        <section class="group" aria-labelledby="g-look">
-          <h2 class="label" id="g-look">Màu</h2>
-          <fieldset class="kinds looks">
-            <legend class="sub">Ánh sáng của căn phòng</legend>
-            <label class="kind look">
-              <input type="radio" name="look" value="mood">
-              <span class="swatch" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span><b>Theo mood</b>mỗi bài một màu, đổi dần khi mix</span>
-            </label>
-            <label class="kind look">
-              <input type="radio" name="look" value="neon">
-              <span class="swatch" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span><b>Neon</b>màu rực, nền đêm</span>
-            </label>
-            <label class="kind look">
-              <input type="radio" name="look" value="amber">
-              <span class="swatch" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span><b>Hổ phách</b>vàng ấm như bản đầu</span>
-            </label>
-          </fieldset>
-        </section>
-
-        <section class="group" aria-labelledby="g-jump">
-          <h2 class="label" id="g-jump">Trong một bài</h2>
-          <label class="row">
-            <span class="row__head"><span>Tần suất nhảy</span><em id="v-freq" class="mono"></em></span>
-            <input id="s-freq" type="range" min="0" max="1" step="0.01">
-          </label>
-          <label class="row">
-            <span class="row__head"><span>Độ mượt tối thiểu</span><em id="v-strict" class="mono"></em></span>
-            <input id="s-strict" type="range" min="0" max="1" step="0.01">
-            <small>Trái: chỉ giữ những điểm nối gần như vô hình. Phải: nhiều nhánh hơn, đôi khi lộ.</small>
-          </label>
-        </section>
-
-        <section class="group" aria-labelledby="g-chain">
-          <h2 class="label" id="g-chain">Chuỗi bài</h2>
-          <fieldset class="choices">
-            <legend class="sub">Chọn bài kế tiếp theo</legend>
-            <label class="choice">
-              <input type="radio" name="criterion" value="balanced">
-              <span><b>Cân bằng</b>nối mượt là chính, mood gần nhau</span>
-            </label>
-            <label class="choice">
-              <input type="radio" name="criterion" value="mood">
-              <span><b>Cùng mood</b>chỉ sang bài cùng không khí</span>
-            </label>
-            <label class="choice">
-              <input type="radio" name="criterion" value="tempo">
-              <span><b>Cùng nhịp</b>giữ beat liền mạch, BPM gần nhau</span>
-            </label>
-            <label class="choice">
-              <input type="radio" name="criterion" value="key">
-              <span><b>Hợp tông</b>tông nhạc hợp nhau, kiểu DJ hoà âm</span>
-            </label>
-            <label class="choice">
-              <input type="radio" name="criterion" value="set">
-              <span><b>Như một set DJ</b>khởi động, lên dần tới đỉnh, có khoảng nghỉ rồi bùng lại</span>
-            </label>
-            <label class="choice">
-              <input type="radio" name="criterion" value="free">
-              <span><b>Tự do</b>bài nào cũng được, miễn nối mượt</span>
-            </label>
-          </fieldset>
-          <label class="row">
-            <span class="row__head"><span>Ở mỗi bài ít nhất</span><em id="v-dmin" class="mono"></em></span>
-            <input id="s-dmin" type="range" min="20" max="600" step="10">
-            <small>Sau mốc này, bài chuyển ở điểm nối tốt gần nhất.</small>
-          </label>
-          <label class="row">
-            <span class="row__head"><span>Chuyển bài muộn nhất sau</span><em id="v-dmax" class="mono"></em></span>
-            <input id="s-dmax" type="range" min="30" max="900" step="10">
-          </label>
-          <label class="row">
-            <span class="row__head"><span>Độ đa dạng của chuỗi</span><em id="v-variety" class="mono"></em></span>
-            <input id="s-variety" type="range" min="0" max="1" step="0.01">
-            <small>Trái: ưu tiên điểm nối đẹp nhất, kể cả quay lại bài cũ. Phải: đi khắp thư viện.</small>
-          </label>
-          <fieldset class="kinds">
-            <legend class="sub">Kiểu chuyển bài được dùng</legend>
-            <label class="kind">
-              <input id="s-cut" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="12" cy="10" r="7"/><circle cx="28" cy="10" r="7"/><path d="M20 3v14"/></svg>
-              <span><b>Nối thẳng</b>khớp nhịp, cắt gọn trên phách mạnh</span>
-            </label>
-            <label class="kind">
-              <input id="s-drop" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="11" cy="10" r="6"/><path d="M20 4v12M26 10h10M31 5l5 5-5 5"/></svg>
-              <span><b>Drop</b>vào thẳng điệp khúc, drop của bài sau</span>
-            </label>
-            <label class="kind">
-              <input id="s-blend" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="14" cy="10" r="7"/><circle cx="26" cy="10" r="7"/></svg>
-              <span><b>Blend</b>khớp nhịp</span>
-            </label>
-            <label class="kind">
-              <input id="s-fade" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="12" cy="10" r="7"/><circle cx="28" cy="10" r="7" stroke-dasharray="2 3"/></svg>
-              <span><b>Crossfade dài</b>lọc âm, cho bài khác mood</span>
-            </label>
-            <label class="kind">
-              <input id="s-echo" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="10" cy="10" r="6"/><circle cx="21" cy="10" r="4.5" opacity=".6"/><circle cx="30" cy="10" r="3" opacity=".35"/></svg>
-              <span><b>Echo vang</b>câu cuối vọng lại</span>
-            </label>
-            <label class="kind">
-              <input id="s-wash" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="11" cy="10" r="6"/><path d="M19 4c6 2 6 10 0 12M24 3c8 3 8 11 0 14M29 2c10 4 10 12 0 16" opacity=".5"/></svg>
-              <span><b>Reverb wash</b>tan vào tiếng vang, cho bài khác hẳn</span>
-            </label>
-            <label class="kind">
-              <input id="s-riser" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 17C12 17 20 13 26 4"/><path d="M30 3v14"/><circle cx="35" cy="10" r="3"/></svg>
-              <span><b>Build-up</b>dồn lên bằng tiếng gió, vào bằng cú nổ</span>
-            </label>
-            <label class="kind">
-              <input id="s-flanger" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 10c3-6 6-6 9 0s6 6 9 0 6-6 9 0"/><circle cx="35" cy="10" r="3"/></svg>
-              <span><b>Flanger</b>bài trước quét tiếng phản lực rồi đi</span>
-            </label>
-            <label class="kind">
-              <input id="s-gap" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="9" cy="10" r="6"/><path d="M18 10h4" stroke-dasharray="1 3"/><circle cx="31" cy="10" r="6"/></svg>
-              <span><b>Ngắt lặng</b>im một nhịp rồi bài sau nổ vào</span>
-            </label>
-            <label class="kind">
-              <input id="s-brake" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="12" cy="10" r="7"/><path d="M20 10h6M29 6v8"/></svg>
-              <span><b>Phanh đĩa</b>dừng hẳn rồi vào, đột ngột</span>
-            </label>
-            <label class="kind">
-              <input id="s-roll" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M4 15v-10M11 15v-10M16 15v-10M20 15v-10M23 15v-10M25.5 15v-10"/><circle cx="33" cy="10" r="5"/></svg>
-              <span><b>Cuộn nhịp</b>lặp dồn rồi drop, đột ngột</span>
-            </label>
-            <label class="kind">
-              <input id="s-spin" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M20 4a7 7 0 1 0 7 7"/><path d="M27 6v5h-5"/></svg>
-              <span><b>Spinback</b>quay ngược đĩa rồi vào, đột ngột</span>
-            </label>
-            <label class="kind">
-              <input id="s-gate" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 15V5h4v10h3V5h3v10h2V5h2v10h1.5V5"/><circle cx="31" cy="10" r="5"/></svg>
-              <span><b>Gate</b>băm nhịp bài trước, đột ngột</span>
-            </label>
-          </fieldset>
-          <fieldset class="kinds" id="blend-styles">
-            <legend class="sub">Cách blend (chuỗi tự chọn cách hợp nhất)</legend>
-            <label class="kind">
-              <input id="s-bl-long" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="9" cy="10" r="6"/><circle cx="31" cy="10" r="6"/><path d="M15 10h10" stroke-dasharray="2 2"/></svg>
-              <span><b>Blend dài</b>16–32 ô nhịp, intro và outro không lời</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-eq" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="13" cy="10" r="7"/><circle cx="27" cy="10" r="7"/><path d="M20 15v-4"/></svg>
-              <span><b>Blend EQ</b>8 ô nhịp, bass swap giữa chừng</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-short" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><circle cx="15" cy="10" r="7"/><circle cx="25" cy="10" r="7"/></svg>
-              <span><b>Blend ngắn</b>2–4 ô nhịp, lọt giữa hai câu hát</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-filter" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 15c6 0 7-10 13-10"/><path d="M24 5c6 0 7 10 13 10"/></svg>
-              <span><b>Blend lọc</b>bài trước mỏng dần, bài sau mở dần</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-swap" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M3 16l14-10M17 6v10"/><circle cx="29" cy="10" r="7"/></svg>
-              <span><b>Drop swap</b>bài sau dồn lên, cắt ngay khi drop</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-stem" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M8 14v-5a3 3 0 0 1 6 0v5M26 14v-5a3 3 0 0 1 6 0v5"/><path d="M16 10h8M21 7l3 3-3 3"/></svg>
-              <span><b>Trao giọng</b>giọng bài sau chờ giọng bài trước ra</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-acapella" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M17 14v-5a3 3 0 0 1 6 0v5"/><path d="M4 16h8M28 16h8" opacity=".5"/></svg>
-              <span><b>Acapella</b>giọng bài sau hát trên nhạc bài trước, nhạc bài sau lên dần</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-mashup" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M8 13v-4a3 3 0 0 1 6 0v4"/><path d="M4 17h32" opacity=".5"/><path d="M18 9h18" stroke-dasharray="2 2"/></svg>
-              <span><b>Mashup</b>giọng bài sau hát trọn 16–32 ô nhịp trên nhạc bài trước</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-double" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M4 16l8-10M12 6v10"/><path d="M22 16l8-10M30 6v10"/></svg>
-              <span><b>Double drop</b>hai đoạn drop nổ cùng lúc</span>
-            </label>
-            <label class="kind">
-              <input id="s-bl-loop" type="checkbox">
-              <svg viewBox="0 0 40 20" aria-hidden="true"><path d="M5 10a5 5 0 0 1 10 0a5 5 0 0 1-10 0"/><path d="M15 10a5 5 0 0 1 10 0" opacity=".5"/><circle cx="32" cy="10" r="5"/></svg>
-              <span><b>Vòng lặp</b>lặp vài ô nhịp bài trước làm outro để blend vào</span>
-            </label>
-          </fieldset>
-          <fieldset class="choices" id="blend-match">
-            <legend class="sub">Khớp tông và nhịp khi blend</legend>
-            <label class="choice">
-              <input id="s-keyshift" type="checkbox">
-              <span><b>Dịch tông bài sau</b>tới 2 nửa cung cho hợp tông bài trước, rồi trượt dần về tông gốc</span>
-            </label>
-            <label class="choice">
-              <input id="s-tempo" type="checkbox">
-              <span><b>Kéo tempo dần</b>bài trước kéo tempo về phía bài sau qua vài câu nhạc, nối được hai bài lệch tới 18 %</span>
-            </label>
-          </fieldset>
-        </section>
-
-        <section class="group" aria-labelledby="g-kho">
-          <h2 class="label" id="g-kho">Kho có sẵn</h2>
-          <fieldset class="choices">
-            <legend class="sub">Khi đang nghe một kho có sẵn</legend>
-            <label class="choice">
-              <input id="s-cross" type="checkbox">
-              <span><b>Đi xuyên các kho</b>chuỗi được mix sang bài của kho kế tiếp khi có điểm nối đẹp</span>
-            </label>
-          </fieldset>
-          <label class="row">
-            <span class="row__head"><span>Tự chuyển kho sau</span><em id="v-kmin" class="mono"></em></span>
-            <input id="s-kmin" type="range" min="0" max="30" step="1">
-            <small>Kéo về 0 để tắt. Nút Kho khác (phím <kbd>K</kbd>) chuyển ngay, ở điểm nối gần nhất.</small>
-          </label>
-        </section>
-
-        <section class="group" aria-labelledby="g-lib">
-          <h2 class="label" id="g-lib">Thư viện</h2>
-          <button id="btn-relink" type="button" class="ghost">Tính lại điểm nối giữa các bài</button>
-          <p class="keys-line">Phím tắt: <kbd>Space</kbd> phát / dừng · <kbd>J</kbd> nhảy · <kbd>N</kbd> bài khác · <kbd>K</kbd> kho khác</p>
-        </section>
-      </div>
-
-      <!-- Hosted only (main.js shows it). -->
-      <footer class="fine" id="fine" hidden>
-        <p><b>Dự án phi thương mại & mã nguồn mở:</b> Không quảng cáo, không thu phí, không cần tài khoản. Server không lưu địa chỉ IP hay dữ liệu cá nhân.</p>
-        <p>Nhạc thuộc bản quyền của nghệ sĩ và tác giả sở hữu. File âm thanh tự xoá sau <span data-ttl>12</span> giờ không ai nghe. Cần gỡ bài? <a href="https://github.com/m3iK18dp/mashloop/issues" target="_blank" rel="noopener">Báo qua GitHub</a>.</p>
-        <p>Bản gốc bởi <a href="https://github.com/lvt1693/mashloop" target="_blank" rel="noopener">Truc (@lvt1693)</a> · Phát triển mở rộng bởi <a href="https://github.com/m3iK18dp/mashloop" target="_blank" rel="noopener">Phạm Doãn Kiếm (@m3iK18dp)</a>.</p>
-      </footer>
-    </aside>
-  </main>
-
-  <!-- Hosted: asked once per visit, before the first song the visitor brings in. -->
-  <dialog class="consent" id="consent" aria-labelledby="consent-title" aria-describedby="consent-body">
-    <form method="dialog">
-      <h2 id="consent-title">Trước khi thêm nhạc</h2>
-      <p id="consent-body">Bạn xác nhận mình có quyền dùng những bài đưa vào đây: bài của chính bạn, nhạc có giấy phép cho phép, hoặc đã được chủ sở hữu đồng ý. Bạn chịu trách nhiệm về nội dung mình thêm.</p>
-      <ul>
-        <li>Bài chỉ được phân tích để phát lặp cho riêng bạn, trong lượt truy cập này.</li>
-        <li>File nhạc tự xoá khỏi server sau <span data-ttl>12</span> giờ không ai nghe. Chỉ giữ lại kết quả phân tích: nhịp, điểm nhảy, điểm nối.</li>
-        <li>Không cần tài khoản, không lưu thông tin cá nhân.</li>
-      </ul>
-      <div class="consent__acts">
-        <button type="submit" value="no" class="consent__no">Thôi</button>
-        <button type="submit" value="yes" class="consent__yes" autofocus>Tôi đồng ý</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Universal modal dialog (alert / confirm) matching MashLoop ambient dark style -->
-  <dialog class="consent modal-dialog" id="app-modal" aria-labelledby="modal-title" aria-describedby="modal-body">
-    <form method="dialog">
-      <h2 id="modal-title">Thông báo</h2>
-      <p id="modal-body"></p>
-      <div class="consent__acts" id="modal-acts">
-        <button type="button" class="consent__no" id="modal-cancel">Thôi</button>
-        <button type="submit" value="ok" class="consent__yes" id="modal-ok" autofocus>Đồng ý</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Modal hướng dẫn cài đặt & tải app Mobile qua Tailscale IP -->
-  <dialog class="consent mobile-modal" id="mobile-modal" aria-labelledby="mobile-modal-title">
-    <div class="mobile-modal__head">
-      <div class="mobile-modal__title-wrap">
-        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-        <h2 id="mobile-modal-title">Cài MashLoop trên Mobile</h2>
-      </div>
-      <button type="button" class="mobile-modal__close" id="mobile-modal-close" aria-label="Đóng">✕</button>
-    </div>
-
-    <p class="mobile-modal__sub" id="mobile-modal-sub">Địa chỉ truy cập: <span class="mono mobile-modal__ip" id="mobile-modal-ip">http://100.118.230.52:8765</span></p>
-
-    <div class="mobile-modal__qr-card">
-      <div class="mobile-modal__qr-frame">
-        <img id="mobile-modal-qr" src="img/qr-tailscale.svg" alt="QR Code" width="130" height="130">
-      </div>
-      <div class="mobile-modal__qr-info">
-        <p><b>Quét Camera iPhone / Android</b><span id="mobile-modal-scan-desc">để mở ứng dụng tức thì trên điện thoại.</span></p>
-        <a id="mobile-modal-link" href="http://100.118.230.52:8765" target="_blank" class="mobile-modal__link mono">http://100.118.230.52:8765 ↗</a>
-      </div>
-    </div>
-
-    <div class="mobile-modal__platforms">
-      <!-- iOS Card -->
-      <div class="mobile-card">
-        <div class="mobile-card__head">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
-          <h3>iOS (iPhone)</h3>
+          <div class="tip" id="viz-tip" role="status" hidden></div>
         </div>
-        <ol class="mobile-steps">
-          <li>Mở <b>Safari</b> trên iPhone, truy cập địa chỉ máy chủ hoặc quét mã QR.</li>
-          <li>Bấm nút <b>Chia sẻ</b> (biểu tượng mũi tên hướng lên) ở thanh dưới Safari.</li>
-          <li>Chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li>
-          <li>Ứng dụng chạy toàn màn hình, hỗ trợ Dynamic Island và phát nền khi khoá máy.</li>
-        </ol>
-        <p class="mobile-card__note">Mã nguồn Xcode native tại: <code class="mono">ios/App</code></p>
-      </div>
 
-      <!-- Android Card -->
-      <div class="mobile-card">
-        <div class="mobile-card__head">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
-          <h3>Android</h3>
+        <p class="next" id="next-info" aria-live="polite"></p>
+
+        <div class="deck" role="group" aria-label="Điều khiển phát">
+          <button
+            type="button"
+            class="deck__btn deck__lock"
+            id="btn-lock"
+            title="Khoá lặp bài này mãi (L)"
+            aria-pressed="false"
+          >
+            <svg class="i-unlock" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+            </svg>
+            <svg class="i-lock" viewBox="0 0 24 24" aria-hidden="true" hidden>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Khoá</span>
+          </button>
+          <button
+            type="button"
+            class="deck__btn"
+            id="btn-jump"
+            title="Nhảy ngay trong bài (J)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 17c3-9 13-9 16 0" />
+              <path d="M16 13l4 4 3-4" />
+            </svg>
+            <span>Nhảy</span>
+          </button>
+          <button
+            type="button"
+            class="deck__play"
+            id="btn-play"
+            title="Phát / tạm dừng (Space)"
+            aria-label="Phát"
+          >
+            <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 5.5v13l11-6.5z" />
+            </svg>
+            <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 5h3v14H8zM13 5h3v14h-3z" />
+            </svg>
+            <svg class="i-load" viewBox="0 0 48 24" aria-hidden="true">
+              <path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="deck__btn"
+            id="btn-next"
+            title="Chuyển sang bài khác ở điểm nối gần nhất (N)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="8" cy="12" r="5" />
+              <circle cx="17" cy="12" r="4" />
+            </svg>
+            <span>Bài khác</span>
+          </button>
+          <button
+            type="button"
+            class="deck__btn"
+            id="btn-kho"
+            title="Sang kho khác ở điểm nối gần nhất (K)"
+            aria-pressed="false"
+            hidden
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 9 12 4.5 20.5 9 12 13.5z" />
+              <path d="M3.5 13 12 17.5 20.5 13" />
+              <path d="M3.5 17 12 21.5 20.5 17" opacity=".55" />
+            </svg>
+            <span>Kho khác</span>
+          </button>
+          <div class="deck__timer-wrap">
+            <button
+              type="button"
+              class="deck__btn deck__timer"
+              id="btn-timer"
+              title="Hẹn giờ tắt nhạc (T)"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span id="timer-label">Hẹn giờ</span>
+            </button>
+            <div
+              class="timer-popover"
+              id="timer-popover"
+              hidden
+              role="dialog"
+              aria-label="Chọn thời gian hẹn giờ tắt"
+            >
+              <div class="timer-popover__head">
+                <span class="timer-popover__title">Hẹn giờ tắt nhạc</span>
+                <span class="timer-popover__badge mono" id="timer-badge"
+                  >Tắt</span
+                >
+              </div>
+              <div class="timer-popover__opts">
+                <button type="button" class="timer-opt on" data-timer="0">
+                  Tắt
+                </button>
+                <button type="button" class="timer-opt" data-timer="15">
+                  15 phút
+                </button>
+                <button type="button" class="timer-opt" data-timer="30">
+                  30 phút
+                </button>
+                <button type="button" class="timer-opt" data-timer="45">
+                  45 phút
+                </button>
+                <button type="button" class="timer-opt" data-timer="60">
+                  60 phút
+                </button>
+                <button type="button" class="timer-opt" data-timer="song">
+                  Hết bài
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="deck__eq-wrap">
+            <button
+              type="button"
+              class="deck__btn deck__eq"
+              id="btn-eq"
+              title="Hiệu ứng âm thanh / EQ Presets (E)"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <line x1="4" y1="21" x2="4" y2="14" />
+                <line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" />
+                <line x1="20" y1="12" x2="20" y2="3" />
+                <line x1="1" y1="14" x2="7" y2="14" />
+                <line x1="9" y1="8" x2="15" y2="8" />
+                <line x1="17" y1="16" x2="23" y2="16" />
+              </svg>
+              <span id="eq-label">EQ</span>
+            </button>
+            <div
+              class="eq-popover"
+              id="eq-popover"
+              hidden
+              role="dialog"
+              aria-label="Chọn hiệu ứng âm thanh"
+            >
+              <div class="eq-popover__head">
+                <span class="eq-popover__title">Hiệu ứng EQ</span>
+                <span class="eq-popover__badge mono" id="eq-badge">Chuẩn</span>
+              </div>
+              <div class="eq-popover__opts">
+                <button type="button" class="eq-opt on" data-eq="flat">
+                  Chuẩn (Gốc)
+                </button>
+                <button type="button" class="eq-opt" data-eq="night">
+                  Âm đêm dịu
+                </button>
+                <button type="button" class="eq-opt" data-eq="bass">
+                  Bass Boost
+                </button>
+                <button type="button" class="eq-opt" data-eq="vocal">
+                  Tôn giọng
+                </button>
+                <button type="button" class="eq-opt" data-eq="lofi">
+                  Lofi Chill
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="deck__vol" title="Âm lượng">
+            <button
+              type="button"
+              class="btn-mute"
+              id="btn-mute"
+              title="Tắt / Bật tiếng (M)"
+              aria-label="Tắt hoặc bật tiếng"
+            >
+              <svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
+                <path d="M15.5 9a4 4 0 0 1 0 6" />
+                <path d="M18 6.5a7.5 7.5 0 0 1 0 11" />
+              </svg>
+              <svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" hidden>
+                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+            </button>
+            <span class="sr">Âm lượng</span>
+            <input id="s-vol" type="range" min="0" max="1" step="0.01" />
+            <em id="v-vol" class="mono"></em>
+          </div>
         </div>
-        <ol class="mobile-steps">
-          <li>Mở <b>Chrome</b> trên điện thoại, truy cập link web hoặc quét mã QR.</li>
-          <li>Bấm menu <b>⋮</b> góc trên → chọn <b>Cài đặt ứng dụng</b> (Install App).</li>
-          <li>Hoặc build file <b>APK</b> từ thư mục Android Studio: <code class="mono">android/</code></li>
-        </ol>
-        <p class="mobile-card__note">Quyền chạy nền <code class="mono">WAKE_LOCK</code> & <code class="mono">FOREGROUND_SERVICE</code> đã được bật sẵn.</p>
+
+        <ol
+          class="setlist"
+          id="history"
+          aria-label="Các bài đã phát trong phiên này"
+        ></ol>
+      </section>
+
+      <aside class="panel" id="panel" aria-label="Thư viện và tinh chỉnh">
+        <div class="seg tabs" role="tablist" aria-label="Bảng điều khiển">
+          <span class="seg__ind" aria-hidden="true"></span>
+          <button
+            type="button"
+            data-tab="library"
+            role="tab"
+            class="on"
+            aria-selected="true"
+            aria-controls="tab-library"
+          >
+            Thư viện
+          </button>
+          <button
+            type="button"
+            data-tab="settings"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tab-settings"
+          >
+            Tinh chỉnh
+          </button>
+        </div>
+
+        <div id="tab-library" class="tab on" role="tabpanel">
+          <form id="add-form" class="add" autocomplete="off">
+            <label class="label" for="add-input">Thêm bài vào thư viện</label>
+            <div class="add__field">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M16 16l4.5 4.5" />
+              </svg>
+              <input
+                id="add-input"
+                type="text"
+                inputmode="search"
+                enterkeyhint="search"
+                placeholder="Tên bài, link YouTube, Spotify, SoundCloud, Zing MP3, TikTok, FB, album, playlist…"
+              />
+              <button type="submit">Tìm</button>
+            </div>
+            <label class="drop" id="drop" for="file-input">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15V5M8 9l4-4 4 4" />
+                <path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" />
+              </svg>
+              <span
+                ><b>Tải file nhạc lên</b>hoặc thả vào đây · MP3, M4A, FLAC, WAV,
+                cả file zip<span id="upload-limit"></span
+              ></span>
+            </label>
+            <div class="desktop-row" id="desktop-row" hidden>
+              <button type="button" class="btn-desktop" id="btn-desktop-files">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  />
+                  <path d="M14 2v6h6" />
+                  <path d="M12 18v-6" />
+                  <path d="M9 15l3-3 3 3" />
+                </svg>
+                <span>Chọn file từ máy</span>
+              </button>
+              <button type="button" class="btn-desktop" id="btn-desktop-folder">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                  />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+                <span>Chọn thư mục nhạc</span>
+              </button>
+            </div>
+            <input
+              id="file-input"
+              class="sr"
+              type="file"
+              accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.webm,.zip,application/zip"
+              multiple
+            />
+            <p class="hint" id="add-hint">
+              Hỗ trợ link đơn, album & playlist (YouTube, Spotify, SoundCloud,
+              Zing MP3, TikTok, Facebook…). Tự động nạp danh sách vào chuỗi.
+            </p>
+          </form>
+          <div id="search-results" class="results" aria-live="polite"></div>
+          <p id="worker" class="worker" aria-live="polite"></p>
+          <div class="shelf-head">
+            <h2 class="label">Các vòng trong thư viện</h2>
+            <span id="lib-count" class="mono"></span>
+          </div>
+          <ul id="track-list" class="tracks"></ul>
+        </div>
+
+        <div id="tab-settings" class="tab" role="tabpanel">
+          <section class="group" aria-labelledby="g-look">
+            <h2 class="label" id="g-look">Màu</h2>
+            <fieldset class="kinds looks">
+              <legend class="sub">Ánh sáng của căn phòng</legend>
+              <label class="kind look">
+                <input type="radio" name="look" value="mood" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Theo mood</b>mỗi bài một màu, đổi dần khi mix</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="neon" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Neon</b>màu rực, nền đêm</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="amber" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Hổ phách</b>vàng ấm như bản đầu</span>
+              </label>
+            </fieldset>
+          </section>
+
+          <section class="group" aria-labelledby="g-jump">
+            <h2 class="label" id="g-jump">Trong một bài</h2>
+            <label class="row">
+              <span class="row__head"
+                ><span>Tần suất nhảy</span><em id="v-freq" class="mono"></em
+              ></span>
+              <input id="s-freq" type="range" min="0" max="1" step="0.01" />
+            </label>
+            <label class="row">
+              <span class="row__head"
+                ><span>Độ mượt tối thiểu</span
+                ><em id="v-strict" class="mono"></em
+              ></span>
+              <input id="s-strict" type="range" min="0" max="1" step="0.01" />
+              <small
+                >Trái: chỉ giữ những điểm nối gần như vô hình. Phải: nhiều nhánh
+                hơn, đôi khi lộ.</small
+              >
+            </label>
+          </section>
+
+          <section class="group" aria-labelledby="g-chain">
+            <h2 class="label" id="g-chain">Chuỗi bài</h2>
+            <fieldset class="choices">
+              <legend class="sub">Chọn bài kế tiếp theo</legend>
+              <label class="choice">
+                <input type="radio" name="criterion" value="balanced" />
+                <span><b>Cân bằng</b>nối mượt là chính, mood gần nhau</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="criterion" value="mood" />
+                <span><b>Cùng mood</b>chỉ sang bài cùng không khí</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="criterion" value="tempo" />
+                <span><b>Cùng nhịp</b>giữ beat liền mạch, BPM gần nhau</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="criterion" value="key" />
+                <span><b>Hợp tông</b>tông nhạc hợp nhau, kiểu DJ hoà âm</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="criterion" value="set" />
+                <span
+                  ><b>Như một set DJ</b>khởi động, lên dần tới đỉnh, có khoảng
+                  nghỉ rồi bùng lại</span
+                >
+              </label>
+              <label class="choice">
+                <input type="radio" name="criterion" value="free" />
+                <span><b>Tự do</b>bài nào cũng được, miễn nối mượt</span>
+              </label>
+            </fieldset>
+            <label class="row">
+              <span class="row__head"
+                ><span>Ở mỗi bài ít nhất</span><em id="v-dmin" class="mono"></em
+              ></span>
+              <input id="s-dmin" type="range" min="20" max="600" step="10" />
+              <small>Sau mốc này, bài chuyển ở điểm nối tốt gần nhất.</small>
+            </label>
+            <label class="row">
+              <span class="row__head"
+                ><span>Chuyển bài muộn nhất sau</span
+                ><em id="v-dmax" class="mono"></em
+              ></span>
+              <input id="s-dmax" type="range" min="30" max="900" step="10" />
+            </label>
+            <label class="row">
+              <span class="row__head"
+                ><span>Độ đa dạng của chuỗi</span
+                ><em id="v-variety" class="mono"></em
+              ></span>
+              <input id="s-variety" type="range" min="0" max="1" step="0.01" />
+              <small
+                >Trái: ưu tiên điểm nối đẹp nhất, kể cả quay lại bài cũ. Phải:
+                đi khắp thư viện.</small
+              >
+            </label>
+            <fieldset class="kinds">
+              <legend class="sub">Kiểu chuyển bài được dùng</legend>
+              <label class="kind">
+                <input id="s-cut" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="12" cy="10" r="7" />
+                  <circle cx="28" cy="10" r="7" />
+                  <path d="M20 3v14" />
+                </svg>
+                <span><b>Nối thẳng</b>khớp nhịp, cắt gọn trên phách mạnh</span>
+              </label>
+              <label class="kind">
+                <input id="s-drop" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="11" cy="10" r="6" />
+                  <path d="M20 4v12M26 10h10M31 5l5 5-5 5" />
+                </svg>
+                <span><b>Drop</b>vào thẳng điệp khúc, drop của bài sau</span>
+              </label>
+              <label class="kind">
+                <input id="s-blend" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="14" cy="10" r="7" />
+                  <circle cx="26" cy="10" r="7" />
+                </svg>
+                <span><b>Blend</b>khớp nhịp</span>
+              </label>
+              <label class="kind">
+                <input id="s-fade" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="12" cy="10" r="7" />
+                  <circle cx="28" cy="10" r="7" stroke-dasharray="2 3" />
+                </svg>
+                <span><b>Crossfade dài</b>lọc âm, cho bài khác mood</span>
+              </label>
+              <label class="kind">
+                <input id="s-echo" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="10" cy="10" r="6" />
+                  <circle cx="21" cy="10" r="4.5" opacity=".6" />
+                  <circle cx="30" cy="10" r="3" opacity=".35" />
+                </svg>
+                <span><b>Echo vang</b>câu cuối vọng lại</span>
+              </label>
+              <label class="kind">
+                <input id="s-wash" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="11" cy="10" r="6" />
+                  <path
+                    d="M19 4c6 2 6 10 0 12M24 3c8 3 8 11 0 14M29 2c10 4 10 12 0 16"
+                    opacity=".5"
+                  />
+                </svg>
+                <span
+                  ><b>Reverb wash</b>tan vào tiếng vang, cho bài khác hẳn</span
+                >
+              </label>
+              <label class="kind">
+                <input id="s-riser" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M3 17C12 17 20 13 26 4" />
+                  <path d="M30 3v14" />
+                  <circle cx="35" cy="10" r="3" />
+                </svg>
+                <span
+                  ><b>Build-up</b>dồn lên bằng tiếng gió, vào bằng cú nổ</span
+                >
+              </label>
+              <label class="kind">
+                <input id="s-flanger" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M3 10c3-6 6-6 9 0s6 6 9 0 6-6 9 0" />
+                  <circle cx="35" cy="10" r="3" />
+                </svg>
+                <span><b>Flanger</b>bài trước quét tiếng phản lực rồi đi</span>
+              </label>
+              <label class="kind">
+                <input id="s-gap" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="9" cy="10" r="6" />
+                  <path d="M18 10h4" stroke-dasharray="1 3" />
+                  <circle cx="31" cy="10" r="6" />
+                </svg>
+                <span><b>Ngắt lặng</b>im một nhịp rồi bài sau nổ vào</span>
+              </label>
+              <label class="kind">
+                <input id="s-brake" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="12" cy="10" r="7" />
+                  <path d="M20 10h6M29 6v8" />
+                </svg>
+                <span><b>Phanh đĩa</b>dừng hẳn rồi vào, đột ngột</span>
+              </label>
+              <label class="kind">
+                <input id="s-roll" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path
+                    d="M4 15v-10M11 15v-10M16 15v-10M20 15v-10M23 15v-10M25.5 15v-10"
+                  />
+                  <circle cx="33" cy="10" r="5" />
+                </svg>
+                <span><b>Cuộn nhịp</b>lặp dồn rồi drop, đột ngột</span>
+              </label>
+              <label class="kind">
+                <input id="s-spin" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M20 4a7 7 0 1 0 7 7" />
+                  <path d="M27 6v5h-5" />
+                </svg>
+                <span><b>Spinback</b>quay ngược đĩa rồi vào, đột ngột</span>
+              </label>
+              <label class="kind">
+                <input id="s-gate" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M3 15V5h4v10h3V5h3v10h2V5h2v10h1.5V5" />
+                  <circle cx="31" cy="10" r="5" />
+                </svg>
+                <span><b>Gate</b>băm nhịp bài trước, đột ngột</span>
+              </label>
+            </fieldset>
+            <fieldset class="kinds" id="blend-styles">
+              <legend class="sub">
+                Cách blend (chuỗi tự chọn cách hợp nhất)
+              </legend>
+              <label class="kind">
+                <input id="s-bl-long" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="9" cy="10" r="6" />
+                  <circle cx="31" cy="10" r="6" />
+                  <path d="M15 10h10" stroke-dasharray="2 2" />
+                </svg>
+                <span
+                  ><b>Blend dài</b>16–32 ô nhịp, intro và outro không lời</span
+                >
+              </label>
+              <label class="kind">
+                <input id="s-bl-eq" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="13" cy="10" r="7" />
+                  <circle cx="27" cy="10" r="7" />
+                  <path d="M20 15v-4" />
+                </svg>
+                <span><b>Blend EQ</b>8 ô nhịp, bass swap giữa chừng</span>
+              </label>
+              <label class="kind">
+                <input id="s-bl-short" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="15" cy="10" r="7" />
+                  <circle cx="25" cy="10" r="7" />
+                </svg>
+                <span><b>Blend ngắn</b>2–4 ô nhịp, lọt giữa hai câu hát</span>
+              </label>
+              <label class="kind">
+                <input id="s-bl-filter" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M3 15c6 0 7-10 13-10" />
+                  <path d="M24 5c6 0 7 10 13 10" />
+                </svg>
+                <span><b>Blend lọc</b>bài trước mỏng dần, bài sau mở dần</span>
+              </label>
+              <label class="kind">
+                <input id="s-bl-swap" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M3 16l14-10M17 6v10" />
+                  <circle cx="29" cy="10" r="7" />
+                </svg>
+                <span><b>Drop swap</b>bài sau dồn lên, cắt ngay khi drop</span>
+              </label>
+              <label class="kind">
+                <input id="s-bl-stem" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M8 14v-5a3 3 0 0 1 6 0v5M26 14v-5a3 3 0 0 1 6 0v5" />
+                  <path d="M16 10h8M21 7l3 3-3 3" />
+                </svg>
+                <span
+                  ><b>Trao giọng</b>giọng bài sau chờ giọng bài trước ra</span
+                >
+              </label>
+              <label class="kind">
+                <input id="s-bl-acapella" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M17 14v-5a3 3 0 0 1 6 0v5" />
+                  <path d="M4 16h8M28 16h8" opacity=".5" />
+                </svg>
+                <span
+                  ><b>Acapella</b>giọng bài sau hát trên nhạc bài trước, nhạc
+                  bài sau lên dần</span
+                >
+              </label>
+              <label class="kind">
+                <input id="s-bl-mashup" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M8 13v-4a3 3 0 0 1 6 0v4" />
+                  <path d="M4 17h32" opacity=".5" />
+                  <path d="M18 9h18" stroke-dasharray="2 2" />
+                </svg>
+                <span
+                  ><b>Mashup</b>giọng bài sau hát trọn 16–32 ô nhịp trên nhạc
+                  bài trước</span
+                >
+              </label>
+              <label class="kind">
+                <input id="s-bl-double" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M4 16l8-10M12 6v10" />
+                  <path d="M22 16l8-10M30 6v10" />
+                </svg>
+                <span><b>Double drop</b>hai đoạn drop nổ cùng lúc</span>
+              </label>
+              <label class="kind">
+                <input id="s-bl-loop" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M5 10a5 5 0 0 1 10 0a5 5 0 0 1-10 0" />
+                  <path d="M15 10a5 5 0 0 1 10 0" opacity=".5" />
+                  <circle cx="32" cy="10" r="5" />
+                </svg>
+                <span
+                  ><b>Vòng lặp</b>lặp vài ô nhịp bài trước làm outro để blend
+                  vào</span
+                >
+              </label>
+            </fieldset>
+            <fieldset class="choices" id="blend-match">
+              <legend class="sub">Khớp tông và nhịp khi blend</legend>
+              <label class="choice">
+                <input id="s-keyshift" type="checkbox" />
+                <span
+                  ><b>Dịch tông bài sau</b>tới 2 nửa cung cho hợp tông bài
+                  trước, rồi trượt dần về tông gốc</span
+                >
+              </label>
+              <label class="choice">
+                <input id="s-tempo" type="checkbox" />
+                <span
+                  ><b>Kéo tempo dần</b>bài trước kéo tempo về phía bài sau qua
+                  vài câu nhạc, nối được hai bài lệch tới 18 %</span
+                >
+              </label>
+            </fieldset>
+          </section>
+
+          <section class="group" aria-labelledby="g-kho">
+            <h2 class="label" id="g-kho">Kho có sẵn</h2>
+            <fieldset class="choices">
+              <legend class="sub">Khi đang nghe một kho có sẵn</legend>
+              <label class="choice">
+                <input id="s-cross" type="checkbox" />
+                <span
+                  ><b>Đi xuyên các kho</b>chuỗi được mix sang bài của kho kế
+                  tiếp khi có điểm nối đẹp</span
+                >
+              </label>
+            </fieldset>
+            <label class="row">
+              <span class="row__head"
+                ><span>Tự chuyển kho sau</span><em id="v-kmin" class="mono"></em
+              ></span>
+              <input id="s-kmin" type="range" min="0" max="30" step="1" />
+              <small
+                >Kéo về 0 để tắt. Nút Kho khác (phím <kbd>K</kbd>) chuyển ngay,
+                ở điểm nối gần nhất.</small
+              >
+            </label>
+          </section>
+
+          <section class="group" aria-labelledby="g-lib">
+            <h2 class="label" id="g-lib">Thư viện</h2>
+            <button id="btn-relink" type="button" class="ghost">
+              Tính lại điểm nối giữa các bài
+            </button>
+            <p class="keys-line">
+              Phím tắt: <kbd>Space</kbd> phát / dừng · <kbd>J</kbd> nhảy ·
+              <kbd>N</kbd> bài khác · <kbd>K</kbd> kho khác
+            </p>
+          </section>
+        </div>
+
+        <!-- Hosted only (main.js shows it). -->
+        <footer class="fine" id="fine" hidden>
+          <p>
+            <b>Dự án phi thương mại & mã nguồn mở:</b> Không quảng cáo, không
+            thu phí, không cần tài khoản. Server không lưu địa chỉ IP hay dữ
+            liệu cá nhân.
+          </p>
+          <p>
+            Nhạc thuộc bản quyền của nghệ sĩ và tác giả sở hữu. File âm thanh tự
+            xoá sau <span data-ttl>12</span> giờ không ai nghe. Cần gỡ bài?
+            <a
+              href="https://github.com/m3iK18dp/mashloop/issues"
+              target="_blank"
+              rel="noopener"
+              >Báo qua GitHub</a
+            >.
+          </p>
+          <p>
+            Bản gốc bởi
+            <a
+              href="https://github.com/lvt1693/mashloop"
+              target="_blank"
+              rel="noopener"
+              >Truc (@lvt1693)</a
+            >
+            · Phát triển mở rộng bởi
+            <a
+              href="https://github.com/m3iK18dp/mashloop"
+              target="_blank"
+              rel="noopener"
+              >Phạm Đoàn Kiếm (@m3iK18dp)</a
+            >.
+          </p>
+        </footer>
+      </aside>
+    </main>
+
+    <!-- Hosted: asked once per visit, before the first song the visitor brings in. -->
+    <dialog
+      class="consent"
+      id="consent"
+      aria-labelledby="consent-title"
+      aria-describedby="consent-body"
+    >
+      <form method="dialog">
+        <h2 id="consent-title">Trước khi thêm nhạc</h2>
+        <p id="consent-body">
+          Bạn xác nhận mình có quyền dùng những bài đưa vào đây: bài của chính
+          bạn, nhạc có giấy phép cho phép, hoặc đã được chủ sở hữu đồng ý. Bạn
+          chịu trách nhiệm về nội dung mình thêm.
+        </p>
+        <ul>
+          <li>
+            Bài chỉ được phân tích để phát lặp cho riêng bạn, trong lượt truy
+            cập này.
+          </li>
+          <li>
+            File nhạc tự xoá khỏi server sau <span data-ttl>12</span> giờ không
+            ai nghe. Chỉ giữ lại kết quả phân tích: nhịp, điểm nhảy, điểm nối.
+          </li>
+          <li>Không cần tài khoản, không lưu thông tin cá nhân.</li>
+        </ul>
+        <div class="consent__acts">
+          <button type="submit" value="no" class="consent__no">Thôi</button>
+          <button type="submit" value="yes" class="consent__yes" autofocus>
+            Tôi đồng ý
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Universal modal dialog (alert / confirm) matching MashLoop ambient dark style -->
+    <dialog
+      class="consent modal-dialog"
+      id="app-modal"
+      aria-labelledby="modal-title"
+      aria-describedby="modal-body"
+    >
+      <form method="dialog">
+        <h2 id="modal-title">Thông báo</h2>
+        <p id="modal-body"></p>
+        <div class="consent__acts" id="modal-acts">
+          <button type="button" class="consent__no" id="modal-cancel">
+            Thôi
+          </button>
+          <button
+            type="submit"
+            value="ok"
+            class="consent__yes"
+            id="modal-ok"
+            autofocus
+          >
+            Đồng ý
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Modal hướng dẫn cài đặt & tải app Mobile qua Tailscale IP -->
+    <dialog
+      class="consent mobile-modal"
+      id="mobile-modal"
+      aria-labelledby="mobile-modal-title"
+    >
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            width="22"
+            height="22"
+            class="mobile-modal__icon"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
+          </svg>
+          <h2 id="mobile-modal-title">Cài MashLoop trên Mobile</h2>
+        </div>
+        <button
+          type="button"
+          class="mobile-modal__close"
+          id="mobile-modal-close"
+          aria-label="Đóng"
+        >
+          ✕
+        </button>
       </div>
-    </div>
-  </dialog>
 
-  <!-- Modal Phím tắt & Trợ giúp -->
-  <dialog class="consent shortcuts-modal" id="shortcuts-modal" aria-labelledby="shortcuts-modal-title">
-    <div class="mobile-modal__head">
-      <div class="mobile-modal__title-wrap">
-        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <h2 id="shortcuts-modal-title">Phím tắt & Hướng dẫn</h2>
+      <p class="mobile-modal__sub" id="mobile-modal-sub">
+        Địa chỉ truy cập:
+        <span class="mono mobile-modal__ip" id="mobile-modal-ip"
+          >http://100.118.230.52:8765</span
+        >
+      </p>
+
+      <div class="mobile-modal__qr-card">
+        <div class="mobile-modal__qr-frame">
+          <img
+            id="mobile-modal-qr"
+            src="img/qr-tailscale.svg"
+            alt="QR Code"
+            width="130"
+            height="130"
+          />
+        </div>
+        <div class="mobile-modal__qr-info">
+          <p>
+            <b>Quét Camera iPhone / Android</b
+            ><span id="mobile-modal-scan-desc"
+              >để mở ứng dụng tức thì trên điện thoại.</span
+            >
+          </p>
+          <a
+            id="mobile-modal-link"
+            href="http://100.118.230.52:8765"
+            target="_blank"
+            class="mobile-modal__link mono"
+            >http://100.118.230.52:8765 ↗</a
+          >
+        </div>
       </div>
-      <button type="button" class="mobile-modal__close" id="shortcuts-modal-close" aria-label="Đóng">✕</button>
-    </div>
 
-    <div class="shortcuts-grid">
-      <div class="shortcuts-group">
-        <h3 class="shortcuts-group__title">Điều khiển phát nhạc</h3>
-        <dl class="shortcuts-list">
-          <div class="shortcut-row"><dt><kbd>Space</kbd></dt><dd>Phát hoặc tạm dừng</dd></div>
-          <div class="shortcut-row"><dt><kbd>J</kbd></dt><dd>Nhảy phách trong bài (Jump)</dd></div>
-          <div class="shortcut-row"><dt><kbd>N</kbd></dt><dd>Chuyển bài khác ở điểm nối gần nhất</dd></div>
-          <div class="shortcut-row"><dt><kbd>K</kbd></dt><dd>Sang kho bài khác</dd></div>
-          <div class="shortcut-row"><dt><kbd>L</kbd></dt><dd>Khoá lặp bài này mãi (Loop Lock)</dd></div>
-        </dl>
+      <div class="mobile-modal__platforms">
+        <!-- iOS Card -->
+        <div class="mobile-card">
+          <div class="mobile-card__head">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path
+                d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"
+              />
+            </svg>
+            <h3>iOS (iPhone)</h3>
+          </div>
+          <ol class="mobile-steps">
+            <li>
+              Mở <b>Safari</b> trên iPhone, truy cập địa chỉ máy chủ hoặc quét
+              mã QR.
+            </li>
+            <li>
+              Bấm nút <b>Chia sẻ</b> (biểu tượng mũi tên hướng lên) ở thanh dưới
+              Safari.
+            </li>
+            <li>Chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li>
+            <li>
+              Ứng dụng chạy toàn màn hình, hỗ trợ Dynamic Island và phát nền khi
+              khoá máy.
+            </li>
+          </ol>
+          <p class="mobile-card__note">
+            Mã nguồn Xcode native tại: <code class="mono">ios/App</code>
+          </p>
+        </div>
+
+        <!-- Android Card -->
+        <div class="mobile-card">
+          <div class="mobile-card__head">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path
+                d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"
+              />
+            </svg>
+            <h3>Android</h3>
+          </div>
+          <ol class="mobile-steps">
+            <li>
+              Mở <b>Chrome</b> trên điện thoại, truy cập link web hoặc quét mã
+              QR.
+            </li>
+            <li>
+              Bấm menu <b>⋮</b> góc trên → chọn <b>Cài đặt ứng dụng</b> (Install
+              App).
+            </li>
+            <li>
+              Hoặc build file <b>APK</b> từ thư mục Android Studio:
+              <code class="mono">android/</code>
+            </li>
+          </ol>
+          <p class="mobile-card__note">
+            Quyền chạy nền <code class="mono">WAKE_LOCK</code> &
+            <code class="mono">FOREGROUND_SERVICE</code> đã được bật sẵn.
+          </p>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Modal Phím tắt & Trợ giúp -->
+    <dialog
+      class="consent shortcuts-modal"
+      id="shortcuts-modal"
+      aria-labelledby="shortcuts-modal-title"
+    >
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            width="22"
+            height="22"
+            class="mobile-modal__icon"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <h2 id="shortcuts-modal-title">Phím tắt & Hướng dẫn</h2>
+        </div>
+        <button
+          type="button"
+          class="mobile-modal__close"
+          id="shortcuts-modal-close"
+          aria-label="Đóng"
+        >
+          ✕
+        </button>
       </div>
 
-      <div class="shortcuts-group">
-        <h3 class="shortcuts-group__title">Tiện ích & Âm thanh</h3>
-        <dl class="shortcuts-list">
-          <div class="shortcut-row"><dt><kbd>T</kbd></dt><dd>Bật/tắt hẹn giờ tắt (Sleep Timer)</dd></div>
-          <div class="shortcut-row"><dt><kbd>M</kbd></dt><dd>Tắt / Bật tiếng nhanh (Mute)</dd></div>
-          <div class="shortcut-row"><dt><kbd>E</kbd></dt><dd>Chuyển hiệu ứng EQ (Chuẩn, Đêm dịu, Bass Boost, Tôn giọng, Lofi)</dd></div>
-          <div class="shortcut-row"><dt><kbd>?</kbd></dt><dd>Mở bảng phím tắt này</dd></div>
-        </dl>
+      <div class="shortcuts-grid">
+        <div class="shortcuts-group">
+          <h3 class="shortcuts-group__title">Điều khiển phát nhạc</h3>
+          <dl class="shortcuts-list">
+            <div class="shortcut-row">
+              <dt><kbd>Space</kbd></dt>
+              <dd>Phát hoặc tạm dừng</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>J</kbd></dt>
+              <dd>Nhảy phách trong bài (Jump)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>N</kbd></dt>
+              <dd>Chuyển bài khác ở điểm nối gần nhất</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>K</kbd></dt>
+              <dd>Sang kho bài khác</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>L</kbd></dt>
+              <dd>Khoá lặp bài này mãi (Loop Lock)</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="shortcuts-group">
+          <h3 class="shortcuts-group__title">Tiện ích & Âm thanh</h3>
+          <dl class="shortcuts-list">
+            <div class="shortcut-row">
+              <dt><kbd>T</kbd></dt>
+              <dd>Bật/tắt hẹn giờ tắt (Sleep Timer)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>M</kbd></dt>
+              <dd>Tắt / Bật tiếng nhanh (Mute)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>E</kbd></dt>
+              <dd>
+                Chuyển hiệu ứng EQ (Chuẩn, Đêm dịu, Bass Boost, Tôn giọng, Lofi)
+              </dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>?</kbd></dt>
+              <dd>Mở bảng phím tắt này</dd>
+            </div>
+          </dl>
+        </div>
       </div>
-    </div>
 
-    <div class="shortcuts-tips">
-      <p>💡 <b>Mẹo nghe nhạc:</b> Nhấp chuột/chạm vào bất kỳ điểm nào trên vòng tròn canvas để tua tới đoạn beat đó. Hẹn giờ sẽ tự động giảm dần âm lượng trong 8 giây cuối trước khi dừng hẳn.</p>
-    </div>
-  </dialog>
+      <div class="shortcuts-tips">
+        <p>
+          💡 <b>Mẹo nghe nhạc:</b> Nhấp chuột/chạm vào bất kỳ điểm nào trên vòng
+          tròn canvas để tua tới đoạn beat đó. Hẹn giờ sẽ tự động giảm dần âm
+          lượng trong 8 giây cuối trước khi dừng hẳn.
+        </p>
+      </div>
+    </dialog>
 
-  <script type="module" src="js/main.js"></script>
-  <script>
-    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("sw.js?v=15").then((reg) => {
-        reg.update();
-      }).catch(() => {});
-    }
-  </script>
-</body>
+    <script type="module" src="js/main.js"></script>
+    <script>
+      if (
+        "serviceWorker" in navigator &&
+        location.protocol.startsWith("http")
+      ) {
+        navigator.serviceWorker
+          .register("sw.js?v=16")
+          .then((reg) => {
+            reg.update();
+          })
+          .catch(() => {});
+      }
+    </script>
+  </body>
 </html>
-

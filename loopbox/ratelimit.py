@@ -18,11 +18,11 @@ from .config import MULTIUSER
 
 # kind -> (requests allowed, per seconds, message)
 LIMITS = {
-    "session": (60, 3600, "mở trang quá nhiều lần"),
-    "search": (60, 600, "tìm quá nhiều lần"),
+    "session": (300, 3600, "mở trang quá nhiều lần"),
+    "search": (120, 600, "tìm quá nhiều lần"),
     "new_track": (60, 3600, "thêm quá nhiều bài mới"),
     "upload": (30, 3600, "tải lên quá nhiều file"),
-    "audio": (200, 3600, "tải nhạc quá nhiều lần"),
+    "audio": (300, 3600, "tải nhạc quá nhiều lần"),
 }
 PURGE_EVERY_S = 300
 # Tools run on the box itself (deploy/seed_*.py) reach the app on loopback;
