@@ -123,10 +123,26 @@
             </div>
           </div>
         </div>
-        <button type="button" class="deck__btn deck__night" id="btn-night" title="Lọc âm đêm / Ấm dịu tai (E)" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <span>Đêm</span>
-        </button>
+        <div class="deck__eq-wrap">
+          <button type="button" class="deck__btn deck__eq" id="btn-eq" title="Hiệu ứng âm thanh / EQ Presets (E)" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            <span id="eq-label">EQ</span>
+          </button>
+          <div class="eq-popover" id="eq-popover" hidden role="dialog" aria-label="Chọn hiệu ứng âm thanh">
+            <div class="eq-popover__head">
+              <span class="eq-popover__title">Hiệu ứng EQ</span>
+              <span class="eq-popover__badge mono" id="eq-badge">Chuẩn</span>
+            </div>
+            <div class="eq-popover__opts">
+              <button type="button" class="eq-opt on" data-eq="flat">Chuẩn (Gốc)</button>
+              <button type="button" class="eq-opt" data-eq="night">Âm đêm dịu</button>
+              <button type="button" class="eq-opt" data-eq="bass">Bass Boost</button>
+              <button type="button" class="eq-opt" data-eq="vocal">Tôn giọng</button>
+              <button type="button" class="eq-opt" data-eq="lofi">Lofi Chill</button>
+            </div>
+          </div>
+        </div>
+
         <div class="deck__vol" title="Âm lượng">
           <button type="button" class="btn-mute" id="btn-mute" title="Tắt / Bật tiếng (M)" aria-label="Tắt hoặc bật tiếng">
             <svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
@@ -534,7 +550,7 @@
         <dl class="shortcuts-list">
           <div class="shortcut-row"><dt><kbd>T</kbd></dt><dd>Bật/tắt hẹn giờ tắt (Sleep Timer)</dd></div>
           <div class="shortcut-row"><dt><kbd>M</kbd></dt><dd>Tắt / Bật tiếng nhanh (Mute)</dd></div>
-          <div class="shortcut-row"><dt><kbd>E</kbd></dt><dd>Bật/tắt lọc âm đêm dịu tai (Night EQ)</dd></div>
+          <div class="shortcut-row"><dt><kbd>E</kbd></dt><dd>Chuyển hiệu ứng EQ (Chuẩn, Đêm dịu, Bass Boost, Tôn giọng, Lofi)</dd></div>
           <div class="shortcut-row"><dt><kbd>?</kbd></dt><dd>Mở bảng phím tắt này</dd></div>
         </dl>
       </div>
@@ -548,10 +564,11 @@
   <script type="module" src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("sw.js?v=12").then((reg) => {
+      navigator.serviceWorker.register("sw.js?v=13").then((reg) => {
         reg.update();
       }).catch(() => {});
     }
   </script>
 </body>
 </html>
+

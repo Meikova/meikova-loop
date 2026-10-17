@@ -80,8 +80,14 @@ def _ready(tid: str) -> dict:
 
 
 def _ip(request: Request) -> str:
-    # uvicorn takes the client address from HAProxy's X-Forwarded-For.
+    # Prefer the leftmost client address from X-Forwarded-For when behind reverse proxies
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        client = xff.split(",")[0].strip()
+        if client:
+            return client
     return request.client.host if request.client else "?"
+
 
 
 def _is_new(tid: str) -> bool:

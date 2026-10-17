@@ -61,12 +61,27 @@ export class Engine {
     this.limiter.release.value = 0.15;
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 1024;
-    this.nightFilter = this.ctx.createBiquadFilter();
-    this.nightFilter.type = "highshelf";
-    this.nightFilter.frequency.value = 4500;
-    this.nightFilter.gain.value = 0;
+    // 3-Band Studio Equalizer Chain (Low-Shelf 100Hz, Peaking 1.8kHz, High-Shelf 4.5kHz)
+    this.eqLow = this.ctx.createBiquadFilter();
+    this.eqLow.type = "lowshelf";
+    this.eqLow.frequency.value = 100;
+    this.eqLow.gain.value = 0;
+
+    this.eqMid = this.ctx.createBiquadFilter();
+    this.eqMid.type = "peaking";
+    this.eqMid.frequency.value = 1800;
+    this.eqMid.Q.value = 1.0;
+    this.eqMid.gain.value = 0;
+
+    this.eqHigh = this.nightFilter = this.ctx.createBiquadFilter();
+    this.eqHigh.type = "highshelf";
+    this.eqHigh.frequency.value = 4500;
+    this.eqHigh.gain.value = 0;
+
+    this.eqMode = "flat";
     this.nightMode = false;
-    this.master.connect(this.nightFilter).connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
+    this.master.connect(this.eqLow).connect(this.eqMid).connect(this.eqHigh).connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
+
     this.voices = new Set();
     this._bgAudio = null;
     this._shouldBePlaying = false;
@@ -110,14 +125,35 @@ export class Engine {
     this.master.gain.linearRampToValueAtTime(targetVol, now + Math.max(0.05, duration));
   }
 
-  setNightMode(enabled) {
-    this.nightMode = !!enabled;
-    if (!this.nightFilter || !this.ctx) return;
+  setEqPreset(preset) {
+    const EQ_PRESETS = {
+      flat: { low: 0, mid: 0, high: 0 },
+      night: { low: 0, mid: 0, high: -4.5 },
+      bass: { low: 6.0, mid: 0, high: 1.0 },
+      vocal: { low: -2.0, mid: 4.0, high: 2.0 },
+      lofi: { low: 3.5, mid: 1.5, high: -6.0 },
+    };
+    if (!EQ_PRESETS[preset]) preset = "flat";
+    this.eqMode = preset;
+    this.nightMode = preset === "night";
+    if (!this.eqLow || !this.ctx) return;
     const now = this.ctx.currentTime;
-    this.nightFilter.gain.cancelScheduledValues(now);
-    this.nightFilter.gain.setValueAtTime(this.nightFilter.gain.value, now);
-    this.nightFilter.gain.linearRampToValueAtTime(this.nightMode ? -4.5 : 0, now + 0.35);
+    const target = EQ_PRESETS[preset];
+    for (const [node, val] of [
+      [this.eqLow, target.low],
+      [this.eqMid, target.mid],
+      [this.eqHigh, target.high],
+    ]) {
+      node.gain.cancelScheduledValues(now);
+      node.gain.setValueAtTime(node.gain.value, now);
+      node.gain.linearRampToValueAtTime(val, now + 0.35);
+    }
   }
+
+  setNightMode(enabled) {
+    this.setEqPreset(enabled ? "night" : "flat");
+  }
+
 
   _initBgAnchor() {
     if (typeof document === "undefined") return;

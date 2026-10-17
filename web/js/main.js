@@ -406,13 +406,52 @@ function toggleMute() {
 }
 if (muteBtn) muteBtn.addEventListener("click", toggleMute);
 
-let nightMode = false;
-const nightBtn = $("#btn-night");
-if (nightBtn) {
-  nightBtn.addEventListener("click", () => {
-    nightMode = !nightMode;
-    engine.setNightMode(nightMode);
-    nightBtn.setAttribute("aria-pressed", nightMode);
+const eqBtn = $("#btn-eq");
+const eqPopover = $("#eq-popover");
+const eqBadge = $("#eq-badge");
+const eqLabel = $("#eq-label");
+const EQ_NAMES = {
+  flat: "Chuẩn",
+  night: "Âm đêm",
+  bass: "Bass",
+  vocal: "Giọng",
+  lofi: "Lofi",
+};
+const EQ_LIST = ["flat", "night", "bass", "vocal", "lofi"];
+
+function setEq(preset) {
+  if (!EQ_NAMES[preset]) preset = "flat";
+  engine.setEqPreset(preset);
+  if (eqBadge) eqBadge.textContent = EQ_NAMES[preset];
+  if (eqLabel) eqLabel.textContent = preset === "flat" ? "EQ" : EQ_NAMES[preset];
+  if (eqBtn) {
+    eqBtn.setAttribute("data-active", preset !== "flat");
+    eqBtn.setAttribute("aria-pressed", preset !== "flat");
+  }
+  document.querySelectorAll(".eq-opt").forEach((b) => b.classList.toggle("on", b.dataset.eq === preset));
+}
+
+if (eqBtn && eqPopover) {
+  eqBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isHidden = eqPopover.hidden;
+    eqPopover.hidden = !isHidden;
+    eqBtn.setAttribute("aria-expanded", !isHidden);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!eqPopover.hidden && !e.target.closest("#eq-popover, #btn-eq")) {
+      eqPopover.hidden = true;
+      eqBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  document.querySelectorAll(".eq-opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setEq(btn.dataset.eq);
+      eqPopover.hidden = true;
+      eqBtn.setAttribute("aria-expanded", "false");
+    });
   });
 }
 
@@ -488,7 +527,10 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "l" || e.key === "L") { player.toggleLoopLock(); applySettings(); }
   else if (e.key === "t" || e.key === "T") { if (timerBtn) timerBtn.click(); }
   else if (e.key === "m" || e.key === "M") { toggleMute(); }
-  else if (e.key === "e" || e.key === "E") { if (nightBtn) nightBtn.click(); }
+  else if (e.key === "e" || e.key === "E") {
+    const nextIdx = (EQ_LIST.indexOf(engine.eqMode || "flat") + 1) % EQ_LIST.length;
+    setEq(EQ_LIST[nextIdx]);
+  }
   else if (e.key === "?") { $("#btn-shortcuts-modal")?.click(); }
 });
 player.addEventListener("state", renderTransport);
@@ -1261,7 +1303,9 @@ function renderStage() {
   const inLib = libByKey(libOf(shown.id));
   setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}${crit}</b> // ${inLib ? `${esc(inLib.name)} · ` : ""}${esc(short(song.artist || shown.meta.title || "", 34))}`);
   const listened = Math.max(0, view.now - p.stats.startedAt);
-  setHTML($("#ro-tr"), `<span class="mono">∞ ${fmt(listened)}</span><span class="ro-stats"> · ${p.stats.jumps} nhảy · ${p.stats.transitions} chuyển</span>`);
+  const camelotBadge = sa.camelot ? `<span class="badge-camelot" title="Tông ${esc(sa.key)}">${esc(sa.camelot)}</span> · ` : "";
+  const bpmText = sa.bpm ? `${sa.bpm.toFixed(0)} BPM · ` : "";
+  setHTML($("#ro-tr"), `<span class="mono">∞ ${fmt(listened)}</span><span class="ro-stats"> · ${camelotBadge}${bpmText}${p.stats.jumps} nhảy · ${p.stats.transitions} chuyển</span>`);
 
   const now = view.now;
   const name = (id) => esc(short(titleOf(id), 46));

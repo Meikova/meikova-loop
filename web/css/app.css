@@ -733,6 +733,108 @@ kbd {
   font-weight: 600;
 }
 
+.deck__eq-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.deck__eq[data-active="true"] {
+  color: var(--accent);
+  border-color: oklch(var(--acc) / 0.5);
+  background: var(--accent-lo);
+  box-shadow: 0 0 12px -2px oklch(var(--acc) / 0.35);
+}
+
+.eq-popover {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: oklch(0.18 var(--gc) var(--gh) / 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  min-width: 220px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px oklch(var(--acc) / 0.2);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: popover-up var(--dur-fast) var(--ease-spring);
+}
+
+.eq-popover[hidden] {
+  display: none;
+}
+
+.eq-popover__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 6px;
+}
+
+.eq-popover__title {
+  font-size: var(--step--2);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.eq-popover__badge {
+  font-size: var(--step--2);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.eq-popover__opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.eq-opt {
+  padding: 8px 10px;
+  border-radius: var(--round);
+  border: 1px solid var(--line-soft);
+  background: var(--ink-1);
+  color: var(--text-muted);
+  font-size: var(--step--2);
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.eq-opt:hover {
+  background: var(--ink-2);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.eq-opt.on {
+  background: var(--accent-lo);
+  color: var(--accent);
+  border-color: oklch(var(--acc) / 0.5);
+  font-weight: 600;
+}
+
+.badge-camelot {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: oklch(var(--acc) / 0.18);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9em;
+  letter-spacing: 0.02em;
+  border: 1px solid oklch(var(--acc) / 0.35);
+}
+
+
 /* Setlist: the session as a chain of small linked loops. */
 .setlist {
   list-style: none;
