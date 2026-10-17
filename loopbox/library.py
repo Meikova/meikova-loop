@@ -121,15 +121,34 @@ def write_json(path: Path, data) -> None:
     # allow_nan=False: NaN/Infinity are not JSON and would break the browser's parser.
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
-    os.replace(tmp, path)
+
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return
+        except (PermissionError, OSError):
+            time.sleep(0.02 * (attempt + 1))
+
+    # Fallback if replace is locked on Windows
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def read_json(path: Path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
+    for attempt in range(6):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+        except (PermissionError, OSError):
+            time.sleep(0.02 * (attempt + 1))
+    return None
 
 
 def read_meta(tid: str) -> dict | None:

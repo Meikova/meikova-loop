@@ -28,7 +28,12 @@ def save_features(tid: str, **arrays) -> None:
     tmp = path.with_suffix(".tmp.npz")
     with open(tmp, "wb") as fh:
         np.savez_compressed(fh, **arrays)
-    os.replace(tmp, path)
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return
+        except (PermissionError, OSError):
+            time.sleep(0.02 * (attempt + 1))
 
 
 def _save_vocals(tid: str, vocals: np.ndarray | None) -> None:
