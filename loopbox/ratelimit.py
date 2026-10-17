@@ -20,7 +20,7 @@ from .config import MULTIUSER
 LIMITS = {
     "session": (60, 3600, "mở trang quá nhiều lần"),
     "search": (60, 600, "tìm quá nhiều lần"),
-    "new_track": (20, 3600, "thêm quá nhiều bài mới"),
+    "new_track": (60, 3600, "thêm quá nhiều bài mới"),
     "upload": (30, 3600, "tải lên quá nhiều file"),
     "audio": (200, 3600, "tải nhạc quá nhiều lần"),
 }

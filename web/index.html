@@ -169,7 +169,7 @@
           <label class="label" for="add-input">Thêm bài vào thư viện</label>
           <div class="add__field">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-            <input id="add-input" type="text" inputmode="search" enterkeyhint="search" placeholder="Tên bài, link YouTube, SoundCloud, Zing MP3…">
+            <input id="add-input" type="text" inputmode="search" enterkeyhint="search" placeholder="Tên bài, link YouTube, Spotify, SoundCloud, Zing MP3, TikTok, FB, album, playlist…">
             <button type="submit">Tìm</button>
           </div>
           <label class="drop" id="drop" for="file-input">
@@ -187,7 +187,7 @@
             </button>
           </div>
           <input id="file-input" class="sr" type="file" accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.webm,.zip,application/zip" multiple>
-          <p class="hint" id="add-hint">Bài mới được tải về, tách beat và giọng hát, rồi tự nối vào chuỗi.</p>
+          <p class="hint" id="add-hint">Hỗ trợ link đơn, album & playlist (YouTube, Spotify, SoundCloud, Zing MP3, TikTok, Facebook…). Tự động nạp danh sách vào chuỗi.</p>
         </form>
         <div id="search-results" class="results" aria-live="polite"></div>
         <p id="worker" class="worker" aria-live="polite"></p>
@@ -564,7 +564,7 @@
   <script type="module" src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("sw.js?v=13").then((reg) => {
+      navigator.serviceWorker.register("sw.js?v=14").then((reg) => {
         reg.update();
       }).catch(() => {});
     }

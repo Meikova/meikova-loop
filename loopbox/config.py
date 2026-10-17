@@ -64,7 +64,7 @@ WORKER_THREADS = _env_int("MASHLOOP_WORKER_THREADS", 4)
 # Shared cache size: past it, the songs nobody has used for longest go.
 MAX_STORE_GB = float(os.environ.get("MASHLOOP_MAX_STORE_GB") or 0)  # 0 = no limit
 MAX_SESSION_TRACKS = _env_int("MASHLOOP_MAX_SESSION_TRACKS", 60)
-MAX_PLAYLIST = _env_int("MASHLOOP_MAX_PLAYLIST", 25)
+MAX_PLAYLIST = _env_int("MASHLOOP_MAX_PLAYLIST", 50)
 MAX_UPLOAD_MB = _env_int("MASHLOOP_MAX_UPLOAD_MB", 80)
 SESSION_TTL_S = _env_int("MASHLOOP_SESSION_TTL_H", 12) * 3600
 # Hosted, the sound of a song nobody has used for this long is deleted; what the

@@ -1,15 +1,18 @@
 """Music from the web through yt-dlp: YouTube (and YouTube Music), SoundCloud,
-Zing MP3, Bandcamp, Mixcloud and Jamendo, single songs and playlists. A JS runtime
-(node or deno, MASHLOOP_JS_RUNTIME) solves YouTube's player challenges.
-
-Only links to these sites are accepted, and yt-dlp may only use their
-extractors, so the server can never be made to fetch anything else.
+Spotify, Zing MP3, Bandcamp, TikTok, Facebook, Instagram, Twitter/X, Bilibili,
+Mixcloud, Jamendo, Vimeo, Dailymotion, Audius and generic web media.
+Single songs, albums and playlists. A JS runtime (node or deno, MASHLOOP_JS_RUNTIME)
+solves YouTube's player challenges.
 
 Ids: a YouTube video keeps its own 11-character id; a song from any other
 site is "x" and 16 hex digits of a hash of the site and its id there, so the
 same song is the same track whoever adds it and however it was linked."""
 import hashlib
+import json
+import logging
 import re
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -18,10 +21,13 @@ import yt_dlp
 
 from .config import JS_RUNTIME, MAX_PLAYLIST
 
+logger = logging.getLogger(__name__)
+
 BASE_OPTS = {
     "quiet": True,
     "no_warnings": True,
     "noprogress": True,
+    "nocheckcertificate": True,
     "js_runtimes": {JS_RUNTIME: {}},
     "socket_timeout": 30,
 }
@@ -30,14 +36,40 @@ BASE_OPTS = {
 SOURCES = {
     "youtube": ({"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}, [r"youtube.*"]),
     "soundcloud": ({"soundcloud.com", "www.soundcloud.com", "m.soundcloud.com", "on.soundcloud.com"}, [r"soundcloud.*"]),
+    "spotify": ({"open.spotify.com", "spotify.com"}, []),
     "zingmp3": ({"zingmp3.vn", "www.zingmp3.vn", "m.zingmp3.vn", "mp3.zing.vn"}, [r"zingmp3.*"]),
-    "bandcamp": ({"bandcamp.com"}, [r"Bandcamp.*"]),  # and every artist.bandcamp.com
+    "bandcamp": ({"bandcamp.com"}, [r"Bandcamp.*"]),
     "mixcloud": ({"mixcloud.com", "www.mixcloud.com", "m.mixcloud.com"}, [r"mixcloud.*"]),
-    # Creative Commons music: each song carries its licence, credited in the UI.
     "jamendo": ({"jamendo.com", "www.jamendo.com"}, [r"Jamendo.*"]),
+    "tiktok": ({"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vt.tiktok.com", "douyin.com", "v.douyin.com"}, [r"tiktok.*", r"douyin.*"]),
+    "facebook": ({"facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com", "fb.watch", "fb.com"}, [r"facebook.*"]),
+    "instagram": ({"instagram.com", "www.instagram.com", "instagr.am"}, [r"instagram.*"]),
+    "twitter": ({"twitter.com", "www.twitter.com", "x.com", "www.x.com"}, [r"twitter.*"]),
+    "bilibili": ({"bilibili.com", "www.bilibili.com", "bilibili.tv"}, [r"bilibili.*"]),
+    "vimeo": ({"vimeo.com", "www.vimeo.com", "player.vimeo.com"}, [r"vimeo.*"]),
+    "dailymotion": ({"dailymotion.com", "www.dailymotion.com", "dai.ly"}, [r"dailymotion.*"]),
+    "audius": ({"audius.co", "www.audius.co"}, [r"audius.*"]),
+    "generic": (set(), [r"generic.*"]),
 }
-SITE_NAMES = {"youtube": "YouTube", "soundcloud": "SoundCloud", "zingmp3": "Zing MP3", "bandcamp": "Bandcamp",
-              "mixcloud": "Mixcloud", "jamendo": "Jamendo"}
+
+SITE_NAMES = {
+    "youtube": "YouTube",
+    "soundcloud": "SoundCloud",
+    "spotify": "Spotify",
+    "zingmp3": "Zing MP3",
+    "bandcamp": "Bandcamp",
+    "mixcloud": "Mixcloud",
+    "jamendo": "Jamendo",
+    "tiktok": "TikTok",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "twitter": "X (Twitter)",
+    "bilibili": "Bilibili",
+    "vimeo": "Vimeo",
+    "dailymotion": "Dailymotion",
+    "audius": "Audius",
+    "generic": "Web Audio",
+}
 
 
 def cc_name(license_url_or_code: str | None) -> str | None:
@@ -48,7 +80,19 @@ def cc_name(license_url_or_code: str | None) -> str | None:
         return None
     return " ".join(filter(None, ["CC", m.group(1).upper(), m.group(2)]))
 
+
 _VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def _is_private_host(host: str) -> bool:
+    h = host.lower().strip("[]")
+    if h in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return True
+    if h.startswith("10.") or h.startswith("192.168.") or h.startswith("169.254."):
+        return True
+    if re.match(r"^172\.(1[6-9]|2[0-9]|3[0-1])\.", h):
+        return True
+    return False
 
 
 def site_of(url: str) -> str | None:
@@ -56,12 +100,19 @@ def site_of(url: str) -> str | None:
         u = urlparse(url)
     except ValueError:
         return None
-    host = (u.hostname or "").lower()
     if u.scheme not in ("http", "https"):
+        return None
+    host = (u.hostname or "").lower()
+    if not host or _is_private_host(host):
         return None
     for site, (hosts, _) in SOURCES.items():
         if host in hosts or (site == "bandcamp" and host.endswith(".bandcamp.com")):
             return site
+    path = u.path.lower()
+    if any(path.endswith(ext) for ext in (".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".webm")):
+        return "generic"
+    if "." in host and not host.endswith(".local") and not host.endswith(".internal"):
+        return "generic"
     return None
 
 
@@ -69,19 +120,49 @@ def is_youtube(url: str) -> bool:
     return site_of(url) == "youtube"
 
 
+def is_playlist_url(url: str) -> bool:
+    if not url:
+        return False
+    u = url.lower()
+    if "youtube.com" in u or "youtu.be" in u:
+        if "/playlist" in u or "list=pl" in u or "list=olak" in u or "list=uu" in u or "list=fl" in u:
+            return True
+        if "list=" in u and "watch?v=" not in u:
+            return True
+    if "soundcloud.com" in u and ("/sets/" in u or "/albums/" in u):
+        return True
+    if "spotify.com" in u and ("/album/" in u or "/playlist/" in u):
+        return True
+    if "zingmp3.vn" in u and ("/album/" in u or "/playlist/" in u):
+        return True
+    if "bandcamp.com" in u and "/album/" in u:
+        return True
+    if "dailymotion.com" in u and "/playlist/" in u:
+        return True
+    if "bilibili.com" in u and ("/medialist/" in u or "/series/" in u):
+        return True
+    return False
+
+
 def _opts(site: str, **extra) -> dict:
-    return {**BASE_OPTS, "allowed_extractors": SOURCES[site][1], **extra}
+    extractors = SOURCES.get(site, (set(), []))[1]
+    opts = {**BASE_OPTS, **extra}
+    if extractors:
+        opts["allowed_extractors"] = extractors
+    return opts
 
 
 def track_id(site: str, native_id: str) -> str:
-    if site == "youtube":
+    if site == "youtube" and _VIDEO_ID.match(native_id):
         return native_id
     return "x" + hashlib.sha1(f"{site}:{native_id}".encode()).hexdigest()[:16]
 
 
 def _entry(e: dict, site: str = "youtube") -> dict | None:
     native = str(e.get("id") or "")
-    if not native or (site == "youtube" and not _VIDEO_ID.match(native)):
+    if not native:
+        native = hashlib.sha1((e.get("webpage_url") or e.get("url") or "").encode()).hexdigest()[:11]
+    if site == "youtube" and not _VIDEO_ID.match(native):
         return None
     thumbs = e.get("thumbnails") or []
     thumb = e.get("thumbnail") or (thumbs[-1]["url"] if thumbs else None)
@@ -90,10 +171,10 @@ def _entry(e: dict, site: str = "youtube") -> dict | None:
         thumb = thumb or f"https://i.ytimg.com/vi/{native}/mqdefault.jpg"
     else:
         url = e.get("webpage_url") or e.get("url")
-        if not url or site_of(url) != site:
+        if not url:
             return None
     title = e.get("title") or e.get("track")
-    if not title:  # flat playlist entries may only carry their link: the slug stands in until download
+    if not title:
         title = Path(urlparse(url).path).name.replace("-", " ").replace(".html", "").strip() or native
     out = {
         "id": track_id(site, native),
@@ -105,7 +186,6 @@ def _entry(e: dict, site: str = "youtube") -> dict | None:
         "url": url,
     }
     if site == "jamendo" and cc_name(e.get("license")):
-        # A CC licence asks for the artist, the licence and a link back to the song.
         out["credit"] = {"artist": out["channel"], "license": cc_name(e.get("license")), "license_url": None,
                          "page": url, "via": "Jamendo"}
     return out
@@ -118,6 +198,72 @@ def search(query: str, n: int = 8) -> list[dict]:
     return [x for x in (_entry(e) for e in info.get("entries") or []) if x]
 
 
+def resolve_spotify(url: str, max_tracks: int = 50) -> list[dict]:
+    """Resolves Spotify track/album/playlist URLs into YouTube playable entries."""
+    m = re.search(r"spotify\.com/(track|album|playlist)/([a-zA-Z0-9]+)", url)
+    if not m:
+        return []
+    kind, sid = m.group(1), m.group(2)
+    req = urllib.request.Request(
+        f"https://open.spotify.com/embed/{kind}/{sid}",
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        logger.warning(f"Spotify embed fetch failed: {e}")
+        # Fallback to oEmbed for track
+        if kind == "track":
+            try:
+                oe_req = urllib.request.Request(f"https://open.spotify.com/oembed?url={url}")
+                with urllib.request.urlopen(oe_req, timeout=5) as oe_resp:
+                    oe_data = json.loads(oe_resp.read().decode("utf-8"))
+                    title = oe_data.get("title")
+                    if title:
+                        return search(title, 1)
+            except Exception:
+                pass
+        return []
+
+    match = re.search(r'id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html)
+    if not match:
+        return []
+    try:
+        data = json.loads(match.group(1))
+        entity = data.get("props", {}).get("pageProps", {}).get("state", {}).get("data", {}).get("entity", {})
+    except Exception:
+        return []
+
+    if kind == "track":
+        title = entity.get("name") or entity.get("title")
+        artists = [a.get("name") for a in entity.get("artists", []) if isinstance(a, dict) and a.get("name")]
+        artist_str = ", ".join(artists) if artists else (entity.get("subtitle") or "")
+        query = f"{title} {artist_str}".strip()
+        return search(query, 1)
+    else:
+        track_items = entity.get("trackList", [])[:max_tracks]
+        if not track_items:
+            return []
+        queries = []
+        for t in track_items:
+            title = t.get("title")
+            artist = t.get("subtitle") or ""
+            if title:
+                queries.append(f"{title} {artist}".strip())
+
+        def _fetch(q: str):
+            res = search(q, 1)
+            return res[0] if res else None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=min(5, len(queries))) as pool:
+            for item in pool.map(_fetch, queries):
+                if item:
+                    results.append(item)
+        return results
+
+
 def resolve(text: str) -> list[dict]:
     """A song link gives one entry, a playlist (set, album) link gives its songs,
     and anything else is a YouTube search for the best match."""
@@ -126,15 +272,43 @@ def resolve(text: str) -> list[dict]:
         return search(text[:200], 1)
     site = site_of(text)
     if site is None:
-        raise ValueError("chỉ nhận link YouTube, SoundCloud, Zing MP3, Bandcamp, Mixcloud hoặc Jamendo")
+        raise ValueError("link không hợp lệ hoặc không thuộc nguồn internet được hỗ trợ")
+
+    if site == "spotify":
+        return resolve_spotify(text, MAX_PLAYLIST)
+
+    is_playlist = is_playlist_url(text)
     opts = _opts(site, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST)
-    # A watch URL that also carries &list= is treated as the single video.
-    if site == "youtube" and ("watch?" in text or "youtu.be/" in text):
-        opts["noplaylist"] = True
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(text, download=False)
+    if is_playlist:
+        opts["noplaylist"] = False
+    elif site == "youtube" and ("watch?" in text or "youtu.be/" in text):
+        if "list=RD" in text or "list=" not in text:
+            opts["noplaylist"] = True
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(text, download=False)
+    except Exception:
+        if "watch?" in text and not opts.get("noplaylist"):
+            opts["noplaylist"] = True
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(text, download=False)
+        else:
+            raise
+
     if info.get("_type") == "playlist" or "entries" in info:
-        return [x for x in (_entry(e, site) for e in info.get("entries") or []) if x][:MAX_PLAYLIST]
+        entries = info.get("entries") or []
+        out = []
+        for e in entries:
+            if not e:
+                continue
+            entry_obj = _entry(e, site)
+            if entry_obj:
+                out.append(entry_obj)
+            if len(out) >= MAX_PLAYLIST:
+                break
+        return out
+
     e = _entry(info, site)
     return [e] if e else []
 
@@ -143,8 +317,8 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     """Fetches the best audio of a registered track into dest_dir/source.*"""
     site = meta.get("source") or "youtube"
     url = f"https://www.youtube.com/watch?v={meta['id']}" if site == "youtube" else meta["url"]
-    if site_of(url) != site:
-        raise ValueError("link không thuộc nguồn được hỗ trợ")
+    if site_of(url) is None:
+        raise ValueError("link không thuộc nguồn được hỗ trợ hoặc địa chỉ không hợp lệ")
 
     def hook(d):
         if on_progress and d.get("status") == "downloading":
@@ -166,17 +340,24 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-            # Go+ tracks only stream a 30-second preview to everyone else.
             previews = any("preview" in str(f.get("format_id", "")) for f in info.get("requested_downloads") or [])
             if site == "soundcloud" and (previews or (info.get("duration") or 99) <= 31):
                 raise RuntimeError("SoundCloud chỉ cho nghe thử 30 giây bài này")
-            path = Path(info["requested_downloads"][0]["filepath"])
+            if info.get("requested_downloads"):
+                path = Path(info["requested_downloads"][0]["filepath"])
+            elif info.get("_filename"):
+                path = Path(info["_filename"])
+            else:
+                downloaded = list(dest_dir.glob("source.*"))
+                if not downloaded:
+                    raise RuntimeError("không tìm thấy file tải về")
+                path = downloaded[0]
             return path, _entry(info, site) or {}
         except yt_dlp.utils.DownloadError as e:
             last_error = e
             msg = str(e)
             if "VIP" in msg:
-                raise RuntimeError(f"bài này chỉ dành cho tài khoản VIP của {SITE_NAMES[site]}") from None
+                raise RuntimeError(f"bài này chỉ dành cho tài khoản VIP của {SITE_NAMES.get(site, site)}") from None
             if site != "youtube" or ("403" not in msg and "Forbidden" not in msg):
                 raise
     raise last_error

@@ -960,14 +960,21 @@ $("#add-form").addEventListener("submit", async (e) => {
   if (isUrl(text) && !(await consent())) return;
   submit.disabled = true;
   if (isUrl(text)) {
-    box.innerHTML = `<div class="msg">Đang thêm…</div>`;
+    box.innerHTML = `<div class="msg">Đang quét link và nạp danh sách bài…</div>`;
     try {
       const r = await api.add(text);
+      const total = r.added.length;
       const have = r.added.filter((m) => m.status === "ready").length;
-      const todo = r.added.length - have;
-      box.innerHTML = `<div class="msg">${[have && `Đã thêm ${have} bài có sẵn`, todo && `${have ? "" : "Đã thêm "}${todo} bài vào hàng đợi phân tích`].filter(Boolean).join(", ") || "Không thêm được bài nào"}.${r.note ? ` ${esc(r.note)}.` : ""}</div>`;
+      const todo = total - have;
+      let msg = "";
+      if (total > 1) {
+        msg = `Đã nạp thành công <b>${total} bài</b> từ album / playlist (${todo} bài mới vào hàng đợi phân tích)`;
+      } else {
+        msg = [have && `Đã thêm ${have} bài có sẵn`, todo && `${have ? "" : "Đã thêm "}${todo} bài vào hàng đợi phân tích`].filter(Boolean).join(", ") || "Không thêm được bài nào";
+      }
+      box.innerHTML = `<div class="msg">${msg}.${r.note ? ` ${esc(r.note)}.` : ""}</div>`;
       $("#add-input").value = "";
-      setTimeout(() => (box.innerHTML = ""), 3000);
+      setTimeout(() => (box.innerHTML = ""), 4500);
     } catch (err) {
       box.innerHTML = `<div class="msg">Không thêm được: ${esc(err.message)}</div>`;
     }
