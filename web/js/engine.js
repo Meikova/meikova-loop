@@ -64,6 +64,10 @@ export class Engine {
     this.master.connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
     this.voices = new Set();
     this._bgAudio = null;
+    this._shouldBePlaying = false;
+    this._internalPausing = false;
+    this._onExternalPause = null;
+    this._targetVol = 1;
     this._initBgAnchor();
   }
 
@@ -77,8 +81,23 @@ export class Engine {
     return this.ctx.currentTime - lat;
   }
 
+  get targetVol() {
+    return this._targetVol ?? 1;
+  }
+
   setVolume(v) {
+    this._targetVol = v;
     this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
+  }
+
+  async fadeMaster(toVol, durationSec = 0.3) {
+    if (!this.ctx || !this.master) return;
+    const g = this.master.gain;
+    const now = this.ctx.currentTime;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0.0001, g.value), now);
+    g.linearRampToValueAtTime(Math.max(0.0001, toVol), now + durationSec);
+    await new Promise((r) => setTimeout(r, Math.round(durationSec * 1000)));
   }
 
   _initBgAnchor() {
@@ -89,25 +108,64 @@ export class Engine {
       a.playsInline = true;
       a.setAttribute("playsinline", "");
       a.setAttribute("webkit-playsinline", "");
-      a.volume = 0.001;
-      // 1 second of silent 44.1kHz WAV
-      a.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+      a.setAttribute("x-webkit-airplay", "allow");
+      a.volume = 0.01;
+      a.preload = "auto";
+      a.src = "/audio/silence.mp3";
+      a.style.position = "fixed";
+      a.style.width = "1px";
+      a.style.height = "1px";
+      a.style.opacity = "0.01";
+      a.style.pointerEvents = "none";
+      a.style.zIndex = "-1";
+      document.body.appendChild(a);
       this._bgAudio = a;
 
+      // Handle audio interruption / focus loss when another app takes over audio
+      a.addEventListener("pause", () => {
+        if (this._onExternalPause && !this._internalPausing) {
+          this._onExternalPause();
+        }
+      });
+
       document.addEventListener("visibilitychange", () => {
-        if (this.ctx && this.ctx.state === "suspended") {
+        // ONLY resume if user wants playback and hasn't paused!
+        if (this._shouldBePlaying && this.ctx && this.ctx.state === "suspended") {
           this.ctx.resume().catch(() => {});
+          if (this._bgAudio && this._bgAudio.paused) {
+            this._bgAudio.play().catch(() => {});
+          }
         }
       });
     } catch (_) {}
   }
 
-  ensureActive() {
+  startAnchor() {
+    this._shouldBePlaying = true;
     if (this._bgAudio && this._bgAudio.paused) {
       this._bgAudio.play().catch(() => {});
     }
-    if (this.ctx && this.ctx.state === "suspended") {
-      this.ctx.resume().catch(() => {});
+  }
+
+  stopAnchor() {
+    this._shouldBePlaying = false;
+    this._internalPausing = true;
+    if (this._bgAudio && !this._bgAudio.paused) {
+      this._bgAudio.pause();
+    }
+    setTimeout(() => {
+      this._internalPausing = false;
+    }, 120);
+  }
+
+  ensureActive() {
+    if (this._shouldBePlaying) {
+      if (this._bgAudio && this._bgAudio.paused) {
+        this._bgAudio.play().catch(() => {});
+      }
+      if (this.ctx && this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {});
+      }
     }
   }
 

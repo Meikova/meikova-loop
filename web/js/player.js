@@ -241,6 +241,16 @@ export class Player extends EventTarget {
     this.enabled = () => true;
     this.bias = () => 0; // extra appeal of handing over to a song (main.js: staying in a sample library)
     this.timer = null;
+    this.userPaused = false;
+    this.engine._onExternalPause = async () => {
+      if (this.playing && !this.userPaused) {
+        this.userPaused = true;
+        await this.engine.fadeMaster(0.0001, 0.4);
+        await this.engine.ctx.suspend();
+        this.engine.stopAnchor();
+        this.dispatchEvent(new Event("state"));
+      }
+    };
     this.reset();
   }
 
@@ -278,7 +288,12 @@ export class Player extends EventTarget {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.reset();
+    this.userPaused = false;
+    this.engine.startAnchor();
     await this.engine.ctx.resume();
+    if (this.engine.targetVol != null) {
+      this.engine.setVolume(this.engine.targetVol);
+    }
     const t = this.engine.now + 0.15;
     this.stats.startedAt = t;
     const voice = this.engine.voice(track);
@@ -295,14 +310,38 @@ export class Player extends EventTarget {
   async togglePause() {
     if (!this.cur) return;
     const ctx = this.engine.ctx;
-    if (ctx.state === "running") await ctx.suspend();
-    else await ctx.resume();
-    this.dispatchEvent(new Event("state"));
+    if (this.playing) {
+      this.userPaused = true;
+      await this.engine.fadeMaster(0.0001, 0.35);
+      await ctx.suspend();
+      this.engine.stopAnchor();
+      this.dispatchEvent(new Event("state"));
+    } else {
+      this.userPaused = false;
+      this.engine.startAnchor();
+      await ctx.resume();
+      await this.engine.fadeMaster(this.engine.targetVol, 0.25);
+      this.dispatchEvent(new Event("state"));
+    }
+  }
+
+  async play() {
+    if (!this.playing) {
+      await this.togglePause();
+    }
+  }
+
+  async pause() {
+    if (this.playing) {
+      await this.togglePause();
+    }
   }
 
   stop() {
+    this.userPaused = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.engine.stopAnchor();
     this.engine.stopAll();
     this.reset();
     this.dispatchEvent(new Event("state"));
