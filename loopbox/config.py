@@ -1,8 +1,25 @@
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("MASHLOOP_DATA") or ROOT / "data")
+import sys
+
+ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+
+def _resolve_data_dir() -> Path:
+    if os.environ.get("MASHLOOP_DATA"):
+        return Path(os.environ["MASHLOOP_DATA"])
+    if getattr(sys, "frozen", False):
+        try:
+            (ROOT / "data").mkdir(parents=True, exist_ok=True)
+            test_f = ROOT / "data" / ".w_test"
+            test_f.touch()
+            test_f.unlink()
+            return ROOT / "data"
+        except (PermissionError, OSError):
+            return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "MashLoop" / "data"
+    return ROOT / "data"
+
+DATA_DIR = _resolve_data_dir()
 LIBRARY_DIR = DATA_DIR / "library"
 # One file per ordered pair of songs: the transitions from the first to the
 # second. Shared by every listener, so a pair is only ever computed once.
@@ -11,13 +28,16 @@ PAIRS_DIR = DATA_DIR / "pairs"
 # test tools (tools/sim_player.mjs, link_report.py). Written by `cli relink`.
 TRANSITIONS_DIR = DATA_DIR / "transitions"
 WEB_DIR = ROOT / "web"
+MODELS_DIR = ROOT / "data" / "models"
+if not MODELS_DIR.exists() and (DATA_DIR / "models").exists():
+    MODELS_DIR = DATA_DIR / "models"
 
 
 def _env_int(name: str, default: int) -> int:
     return int(os.environ.get(name) or default)
 
 
-HOST = os.environ.get("MASHLOOP_HOST") or "127.0.0.1"
+HOST = os.environ.get("MASHLOOP_HOST") or "0.0.0.0"
 PORT = _env_int("MASHLOOP_PORT", 8765)
 
 # Hosted for many listeners (MASHLOOP_MULTIUSER=1): every visit starts an empty

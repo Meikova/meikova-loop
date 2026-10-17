@@ -18,7 +18,7 @@ import base64
 import numpy as np
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -43,6 +43,10 @@ class AddRequest(BaseModel):
 
 class PatchRequest(BaseModel):
     enabled: bool | None = None
+
+
+class LocalIngestRequest(BaseModel):
+    paths: list[str]
 
 
 def view_of(x_session: str | None = Header(default=None)) -> sessions.View:
@@ -307,6 +311,56 @@ async def upload(request: Request, v: sessions.View = Depends(view_of), x_filena
     return {"added": added}
 
 
+@app.post("/api/desktop/ingest_local")
+def ingest_local(req: LocalIngestRequest, request: Request, v: sessions.View = Depends(view_of)):
+    """Ingest local audio files from the user's computer directly into the library.
+    Restricted to localhost/desktop client."""
+    ip = _ip(request)
+    if ip not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(403, "Local ingestion only available on desktop/local host")
+    if v.room() <= 0:
+        raise HTTPException(409, f"Thư viện đã đủ {MAX_SESSION_TRACKS} bài: bỏ bớt một bài để thêm bài khác")
+
+    room = v.room()
+    valid_paths = []
+    for p_str in req.paths:
+        p = Path(p_str)
+        if p.is_file() and p.suffix.lower() in AUDIO_EXT and not p.name.startswith("._"):
+            valid_paths.append(p)
+            if len(valid_paths) >= room:
+                break
+
+    if not valid_paths:
+        raise HTTPException(400, "Không tìm thấy file nhạc hợp lệ")
+
+    added = []
+    limit = MAX_UPLOAD_MB * 4 * 1024 * 1024
+    for p in valid_paths:
+        try:
+            if p.stat().st_size > limit or p.stat().st_size < 4096:
+                continue
+            h = hashlib.sha1()
+            fd, tmp_name = tempfile.mkstemp(dir=_tmp_dir())
+            tmp = Path(tmp_name)
+            try:
+                with p.open("rb") as src, os.fdopen(fd, "wb") as dst:
+                    while chunk := src.read(1 << 20):
+                        h.update(chunk)
+                        dst.write(chunk)
+                tid = "u" + h.hexdigest()[:16]
+                if _is_new(tid) and worker.backlog() >= MAX_BACKLOG:
+                    continue
+                ingest.register_upload(tid, p.name[:200], tmp)
+                _add(v, tid, added)
+            finally:
+                tmp.unlink(missing_ok=True)
+        except Exception:
+            continue
+
+    note = f"Đã thêm {len(added)} bài từ máy tính" if added else "Không thể đọc các file đã chọn"
+    return {"added": added, "note": note}
+
+
 @app.get("/api/samples")
 def samples():
     """The sample libraries, by theme: songs kept analysed on the server that any
@@ -432,11 +486,54 @@ def _send_sound(path: Path, kid: str, request: Request, v: sessions.View) -> Res
     if not MULTIUSER:
         return FileResponse(path, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=86400"})
     ratelimit.check(_ip(request), "audio")
-    data = np.frombuffer(path.read_bytes(), dtype=np.uint8)
+    file_size = path.stat().st_size
+    range_header = request.headers.get("range")
+    start = 0
+    end = file_size - 1
+    status_code = 200
+    headers = {
+        "Cache-Control": "no-store",
+        "X-Mash": "1",
+        "Accept-Ranges": "bytes",
+    }
+    if range_header:
+        try:
+            unit, ranges = range_header.strip().split("=", 1)
+            if unit.strip().lower() == "bytes":
+                start = max(0, int(r_start)) if r_start.strip() else 0
+                end = int(r_end) if r_end.strip() else file_size - 1
+                if start > end or start >= file_size:
+                    raise HTTPException(416, "Requested Range Not Satisfiable")
+                end = min(end, file_size - 1)
+                status_code = 206
+                headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        except (ValueError, IndexError):
+            pass
+
+    content_length = end - start + 1
+    headers["Content-Length"] = str(content_length)
     ks = np.frombuffer(keystream(v.key, kid), dtype=np.uint8)
-    body = (data ^ np.resize(ks, data.size)).tobytes()
-    return Response(body, media_type="application/octet-stream",
-                    headers={"Cache-Control": "no-store", "X-Mash": "1"})
+
+    def chunk_generator(chunk_size: int = 65536):
+        with open(path, "rb") as f:
+            f.seek(start)
+            remaining = content_length
+            curr_offset = start
+            ks_len = len(ks)
+            while remaining > 0:
+                to_read = min(chunk_size, remaining)
+                raw = f.read(to_read)
+                if not raw:
+                    break
+                data = np.frombuffer(raw, dtype=np.uint8)
+                ks_offset = curr_offset % ks_len
+                repeats = (len(data) + ks_offset + ks_len - 1) // ks_len
+                sub_ks = np.tile(ks, repeats)[ks_offset : ks_offset + len(data)]
+                yield (data ^ sub_ks).tobytes()
+                curr_offset += len(data)
+                remaining -= len(data)
+
+    return StreamingResponse(chunk_generator(), status_code=status_code, media_type="application/octet-stream", headers=headers)
 
 
 @app.get("/api/tracks/{tid}/transitions")
@@ -461,10 +558,11 @@ def main() -> None:
     else:
         sessions.local().link()  # pairs missing after an update are computed in the background
     if args.open:
-        webbrowser.open(f"http://{args.host}:{args.port}")
+        open_host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
+        webbrowser.open(f"http://{open_host}:{args.port}")
     # No access log: the client addresses are not kept anywhere.
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning", access_log=False, proxy_headers=True,
-                forwarded_allow_ips="127.0.0.1")
+                forwarded_allow_ips="*")
 
 
 if __name__ == "__main__":

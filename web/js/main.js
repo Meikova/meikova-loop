@@ -1,5 +1,6 @@
 import { api, hooks, Loader, ready, session } from "./api.js";
 import { Engine } from "./engine.js";
+import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
 import * as theme from "./theme.js";
 import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
@@ -7,6 +8,70 @@ import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
+
+export function showModal({
+  title = "Thông báo",
+  message = "",
+  confirmText = "Đồng ý",
+  cancelText = null,
+  danger = false,
+} = {}) {
+  const dlg = $("#app-modal");
+  if (!dlg || typeof dlg.showModal !== "function") {
+    if (cancelText) return Promise.resolve(window.confirm(message));
+    window.alert(message);
+    return Promise.resolve(true);
+  }
+  const titleEl = $("#modal-title");
+  const bodyEl = $("#modal-body");
+  const cancelBtn = $("#modal-cancel");
+  const okBtn = $("#modal-ok");
+
+  if (titleEl) titleEl.textContent = title;
+  if (bodyEl) bodyEl.textContent = message;
+  if (okBtn) {
+    okBtn.textContent = confirmText;
+    okBtn.classList.toggle("consent__yes--danger", !!danger);
+  }
+
+  if (cancelBtn) {
+    cancelBtn.hidden = !cancelText;
+    if (cancelText) cancelBtn.textContent = cancelText;
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const cleanup = () => {
+      cancelBtn?.removeEventListener("click", onCancel);
+      dlg.removeEventListener("close", onClose);
+    };
+    const onCancel = (e) => {
+      e?.preventDefault();
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      dlg.close("cancel");
+      resolve(false);
+    };
+    const onClose = () => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(dlg.returnValue === "ok");
+    };
+
+    cancelBtn?.addEventListener("click", onCancel, { once: true });
+    dlg.addEventListener("close", onClose, { once: true });
+    dlg.returnValue = "cancel";
+    dlg.showModal();
+    okBtn?.focus();
+  });
+}
+
+// Global alert override so no native white dialog ever appears
+window.alert = (msg) => {
+  showModal({ title: "Thông báo", message: String(msg) });
+};
 
 const engine = new Engine();
 const loader = new Loader(engine);
@@ -80,6 +145,8 @@ const ICON = {
   del: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>',
   inf: '<svg viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>',
 };
+
+setupMediaSession(player, engine, (id) => byId().get(id) || known.get(id));
 
 // ------------------------------------------------------------- segmented
 
@@ -278,7 +345,7 @@ async function play(id) {
     setBusy(true);
     await player.start(id);
   } catch (e) {
-    alert(`Không phát được: ${e.message}`);
+    showModal({ title: "Lỗi phát nhạc", message: `Không phát được: ${e.message}` });
   } finally {
     setBusy(false);
   }
@@ -650,7 +717,16 @@ $("#track-list").addEventListener("click", async (e) => {
       await api.reanalyze(id);
       break;
     case "delete":
-      if (!session.multiuser && !confirm(`Xoá "${m.title}" khỏi thư viện?`)) return;
+      if (!session.multiuser) {
+        const ok = await showModal({
+          title: "Xác nhận xoá",
+          message: `Xoá "${m.title}" khỏi thư viện?`,
+          confirmText: "Xoá",
+          cancelText: "Thôi",
+          danger: true,
+        });
+        if (!ok) return;
+      }
       if (player.cur?.track.id === id) player.stop();
       loader.drop(id);
       forget(id);
@@ -826,6 +902,64 @@ async function uploadFiles(files) {
 $("#file-input").addEventListener("change", (e) => {
   uploadFiles([...e.target.files]);
   e.target.value = "";
+});
+
+// Desktop native integration (pywebview)
+function setupDesktopBridge() {
+  const row = $("#desktop-row");
+  if (!window.pywebview) return;
+  if (row) row.hidden = false;
+
+  $("#btn-desktop-files")?.addEventListener("click", async () => {
+    try {
+      const files = await window.pywebview.api.select_files();
+      if (!files || !files.length) return;
+      $("#search-results").innerHTML = `<div class="msg">Đang chuẩn bị ${files.length} file...</div>`;
+      const r = await api.ingestLocal(files);
+      const added = r?.added?.length || 0;
+      $("#search-results").innerHTML = `<div class="msg">Đã thêm ${added} bài từ máy tính. Đang phân tích...</div>`;
+      refresh();
+      schedulePoll();
+    } catch (err) {
+      $("#search-results").innerHTML = `<div class="msg err">Lỗi thêm file: ${esc(err.message)}</div>`;
+    }
+  });
+
+  $("#btn-desktop-folder")?.addEventListener("click", async () => {
+    try {
+      const files = await window.pywebview.api.select_folder();
+      if (!files || !files.length) return;
+      $("#search-results").innerHTML = `<div class="msg">Tìm thấy ${files.length} bài trong thư mục...</div>`;
+      const r = await api.ingestLocal(files);
+      const added = r?.added?.length || 0;
+      $("#search-results").innerHTML = `<div class="msg">Đã thêm ${added} bài từ thư mục. Đang phân tích...</div>`;
+      refresh();
+      schedulePoll();
+    } catch (err) {
+      $("#search-results").innerHTML = `<div class="msg err">Lỗi chọn thư mục: ${esc(err.message)}</div>`;
+    }
+  });
+}
+
+window.addEventListener("pywebviewready", setupDesktopBridge);
+if (window.pywebview) setupDesktopBridge();
+
+// Mobile Install Modal
+const mobileModal = $("#mobile-modal");
+$("#btn-mobile-modal")?.addEventListener("click", () => {
+  mobileModal?.showModal();
+});
+$("#mobile-modal-close")?.addEventListener("click", () => {
+  mobileModal?.close();
+});
+mobileModal?.addEventListener("click", (e) => {
+  const rect = mobileModal.getBoundingClientRect();
+  const inside =
+    rect.top <= e.clientY &&
+    e.clientY <= rect.top + rect.height &&
+    rect.left <= e.clientX &&
+    e.clientX <= rect.left + rect.width;
+  if (!inside) mobileModal.close();
 });
 
 // Drop files anywhere on the page.

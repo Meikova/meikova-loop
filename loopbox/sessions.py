@@ -2,16 +2,75 @@
 library of its own that starts empty and lives in memory until the visit has
 been idle for SESSION_TTL_S; the songs themselves are a store shared by all
 sessions. Personal, there is one library: the whole store, kept on disk."""
+import json
 import secrets
+import sqlite3
 import threading
 import time
 
 from . import library, worker
-from .config import MAX_SESSION_TRACKS, MULTIUSER, SESSION_TTL_S
+from .config import DATA_DIR, MAX_SESSION_TRACKS, MULTIUSER, SESSION_TTL_S
 
 _lock = threading.RLock()
 _sessions: dict[str, "SessionView"] = {}
 _local = None
+_db_path = DATA_DIR / "sessions.db"
+
+
+def _get_db():
+    conn = sqlite3.connect(str(_db_path), timeout=10.0)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            sid TEXT PRIMARY KEY,
+            key BLOB,
+            created_at REAL,
+            seen REAL,
+            ids TEXT,
+            off TEXT
+        )
+    """)
+    conn.commit()
+    return conn
+
+
+def _save_session_db(v: "SessionView") -> None:
+    try:
+        conn = _get_db()
+        with conn:
+            conn.execute("""
+                INSERT INTO sessions (sid, key, created_at, seen, ids, off)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(sid) DO UPDATE SET
+                    seen = excluded.seen,
+                    ids = excluded.ids,
+                    off = excluded.off
+            """, (v.id, v.key, getattr(v, "created_at", v.seen), v.seen, json.dumps(v.ids), json.dumps(list(v.off))))
+        conn.close()
+    except Exception:
+        pass
+
+
+def _load_session_db(sid: str) -> "SessionView | None":
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT sid, key, created_at, seen, ids, off FROM sessions WHERE sid = ?", (sid,))
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            return None
+        sid, key, created_at, seen, ids_str, off_str = row
+        if time.time() - seen > SESSION_TTL_S:
+            return None
+        v = SessionView(sid)
+        v.key = key
+        v.created_at = created_at
+        v.seen = seen
+        v.ids = json.loads(ids_str or "[]")
+        v.off = set(json.loads(off_str or "[]"))
+        return v
+    except Exception:
+        return None
 
 
 class LimitError(Exception):
@@ -109,6 +168,7 @@ class SessionView(View):
             if tid not in library.samples()["ids"] and self.room() <= 0:
                 raise LimitError(f"Thư viện đã đủ {MAX_SESSION_TRACKS} bài: bỏ bớt một bài để thêm bài khác")
             self.ids.append(tid)
+            _save_session_db(self)
         library.touch(tid)
 
     def remove(self, tid: str) -> None:
@@ -116,10 +176,12 @@ class SessionView(View):
             if tid in self.ids:
                 self.ids.remove(tid)
             self.off.discard(tid)
+            _save_session_db(self)
 
     def set_enabled(self, tid: str, on: bool) -> None:
         with _lock:
             (self.off.discard if on else self.off.add)(tid)
+            _save_session_db(self)
 
 
 class LocalView(View):
@@ -158,6 +220,7 @@ def create() -> View:
     with _lock:
         v = SessionView(sid)
         _sessions[sid] = v
+        _save_session_db(v)
     return v
 
 
@@ -166,12 +229,17 @@ def get(sid: str | None) -> View | None:
         return local()
     with _lock:
         v = _sessions.get(sid or "")
+        if v is None and sid:
+            v = _load_session_db(sid)
+            if v:
+                _sessions[v.id] = v
         if v is None:
             return None
         if time.time() - v.seen > SESSION_TTL_S:
             _sessions.pop(v.id, None)
             return None
         v.seen = time.time()
+        _save_session_db(v)
         return v
 
 
@@ -198,7 +266,18 @@ def in_use() -> set[str]:
         return keep | set(library.ready_ids())
     _sweep()
     with _lock:
-        return keep | {t for v in _sessions.values() for t in v.ids}
+        s_ids = {t for v in _sessions.values() for t in v.ids}
+        try:
+            conn = _get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT ids FROM sessions")
+            for (row,) in cur.fetchall():
+                for tid in json.loads(row or "[]"):
+                    s_ids.add(tid)
+            conn.close()
+        except Exception:
+            pass
+        return keep | s_ids
 
 
 def _sweep() -> None:
@@ -206,6 +285,13 @@ def _sweep() -> None:
     with _lock:
         for sid in [s for s, v in _sessions.items() if now - v.seen > SESSION_TTL_S]:
             _sessions.pop(sid, None)
+        try:
+            conn = _get_db()
+            with conn:
+                conn.execute("DELETE FROM sessions WHERE ? - seen > ?", (now, SESSION_TTL_S))
+            conn.close()
+        except Exception:
+            pass
 
 
 # A song just analysed is linked into every library that holds it; a pair

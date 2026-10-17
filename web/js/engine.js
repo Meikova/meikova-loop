@@ -63,6 +63,8 @@ export class Engine {
     this.analyser.fftSize = 1024;
     this.master.connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
     this.voices = new Set();
+    this._bgAudio = null;
+    this._initBgAnchor();
   }
 
   get now() {
@@ -79,7 +81,38 @@ export class Engine {
     this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
   }
 
+  _initBgAnchor() {
+    if (typeof document === "undefined") return;
+    try {
+      const a = document.createElement("audio");
+      a.loop = true;
+      a.playsInline = true;
+      a.setAttribute("playsinline", "");
+      a.setAttribute("webkit-playsinline", "");
+      a.volume = 0.001;
+      // 1 second of silent 44.1kHz WAV
+      a.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+      this._bgAudio = a;
+
+      document.addEventListener("visibilitychange", () => {
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume().catch(() => {});
+        }
+      });
+    } catch (_) {}
+  }
+
+  ensureActive() {
+    if (this._bgAudio && this._bgAudio.paused) {
+      this._bgAudio.play().catch(() => {});
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
   voice(track) {
+    this.ensureActive();
     const v = new Voice(this, track);
     this.voices.add(v);
     return v;

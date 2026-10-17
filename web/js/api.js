@@ -39,14 +39,21 @@ async function keystream(tid) {
   return out;
 }
 
-async function unscramble(buf, tid) {
+async function unscramble(buf, tid, byteOffset = 0) {
   const ks = new Uint32Array((await keystream(tid)).buffer);
-  const words = Math.floor(buf.byteLength / 4);
-  const data = new Uint32Array(buf, 0, words);
-  for (let i = 0; i < words; i++) data[i] ^= ks[i & 1023];
-  const tail = new Uint8Array(buf, words * 4);
   const ksb = new Uint8Array(ks.buffer);
-  for (let i = 0; i < tail.length; i++) tail[i] ^= ksb[(words * 4 + i) & 4095];
+  const u8 = new Uint8Array(buf);
+  if ((byteOffset & 3) === 0 && (u8.byteOffset & 3) === 0) {
+    const ksOffsetWords = (byteOffset >> 2) & 1023;
+    const words = Math.floor(buf.byteLength / 4);
+    const data32 = new Uint32Array(buf, 0, words);
+    for (let i = 0; i < words; i++) data32[i] ^= ks[(ksOffsetWords + i) & 1023];
+    const tailBytes = buf.byteLength - words * 4;
+    const tailOffset = byteOffset + words * 4;
+    for (let i = 0; i < tailBytes; i++) u8[words * 4 + i] ^= ksb[(tailOffset + i) & 4095];
+  } else {
+    for (let i = 0; i < u8.length; i++) u8[i] ^= ksb[(byteOffset + i) & 4095];
+  }
   return buf;
 }
 
@@ -63,7 +70,13 @@ async function sound(id, kind, kid, retry) {
   }
   if (!r.ok) await fail(r);
   const buf = await r.arrayBuffer();
-  return r.headers.get("X-Mash") === "1" ? unscramble(buf, kid) : buf;
+  const cr = r.headers.get("Content-Range");
+  let byteOffset = 0;
+  if (cr) {
+    const m = /bytes\s+(\d+)-/i.exec(cr);
+    if (m) byteOffset = parseInt(m[1], 10);
+  }
+  return r.headers.get("X-Mash") === "1" ? unscramble(buf, kid, byteOffset) : buf;
 }
 
 async function fail(r) {
@@ -103,6 +116,7 @@ export const api = {
   analysis: (id) => json(`/api/tracks/${id}/analysis`),
   transitions: (id) => json(`/api/tracks/${id}/transitions`),
   samples: () => json("/api/samples"),
+  ingestLocal: (paths) => json("/api/desktop/ingest_local", send("POST", { paths })),
   async audio(id, retry = true) {
     return sound(id, "audio", id, retry);
   },
@@ -142,7 +156,8 @@ export class Loader extends EventTarget {
   constructor(engine, keep = 5) {
     super();
     this.engine = engine;
-    this.keep = keep;
+    const mem = typeof navigator !== "undefined" && navigator.deviceMemory ? navigator.deviceMemory : 4;
+    this.keep = mem <= 4 ? 2 : keep;
     this.cache = new Map(); // id -> {promise, track, used}
     this.metas = new Map();
     this.protect = () => [];
@@ -227,6 +242,10 @@ export class Loader extends EventTarget {
     if (this.cache.size <= this.keep) return;
     const keep = new Set(this.protect());
     const order = [...this.cache.entries()].filter(([id, e]) => !keep.has(id) && e.track).sort((a, b) => a[1].used - b[1].used);
-    while (this.cache.size > this.keep && order.length) this.cache.delete(order.shift()[0]);
+    while (this.cache.size > this.keep && order.length) {
+      const [dropId, entry] = order.shift();
+      if (entry?.track) entry.track.buffer = null;
+      this.cache.delete(dropId);
+    }
   }
 }

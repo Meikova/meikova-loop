@@ -23,6 +23,15 @@ def beat_tracker():
     global _beat_tracker
     with _lock:
         if _beat_tracker is None:
+            from ..config import DATA_DIR, MODELS_DIR
+            onnx_path = MODELS_DIR / "beat_this.onnx"
+            if onnx_path.exists():
+                try:
+                    from .onnx_tracker import ONNXBeatTracker
+                    _beat_tracker = ONNXBeatTracker(onnx_path)
+                    return _beat_tracker
+                except Exception:
+                    pass
             from beat_this.inference import Audio2Beats
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -52,16 +61,24 @@ def separate(y: np.ndarray, keep_stereo: tuple[str, ...] = ()) -> tuple[np.ndarr
     ref = wav.mean(0)
     mean, std = ref.mean(), ref.std() + 1e-8
     dev = device()
+    norm_wav = ((wav - mean) / std)[None]  # Keep on CPU; Demucs chunking transfers each window to device
     try:
         with torch.no_grad():
-            out = apply_model(model, ((wav - mean) / std)[None].to(dev), device=dev,
-                              split=True, overlap=0.1, progress=False)[0]
-    except torch.cuda.OutOfMemoryError:
-        torch.cuda.empty_cache()
+            out = apply_model(model, norm_wav, device=dev,
+                              split=True, overlap=0.1, shifts=0, progress=False)[0]
+    except Exception as e:
+        is_oom = isinstance(e, torch.cuda.OutOfMemoryError) or "out of memory" in str(e).lower() or "cuda" in str(e).lower()
+        if not is_oom:
+            raise
+        if dev == "cuda":
+            torch.cuda.empty_cache()
         with torch.no_grad():
-            out = apply_model(model.cpu(), ((wav - mean) / std)[None], device="cpu",
-                              split=True, overlap=0.1, progress=False)[0]
-        model.to(dev)
+            out = apply_model(model.cpu(), norm_wav, device="cpu",
+                              split=True, overlap=0.1, shifts=0, progress=False)[0]
+        try:
+            model.to(dev)
+        except Exception:
+            pass
     full = (out * std + mean).cpu().numpy()  # (sources, channels, frames)
     names = list(model.sources)
     stereo = {s: np.ascontiguousarray(full[names.index(s)].T.astype(np.float32)) for s in keep_stereo}

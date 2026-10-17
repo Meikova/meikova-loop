@@ -41,6 +41,9 @@ def main():
         per_song.append((beat, len(best), title[a]))
     n_pairs = len(ids) * (len(ids) - 1)
     print(f"{len(ids)} songs, {n_pairs} ordered pairs")
+    if n_pairs == 0:
+        print("  no pairs to report: add songs to library first")
+        return
     for k in KINDS:
         print(f"  best link {k:<6} {pair_best[k]:4d}  ({pair_best[k] / n_pairs:.0%})")
     kinds = Counter(t["type"] for a in ids for t in tr.read(a) if t["to"] in title)

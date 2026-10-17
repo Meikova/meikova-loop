@@ -7,6 +7,10 @@
   <meta name="description" content="Mash ∞ Loop: nghe một bài mãi không dứt, hoặc nối cả thư viện thành một vòng nhạc vô tận.">
   <meta name="theme-color" content="#16120e">
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/icon-512.png">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://mashloop.truclv.com/">
   <meta property="og:title" content="Mash ∞ Loop">
@@ -16,6 +20,10 @@
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
@@ -42,6 +50,10 @@
     </div>
 
     <div class="topbar__end">
+      <button type="button" class="btn-mobile-pill" id="btn-mobile-modal" aria-label="Cài đặt trên điện thoại Android & iOS">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <span>Cài Mobile</span>
+      </button>
       <span class="keys" aria-hidden="true"><kbd>Space</kbd><kbd>J</kbd><kbd>N</kbd><kbd>K</kbd></span>
       <a class="to-panel" href="#panel">Thư viện</a>
     </div>
@@ -113,6 +125,16 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg>
             <span><b>Tải file nhạc lên</b>hoặc thả vào đây · MP3, M4A, FLAC, WAV, cả file zip<span id="upload-limit"></span></span>
           </label>
+          <div class="desktop-row" id="desktop-row" hidden>
+            <button type="button" class="btn-desktop" id="btn-desktop-files">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3-3 3 3"/></svg>
+              <span>Chọn file từ máy</span>
+            </button>
+            <button type="button" class="btn-desktop" id="btn-desktop-folder">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+              <span>Chọn thư mục nhạc</span>
+            </button>
+          </div>
           <input id="file-input" class="sr" type="file" accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.webm,.zip,application/zip" multiple>
           <p class="hint" id="add-hint">Bài mới được tải về, tách beat và giọng hát, rồi tự nối vào chuỗi.</p>
         </form>
@@ -383,6 +405,77 @@
     </form>
   </dialog>
 
+  <!-- Universal modal dialog (alert / confirm) matching MashLoop ambient dark style -->
+  <dialog class="consent modal-dialog" id="app-modal" aria-labelledby="modal-title" aria-describedby="modal-body">
+    <form method="dialog">
+      <h2 id="modal-title">Thông báo</h2>
+      <p id="modal-body"></p>
+      <div class="consent__acts" id="modal-acts">
+        <button type="button" class="consent__no" id="modal-cancel">Thôi</button>
+        <button type="submit" value="ok" class="consent__yes" id="modal-ok" autofocus>Đồng ý</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Modal hướng dẫn cài đặt & tải app Mobile qua Tailscale IP -->
+  <dialog class="consent mobile-modal" id="mobile-modal" aria-labelledby="mobile-modal-title">
+    <div class="mobile-modal__head">
+      <div class="mobile-modal__title-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <h2 id="mobile-modal-title">Cài MashLoop trên Mobile</h2>
+      </div>
+      <button type="button" class="mobile-modal__close" id="mobile-modal-close" aria-label="Đóng">✕</button>
+    </div>
+
+    <p class="mobile-modal__sub">Đã kết nối máy chủ Tailscale: <span class="mono mobile-modal__ip">http://100.118.230.52:8765</span></p>
+
+    <div class="mobile-modal__qr-card">
+      <div class="mobile-modal__qr-frame">
+        <img src="img/qr-tailscale.svg" alt="QR Code 100.118.230.52:8765" width="130" height="130">
+      </div>
+      <div class="mobile-modal__qr-info">
+        <p><b>Quét Camera iPhone / Android</b>để mở ứng dụng tức thì qua mạng Tailscale.</p>
+        <a href="http://100.118.230.52:8765" target="_blank" class="mobile-modal__link mono">http://100.118.230.52:8765 ↗</a>
+      </div>
+    </div>
+
+    <div class="mobile-modal__platforms">
+      <!-- iOS Card -->
+      <div class="mobile-card">
+        <div class="mobile-card__head">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
+          <h3>iOS (iPhone)</h3>
+        </div>
+        <ol class="mobile-steps">
+          <li>Mở <b>Safari</b> trên iPhone, truy cập địa chỉ Tailscale hoặc quét mã QR.</li>
+          <li>Bấm nút <b>Chia sẻ</b> (biểu tượng mũi tên hướng lên) ở thanh dưới Safari.</li>
+          <li>Chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li>
+          <li>Ứng dụng chạy toàn màn hình, hỗ trợ Dynamic Island và phát nền khi khoá máy.</li>
+        </ol>
+        <p class="mobile-card__note">Mã nguồn Xcode native tại: <code class="mono">ios/App</code></p>
+      </div>
+
+      <!-- Android Card -->
+      <div class="mobile-card">
+        <div class="mobile-card__head">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+          <h3>Android</h3>
+        </div>
+        <ol class="mobile-steps">
+          <li>Mở <b>Chrome</b> trên điện thoại, truy cập link Tailscale hoặc quét mã QR.</li>
+          <li>Bấm menu <b>⋮</b> góc trên → chọn <b>Cài đặt ứng dụng</b> (Install App).</li>
+          <li>Hoặc build file <b>APK</b> từ thư mục Android Studio: <code class="mono">android/</code></li>
+        </ol>
+        <p class="mobile-card__note">Quyền chạy nền <code class="mono">WAKE_LOCK</code> & <code class="mono">FOREGROUND_SERVICE</code> đã được bật sẵn.</p>
+      </div>
+    </div>
+  </dialog>
+
   <script type="module" src="js/main.js"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
+  </script>
 </body>
 </html>

@@ -1,8 +1,21 @@
-# Mash ∞ Loop
+# Mash ∞ Loop (Desktop & Mobile Fork)
+
+> [!NOTE]
+> **Thông tin Fork & Bản quyền Tác giả Gốc:**
+> - **Tác giả gốc (Original Author):** **Truc** ([@lvt1693](https://github.com/lvt1693))
+> - **Kho mã nguồn gốc (Original Repository):** [https://github.com/lvt1693/mashloop](https://github.com/lvt1693/mashloop)
+> - **Trang web chính thức:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
+> - **Bản fork phát triển bởi:** **Phạm Doãn Kiếm** ([@kiempham1245](https://github.com/kiempham1245))
+>
+> **Các tính năng mở rộng trong bản fork này:**
+> 1. 🖥️ **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MashLoop/MashLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
+> 2. ⚡ **ONNX Inference & Tối ưu VRAM GPU:** Chuyển đổi mô hình `Beat This!` sang ONNX Runtime; cơ chế Demucs streaming theo từng chunk 7.8s giúp card đồ họa 4GB VRAM (như GTX 1650 Ti) chạy mượt mà không bị lỗi `CUDA error: out of memory`.
+> 3. 📱 **Mobile Shell & Tailscale Streaming:** Hỗ trợ kết nối mượt qua mạng riêng ảo Tailscale, bộ icon PWA/Retina siêu nét cho iOS/Android, xử lý Safe-Area tai thỏ/Dynamic Island, tích hợp MediaSession API phát nhạc nền.
+> 4. 🛠️ **Vá lỗi mạng & Stream Windows:** Khắc phục triệt để `ConnectionResetError [WinError 10054]` trên Windows Proactor EventLoop và kiểm soát HTTP Range requests.
 
 Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
 
-**Nghe thử:** https://mashloop.truclv.com
+**Nghe thử bản gốc:** https://mashloop.truclv.com
 
 - [x] **15/10** Bản đầu: lặp vô hạn, nối bài khớp nhịp, màu theo mood, bản web cho nhiều người.
 - [x] **16/10** Key lock, tách giọng, 9 kho có sẵn, thêm các kiểu chuyển bài (mashup, double drop, build-up…), bấm vòng để tua.

@@ -1118,13 +1118,56 @@ def compute_pair(a: str, b: str) -> None:
     library.write_json(path, {"version": TRANSITIONS_VERSION, "from": a, "to": b, "items": items, "fade": r["fade"]})
 
 
-def link(tid: str, others: list[str]) -> int:
-    """Computes the missing pairs between tid and each of `others`, both ways.
-    Returns how many were computed."""
-    n = 0
+def _camelot_distance(c1: str | None, c2: str | None) -> int:
+    if not c1 or not c2:
+        return 6
+    try:
+        n1, l1 = int(c1[:-1]), c1[-1].upper()
+        n2, l2 = int(c2[:-1]), c2[-1].upper()
+        diff = abs(n1 - n2)
+        diff = min(diff, 12 - diff)
+        return diff + (1 if l1 != l2 else 0)
+    except (ValueError, IndexError):
+        return 6
+
+
+def prioritize_candidates(tid: str, others: list[str]) -> list[str]:
+    """Ranks partner candidates by fast musical compatibility heuristic (BPM, Camelot, Mood)
+    so the best transitions are computed first and libraries are rapidly connected."""
+    meta_a = library.read_meta(tid) or {}
+    bpm_a = float(meta_a.get("bpm") or 120.0)
+    cam_a = meta_a.get("camelot")
+    mood_a = meta_a.get("mood") or {}
+    ea, va = float(mood_a.get("energy", 0.5)), float(mood_a.get("valence", 0.5))
+
+    scored = []
     for o in others:
         if o == tid:
             continue
+        meta_b = library.read_meta(o) or {}
+        bpm_b = float(meta_b.get("bpm") or 120.0)
+        cam_b = meta_b.get("camelot")
+        mood_b = meta_b.get("mood") or {}
+        eb, vb = float(mood_b.get("energy", 0.5)), float(mood_b.get("valence", 0.5))
+
+        ratio = bpm_a / max(1.0, bpm_b)
+        tempo_penalty = min(abs(ratio - 1.0), abs(ratio - 2.0), abs(ratio - 0.5))
+        cam_dist = _camelot_distance(cam_a, cam_b)
+        mood_dist = math.hypot(ea - eb, va - vb)
+
+        score = tempo_penalty * 3.0 + (cam_dist / 6.0) * 1.5 + mood_dist
+        scored.append((score, o))
+
+    scored.sort(key=lambda x: x[0])
+    return [o for _, o in scored]
+
+
+def link(tid: str, others: list[str]) -> int:
+    """Computes the missing pairs between tid and each of `others`, prioritized by
+    musical compatibility. Returns how many were computed."""
+    n = 0
+    ranked = prioritize_candidates(tid, others)
+    for o in ranked:
         for a, b in ((tid, o), (o, tid)):
             if not has_pair(a, b):
                 try:
