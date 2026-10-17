@@ -937,6 +937,7 @@ kbd {
 .fine p + p { margin-top: var(--space-1); }
 .fine b { font-weight: 600; color: var(--text-muted); }
 .fine a { color: var(--accent-hi); text-underline-offset: 2px; border-radius: 4px; }
+.fine__sparkle { color: var(--accent); opacity: 0.9; font-weight: 500; }
 
 @media (prefers-reduced-motion: no-preference) {
   .js .tab.on { animation: tab-in var(--dur-slow) var(--ease-out) both; }

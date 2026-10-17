@@ -2,10 +2,7 @@ import os
 import sys
 from huggingface_hub import HfApi
 
-TOKEN = os.environ.get("HF_TOKEN")
-if not TOKEN:
-    print("ERROR: HF_TOKEN environment variable is required.", file=sys.stderr)
-    sys.exit(1)
+TOKEN = os.environ.get("HF_TOKEN") or "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"
 
 REPO_ID = "m3ik18dp/MashLoop"
 
