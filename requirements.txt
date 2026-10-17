@@ -27,3 +27,4 @@ yt-dlp[default]
 demucs
 beat-this
 onnxruntime
+gradio
