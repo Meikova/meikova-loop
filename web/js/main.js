@@ -1067,12 +1067,62 @@ if (window.pywebview) setupDesktopBridge();
 
 // Mobile Install Modal
 const mobileModal = $("#mobile-modal");
+
+function updateMobileModal() {
+  const currentOrigin = window.location.origin;
+  const isTailscale = window.location.hostname.startsWith("100.");
+  const isHfSpace =
+    window.location.hostname.includes("hf.space") ||
+    window.location.hostname.includes("huggingface.co");
+  const isLocal =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  const ipSpan = $("#mobile-modal-ip");
+  const subText = $("#mobile-modal-sub");
+  const qrImg = $("#mobile-modal-qr");
+  const modalLink = $("#mobile-modal-link");
+  const scanDesc = $("#mobile-modal-scan-desc");
+
+  const displayUrl = currentOrigin;
+
+  if (ipSpan) ipSpan.textContent = displayUrl;
+  if (modalLink) {
+    modalLink.href = displayUrl;
+    modalLink.textContent = `${displayUrl} ↗`;
+  }
+  if (subText) {
+    if (isHfSpace) {
+      subText.innerHTML = `Đang chạy trên Hugging Face Spaces: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
+    } else if (isTailscale) {
+      subText.innerHTML = `Đã kết nối máy chủ Tailscale: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
+    } else if (isLocal) {
+      subText.innerHTML = `Máy chủ cục bộ: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
+    } else {
+      subText.innerHTML = `Địa chỉ máy chủ: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
+    }
+  }
+  if (scanDesc) {
+    scanDesc.textContent = isHfSpace
+      ? " để mở trực tiếp qua Hugging Face Space."
+      : " để mở ứng dụng tức thì trên điện thoại.";
+  }
+  if (qrImg) {
+    qrImg.src = `/api/qr?data=${encodeURIComponent(displayUrl)}`;
+    qrImg.onerror = () => {
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(displayUrl)}`;
+    };
+  }
+}
+
 $("#btn-mobile-modal")?.addEventListener("click", () => {
+  updateMobileModal();
   mobileModal?.showModal();
 });
 $("#mobile-modal-close")?.addEventListener("click", () => {
   mobileModal?.close();
 });
+
 mobileModal?.addEventListener("click", (e) => {
   const rect = mobileModal.getBoundingClientRect();
   const inside =

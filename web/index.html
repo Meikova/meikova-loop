@@ -417,8 +417,9 @@
 
       <!-- Hosted only (main.js shows it). -->
       <footer class="fine" id="fine" hidden>
-        <p><b>Dự án làm cho vui, phi thương mại:</b> không quảng cáo, không thu tiền, không cần tài khoản. Server không lưu địa chỉ IP hay thông tin cá nhân nào của bạn.</p>
-        <p>Nhạc thuộc về tác giả và chủ sở hữu. File nhạc tự xoá khỏi server sau <span data-ttl>12</span> giờ không ai nghe. Cần gỡ một bài? <a href="https://github.com/lvt1693/mashloop/issues" target="_blank" rel="noopener">Báo qua GitHub</a>.</p>
+        <p><b>Dự án phi thương mại & mã nguồn mở:</b> Không quảng cáo, không thu phí, không cần tài khoản. Server không lưu địa chỉ IP hay dữ liệu cá nhân.</p>
+        <p>Nhạc thuộc bản quyền của nghệ sĩ và tác giả sở hữu. File âm thanh tự xoá sau <span data-ttl>12</span> giờ không ai nghe. Cần gỡ bài? <a href="https://github.com/m3iK18dp/mashloop/issues" target="_blank" rel="noopener">Báo qua GitHub</a>.</p>
+        <p>Bản gốc bởi <a href="https://github.com/lvt1693/mashloop" target="_blank" rel="noopener">Truc (@lvt1693)</a> · Phát triển mở rộng bởi <a href="https://github.com/m3iK18dp/mashloop" target="_blank" rel="noopener">Phạm Doãn Kiếm (@m3iK18dp)</a>.</p>
       </footer>
     </aside>
   </main>
@@ -462,15 +463,15 @@
       <button type="button" class="mobile-modal__close" id="mobile-modal-close" aria-label="Đóng">✕</button>
     </div>
 
-    <p class="mobile-modal__sub">Đã kết nối máy chủ Tailscale: <span class="mono mobile-modal__ip">http://100.118.230.52:8765</span></p>
+    <p class="mobile-modal__sub" id="mobile-modal-sub">Địa chỉ truy cập: <span class="mono mobile-modal__ip" id="mobile-modal-ip">http://100.118.230.52:8765</span></p>
 
     <div class="mobile-modal__qr-card">
       <div class="mobile-modal__qr-frame">
-        <img src="img/qr-tailscale.svg" alt="QR Code 100.118.230.52:8765" width="130" height="130">
+        <img id="mobile-modal-qr" src="img/qr-tailscale.svg" alt="QR Code" width="130" height="130">
       </div>
       <div class="mobile-modal__qr-info">
-        <p><b>Quét Camera iPhone / Android</b>để mở ứng dụng tức thì qua mạng Tailscale.</p>
-        <a href="http://100.118.230.52:8765" target="_blank" class="mobile-modal__link mono">http://100.118.230.52:8765 ↗</a>
+        <p><b>Quét Camera iPhone / Android</b><span id="mobile-modal-scan-desc">để mở ứng dụng tức thì trên điện thoại.</span></p>
+        <a id="mobile-modal-link" href="http://100.118.230.52:8765" target="_blank" class="mobile-modal__link mono">http://100.118.230.52:8765 ↗</a>
       </div>
     </div>
 
@@ -482,7 +483,7 @@
           <h3>iOS (iPhone)</h3>
         </div>
         <ol class="mobile-steps">
-          <li>Mở <b>Safari</b> trên iPhone, truy cập địa chỉ Tailscale hoặc quét mã QR.</li>
+          <li>Mở <b>Safari</b> trên iPhone, truy cập địa chỉ máy chủ hoặc quét mã QR.</li>
           <li>Bấm nút <b>Chia sẻ</b> (biểu tượng mũi tên hướng lên) ở thanh dưới Safari.</li>
           <li>Chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li>
           <li>Ứng dụng chạy toàn màn hình, hỗ trợ Dynamic Island và phát nền khi khoá máy.</li>
@@ -497,7 +498,7 @@
           <h3>Android</h3>
         </div>
         <ol class="mobile-steps">
-          <li>Mở <b>Chrome</b> trên điện thoại, truy cập link Tailscale hoặc quét mã QR.</li>
+          <li>Mở <b>Chrome</b> trên điện thoại, truy cập link web hoặc quét mã QR.</li>
           <li>Bấm menu <b>⋮</b> góc trên → chọn <b>Cài đặt ứng dụng</b> (Install App).</li>
           <li>Hoặc build file <b>APK</b> từ thư mục Android Studio: <code class="mono">android/</code></li>
         </ol>
@@ -547,7 +548,7 @@
   <script type="module" src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("sw.js?v=11").then((reg) => {
+      navigator.serviceWorker.register("sw.js?v=12").then((reg) => {
         reg.update();
       }).catch(() => {});
     }

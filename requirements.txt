@@ -28,5 +28,6 @@ demucs
 beat-this
 onnxruntime
 gradio
+qrcode
 pywebview
 pythonnet; sys_platform == 'win32'

@@ -17,18 +17,23 @@ license: mit
 > **Thông tin Fork & Bản quyền Tác giả Gốc:**
 > - **Tác giả gốc (Original Author):** **Truc** ([@lvt1693](https://github.com/lvt1693))
 > - **Kho mã nguồn gốc (Original Repository):** [https://github.com/lvt1693/mashloop](https://github.com/lvt1693/mashloop)
-> - **Trang web chính thức:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
+> - **Trang web chính thức của tác giả:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
 > - **Bản fork phát triển bởi:** **Phạm Đoàn Kiếm** ([@m3iK18dp](https://github.com/m3iK18dp))
+> - **Bản web trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space) (hoặc xem tại [Hugging Face Space](https://huggingface.co/spaces/m3ik18dp/MashLoop))
 >
 > **Các tính năng mở rộng trong bản fork này:**
 > 1. 🖥️ **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MashLoop/MashLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
 > 2. ⚡ **ONNX Inference & Tối ưu VRAM GPU:** Chuyển đổi mô hình `Beat This!` sang ONNX Runtime; cơ chế Demucs streaming theo từng chunk 7.8s giúp card đồ họa 4GB VRAM (như GTX 1650 Ti) chạy mượt mà không bị lỗi `CUDA error: out of memory`.
 > 3. 📱 **Mobile Shell & Tailscale Streaming:** Hỗ trợ kết nối mượt qua mạng riêng ảo Tailscale, bộ icon PWA/Retina siêu nét cho iOS/Android, xử lý Safe-Area tai thỏ/Dynamic Island, tích hợp MediaSession API phát nhạc nền.
-> 4. 🛠️ **Vá lỗi mạng & Stream Windows:** Khắc phục triệt để `ConnectionResetError [WinError 10054]` trên Windows Proactor EventLoop và kiểm soát HTTP Range requests.
+> 4. 🎛️ **The Deck & Tiện ích Nghe nhạc:** Hẹn giờ tắt nhạc (Sleep Timer) có làm dịu âm lượng thông minh trong 8s cuối, nút Khóa bài (`L`), Lọc âm đêm dịu tai High-Shelf EQ (`E`), Tắt tiếng nhanh (`M`), Bảng phím tắt & Trợ giúp (`?`).
+> 5. ☁️ **Deploy Cloud Hugging Face ZeroGPU:** Triển khai trực tiếp trên Hugging Face Spaces với ZeroGPU A10G, mã QR cài đặt mobile tự thích ứng tên miền.
+> 6. 🛠️ **Vá lỗi mạng & Stream Windows:** Khắc phục triệt để `ConnectionResetError [WinError 10054]` trên Windows Proactor EventLoop, sửa lỗi khóa tệp `[WinError 5]` và kiểm soát HTTP Range requests.
 
 Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
 
-**Nghe thử bản gốc:** https://mashloop.truclv.com
+- 🌐 **Trải nghiệm trực tuyến (Bản fork trên HF Space):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space)
+- 🎧 **Nghe thử bản gốc:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
+
 
 - [x] **15/10** Bản đầu: lặp vô hạn, nối bài khớp nhịp, màu theo mood, bản web cho nhiều người.
 - [x] **16/10** Key lock, tách giọng, 9 kho có sẵn, thêm các kiểu chuyển bài (mashup, double drop, build-up…), bấm vòng để tua.
@@ -98,12 +103,10 @@ trống chưa khớp nhịp thì không crossfade chồng lên nhau.
 
 ## Dùng bản trên web
 
-Mở https://mashloop.truclv.com. Mỗi lần mở trang là một thư viện mới, trống trơn,
-của riêng bạn. Chưa biết thêm gì thì mở một trong 9 kho có sẵn: Pass The Aux (làm
-bằng Suno), Pop, Rock, Hip-hop, Electro & Dance, Chill & Lofi, Acoustic, Remix
-ccMixter, Kevin MacLeod. Tám kho sau là nhạc Creative Commons từ Jamendo, ccMixter và
-Incompetech, có ghi tên tác giả. Nghe hết một kho thì nó tự nối sang kho kế, hoặc
-bấm *Kho khác*.
+- 🚀 **Bản trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space)
+- 🎧 **Bản gốc của tác giả:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
+
+Mỗi lần mở trang là một thư viện mới, trống trơn, của riêng bạn. Chưa biết thêm gì thì mở một trong 9 kho có sẵn: Pass The Aux (làm bằng Suno), Pop, Rock, Hip-hop, Electro & Dance, Chill & Lofi, Acoustic, Remix ccMixter, Kevin MacLeod. Tám kho sau là nhạc Creative Commons từ Jamendo, ccMixter và Incompetech, có ghi tên tác giả. Nghe hết một kho thì nó tự nối sang kho kế, hoặc bấm *Kho khác*.
 
 - Mỗi thư viện tối đa 10 bài tự thêm. Bài người khác đã thêm trước đó thì vào ngay,
   không phải chờ phân tích; bài mới mất chừng 20 giây.

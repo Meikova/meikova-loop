@@ -2,7 +2,7 @@
 #define MyAppName "MashLoop"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Truc LV"
-#define MyAppURL "https://github.com/lvt1693/mashloop"
+#define MyAppURL "https://github.com/m3iK18dp/mashloop"
 #define MyAppExeName "MashLoop.exe"
 
 [Setup]

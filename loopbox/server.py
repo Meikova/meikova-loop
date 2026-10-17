@@ -543,7 +543,27 @@ def transitions(tid: str, v: sessions.View = Depends(view_of)):
     return {"items": v.transitions(tid), "onward": v.onward(tid)}
 
 
+@app.get("/api/qr")
+def get_qr(data: str | None = None, request: Request = None):
+    import io
+    import qrcode
+    import qrcode.image.svg
+    text = (data or str(request.base_url)).strip()
+    if len(text) > 2048:
+        raise HTTPException(400, "data too long")
+    factory = qrcode.image.svg.SvgPathImage
+    img = qrcode.make(text, image_factory=factory)
+    buf = io.BytesIO()
+    img.save(buf)
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"}
+    )
+
+
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+
 
 
 def main() -> None:
