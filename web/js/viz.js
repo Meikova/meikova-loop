@@ -172,17 +172,16 @@ export class Viz {
 
   _resize() {
     const box = this.canvas.parentElement.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     this.w = Math.max(200, box.width);
     this.h = Math.max(200, box.height);
     this.canvas.width = Math.round(this.w * dpr);
     this.canvas.height = Math.round(this.h * dpr);
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = "high";
     this.baseR = Math.min(this.w, this.h) * 0.37;
-    // A loop's layer takes a while to draw, and a resize (a line of text below
-    // the stage wrapping differently) would otherwise blank the stage for a
-    // tenth of a second while every layer is redrawn. The layers scale with
-    // the loops anyway: redraw them only when the size really changed.
-    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.15) {
+    // Redraw layers when scale changes by more than 3% to keep hairlines crisp
+    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.03) {
       this.layerR = this.baseR;
       this.invalidate();
     }
@@ -262,6 +261,8 @@ export class Viz {
     c.width = Math.round(S * this.dpr);
     c.height = Math.round(S * this.dpr);
     const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.scale(this.dpr, this.dpr);
     ctx.translate(S / 2, S / 2);
     const a = track.analysis;
@@ -787,7 +788,7 @@ export class Viz {
 
   _drawRing(ctx, ring) {
     if (ring.alpha < 0.01 || ring.x === null) return;
-    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.layerR.toFixed(1)}|${theme.paletteVersion()}`;
+    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.layerR.toFixed(1)}|${this.dpr}|${theme.paletteVersion()}`;
     if (ring.layerKey !== key) {
       ring.layer = this._buildLayer(ring.track);
       ring.layerKey = key;
@@ -795,6 +796,8 @@ export class Viz {
     const L = ring.layer;
     const s = ring.r / L.RL;
     ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.globalAlpha = Math.min(1, ring.alpha);
     ctx.translate(ring.x, ring.y);
     ctx.rotate(ring.rot);
