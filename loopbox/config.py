@@ -5,6 +5,17 @@ import sys
 
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
+def _load_env_file() -> None:
+    env_file = ROOT / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+
+_load_env_file()
+
 def _resolve_data_dir() -> Path:
     if os.environ.get("MASHLOOP_DATA"):
         return Path(os.environ["MASHLOOP_DATA"])
