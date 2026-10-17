@@ -5,7 +5,7 @@
 > - **Tác giả gốc (Original Author):** **Truc** ([@lvt1693](https://github.com/lvt1693))
 > - **Kho mã nguồn gốc (Original Repository):** [https://github.com/lvt1693/mashloop](https://github.com/lvt1693/mashloop)
 > - **Trang web chính thức:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
-> - **Bản fork phát triển bởi:** **Phạm Doãn Kiếm** ([@kiempham1245](https://github.com/kiempham1245))
+> - **Bản fork phát triển bởi:** **Phạm Doãn Kiếm** ([@m3iK18dp](https://github.com/m3iK18dp))
 >
 > **Các tính năng mở rộng trong bản fork này:**
 > 1. 🖥️ **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MashLoop/MashLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
