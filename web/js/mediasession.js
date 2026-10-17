@@ -36,7 +36,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
   }
 
   function updatePlaybackState() {
-    navigator.mediaSession.playbackState = player.playing ? "playing" : "paused";
+    navigator.mediaSession.playbackState = (player.cur && !player.userPaused && player.playing) ? "playing" : "paused";
   }
 
   function updatePositionState() {
@@ -77,14 +77,17 @@ export function setupMediaSession(player, engine, getSongMeta) {
   };
 
   safeSetHandler("play", async () => {
+    navigator.mediaSession.playbackState = "playing";
     await player.play();
   });
 
   safeSetHandler("pause", async () => {
+    navigator.mediaSession.playbackState = "paused";
     await player.pause();
   });
 
   safeSetHandler("stop", () => {
+    navigator.mediaSession.playbackState = "paused";
     player.stop();
   });
 

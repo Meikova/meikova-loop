@@ -242,14 +242,9 @@ export class Player extends EventTarget {
     this.bias = () => 0; // extra appeal of handing over to a song (main.js: staying in a sample library)
     this.timer = null;
     this.userPaused = false;
+    this._pauseTransition = false;
     this.engine._onExternalPause = async () => {
-      if (this.playing && !this.userPaused) {
-        this.userPaused = true;
-        await this.engine.fadeMaster(0.0001, 0.4);
-        await this.engine.ctx.suspend();
-        this.engine.stopAnchor();
-        this.dispatchEvent(new Event("state"));
-      }
+      await this.pause();
     };
     this.reset();
   }
@@ -279,7 +274,7 @@ export class Player extends EventTarget {
   }
 
   get playing() {
-    return this.timer !== null && this.engine.ctx.state === "running";
+    return !this.userPaused && this.timer !== null && this.engine.ctx.state === "running";
   }
 
   async start(trackId) {
@@ -307,33 +302,40 @@ export class Player extends EventTarget {
     this.dispatchEvent(new Event("state"));
   }
 
-  async togglePause() {
-    if (!this.cur) return;
-    const ctx = this.engine.ctx;
-    if (this.playing) {
+  async pause() {
+    if (!this.cur || this.userPaused || this._pauseTransition) return;
+    this._pauseTransition = true;
+    try {
       this.userPaused = true;
-      await this.engine.fadeMaster(0.0001, 0.35);
-      await ctx.suspend();
       this.engine.stopAnchor();
       this.dispatchEvent(new Event("state"));
-    } else {
-      this.userPaused = false;
-      this.engine.startAnchor();
-      await ctx.resume();
-      await this.engine.fadeMaster(this.engine.targetVol, 0.25);
+      await this.engine.fadeMaster(0.0001, 0.1);
+      await this.engine.ctx.suspend();
       this.dispatchEvent(new Event("state"));
+    } finally {
+      this._pauseTransition = false;
     }
   }
 
   async play() {
-    if (!this.playing) {
-      await this.togglePause();
+    if (!this.cur || (!this.userPaused && this.playing) || this._pauseTransition) return;
+    this._pauseTransition = true;
+    try {
+      this.userPaused = false;
+      this.engine.startAnchor();
+      await this.engine.ctx.resume();
+      this.dispatchEvent(new Event("state"));
+      await this.engine.fadeMaster(this.engine.targetVol, 0.15);
+    } finally {
+      this._pauseTransition = false;
     }
   }
 
-  async pause() {
-    if (this.playing) {
-      await this.togglePause();
+  async togglePause() {
+    if (this.playing && !this.userPaused) {
+      await this.pause();
+    } else {
+      await this.play();
     }
   }
 

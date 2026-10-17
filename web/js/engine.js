@@ -151,11 +151,13 @@ export class Engine {
     this._shouldBePlaying = false;
     this._internalPausing = true;
     if (this._bgAudio && !this._bgAudio.paused) {
-      this._bgAudio.pause();
+      try {
+        this._bgAudio.pause();
+      } catch (_) {}
     }
     setTimeout(() => {
       this._internalPausing = false;
-    }, 120);
+    }, 300);
   }
 
   ensureActive() {
@@ -170,7 +172,6 @@ export class Engine {
   }
 
   voice(track) {
-    this.ensureActive();
     const v = new Voice(this, track);
     this.voices.add(v);
     return v;
