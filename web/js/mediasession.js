@@ -67,6 +67,13 @@ export function setupMediaSession(player, engine, getSongMeta) {
     updatePositionState();
   });
 
+  player.addEventListener("expired", () => {
+    try {
+      navigator.mediaSession.playbackState = "none";
+      navigator.mediaSession.metadata = null;
+    } catch (_) {}
+  });
+
   // Action handlers
   const safeSetHandler = (action, handler) => {
     try {
@@ -87,7 +94,10 @@ export function setupMediaSession(player, engine, getSongMeta) {
   });
 
   safeSetHandler("stop", () => {
-    navigator.mediaSession.playbackState = "paused";
+    try {
+      navigator.mediaSession.playbackState = "none";
+      navigator.mediaSession.metadata = null;
+    } catch (_) {}
     player.stop();
   });
 

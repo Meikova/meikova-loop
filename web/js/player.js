@@ -246,6 +246,11 @@ export class Player extends EventTarget {
     this.engine._onExternalPause = async () => {
       await this.pause();
     };
+    this.engine._onAnchorExpired = () => {
+      if (this.userPaused) {
+        this.dispatchEvent(new Event("expired"));
+      }
+    };
     this.reset();
   }
 
@@ -353,10 +358,11 @@ export class Player extends EventTarget {
     this.userPaused = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.engine.stopAnchor();
+    this.engine.stopAnchor(true);
     this.engine.stopAll();
     this.reset();
     this.dispatchEvent(new Event("state"));
+    this.dispatchEvent(new Event("expired"));
   }
 
   requestJump() {

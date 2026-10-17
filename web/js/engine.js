@@ -67,6 +67,8 @@ export class Engine {
     this._shouldBePlaying = false;
     this._internalPausing = false;
     this._onExternalPause = null;
+    this._onAnchorExpired = null;
+    this._anchorTimer = null;
     this._targetVol = 1;
     this._initBgAnchor();
   }
@@ -135,13 +137,33 @@ export class Engine {
 
   startAnchor() {
     this._shouldBePlaying = true;
+    if (this._anchorTimer) {
+      clearTimeout(this._anchorTimer);
+      this._anchorTimer = null;
+    }
     if (this._bgAudio && this._bgAudio.paused) {
       this._bgAudio.play().catch(() => {});
     }
   }
 
-  stopAnchor() {
+  stopAnchor(immediate = false) {
     this._shouldBePlaying = false;
+    if (this._anchorTimer) {
+      clearTimeout(this._anchorTimer);
+      this._anchorTimer = null;
+    }
+    if (immediate) {
+      this._killAnchor();
+    } else {
+      // Keep silent anchor alive for 3 minutes during pause so mobile OS does not freeze the AudioContext
+      this._anchorTimer = setTimeout(() => {
+        this._killAnchor();
+        if (this._onAnchorExpired) this._onAnchorExpired();
+      }, 3 * 60 * 1000);
+    }
+  }
+
+  _killAnchor() {
     this._internalPausing = true;
     if (this._bgAudio && !this._bgAudio.paused) {
       try {
