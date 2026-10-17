@@ -43,13 +43,13 @@ export function setupMediaSession(player, engine, getSongMeta) {
     if (!("setPositionState" in navigator.mediaSession)) return;
     try {
       const track = player.cur?.track;
-      if (!track || !player.playing) return;
+      if (!track) return;
       const duration = track.duration || (track.beats?.length ? track.beats[track.beats.length - 1] : 180);
       const beat = player.cur.beat || 0;
       const pos = Math.min(duration, Math.max(0, track.beats?.[beat] || 0));
       navigator.mediaSession.setPositionState({
         duration: Math.max(1, duration),
-        playbackRate: Math.max(0.25, Math.min(4, player.cur.rate || 1)),
+        playbackRate: player.playing ? Math.max(0.25, Math.min(4, player.cur.rate || 1)) : 0,
         position: Math.min(pos, Math.max(1, duration)),
       });
     } catch (_) {}

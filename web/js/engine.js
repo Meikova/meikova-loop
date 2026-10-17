@@ -87,17 +87,10 @@ export class Engine {
 
   setVolume(v) {
     this._targetVol = v;
-    this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.05);
-  }
-
-  async fadeMaster(toVol, durationSec = 0.3) {
-    if (!this.ctx || !this.master) return;
-    const g = this.master.gain;
+    if (!this.master || !this.ctx) return;
     const now = this.ctx.currentTime;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(Math.max(0.0001, g.value), now);
-    g.linearRampToValueAtTime(Math.max(0.0001, toVol), now + durationSec);
-    await new Promise((r) => setTimeout(r, Math.round(durationSec * 1000)));
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setValueAtTime(v, now);
   }
 
   _initBgAnchor() {

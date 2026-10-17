@@ -308,9 +308,7 @@ export class Player extends EventTarget {
     try {
       this.userPaused = true;
       this.engine.stopAnchor();
-      this.dispatchEvent(new Event("state"));
-      await this.engine.fadeMaster(0.0001, 0.1);
-      await this.engine.ctx.suspend();
+      this.engine.stopAll(0.05);
       this.dispatchEvent(new Event("state"));
     } finally {
       this._pauseTransition = false;
@@ -323,9 +321,21 @@ export class Player extends EventTarget {
     try {
       this.userPaused = false;
       this.engine.startAnchor();
-      await this.engine.ctx.resume();
+      if (this.engine.ctx.state === "suspended") {
+        await this.engine.ctx.resume().catch(() => {});
+      }
+      if (this.engine.targetVol != null) {
+        this.engine.setVolume(this.engine.targetVol);
+      }
+      const t = this.engine.now + 0.08;
+      const beat = Math.max(0, Math.min(this.cur.track.n - 1, this.cur.beat || 0));
+      const rate = this.cur.rate || 1;
+      this.nextTime = t + this.cur.track.dur[beat] / rate;
+      const voice = this.engine.voice(this.cur.track);
+      voice.start(t, this.cur.track.beats[beat], rate, 0.03);
+      this.cur.voice = voice;
+
       this.dispatchEvent(new Event("state"));
-      await this.engine.fadeMaster(this.engine.targetVol, 0.15);
     } finally {
       this._pauseTransition = false;
     }
@@ -398,7 +408,7 @@ export class Player extends EventTarget {
   // ---------------------------------------------------------------- scheduling
 
   _tick() {
-    if (!this.cur || this.engine.ctx.state !== "running") return;
+    if (!this.cur || this.userPaused || this.engine.ctx.state !== "running") return;
     const horizon = this.engine.now + LOOKAHEAD;
     let guard = 0;
     while (this.nextTime < horizon && guard++ < 64) this._advance();
