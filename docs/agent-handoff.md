@@ -6,11 +6,19 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 23:53:00
+- Timestamp: 2026-10-19 00:06:00
 - Exit Code: 0 (All 15 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi YouTube SABR Stream & Cơ chế Fallback Hai Lớp Cho Cookie (`Requested format is not available`)**:
+  - Tìm ra nguyên nhân gốc rễ:
+    1. Khi người dùng nạp cookie tài khoản YouTube cá nhân, YouTube áp dụng thử nghiệm streaming SABR (Server-side Adaptive Bitrate) trên phiên đăng nhập. Do thiếu Web PO-Token (Proof of Origin), `yt-dlp` bị YouTube tước bỏ toàn bộ luồng stream âm thanh/video thông thường, chỉ trả về dạng ảnh/storyboard, dẫn đến lỗi `Requested format is not available. Use --list-formats...`.
+    2. Trong khi đó, nếu tải ở chế độ khách vãng lai (không cookie), video (như `fAafG7BPznQ`) lại trả về luồng âm thanh Opus chất lượng cao (format 251) bình thường 100%!
+    3. Video `K28OXlBknjc` ("MIXTAPE KHANG RỒNG") thực tế đã bị gỡ/không khả dụng trên YouTube (`This video is unavailable`).
+  - Giải pháp triển khai:
+    - **Cơ chế Fallback Hai Lớp (`cookie_passes`) trong `loopbox/download.py`**: Áp dụng cho cả hàm `resolve()` và `download()`. Lớp 1 thử nạp với cookie người dùng (giải quyết video giới hạn độ tuổi, bot check). Nếu YouTube trả lỗi `DownloadError` (SABR, `Requested format is not available`, bot token...), hệ thống tự động fallback tức thì sang Lớp 2 (không dùng cookie) mà không làm gián đoạn người dùng.
+    - **Chuẩn hóa thông báo lỗi (`clean_error`)**: Thêm nhánh nhận diện `requested format is not available` -> *"Video không khả dụng hoặc định dạng bị hạn chế"*; `this video is unavailable` -> *"Video này không khả dụng hoặc đã bị tác giả gỡ trên YouTube"*.
 - **Thêm biểu tượng SVG xinh xắn cho nút chuyển Tab Bảng điều khiển (`.seg.tabs`)**:
   - Bổ sung biểu tượng SVG sắc nét đồng bộ phong cách tối giản cho 2 nút chuyển đổi tab Bảng điều khiển:
     - Tab **Thư viện** (`data-tab="library"`): Icon nốt nhạc đôi thanh thoát (`music notes` 13px) biểu thị kho bài hát.

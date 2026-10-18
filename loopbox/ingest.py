@@ -2,6 +2,7 @@
 Run by the worker processes and by the command line. Linking the track to
 other songs is a separate job (worker.py), since which songs it meets depends
 on whose library it is in."""
+import logging
 import re
 import traceback
 from pathlib import Path
@@ -11,6 +12,8 @@ import soundfile as sf
 
 from . import audio, download, library
 from .config import ANALYSIS_VERSION, MAX_DURATION_S
+
+logger = logging.getLogger(__name__)
 
 
 def register(entry: dict) -> dict:
@@ -132,7 +135,7 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
         stage("ready", 1.0, status="ready", error=None)
         return "ready"
     except Exception as e:  # surfaced in the UI, never kills the worker
-        traceback.print_exc()
         err_msg = str(e) if isinstance(e, RuntimeError) else download.clean_error(e)
+        logger.warning(f"Nạp bài thất bại ({tid}): {err_msg}")
         stage("error", 0.0, status="error", error=err_msg)
         return "error"

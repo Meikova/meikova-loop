@@ -212,7 +212,7 @@ def is_playlist_url(url: str) -> bool:
     return False
 
 
-def _opts(site: str, **extra) -> dict:
+def _opts(site: str, use_cookies: bool = True, **extra) -> dict:
     extractors = SOURCES.get(site, (set(), []))[1]
     opts = {**BASE_OPTS, **extra}
     if extractors:
@@ -221,10 +221,13 @@ def _opts(site: str, **extra) -> dict:
         imp = _get_impersonate()
         if imp:
             opts["impersonate"] = imp
-    from . import cookies as cookie_mgr
-    cookie_file = cookie_mgr.get_cookie_file_path()
-    if cookie_file:
-        opts["cookiefile"] = str(cookie_file)
+    if use_cookies:
+        from . import cookies as cookie_mgr
+        cookie_file = cookie_mgr.get_cookie_file_path()
+        if cookie_file:
+            opts["cookiefile"] = str(cookie_file)
+    else:
+        opts.pop("cookiefile", None)
     return opts
 
 
@@ -358,11 +361,9 @@ def resolve(text: str) -> list[dict]:
         return resolve_spotify(text, MAX_PLAYLIST)
 
     is_playlist = is_playlist_url(text)
-    opts = _opts(site, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST)
-    if is_playlist:
-        opts["noplaylist"] = False
-    elif site == "youtube":
-        opts["noplaylist"] = True
+    from . import cookies as cookie_mgr
+    has_cookies = bool(cookie_mgr.get_cookie_file_path()) if site == "youtube" else False
+    cookie_passes = [True, False] if has_cookies else [False]
 
     clients = (
         ["web_embedded", "android", "web"],
@@ -373,18 +374,28 @@ def resolve(text: str) -> list[dict]:
     ) if site == "youtube" else (None,)
     info = None
     last_e = None
-    for client in clients:
-        cur_opts = dict(opts)
-        if client:
-            cur_opts["extractor_args"] = {"youtube": {"player_client": client}}
-        try:
-            with yt_dlp.YoutubeDL(cur_opts) as ydl:
-                info = ydl.extract_info(text, download=False)
-            break
-        except Exception as e:
-            last_e = e
-            if site != "youtube":
+
+    for use_cookies in cookie_passes:
+        opts = _opts(site, use_cookies=use_cookies, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST)
+        if is_playlist:
+            opts["noplaylist"] = False
+        elif site == "youtube":
+            opts["noplaylist"] = True
+
+        for client in clients:
+            cur_opts = dict(opts)
+            if client:
+                cur_opts["extractor_args"] = {"youtube": {"player_client": client}}
+            try:
+                with yt_dlp.YoutubeDL(cur_opts) as ydl:
+                    info = ydl.extract_info(text, download=False)
                 break
+            except Exception as e:
+                last_e = e
+                if site != "youtube":
+                    break
+        if info is not None:
+            break
 
     if info is None:
         # Check if text contains a Mix list ID (RD...) to resolve via seed watch URL
@@ -458,6 +469,14 @@ def clean_error(err: str | Exception) -> str:
         return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi"
     if "this video is unavailable" in low or "unavailable" in low:
         return "Video này không khả dụng hoặc đã bị tác giả gỡ trên YouTube"
+    if "claimed content" in low or "blocked due to" in low or "copyright" in low:
+        return "Video bị chặn bản quyền bởi đơn vị sở hữu"
+    if "terminated" in low or ("account" in low and "terminated" in low):
+        return "Kênh YouTube đăng video này đã bị khóa tài khoản"
+    if "terms of service" in low:
+        return "Video bị gỡ do vi phạm điều khoản YouTube"
+    if "requested format is not available" in low or "no formats" in low:
+        return "Video không khả dụng hoặc định dạng bị hạn chế"
     if "private video" in low:
         return "Video này được đặt ở chế độ riêng tư"
     if "unsupported url" in low:
@@ -488,6 +507,10 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     last_error = None
+    from . import cookies as cookie_mgr
+    has_cookies = bool(cookie_mgr.get_cookie_file_path()) if site == "youtube" else False
+    cookie_passes = [True, False] if has_cookies else [False]
+
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
     clients = (
@@ -497,11 +520,12 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
         ["tv_embedded", "tv"],
         ["android"],
     ) if site == "youtube" else (None,)
-    for client in clients:
-        for stale in dest_dir.glob("source.*"):
-            stale.unlink(missing_ok=True)
-        opts = _opts(site, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),
-                     progress_hooks=[hook], retries=3)
+    for use_cookies in cookie_passes:
+        for client in clients:
+            for stale in dest_dir.glob("source.*"):
+                stale.unlink(missing_ok=True)
+            opts = _opts(site, use_cookies=use_cookies, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),
+                         progress_hooks=[hook], retries=3)
         if client:
             opts["extractor_args"] = {"youtube": {"player_client": client}}
         try:
