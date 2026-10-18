@@ -209,16 +209,75 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v58" in sw_js
-    assert "app.css?v=58" in index_html
-    assert "main.js?v=58" in index_html
-    assert "sw.js?v=58" in index_html
+    assert "mashloop-v60" in sw_js
+    assert "app.css?v=60" in index_html
+    assert "main.js?v=60" in index_html
+    assert "sw.js?v=60" in index_html
 
     # Mobile topbar buttons & SVG actions
     assert "max-width: 520px" in app_css
     assert "pl-action-btn--play" in index_html
     assert "btn-relink" in index_html
     assert "inspect-modal" in index_html
+
+def test_volume_svg_bounds_and_night_button():
+    root = Path(__file__).resolve().parent.parent
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    engine_js = (root / "web" / "js" / "engine.js").read_text(encoding="utf-8")
+
+    # Volume icon must not have outer arc clipping at x > 24
+    assert 'M21.5 4.5a10.5 10.5 0 0 1 0 15' not in index_html, "Old clipping arc path must be replaced"
+    assert 'M19 4.5a14 14 0 0 1 0 15' in index_html, "New perfectly bounded arc path must be present"
+    assert "M2 9.5h3.5L10 6v12l-4.5-3.5H2z" in index_html, "Speaker cone must start at x=2 for balanced margin"
+    assert ".deck__vol svg" in app_css
+    assert "overflow: visible" in app_css, "Volume SVG must have overflow visible to avoid clipping"
+
+    # Night mode button on deck & Vietnam UTC+7 schedule
+    assert "btn-night" in index_html
+    assert ".deck__night" in app_css
+    assert "body.is-night" in app_css
+    assert "btn-night" in main_js
+    assert "getVietnamHour" in main_js
+    assert "Asia/Ho_Chi_Minh" in main_js
+    assert "checkNightButtonVisibility" in main_js
+    assert "setNightMode" in engine_js
+
+    # Typographic orphan word fix in footer
+    assert "text-wrap: pretty" in app_css
+    assert "cá&nbsp;nhân" in index_html
+
+def test_download_error_handling_and_ui_cleanup():
+    root = Path(__file__).resolve().parent.parent
+    from loopbox import download
+    import loopbox.ingest as ingest
+
+    # Test bot verification message cleaning
+    bot_raw = "DownloadError: ERROR: [youtube] B-ygvoi4-Mg: Sign in to confirm you're not a bot. This helps protect our community. Learn more: https://support.google.com/youtube/answer/123. See https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp for how to pass cookies to yt-dlp"
+    bot_clean = download.clean_error(bot_raw)
+    assert "YouTube yêu cầu xác minh bot" in bot_clean
+    assert "http" not in bot_clean
+    assert "cookies" not in bot_clean
+    assert len(bot_clean) <= 120
+
+    # Test unavailable message cleaning
+    unavail_raw = "DownloadError: ERROR: [youtube] abc12345678: This video is unavailable"
+    unavail_clean = download.clean_error(unavail_raw)
+    assert "không khả dụng" in unavail_clean
+
+    # Verify mweb-first player_client in BASE_OPTS
+    assert download.BASE_OPTS["extractor_args"]["youtube"]["player_client"][0] == "mweb"
+
+    # Verify ingest error handling
+    ingest_py = (root / "loopbox" / "ingest.py").read_text(encoding="utf-8")
+    assert "download.clean_error(e)" in ingest_py
+
+    # Verify frontend 2-line clamping & clean error rendering
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    assert "-webkit-line-clamp: 2" in app_css
+    assert "cleanUiError" in main_js
 
 if __name__ == "__main__":
     test_ip_extraction()
@@ -233,5 +292,7 @@ if __name__ == "__main__":
     test_search_sort_queue_inspect()
     test_zen_hud_and_neon_engine()
     test_responsive_mobile_declutter()
+    test_volume_svg_bounds_and_night_button()
+    test_download_error_handling_and_ui_cleanup()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 

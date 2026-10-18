@@ -32,7 +32,7 @@ BASE_OPTS = {
     "socket_timeout": 30,
     "extractor_args": {
         "youtube": {
-            "player_client": ["android", "ios", "mweb", "web"]
+            "player_client": ["mweb", "android", "ios", "web"]
         }
     },
 }
@@ -327,21 +327,26 @@ def resolve(text: str) -> list[dict]:
     elif site == "youtube":
         opts["noplaylist"] = True
 
-    clients = ("android", "ios", "mweb", "web", "tv") if site == "youtube" else (None,)
+    clients = (
+        ["mweb", "android", "ios", "web"],
+        ["mweb"],
+        ["android"],
+        ["web"],
+        ["tv_embedded", "tv"],
+    ) if site == "youtube" else (None,)
     info = None
     last_e = None
     for client in clients:
         cur_opts = dict(opts)
         if client:
-            cur_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+            cur_opts["extractor_args"] = {"youtube": {"player_client": client}}
         try:
             with yt_dlp.YoutubeDL(cur_opts) as ydl:
                 info = ydl.extract_info(text, download=False)
             break
         except Exception as e:
             last_e = e
-            msg = str(e).lower()
-            if site != "youtube" or ("bot" not in msg and "403" not in msg and "forbidden" not in msg):
+            if site != "youtube":
                 break
 
     if info is None:
@@ -354,13 +359,15 @@ def resolve(text: str) -> list[dict]:
                 mix_opts = dict(opts)
                 mix_opts["noplaylist"] = False
                 if client:
-                    mix_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+                    mix_opts["extractor_args"] = {"youtube": {"player_client": client}}
                 try:
                     with yt_dlp.YoutubeDL(mix_opts) as ydl:
                         info = ydl.extract_info(watch_url, download=False)
                     break
                 except Exception as e:
                     last_e = e
+                    if site != "youtube":
+                        break
 
         if info is None and ("watch?v=" in text or "youtu.be/" in text):
             m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", text)
@@ -370,13 +377,15 @@ def resolve(text: str) -> list[dict]:
                     single_opts = dict(opts)
                     single_opts["noplaylist"] = True
                     if client:
-                        single_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+                        single_opts["extractor_args"] = {"youtube": {"player_client": client}}
                     try:
                         with yt_dlp.YoutubeDL(single_opts) as ydl:
                             info = ydl.extract_info(single_url, download=False)
                         break
                     except Exception as e:
                         last_e = e
+                        if site != "youtube":
+                            break
         if info is None and last_e:
             raise last_e
 
@@ -403,12 +412,12 @@ def resolve(text: str) -> list[dict]:
 def clean_error(err: str | Exception) -> str:
     """Produces a short, human-readable error description without terminal spam or long URLs."""
     s = str(err).strip()
-    s = re.sub(r"^(?:could not resolve|error):\s*", "", s, flags=re.I)
+    s = re.sub(r"^(?:could not resolve|error|[A-Za-z_]+Error):\s*", "", s, flags=re.I)
     s = re.sub(r"^\[[^\]]+\]\s*", "", s)
     low = s.lower()
     if "unviewable" in low or "playlist type is unviewable" in low:
         return "YouTube Mix này cần mở kèm bài hát gốc"
-    if "confirm you're not a bot" in low or ("bot" in low and "sign in" in low):
+    if "confirm you're not a bot" in low or ("bot" in low and ("sign in" in low or "protect" in low)):
         return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi"
     if "this video is unavailable" in low or "unavailable" in low:
         return "Video này không khả dụng hoặc đã bị tác giả gỡ trên YouTube"
@@ -443,14 +452,21 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     dest_dir.mkdir(parents=True, exist_ok=True)
     last_error = None
     # YouTube intermittently answers 403 or blocks player response for some clients;
-    # cycling android, ios, mweb, web, tv ensures datacenter/cloud connectivity.
-    for client in (("android", "ios", "mweb", "web", "tv") if site == "youtube" else (None,)):
+    # cycling client configs ensures datacenter/cloud connectivity.
+    clients = (
+        ["mweb", "android", "ios", "web"],
+        ["mweb"],
+        ["android"],
+        ["web"],
+        ["tv_embedded", "tv"],
+    ) if site == "youtube" else (None,)
+    for client in clients:
         for stale in dest_dir.glob("source.*"):
             stale.unlink(missing_ok=True)
         opts = _opts(site, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),
                      progress_hooks=[hook], retries=3)
         if client:
-            opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+            opts["extractor_args"] = {"youtube": {"player_client": client}}
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -476,6 +492,7 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
             msg = str(e)
             if "VIP" in msg:
                 raise RuntimeError(f"bài này chỉ dành cho tài khoản VIP của {SITE_NAMES.get(site, site)}") from None
-            if site != "youtube" or ("403" not in msg and "Forbidden" not in msg and "bot" not in msg.lower()):
-                raise
+            if site == "youtube":
+                continue
+            raise
     raise last_error

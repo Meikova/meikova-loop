@@ -133,5 +133,6 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
         return "ready"
     except Exception as e:  # surfaced in the UI, never kills the worker
         traceback.print_exc()
-        stage("error", 0.0, status="error", error=f"{type(e).__name__}: {e}" if not isinstance(e, RuntimeError) else str(e))
+        err_msg = str(e) if isinstance(e, RuntimeError) else download.clean_error(e)
+        stage("error", 0.0, status="error", error=err_msg)
         return "error"

@@ -548,7 +548,60 @@ function setEq(preset) {
     eqBtn.setAttribute("data-active", preset !== "flat");
     eqBtn.setAttribute("aria-pressed", preset !== "flat");
   }
+  const nb = $("#btn-night");
+  const isNight = preset === "night";
+  if (isNightMode !== isNight) {
+    isNightMode = isNight;
+    document.body.classList.toggle("is-night", isNightMode);
+    if (typeof theme?.reapply === "function") theme.reapply();
+  }
+  if (nb) nb.setAttribute("aria-pressed", String(isNight));
   document.querySelectorAll(".eq-opt").forEach((b) => b.classList.toggle("on", b.dataset.eq === preset));
+}
+
+// Chế độ đêm theo múi giờ Việt Nam (UTC+7, xuất hiện sau 9h tối - từ 21h đến 6h sáng)
+function getVietnamHour() {
+  try {
+    const vnStr = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour12: false,
+      hour: "numeric",
+    }).format(new Date());
+    const h = parseInt(vnStr, 10);
+    if (!isNaN(h)) return h;
+  } catch (_) {}
+  const utc = Date.now() + new Date().getTimezoneOffset() * 60000;
+  return new Date(utc + 7 * 3600000).getHours();
+}
+
+let isNightMode = false;
+function setNightMode(active) {
+  isNightMode = Boolean(active);
+  document.body.classList.toggle("is-night", isNightMode);
+  const nb = $("#btn-night");
+  if (nb) {
+    nb.setAttribute("aria-pressed", String(isNightMode));
+    nb.title = isNightMode ? "Chế độ đêm: Đang bật (bấm để tắt)" : "Chế độ đêm / Âm dịu mắt & tai";
+  }
+  setEq(isNightMode ? "night" : "flat");
+  if (typeof theme?.reapply === "function") theme.reapply();
+  checkNightButtonVisibility();
+}
+
+function checkNightButtonVisibility() {
+  const nb = $("#btn-night");
+  if (!nb) return;
+  const h = getVietnamHour();
+  // Sau 9h tối (>= 21h) đến 6h sáng theo giờ VN (UTC+7)
+  const isNightTime = h >= 21 || h < 6;
+  nb.hidden = !isNightTime && !isNightMode;
+}
+
+const nightBtn = $("#btn-night");
+if (nightBtn) {
+  nightBtn.addEventListener("click", () => setNightMode(!isNightMode));
+  checkNightButtonVisibility();
+  setInterval(checkNightButtonVisibility, 30000);
 }
 
 if (eqBtn && eqPopover) {
@@ -1155,7 +1208,8 @@ function trackRow(m, idx = 0, total = 0) {
     status = `<div class="s">${artist ? `<span class="a">${esc(artist)}</span> · ` : ""}${m.bpm ? m.bpm.toFixed(0) : "?"} BPM · ${esc(m.camelot || "")}</div>${creditLine(m.credit)}`;
   } else if (m.status === "error") {
     lead = `<span class="pending" style="--p:0;opacity:.5" aria-hidden="true"></span>`;
-    status = `<div class="s err">${esc(m.error || "lỗi")}</div>`;
+    const errText = cleanUiError(m.error || "Lỗi xử lý");
+    status = `<div class="s err" title="${esc(m.error || '')}">${esc(errText)}</div>`;
   } else {
     lead = `<span class="pending" style="--p:${(m.progress || 0).toFixed(3)}" aria-hidden="true"></span>`;
     status = `<div class="s">${STAGES[m.stage] || m.stage || "đang chờ"} · ${Math.round(100 * (m.progress || 0))}%</div><div class="progress"><i style="width:${Math.round(100 * (m.progress || 0))}%"></i></div>`;
@@ -2145,13 +2199,13 @@ async function consent() {
 
 function cleanUiError(msg) {
   let s = String(msg || "").trim();
-  s = s.replace(/^(?:could not resolve|error):\s*/i, "");
+  s = s.replace(/^(?:could not resolve|error|[A-Za-z_]+Error):\s*/i, "");
   s = s.replace(/^\[[^\]]+\]\s*/i, "");
   const low = s.toLowerCase();
   if (low.includes("unviewable") || low.includes("playlist type is unviewable")) {
     return "YouTube Mix này cần mở kèm bài hát gốc (đã tự động nắn link).";
   }
-  if (low.includes("confirm you're not a bot") || (low.includes("bot") && low.includes("sign in"))) {
+  if (low.includes("confirm you're not a bot") || (low.includes("bot") && (low.includes("sign in") || low.includes("protect")))) {
     return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi.";
   }
   if (low.includes("this video is unavailable") || low.includes("unavailable")) {
@@ -2166,11 +2220,14 @@ function cleanUiError(msg) {
   if (low.includes("vip")) {
     return "Bài này yêu cầu tài khoản VIP của nền tảng nguồn.";
   }
+  if (low.includes("timed out") || low.includes("timeout")) {
+    return "Hết thời gian kết nối tới máy chủ nguồn (timeout).";
+  }
   s = s.replace(/https?:\/\/\S+/g, "");
   s = s.replace(/--cookies[^\s.]*/g, "");
   s = s.replace(/\s+/g, " ").trim();
-  if (s.length > 120) s = s.slice(0, 120) + "…";
-  return s ? `Không thêm được: ${s}` : "Không thêm được bài từ đường link này.";
+  if (s.length > 90) s = s.slice(0, 90) + "…";
+  return s || "Không thể tải bài từ đường link này.";
 }
 
 $("#add-form").addEventListener("submit", async (e) => {

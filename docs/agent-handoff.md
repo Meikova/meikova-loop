@@ -6,11 +6,40 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 19:00:00
-- Exit Code: 0 (All 12 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-18 23:14:00
+- Exit Code: 0 (All 13 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Bypass chặn tải YouTube trên IP Datacenter (Hugging Face Spaces) & Tự động quay vòng client**:
+  - Tìm ra nguyên nhân gốc: Trên máy chủ đám mây, client `android` mặc định của `yt-dlp` bị chặn bởi hệ thống bot check của YouTube (`Sign in to confirm you're not a bot`). Khi chuyển sang client thứ 2 (`ios`), YouTube trả về lỗi định dạng luồng stream SABR. Do thông báo lỗi từ `ios` không chứa chữ `bot` hay `403`, điều kiện cũ trong mã đã `raise` vội vã và dừng hẳn toàn bộ tiến trình tải, không bao giờ thử tới `mweb` hay `web`!
+  - Cấu hình ưu tiên `player_client: ["mweb", "android", "ios", "web"]` trong `BASE_OPTS`. Khi tải qua `mweb`, YouTube không áp đặt cơ chế xác thực tài khoản và trả về định dạng âm thanh nhanh chóng.
+  - Xây dựng vòng lặp xoay vòng client đa tầng (`mweb-first`, `android`, `web`, `tv_embedded`) cho cả `resolve()` và `download()`: nếu bất kỳ client nào gặp sự cố (bot check, format error, token hết hạn), hệ thống tự động thử tiếp cấu hình client kế tiếp mà không crash đột ngột.
+- **Tối ưu hiển thị lỗi trên giao diện bài hát (Clean Error Display & Line Clamping)**:
+  - Khắc phục lỗi hiển thị các đoạn log terminal dài hơn 500 ký tự (chứa cờ `--cookies`, đường link wiki GitHub...) làm phình to biến dạng thẻ bài hát:
+    - **Backend (`loopbox/ingest.py`)**: Thay thế việc lưu trực tiếp chuỗi exception thô bằng `download.clean_error(e)`. Chuỗi lỗi được chuẩn hóa súc tích, loại bỏ URL, cờ cookies và tiền tố tên lớp ngoại lệ.
+    - **Frontend (`web/js/main.js`)**: Bọc dữ liệu `m.error` qua hàm `cleanUiError()` trước khi render vào thẻ `.track .s.err`. Giữ toàn văn thông báo trong thuộc tính `title` để người dùng có thể hover xem khi cần.
+    - **CSS (`web/css/app.css`)**: Thiết lập `-webkit-line-clamp: 2`, `display: -webkit-box`, `overflow: hidden`, `text-overflow: ellipsis`, và `max-height: 2.8em` cho `.track .s.err`, khóa cứng lỗi tối đa 2 dòng thẩm mỹ, triệt tiêu hiện tượng vỡ khung danh sách bài hát.
+- **Nâng cấp phiên bản Cache hệ thống**: `mashloop-v60` trong `web/sw.js` và `?v=60` trong `web/index.html`.
+- **Khôi phục nút Chế độ đêm & Cấu hình theo múi giờ Việt Nam (UTC+7, sau 21h tối)**:
+  - Tích hợp hàm `getVietnamHour()` chuẩn `Asia/Ho_Chi_Minh` (với fallback tính `UTC + 7 * 3600000`).
+  - Lập lịch hiển thị thông minh `checkNightButtonVisibility()`: Nút [Đêm] (biểu tượng trăng khuyết `#btn-night`) chỉ xuất hiện trên thanh deck sau 9h tối ($21\text{h} - 6\text{h}$ sáng hôm sau). Ban ngày tự động ẩn để giữ thanh deck tinh gọn.
+  - Xử lý hành vi kích hoạt toàn diện khi bấm [Đêm]:
+    - **Thị giác (Ambient Atmosphere)**: Thêm lớp `.is-night` trên `<body>`, dịu quầng sáng neon (`--glow-mult: 0.38`), hạ sáng phông nền phòng chiếu (`.field`) và visualizer canvas xuống mức êm mắt dịu nhẹ khi nằm nghe trong bóng tối. Nút [Đêm] phát sáng ánh trăng tím dịu (`#a5b4fc`) cùng icon trăng nghiêng $15^\circ$.
+    - **Âm thanh (Acoustics)**: Kích hoạt bộ lọc âm đêm dịu `setEq("night")` (cắt bớt dải tần chói gắt để nghe thư giãn).
+    - Đồng bộ 2 chiều với menu popover EQ.
+- **Sửa lỗi icon Volume SVG bị cắt phẳng lẹm ở cạnh phải**:
+  - Tìm ra nguyên nhân gốc: Tọa độ sóng âm ngoài cùng trong `i-vol-high` ban đầu là `M21.5 4.5a10.5 10.5 0 0 1 0 15` bắt đầu từ $x=21.5$, vòng cung nở ra cực đại tại $x=24.65$ (kèm stroke width $1.6\text{px}$ chạm tới $x=25.45$), vượt quá giới hạn `viewBox="0 0 24 24"`, dẫn đến việc bị trình duyệt cắt phẳng một đường dọc ở cạnh phải.
+  - Thiết kế lại hệ tọa độ đồng tâm cho cả 4 trạng thái loa (`mute`, `low`, `med`, `high`):
+    - Đưa thân loa lùi về $x=2\text{px}$ (`M2 9.5h3.5L10 6v12l-4.5-3.5H2z`).
+    - 3 đường sóng âm đồng tâm tại $(7.15, 12)$: Sóng 1 ($x=13.1$), Sóng 2 ($x=17.15$), Sóng 3 cực đại tại $x=21.18\text{px}$.
+    - Giữ khoảng cách an toàn $>2\text{px}$ so với biên $x=24$, xóa sổ 100% hiện tượng xén nét. Bổ sung `overflow: visible;` trong CSS.
+- **Khắc phục lỗi typographic rớt chữ 1 mình trên dòng mới (Footer Widow/Orphan)**:
+  - Khắc phục chữ "nhân." bị rớt lẻ loi xuống dòng 2 trong footer `#fine`:
+    - Rút gọn tiêu đề thành *"Mã nguồn mở: Không quảng cáo, không lưu dữ liệu cá&nbsp;nhân."* (ngắn hơn 16 ký tự, nằm trọn trên 1 dòng duy nhất).
+    - Thêm khoảng trắng không ngắt `&nbsp;` giữa `cá` và `nhân`.
+    - Bổ sung `text-wrap: pretty;` trong `web/css/app.css` để trình duyệt tự động cân đối dòng chữ.
+- **Nâng cấp phiên bản Cache hệ thống**: `mashloop-v59` trong `web/sw.js` và `?v=59` trong `web/index.html`.
 - **Kiểm thử chuyên sâu & TDD (TDD & Verification Before Completion)**:
   - Bổ sung `test_zen_hud_and_neon_engine` và `test_responsive_mobile_declutter` vào `tests/test_server_and_features.py`.
   - Khảo sát và xác thực toàn diện: Zen HUD, phím tắt `F`/`Esc`, neon luminance engine, dynamic modal sizing, mobile topbar SVGs và cache versioning `v58`.

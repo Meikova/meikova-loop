@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=58" />
+    <link rel="stylesheet" href="css/app.css?v=60" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -330,6 +330,18 @@
               </div>
             </div>
           </div>
+          <button
+            type="button"
+            class="deck__btn deck__night"
+            id="btn-night"
+            title="Chế độ đêm / Âm dịu tai"
+            aria-pressed="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+            <span>Đêm</span>
+          </button>
           <div class="deck__eq-wrap">
             <button
               type="button"
@@ -393,24 +405,24 @@
               data-level="high"
             >
               <svg class="i-vol-mute" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-                <line x1="22" y1="9" x2="16" y2="15" />
-                <line x1="16" y1="9" x2="22" y2="15" />
+                <path d="M2 9.5h3.5L10 6v12l-4.5-3.5H2z" />
+                <line x1="14.5" y1="9.5" x2="19.5" y2="14.5" />
+                <line x1="19.5" y1="9.5" x2="14.5" y2="14.5" />
               </svg>
               <svg class="i-vol-low" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-                <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
+                <path d="M2 9.5h3.5L10 6v12l-4.5-3.5H2z" />
+                <path d="M12 8.5a6 6 0 0 1 0 7" />
               </svg>
               <svg class="i-vol-med" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-                <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
-                <path d="M18.5 7a7 7 0 0 1 0 10" />
+                <path d="M2 9.5h3.5L10 6v12l-4.5-3.5H2z" />
+                <path d="M12 8.5a6 6 0 0 1 0 7" />
+                <path d="M15.5 6.5a10 10 0 0 1 0 11" />
               </svg>
               <svg class="i-vol-high" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-                <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
-                <path d="M18.5 7a7 7 0 0 1 0 10" />
-                <path d="M21.5 4.5a10.5 10.5 0 0 1 0 15" />
+                <path d="M2 9.5h3.5L10 6v12l-4.5-3.5H2z" />
+                <path d="M12 8.5a6 6 0 0 1 0 7" />
+                <path d="M15.5 6.5a10 10 0 0 1 0 11" />
+                <path d="M19 4.5a14 14 0 0 1 0 15" />
               </svg>
             </button>
             <span class="sr">Âm lượng</span>
@@ -1048,7 +1060,7 @@
         <!-- Hosted only (main.js shows it). -->
         <footer class="fine" id="fine" hidden>
           <p>
-            <b>Phi thương mại & mã nguồn mở:</b> Không quảng cáo, không lưu dữ liệu cá nhân.
+            <b>Mã nguồn mở:</b> Không quảng cáo, không lưu dữ liệu cá&nbsp;nhân.
           </p>
           <p class="fine__sparkle">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:4px;color:var(--accent);"><path d="M12 2l2.4 6.9L21.3 12l-6.9 2.4L12 21.3l-2.4-6.9L2.7 12l6.9-2.4z"/></svg>Giai điệu vô tận ∞
@@ -1433,14 +1445,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=58"></script>
+    <script type="module" src="js/main.js?v=60"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=58")
+          .register("sw.js?v=60")
           .then((reg) => {
             reg.update();
           })
