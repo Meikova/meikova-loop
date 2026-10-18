@@ -340,21 +340,12 @@
 
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
-- `http://localhost:8765` -> HTTP 200 OK
-- **Lưu ý quan trọng**: Chưa commit git push và chưa deploy HF Space theo chỉ thị của người dùng ("Sửa xong hãy đợi tôi duyệt, chưa đẩy lên git và HF đâu nhé").
+- `.venv\Scripts\python.exe tools/test_onnx_and_mobile.py` -> Exit Code 0 (`ALL T4.2 & T4.3 VERIFICATION TESTS PASSED`)
+- `.venv\Scripts\pyinstaller.exe --noconfirm mashloop.spec` -> Exit Code 0 (Đóng gói hoàn tất `dist\MashLoop\MashLoop.exe`, 62.7 MB)
+- `npx cap sync` -> Exit Code 0 (Đồng bộ tài nguyên web sang Android & iOS targets)
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (Deploy HF Space: commit `9a42fc9` trên `m3ik18dp/MashLoop`)
+- `git push origin main` -> Exit Code 0 (Push GitHub: commit `3e511d2` trên `m3iK18dp/mashloop`)
 
 ## Các phần còn tồn đọng và cảnh báo kỹ thuật
-- Chờ người dùng nghiệm thu giao diện trên localhost:8765 trước khi commit và deploy.
-
-
-
-
-
-
-
-
-
-
-
-
-
+- Toàn bộ các nền tảng (Desktop EXE, Web, Mobile Capacitor, HF Space) đã được re-build và đồng bộ bản mới nhất.
+- Đổi appId sang `com.m3ik18dp.mashloop` hoàn tất đồng bộ trên Gradle, Java MainActivity, strings.xml, Xcode pbxproj, capacitor.config.json.
