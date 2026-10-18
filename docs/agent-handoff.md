@@ -6,11 +6,21 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 18:44:00
+- Timestamp: 2026-10-18 18:57:00
 - Exit Code: 0 (All tests passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Kiểm tra, tinh gọn chữ và thay thế bằng SVG sạch đẹp (UI Declutter & SVG Polish)**:
+  - **Mobile Topbar**: Trên thiết bị di động (`max-width: 520px`) và tablet (`max-width: 768px`), không ẩn `.topbar__end` mà chuyển đổi các nút thao tác thành các nút tròn 30-32px chứa biểu tượng SVG sắc nét (Toàn màn hình Zen, Cài đặt Mobile, Phím tắt & Trợ giúp), ẩn chữ rườm rà.
+  - **Nút hành động Playlist & Thao tác**: Thay thế chữ "Phát" thành SVG icon Tam giác Play đồng bộ; nút "Tính lại điểm nối" bổ sung SVG link; nút "Xem bài này" trong bảng phân tích hòa âm chuyển sang icon mũi tên SVG nhỏ gọn.
+  - **Rút gọn văn bản khu vực Tải nhạc & Cài đặt**:
+    - Khu vực upload: Rút gọn thành *"Tải file nhạc lên - kéo thả file âm thanh hoặc ZIP"*, *"Chọn file"*, *"Chọn thư mục"*.
+    - Hướng dẫn nhập: *"Hỗ trợ YouTube, Spotify, SoundCloud, Zing MP3, file âm thanh"*.
+    - Nhãn độ sáng: *"Độ sáng neon & đèn"*, mô tả ngắn gọn súc tích.
+    - Modal chi tiết bài hát: Rút gọn các nhãn thẻ số liệu thành *"Nhịp điệu"*, *"Tone Camelot"*, *"Thời lượng"*, *"Điểm nhảy"*, *"Điểm nối hòa âm"*.
+    - Footer bản quyền: Tinh giản thành *"Phi thương mại & mã nguồn mở: Không quảng cáo, không lưu dữ liệu cá nhân."*
+  - Bump cache hệ thống: `mashloop-v58` trong `web/sw.js` và `?v=58` trong `web/index.html`.
 - **Khắc phục chữ trong input trên Modal bị to (`.modal-input`, `.pl-modal__create input`)**:
   - Tìm ra nguyên nhân gốc: Rule CSS cũ `input[type="text"], ... .modal-input { font-size: 16px !important; }` (nhằm tránh iOS Safari auto-zoom) đã đè lên mọi clamp font-size của modal, khiến chữ và placeholder trong input to bất thường (16px) lấn át cả tiêu đề và nút bấm.
   - Xóa bỏ selector cưỡng bức 16px toàn cục (thẻ meta viewport đã có `maximum-scale=1` chống zoom an toàn).

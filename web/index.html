@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=57" />
+    <link rel="stylesheet" href="css/app.css?v=58" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -465,9 +465,12 @@
                 type="text"
                 inputmode="search"
                 enterkeyhint="search"
-                placeholder="Tên bài, link YouTube, Spotify, SoundCloud, Zing MP3, TikTok, FB, album, playlist…"
+                placeholder="Tên bài hoặc link YouTube, Spotify, SoundCloud, Zing MP3…"
               />
-              <button type="submit">Tìm</button>
+              <button type="submit" title="Tìm và thêm vào thư viện">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>Tìm</span>
+              </button>
             </div>
             <label class="drop" id="drop" for="file-input">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -475,8 +478,7 @@
                 <path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" />
               </svg>
               <span
-                ><b>Tải file nhạc lên</b>hoặc thả vào đây · MP3, M4A, FLAC, WAV,
-                cả file zip<span id="upload-limit"></span
+                ><b>Tải file nhạc lên</b>kéo thả file âm thanh hoặc ZIP<span id="upload-limit"></span
               ></span>
             </label>
             <div class="desktop-row" id="desktop-row" hidden>
@@ -489,7 +491,7 @@
                   <path d="M12 18v-6" />
                   <path d="M9 15l3-3 3 3" />
                 </svg>
-                <span>Chọn file từ máy</span>
+                <span>Chọn file</span>
               </button>
               <button type="button" class="btn-desktop" id="btn-desktop-folder">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -499,7 +501,7 @@
                   <line x1="12" y1="11" x2="12" y2="17" />
                   <line x1="9" y1="14" x2="15" y2="14" />
                 </svg>
-                <span>Chọn thư mục nhạc</span>
+                <span>Chọn thư mục</span>
               </button>
             </div>
             <input
@@ -510,8 +512,7 @@
               multiple
             />
             <p class="hint" id="add-hint">
-              Hỗ trợ link đơn, album & playlist (YouTube, Spotify, SoundCloud,
-              Zing MP3, TikTok, Facebook…). Tự động nạp danh sách vào chuỗi.
+              Hỗ trợ YouTube, Spotify, SoundCloud, Zing MP3, file âm thanh.
             </p>
           </form>
           <div id="search-results" class="results" aria-live="polite"></div>
@@ -621,9 +622,8 @@
               </div>
             </div>
             <div class="pl-header__actions">
-              <button type="button" class="pl-action-btn pl-action-btn--play" id="pl-play-btn" title="Phát từ đầu playlist này">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                <span>Phát</span>
+              <button type="button" class="pl-action-btn pl-action-btn--play" id="pl-play-btn" title="Phát từ đầu playlist này" aria-label="Phát playlist">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><polygon points="7 4.5 19 12 7 19.5 7 4.5"/></svg>
               </button>
               <button type="button" class="pl-action-btn" id="pl-rename-btn" title="Đổi tên playlist">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -708,10 +708,10 @@
             </fieldset>
             <label class="row" style="margin-top: var(--space-4)">
               <span class="row__head"
-                ><span>Độ sáng màu neon & ánh đèn</span><em id="v-glow" class="mono">100%</em></span
+                ><span>Độ sáng neon & đèn</span><em id="v-glow" class="mono">100%</em></span
               >
               <input id="s-glow" type="range" min="0" max="2" step="0.05" value="1" />
-              <small>Tăng giảm độ rực rỡ và quầng sáng neon của các nút bấm, viền thẻ và ánh sáng phòng</small>
+              <small>Chỉnh độ rực rỡ neon của nút bấm, viền và ánh sáng phòng</small>
             </label>
           </section>
 
@@ -729,10 +729,7 @@
                 ><em id="v-strict" class="mono"></em
               ></span>
               <input id="s-strict" type="range" min="0" max="1" step="0.01" />
-              <small
-                >Trái: chỉ giữ những điểm nối gần như vô hình. Phải: nhiều nhánh
-                hơn, đôi khi lộ.</small
-              >
+              <small>Trái: chỉ giữ điểm nối vô hình. Phải: nhiều nhánh hơn.</small>
             </label>
           </section>
 
@@ -754,14 +751,11 @@
               </label>
               <label class="choice">
                 <input type="radio" name="criterion" value="key" />
-                <span><b>Hợp tông</b>tông nhạc hợp nhau, kiểu DJ hoà âm</span>
+                <span><b>Hợp tông</b>tông nhạc hợp nhau, hòa âm DJ</span>
               </label>
               <label class="choice">
                 <input type="radio" name="criterion" value="set" />
-                <span
-                  ><b>Như một set DJ</b>khởi động, lên dần tới đỉnh, có khoảng
-                  nghỉ rồi bùng lại</span
-                >
+                <span><b>Set DJ</b>lên dần đỉnh cao rồi xả nhịp</span>
               </label>
               <label class="choice">
                 <input type="radio" name="criterion" value="free" />
@@ -773,7 +767,7 @@
                 ><span>Ở mỗi bài ít nhất</span><em id="v-dmin" class="mono"></em
               ></span>
               <input id="s-dmin" type="range" min="20" max="600" step="10" />
-              <small>Sau mốc này, bài chuyển ở điểm nối tốt gần nhất.</small>
+              <small>Thời gian tối thiểu trước khi chuyển bài</small>
             </label>
             <label class="row">
               <span class="row__head"
@@ -784,14 +778,11 @@
             </label>
             <label class="row">
               <span class="row__head"
-                ><span>Độ đa dạng của chuỗi</span
+                ><span>Độ đa dạng chuỗi</span
                 ><em id="v-variety" class="mono"></em
               ></span>
               <input id="s-variety" type="range" min="0" max="1" step="0.01" />
-              <small
-                >Trái: ưu tiên điểm nối đẹp nhất, kể cả quay lại bài cũ. Phải:
-                đi khắp thư viện.</small
-              >
+              <small>Trái: ưu tiên nối đẹp. Phải: đi khắp thư viện.</small>
             </label>
             <fieldset class="kinds">
               <legend class="sub">Kiểu chuyển bài được dùng</legend>
@@ -810,7 +801,7 @@
                   <circle cx="11" cy="10" r="6" />
                   <path d="M20 4v12M26 10h10M31 5l5 5-5 5" />
                 </svg>
-                <span><b>Drop</b>vào thẳng điệp khúc, drop của bài sau</span>
+                <span><b>Drop</b>vào thẳng drop bài sau</span>
               </label>
               <label class="kind">
                 <input id="s-blend" type="checkbox" />
@@ -818,7 +809,7 @@
                   <circle cx="14" cy="10" r="7" />
                   <circle cx="26" cy="10" r="7" />
                 </svg>
-                <span><b>Blend</b>khớp nhịp</span>
+                <span><b>Blend</b>khớp nhịp mượt mà</span>
               </label>
               <label class="kind">
                 <input id="s-fade" type="checkbox" />
@@ -826,7 +817,7 @@
                   <circle cx="12" cy="10" r="7" />
                   <circle cx="28" cy="10" r="7" stroke-dasharray="2 3" />
                 </svg>
-                <span><b>Crossfade dài</b>lọc âm, cho bài khác mood</span>
+                <span><b>Crossfade</b>lọc âm chuyển tiếp</span>
               </label>
               <label class="kind">
                 <input id="s-echo" type="checkbox" />
@@ -835,7 +826,7 @@
                   <circle cx="21" cy="10" r="4.5" opacity=".6" />
                   <circle cx="30" cy="10" r="3" opacity=".35" />
                 </svg>
-                <span><b>Echo vang</b>câu cuối vọng lại</span>
+                <span><b>Echo</b>câu cuối vọng lại</span>
               </label>
               <label class="kind">
                 <input id="s-wash" type="checkbox" />
@@ -846,9 +837,7 @@
                     opacity=".5"
                   />
                 </svg>
-                <span
-                  ><b>Reverb wash</b>tan vào tiếng vang, cho bài khác hẳn</span
-                >
+                <span><b>Reverb</b>tan vào tiếng vang</span>
               </label>
               <label class="kind">
                 <input id="s-riser" type="checkbox" />
@@ -857,9 +846,7 @@
                   <path d="M30 3v14" />
                   <circle cx="35" cy="10" r="3" />
                 </svg>
-                <span
-                  ><b>Build-up</b>dồn lên bằng tiếng gió, vào bằng cú nổ</span
-                >
+                <span><b>Build-up</b>dồn nhịp cao trào</span>
               </label>
               <label class="kind">
                 <input id="s-flanger" type="checkbox" />
@@ -867,7 +854,7 @@
                   <path d="M3 10c3-6 6-6 9 0s6 6 9 0 6-6 9 0" />
                   <circle cx="35" cy="10" r="3" />
                 </svg>
-                <span><b>Flanger</b>bài trước quét tiếng phản lực rồi đi</span>
+                <span><b>Flanger</b>quét phản lực</span>
               </label>
               <label class="kind">
                 <input id="s-gap" type="checkbox" />
@@ -876,7 +863,7 @@
                   <path d="M18 10h4" stroke-dasharray="1 3" />
                   <circle cx="31" cy="10" r="6" />
                 </svg>
-                <span><b>Ngắt lặng</b>im một nhịp rồi bài sau nổ vào</span>
+                <span><b>Ngắt lặng</b>im một nhịp rồi vào</span>
               </label>
               <label class="kind">
                 <input id="s-brake" type="checkbox" />
@@ -884,7 +871,7 @@
                   <circle cx="12" cy="10" r="7" />
                   <path d="M20 10h6M29 6v8" />
                 </svg>
-                <span><b>Phanh đĩa</b>dừng hẳn rồi vào, đột ngột</span>
+                <span><b>Phanh đĩa</b>hãm phanh đột ngột</span>
               </label>
               <label class="kind">
                 <input id="s-roll" type="checkbox" />
@@ -894,7 +881,7 @@
                   />
                   <circle cx="33" cy="10" r="5" />
                 </svg>
-                <span><b>Cuộn nhịp</b>lặp dồn rồi drop, đột ngột</span>
+                <span><b>Cuộn nhịp</b>lặp dồn rồi drop</span>
               </label>
               <label class="kind">
                 <input id="s-spin" type="checkbox" />
@@ -902,7 +889,7 @@
                   <path d="M20 4a7 7 0 1 0 7 7" />
                   <path d="M27 6v5h-5" />
                 </svg>
-                <span><b>Spinback</b>quay ngược đĩa rồi vào, đột ngột</span>
+                <span><b>Spinback</b>quay ngược đĩa</span>
               </label>
               <label class="kind">
                 <input id="s-gate" type="checkbox" />
@@ -910,7 +897,7 @@
                   <path d="M3 15V5h4v10h3V5h3v10h2V5h2v10h1.5V5" />
                   <circle cx="31" cy="10" r="5" />
                 </svg>
-                <span><b>Gate</b>băm nhịp bài trước, đột ngột</span>
+                <span><b>Gate</b>băm nhịp stutter</span>
               </label>
               <label class="kind">
                 <input id="s-tape" type="checkbox" />
@@ -919,7 +906,7 @@
                   <circle cx="28" cy="10" r="5" />
                   <line x1="12" y1="15" x2="28" y2="15" />
                 </svg>
-                <span><b>Tape stop</b>giảm tốc độ băng cối, hoài cổ</span>
+                <span><b>Tape stop</b>hãm băng cối hoài cổ</span>
               </label>
               <label class="kind">
                 <input id="s-sweeper" type="checkbox" />
@@ -927,12 +914,12 @@
                   <path d="M4 16 C 14 16, 20 12, 28 4" />
                   <circle cx="34" cy="10" r="4" />
                 </svg>
-                <span><b>Filter sweep</b>quét dải lọc cao trào rồi drop</span>
+                <span><b>Sweep</b>quét dải lọc cao trào</span>
               </label>
             </fieldset>
             <fieldset class="kinds" id="blend-styles">
               <legend class="sub">
-                Cách blend (chuỗi tự chọn cách hợp nhất)
+                Cách blend
               </legend>
               <label class="kind">
                 <input id="s-bl-long" type="checkbox" />
@@ -941,9 +928,7 @@
                   <circle cx="31" cy="10" r="6" />
                   <path d="M15 10h10" stroke-dasharray="2 2" />
                 </svg>
-                <span
-                  ><b>Blend dài</b>16–32 ô nhịp, intro và outro không lời</span
-                >
+                <span><b>Blend dài</b>16–32 ô nhịp intro/outro</span>
               </label>
               <label class="kind">
                 <input id="s-bl-eq" type="checkbox" />
@@ -952,7 +937,7 @@
                   <circle cx="27" cy="10" r="7" />
                   <path d="M20 15v-4" />
                 </svg>
-                <span><b>Blend EQ</b>8 ô nhịp, bass swap giữa chừng</span>
+                <span><b>Blend EQ</b>8 ô nhịp, đổi bass</span>
               </label>
               <label class="kind">
                 <input id="s-bl-short" type="checkbox" />
@@ -960,7 +945,7 @@
                   <circle cx="15" cy="10" r="7" />
                   <circle cx="25" cy="10" r="7" />
                 </svg>
-                <span><b>Blend ngắn</b>2–4 ô nhịp, lọt giữa hai câu hát</span>
+                <span><b>Blend ngắn</b>2–4 ô nhịp lọt giữa câu</span>
               </label>
               <label class="kind">
                 <input id="s-bl-filter" type="checkbox" />
@@ -968,7 +953,7 @@
                   <path d="M3 15c6 0 7-10 13-10" />
                   <path d="M24 5c6 0 7 10 13 10" />
                 </svg>
-                <span><b>Blend lọc</b>bài trước mỏng dần, bài sau mở dần</span>
+                <span><b>Blend lọc</b>mở dải tần dần</span>
               </label>
               <label class="kind">
                 <input id="s-bl-swap" type="checkbox" />
@@ -976,7 +961,7 @@
                   <path d="M3 16l14-10M17 6v10" />
                   <circle cx="29" cy="10" r="7" />
                 </svg>
-                <span><b>Drop swap</b>bài sau dồn lên, cắt ngay khi drop</span>
+                <span><b>Drop swap</b>cắt ngay khi drop</span>
               </label>
               <label class="kind">
                 <input id="s-bl-stem" type="checkbox" />
@@ -984,9 +969,7 @@
                   <path d="M8 14v-5a3 3 0 0 1 6 0v5M26 14v-5a3 3 0 0 1 6 0v5" />
                   <path d="M16 10h8M21 7l3 3-3 3" />
                 </svg>
-                <span
-                  ><b>Trao giọng</b>giọng bài sau chờ giọng bài trước ra</span
-                >
+                <span><b>Trao giọng</b>chuyển tiếp vocal</span>
               </label>
               <label class="kind">
                 <input id="s-bl-acapella" type="checkbox" />
@@ -994,10 +977,7 @@
                   <path d="M17 14v-5a3 3 0 0 1 6 0v5" />
                   <path d="M4 16h8M28 16h8" opacity=".5" />
                 </svg>
-                <span
-                  ><b>Acapella</b>giọng bài sau hát trên nhạc bài trước, nhạc
-                  bài sau lên dần</span
-                >
+                <span><b>Acapella</b>vocal trên nền nhạc trước</span>
               </label>
               <label class="kind">
                 <input id="s-bl-mashup" type="checkbox" />
@@ -1006,10 +986,7 @@
                   <path d="M4 17h32" opacity=".5" />
                   <path d="M18 9h18" stroke-dasharray="2 2" />
                 </svg>
-                <span
-                  ><b>Mashup</b>giọng bài sau hát trọn 16–32 ô nhịp trên nhạc
-                  bài trước</span
-                >
+                <span><b>Mashup</b>vocal trọn 16–32 ô nhịp</span>
               </label>
               <label class="kind">
                 <input id="s-bl-double" type="checkbox" />
@@ -1017,7 +994,7 @@
                   <path d="M4 16l8-10M12 6v10" />
                   <path d="M22 16l8-10M30 6v10" />
                 </svg>
-                <span><b>Double drop</b>hai đoạn drop nổ cùng lúc</span>
+                <span><b>Double drop</b>hai drop nổ cùng lúc</span>
               </label>
               <label class="kind">
                 <input id="s-bl-loop" type="checkbox" />
@@ -1026,27 +1003,18 @@
                   <path d="M15 10a5 5 0 0 1 10 0" opacity=".5" />
                   <circle cx="32" cy="10" r="5" />
                 </svg>
-                <span
-                  ><b>Vòng lặp</b>lặp vài ô nhịp bài trước làm outro để blend
-                  vào</span
-                >
+                <span><b>Vòng lặp</b>lặp outro để blend</span>
               </label>
             </fieldset>
             <fieldset class="choices" id="blend-match">
               <legend class="sub">Khớp tông và nhịp khi blend</legend>
               <label class="choice">
                 <input id="s-keyshift" type="checkbox" />
-                <span
-                  ><b>Dịch tông bài sau</b>tới 2 nửa cung cho hợp tông bài
-                  trước, rồi trượt dần về tông gốc</span
-                >
+                <span><b>Dịch tông</b>tới 2 nửa cung cho hợp tông</span>
               </label>
               <label class="choice">
                 <input id="s-tempo" type="checkbox" />
-                <span
-                  ><b>Kéo tempo dần</b>bài trước kéo tempo về phía bài sau qua
-                  vài câu nhạc, nối được hai bài lệch tới 18 %</span
-                >
+                <span><b>Kéo tempo</b>đồng bộ nhịp lệch tới 18%</span>
               </label>
             </fieldset>
           </section>
@@ -1057,10 +1025,7 @@
               <legend class="sub">Khi đang nghe một kho có sẵn</legend>
               <label class="choice">
                 <input id="s-cross" type="checkbox" />
-                <span
-                  ><b>Đi xuyên các kho</b>chuỗi được mix sang bài của kho kế
-                  tiếp khi có điểm nối đẹp</span
-                >
+                <span><b>Đi xuyên các kho</b>mix sang kho tiếp theo khi nối đẹp</span>
               </label>
             </fieldset>
             <label class="row">
@@ -1068,17 +1033,14 @@
                 ><span>Tự chuyển kho sau</span><em id="v-kmin" class="mono"></em
               ></span>
               <input id="s-kmin" type="range" min="0" max="30" step="1" />
-              <small
-                >Kéo về 0 để tắt. Nút Kho khác (phím <kbd>K</kbd>) chuyển ngay,
-                ở điểm nối gần nhất.</small
-              >
+              <small>Kéo về 0 để tắt. Phím <kbd>K</kbd> chuyển ngay.</small>
             </label>
           </section>
 
           <section class="group" aria-labelledby="g-lib">
             <h2 class="label" id="g-lib">Thư viện</h2>
             <button id="btn-relink" type="button" class="ghost">
-              Tính lại điểm nối giữa các bài
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Tính lại điểm nối</span>
             </button>
           </section>
         </div>
@@ -1086,12 +1048,10 @@
         <!-- Hosted only (main.js shows it). -->
         <footer class="fine" id="fine" hidden>
           <p>
-            <b>Dự án phi thương mại & mã nguồn mở:</b> Không quảng cáo, không
-            thu phí, không cần tài khoản. Server không lưu địa chỉ IP hay dữ
-            liệu cá nhân.
+            <b>Phi thương mại & mã nguồn mở:</b> Không quảng cáo, không lưu dữ liệu cá nhân.
           </p>
           <p class="fine__sparkle">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:4px;color:var(--accent);"><path d="M12 2l2.4 6.9L21.3 12l-6.9 2.4L12 21.3l-2.4-6.9L2.7 12l6.9-2.4z"/></svg>Chúc bạn có những phút giây phiêu cùng giai điệu vô tận ∞
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:4px;color:var(--accent);"><path d="M12 2l2.4 6.9L21.3 12l-6.9 2.4L12 21.3l-2.4-6.9L2.7 12l6.9-2.4z"/></svg>Giai điệu vô tận ∞
           </p>
         </footer>
       </aside>
@@ -1473,14 +1433,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=57"></script>
+    <script type="module" src="js/main.js?v=58"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=57")
+          .register("sw.js?v=58")
           .then((reg) => {
             reg.update();
           })

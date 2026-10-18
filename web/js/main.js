@@ -1865,11 +1865,11 @@ async function openInspectModal(id) {
     <div class="inspect-grid">
       <div class="inspect-card">
         <span class="inspect-card__val">${esc(bpmStr)}</span>
-        <span class="inspect-card__lbl">Nhịp điệu (Tempo)</span>
+        <span class="inspect-card__lbl">Nhịp điệu</span>
       </div>
       <div class="inspect-card">
         <span class="inspect-card__val">${esc(camStr)}</span>
-        <span class="inspect-card__lbl">Tone Camelot Key</span>
+        <span class="inspect-card__lbl">Tone Camelot</span>
       </div>
       <div class="inspect-card">
         <span class="inspect-card__val">${esc(durStr)}</span>
@@ -1877,11 +1877,11 @@ async function openInspectModal(id) {
       </div>
       <div class="inspect-card">
         <span class="inspect-card__val">${esc(jumpsStr)}</span>
-        <span class="inspect-card__lbl">Điểm nhảy vô tận</span>
+        <span class="inspect-card__lbl">Điểm nhảy</span>
       </div>
     </div>
     <div class="inspect-section">
-      <h4 class="inspect-section__title">Các điểm nối hòa âm (Transitions)</h4>
+      <h4 class="inspect-section__title">Điểm nối hòa âm</h4>
       <div class="inspect-links" id="inspect-links-box">
         <div style="text-align:center;padding:12px;color:var(--text-faint);font-size:var(--step--2)">
           Đang tải dữ liệu điểm nối...
@@ -1973,9 +1973,9 @@ async function openInspectModal(id) {
         <div class="inspect-link-item">
           <div class="inspect-link-info">
             <span class="inspect-link-target">${esc(destTitle)}</span>
-            <span class="inspect-link-meta">Kiểu: ${esc(typeLabel)} · Độ mượt: ${pct}%</span>
+            <span class="inspect-link-meta">${esc(typeLabel)} · ${pct}%</span>
           </div>
-          <button type="button" class="pl-btn-apply" data-goto="${esc(tr.to)}" title="Xem bài này">Xem</button>
+          <button type="button" class="pl-btn-apply" data-goto="${esc(tr.to)}" title="Xem bài này" aria-label="Xem bài này"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       `;
     }).join("");

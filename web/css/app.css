@@ -3473,6 +3473,13 @@ dialog.shortcuts-modal,
 }
 
 @media (max-width: 768px) {
+  .topbar__end span { display: none !important; }
+  .topbar__end .btn-topbar-zen,
+  .topbar__end .btn-mobile-pill,
+  .topbar__end .btn-shortcuts {
+    padding: 0 8px;
+    height: 32px;
+  }
   .deck__btn span { display: none !important; }
   .deck__btn { padding: 0 10px; }
   .deck__vol input { width: 68px; }
@@ -3480,11 +3487,47 @@ dialog.shortcuts-modal,
 }
 
 @media (max-width: 520px) {
-  .brand { font-size: 0.875rem; gap: 4px; }
-  .brand__inf { width: 26px; height: 13px; }
-  .topbar__end { display: none; }
-  .topbar { grid-template-columns: auto 1fr; }
-  .mode { justify-self: end; }
+  .topbar {
+    grid-template-columns: auto auto auto;
+    justify-content: space-between;
+    padding: env(safe-area-inset-top) 8px 0 8px;
+    gap: 4px;
+  }
+  .brand {
+    font-size: 0.8125rem;
+    gap: 3px;
+    padding: 4px 0;
+    margin-left: 0;
+  }
+  .brand__inf { width: 22px; height: 11px; }
+  .mode { justify-self: center; }
+  .mode button {
+    padding: 3px 6px;
+    font-size: 0.72rem;
+    gap: 3px;
+  }
+  .mode button svg {
+    width: 11px;
+    height: 11px;
+  }
+  .topbar__end {
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    justify-self: end;
+  }
+  .topbar__end .btn-topbar-zen,
+  .topbar__end .btn-mobile-pill,
+  .topbar__end .btn-shortcuts {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0 !important;
+    border-radius: 50%;
+    justify-content: center;
+  }
+  .topbar__end span { display: none !important; }
+  .topbar__end .to-panel { display: none !important; }
   .ro-stats { display: none; }
   .readout--tl { max-width: 62%; }
   .readout--tr { max-width: 34%; }
