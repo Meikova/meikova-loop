@@ -980,8 +980,6 @@ function renderActivePlaylistHeader() {
   }
   header.hidden = false;
   $("#pl-active-title").textContent = pl.name;
-  const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
-  $("#pl-active-stats").textContent = `${count} bài hát`;
   const lockCb = $("#pl-lock-toggle");
   if (lockCb) lockCb.checked = lockToPlaylist;
 }
