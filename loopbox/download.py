@@ -136,6 +136,20 @@ def clean_youtube_url(url: str) -> str:
             qs = parse_qs(parsed.query)
             v = qs.get("v", [None])[0]
             l = qs.get("list", [None])[0]
+            # Handle youtu.be/<vid> path
+            if not v and "youtu.be" in parsed.netloc and parsed.path.strip("/"):
+                path_vid = parsed.path.strip("/")
+                if _VIDEO_ID.match(path_vid):
+                    v = path_vid
+
+            # If it's a YouTube Mix / Radio (list starts with RD, RDMM, RDAMVM),
+            # YouTube rejects /playlist?list=RD... with "This playlist type is unviewable".
+            # The seed video ID is embedded directly in the list ID after the prefix!
+            if not v and l:
+                m_mix = re.match(r"^(?:RDMM|RDAMVM|RD)([A-Za-z0-9_-]{11})$", l)
+                if m_mix:
+                    v = m_mix.group(1)
+
             if v and l:
                 return f"https://www.youtube.com/watch?v={v}&list={l}"
             elif l:
@@ -331,7 +345,24 @@ def resolve(text: str) -> list[dict]:
                 break
 
     if info is None:
-        if "watch?v=" in text or "youtu.be/" in text:
+        # Check if text contains a Mix list ID (RD...) to resolve via seed watch URL
+        m_mix = re.search(r"list=((?:RDMM|RDAMVM|RD)([A-Za-z0-9_-]{11}))", text)
+        if m_mix:
+            full_list, seed_vid = m_mix.group(1), m_mix.group(2)
+            watch_url = f"https://www.youtube.com/watch?v={seed_vid}&list={full_list}"
+            for client in clients:
+                mix_opts = dict(opts)
+                mix_opts["noplaylist"] = False
+                if client:
+                    mix_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+                try:
+                    with yt_dlp.YoutubeDL(mix_opts) as ydl:
+                        info = ydl.extract_info(watch_url, download=False)
+                    break
+                except Exception as e:
+                    last_e = e
+
+        if info is None and ("watch?v=" in text or "youtu.be/" in text):
             m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", text)
             if m:
                 single_url = f"https://www.youtube.com/watch?v={m.group(1)}"
@@ -346,9 +377,7 @@ def resolve(text: str) -> list[dict]:
                         break
                     except Exception as e:
                         last_e = e
-            if info is None and last_e:
-                raise last_e
-        elif last_e:
+        if info is None and last_e:
             raise last_e
 
     if info.get("_type") == "playlist" or "entries" in info:
@@ -377,6 +406,8 @@ def clean_error(err: str | Exception) -> str:
     s = re.sub(r"^(?:could not resolve|error):\s*", "", s, flags=re.I)
     s = re.sub(r"^\[[^\]]+\]\s*", "", s)
     low = s.lower()
+    if "unviewable" in low or "playlist type is unviewable" in low:
+        return "YouTube Mix này cần mở kèm bài hát gốc"
     if "confirm you're not a bot" in low or ("bot" in low and "sign in" in low):
         return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi"
     if "this video is unavailable" in low or "unavailable" in low:

@@ -1410,6 +1410,9 @@ function cleanUiError(msg) {
   s = s.replace(/^(?:could not resolve|error):\s*/i, "");
   s = s.replace(/^\[[^\]]+\]\s*/i, "");
   const low = s.toLowerCase();
+  if (low.includes("unviewable") || low.includes("playlist type is unviewable")) {
+    return "YouTube Mix này cần mở kèm bài hát gốc (đã tự động nắn link).";
+  }
   if (low.includes("confirm you're not a bot") || (low.includes("bot") && low.includes("sign in"))) {
     return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi.";
   }
