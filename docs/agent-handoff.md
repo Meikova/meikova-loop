@@ -197,13 +197,19 @@
     - Bổ sung `maximum-scale=1` vào `<meta name="viewport">` trong `web/index.html`.
   - Hỗ trợ dán trực tiếp link chia sẻ Playlist MashLoop:
     - Nhận diện tham số `pl_tracks=` / `tracks=` khi người dùng dán link chia sẻ vào ô "Thêm bài vào thư viện", tự động nạp thẳng playlist và kích hoạt mà không chuyển sang `yt-dlp`.
-  - Nâng cấp Service Worker lên `mashloop-v25`.
+- **Fix YouTube Mix / Radio Unviewable Error (Commit `46ef1e5`, Space `d75f20d`)**:
+  - Khắc phục lỗi `YouTube said: This playlist type is unviewable`:
+    - Nguyên nhân: Các danh sách Mix/Radio của YouTube có ID bắt đầu bằng `RD...` (như `RDOZYOyuLU5pg`), YouTube cấm xem trực tiếp dưới dạng trang playlist tĩnh `/playlist?list=RD...`. Danh sách Mix bắt buộc phải đi kèm với video gốc dạng `/watch?v=<vid>&list=RD<vid>`.
+    - Xử lý: Tự động trích xuất mã video hạt giống (seed video ID) từ chuỗi ID danh sách phát (`RD<vid>`, `RDMM<vid>`, `RDAMVM<vid>`) trong `clean_youtube_url()` và fallback của `resolve()`, tự động chuyển đổi sang URL `/watch?v=OZYOyuLU5pg&list=RDOZYOyuLU5pg`.
+    - Đã kiểm thử trực tiếp: URL `https://youtube.com/playlist?list=RDOZYOyuLU5pg` nạp thành công trọn vẹn 50 bài hát mà không báo lỗi.
+  - Nâng cấp Service Worker lên `mashloop-v26`.
 
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe -c "import tests.test_server_and_features as t; t.test_ip_extraction(); t.test_qr_api(); t.test_samples_api(); t.test_multi_source_detection(); print('PASS')"` -> Exit Code 0
-- `.venv\Scripts\python.exe -c "from loopbox.download import clean_error; print(clean_error('ERROR: [youtube] e-OrHEE9VVg: Sign in to confirm you are not a bot.'))"` -> Exit Code 0
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `f0f004a8` on `m3ik18dp/MashLoop`)
-- GitHub commit `e3a97d2` pushed to `origin/main` (Exit Code 0)
+- `.venv\Scripts\python.exe -c "from loopbox import download; res = download.resolve('https://youtube.com/playlist?list=RDOZYOyuLU5pg'); print('RESOLVED:', len(res))"` -> Exit Code 0 (50 bài)
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `d75f20d7` on `m3ik18dp/MashLoop`)
+- GitHub commit `46ef1e5` pushed to `origin/main` (Exit Code 0)
+
 
 
 

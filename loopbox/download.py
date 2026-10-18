@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 import yt_dlp
 
-from .config import JS_RUNTIME, MAX_PLAYLIST
+from .config import JS_RUNTIME, MAX_PLAYLIST, MAX_DURATION_S
 
 logger = logging.getLogger(__name__)
 
@@ -453,6 +453,10 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
             opts["extractor_args"] = {"youtube": {"player_client": [client]}}
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                dur = info.get("duration")
+                if dur and dur > MAX_DURATION_S:
+                    raise RuntimeError(f"dài hơn {MAX_DURATION_S // 60} phút ({dur // 60} phút), không thể phân tích phách nhịp")
                 info = ydl.extract_info(url, download=True)
             previews = any("preview" in str(f.get("format_id", "")) for f in info.get("requested_downloads") or [])
             if site == "soundcloud" and (previews or (info.get("duration") or 99) <= 31):
