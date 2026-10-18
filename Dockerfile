@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Deno (official recommended JS engine for yt-dlp signature decryption)
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+
 # Hugging Face Spaces runs as user with UID 1000
 RUN useradd -m -u 1000 user
 USER user

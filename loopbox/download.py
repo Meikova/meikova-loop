@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import urllib.request
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
@@ -19,20 +20,48 @@ from urllib.parse import urlparse
 
 import yt_dlp
 
+try:
+    from yt_dlp.networking.impersonate import ImpersonateTarget
+except ImportError:
+    ImpersonateTarget = None
+
 from .config import JS_RUNTIME, MAX_PLAYLIST, MAX_DURATION_S
 
 logger = logging.getLogger(__name__)
+
+
+def _get_impersonate():
+    if not ImpersonateTarget:
+        return None
+    try:
+        return ImpersonateTarget.from_str("chrome")
+    except Exception:
+        return None
+
+
+def _find_js_runtimes():
+    runtimes = {}
+    for rt in ("deno", "node", "bun", "quickjs"):
+        p = shutil.which(rt)
+        if p:
+            runtimes[rt] = {"path": p}
+        else:
+            runtimes[rt] = {}
+    if JS_RUNTIME and JS_RUNTIME not in runtimes:
+        runtimes[JS_RUNTIME] = {}
+    return runtimes
+
 
 BASE_OPTS = {
     "quiet": True,
     "no_warnings": True,
     "noprogress": True,
     "nocheckcertificate": True,
-    "js_runtimes": {JS_RUNTIME: {}},
+    "js_runtimes": _find_js_runtimes(),
     "socket_timeout": 30,
     "extractor_args": {
         "youtube": {
-            "player_client": ["mweb", "android", "ios", "web"]
+            "player_client": ["web_embedded", "android", "web"]
         }
     },
 }
@@ -188,6 +217,16 @@ def _opts(site: str, **extra) -> dict:
     opts = {**BASE_OPTS, **extra}
     if extractors:
         opts["allowed_extractors"] = extractors
+    if site == "youtube":
+        imp = _get_impersonate()
+        if imp:
+            opts["impersonate"] = imp
+    from .config import DATA_DIR, ROOT
+    cookie_file = DATA_DIR / "cookies.txt"
+    if not cookie_file.exists():
+        cookie_file = ROOT / "cookies.txt"
+    if cookie_file.exists():
+        opts["cookiefile"] = str(cookie_file)
     return opts
 
 
@@ -328,11 +367,11 @@ def resolve(text: str) -> list[dict]:
         opts["noplaylist"] = True
 
     clients = (
-        ["mweb", "android", "ios", "web"],
+        ["web_embedded", "android", "web"],
+        ["web_embedded"],
         ["mweb"],
-        ["android"],
-        ["web"],
         ["tv_embedded", "tv"],
+        ["android"],
     ) if site == "youtube" else (None,)
     info = None
     last_e = None
@@ -454,11 +493,11 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
     clients = (
-        ["mweb", "android", "ios", "web"],
+        ["web_embedded", "android", "web"],
+        ["web_embedded"],
         ["mweb"],
-        ["android"],
-        ["web"],
         ["tv_embedded", "tv"],
+        ["android"],
     ) if site == "youtube" else (None,)
     for client in clients:
         for stale in dest_dir.glob("source.*"):

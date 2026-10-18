@@ -6,11 +6,17 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 23:14:00
+- Timestamp: 2026-10-18 23:25:00
 - Exit Code: 0 (All 13 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khảo sát giải pháp của dự án EveryThingDownloader & Triển khai toàn diện cho MashLoop**:
+  - Đối chiếu mã nguồn EveryThingDownloader (`D:\JOB\DEV\EveryThingDownloader`): Dự án này tải mượt trên Docker/Cloud nhờ 4 yếu tố cốt lõi mà MashLoop trước đó còn thiếu:
+    1. **Giả lập TLS Fingerprint bằng `curl-cffi` (`impersonate="chrome"`)**: YouTube và Cloudflare kiểm tra ciphers và TLS ClientHello (JA3/JA4). Python urllib/OpenSSL bị nhận diện ngay là bot datacenter. Cài `curl-cffi>=0.15.0` và tích hợp `ImpersonateTarget.from_str("chrome")` biến mọi kết nối tới YouTube mang TLS fingerprint của trình duyệt Chrome thật 100%.
+    2. **Tích hợp Deno JS Engine vào Docker container**: Dockerfile cũ của MashLoop không có Node lẫn Deno, khiến yt-dlp trên Hugging Face Space không thể giải mã n-sig signature của YouTube. Bổ sung `COPY --from=denoland/deno:bin /deno /usr/local/bin/deno` vào `Dockerfile` (nhẹ ~80MB, binary độc lập, không phụ thuộc apt) để yt-dlp giải mã chữ ký YouTube tức thì.
+    3. **Ưu tiên client `web_embedded`**: Chuyển cấu hình `player_client` sang `["web_embedded", "android", "web"]`. Client `web_embedded` mô phỏng trình phát nhúng web bên thứ ba, không bị áp cơ chế kiểm duyệt bot ngặt nghèo của IP datacenter.
+    4. **Tự động nhận diện `cookies.txt`**: Bổ sung cơ chế tự động nạp file `cookies.txt` nếu có tại thư mục dữ liệu hoặc root.
 - **Bypass chặn tải YouTube trên IP Datacenter (Hugging Face Spaces) & Tự động quay vòng client**:
   - Tìm ra nguyên nhân gốc: Trên máy chủ đám mây, client `android` mặc định của `yt-dlp` bị chặn bởi hệ thống bot check của YouTube (`Sign in to confirm you're not a bot`). Khi chuyển sang client thứ 2 (`ios`), YouTube trả về lỗi định dạng luồng stream SABR. Do thông báo lỗi từ `ios` không chứa chữ `bot` hay `403`, điều kiện cũ trong mã đã `raise` vội vã và dừng hẳn toàn bộ tiến trình tải, không bao giờ thử tới `mweb` hay `web`!
   - Cấu hình ưu tiên `player_client: ["mweb", "android", "ios", "web"]` trong `BASE_OPTS`. Khi tải qua `mweb`, YouTube không áp đặt cơ chế xác thực tài khoản và trả về định dạng âm thanh nhanh chóng.

@@ -266,8 +266,13 @@ def test_download_error_handling_and_ui_cleanup():
     unavail_clean = download.clean_error(unavail_raw)
     assert "không khả dụng" in unavail_clean
 
-    # Verify mweb-first player_client in BASE_OPTS
-    assert download.BASE_OPTS["extractor_args"]["youtube"]["player_client"][0] == "mweb"
+    # Verify web_embedded player_client and impersonate in BASE_OPTS
+    assert download.BASE_OPTS["extractor_args"]["youtube"]["player_client"][0] == "web_embedded"
+    assert "js_runtimes" in download.BASE_OPTS
+
+    # Verify Deno in Dockerfile
+    dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+    assert "denoland/deno:bin" in dockerfile
 
     # Verify ingest error handling
     ingest_py = (root / "loopbox" / "ingest.py").read_text(encoding="utf-8")

@@ -24,6 +24,7 @@ fastapi
 uvicorn
 pydantic
 yt-dlp[default]
+curl-cffi>=0.15.0
 demucs
 beat-this
 onnxruntime
