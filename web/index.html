@@ -486,17 +486,17 @@
           <div class="lib-tools" id="lib-tools">
             <div class="lib-search">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="lib-search-input" placeholder="Lọc nhanh tên, BPM, Key..." autocomplete="off" spellcheck="false" />
+              <input type="text" id="lib-search-input" placeholder="Lọc tên, BPM, Key..." autocomplete="off" spellcheck="false" />
               <button type="button" id="lib-search-clear" aria-label="Xoá tìm kiếm" hidden><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div class="lib-sort">
               <select id="lib-sort-select" aria-label="Sắp xếp danh sách bài hát">
                 <option value="default">Mới nhất</option>
-                <option value="bpm-asc">BPM ↑ (Chậm → Nhanh)</option>
-                <option value="bpm-desc">BPM ↓ (Nhanh → Chậm)</option>
-                <option value="key">Key Camelot (Hòa âm)</option>
-                <option value="title">Tên bài (A → Z)</option>
-                <option value="duration">Thời lượng (Dài → Ngắn)</option>
+                <option value="bpm-asc">BPM ↑</option>
+                <option value="bpm-desc">BPM ↓</option>
+                <option value="key">Key Camelot</option>
+                <option value="title">Tên A-Z</option>
+                <option value="duration">Thời lượng</option>
               </select>
             </div>
           </div>
@@ -1316,7 +1316,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=30")
+          .register("sw.js?v=31")
           .then((reg) => {
             reg.update();
           })

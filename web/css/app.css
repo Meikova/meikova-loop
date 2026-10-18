@@ -1265,7 +1265,7 @@ body.dragging::after {
 .lib-tools {
   display: flex;
   gap: 8px;
-  margin: 4px 0 10px;
+  margin: 6px 0 10px;
   align-items: center;
 }
 
@@ -1279,7 +1279,7 @@ body.dragging::after {
 
 .lib-search svg {
   position: absolute;
-  left: 10px;
+  left: 9px;
   color: var(--text-faint);
   pointer-events: none;
   stroke: currentColor;
@@ -1288,12 +1288,12 @@ body.dragging::after {
 .lib-search input {
   width: 100%;
   height: 32px;
-  padding: 0 28px 0 30px;
+  padding: 0 24px 0 28px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--ink-2);
   color: var(--text);
-  font: 400 var(--step--1) var(--font-text);
+  font: 400 var(--step--2) var(--font-text);
   transition: border-color var(--dur-fast) var(--ease-out);
 }
 
@@ -1304,17 +1304,21 @@ body.dragging::after {
 
 .lib-search button {
   position: absolute;
-  right: 6px;
+  right: 5px;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border: 0;
   border-radius: 50%;
   background: var(--ink-3);
   color: var(--text-faint);
   cursor: pointer;
   padding: 0;
+}
+
+.lib-search button[hidden] {
+  display: none !important;
 }
 
 .lib-search button:hover {
@@ -1328,13 +1332,23 @@ body.dragging::after {
 
 .lib-sort select {
   height: 32px;
-  padding: 0 10px;
+  width: 104px;
+  max-width: 108px;
+  padding: 0 18px 0 8px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--ink-2);
   color: var(--text-muted);
   font: 500 var(--step--2) var(--font-text);
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
   transition: all var(--dur-fast) var(--ease-out);
 }
 
@@ -1847,65 +1861,164 @@ body.dragging::after {
 .track {
   position: relative;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
-  gap: var(--space-3);
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 8px 8px 8px 10px;
-  border-radius: 12px;
+  padding: 6px 8px;
+  border-radius: 10px;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 
-.track .mini { width: 38px; height: 38px; display: block; transition: transform var(--dur-cine) var(--ease-out); }
-
-.track .t { font-size: var(--step--1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.track .s { font: 400 var(--step--2) / 1.55 var(--font-mono); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.track .s.err { font-family: var(--font-text); color: var(--danger); white-space: normal; }
-
-.track .s .a { font-family: var(--font-text); color: var(--text-muted); }
-
-/* Creative Commons credit: the licence and where the song lives, both linked. */
-.track .s.cc a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; border-radius: 3px; }
-
-@media (hover: hover) {
-  .track .s.cc a:hover { color: var(--accent-hi); text-decoration-color: currentColor; }
+.track.batch-mode {
+  grid-template-columns: 20px 36px minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
-.track .acts { display: flex; gap: 2px; }
+.track .mini {
+  width: 36px;
+  height: 36px;
+  display: block;
+  flex-shrink: 0;
+  transition: transform var(--dur-cine) var(--ease-out);
+}
+
+.track > div {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.track .t {
+  font-size: var(--step--1);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.track .t:hover {
+  color: var(--accent);
+}
+
+.track .s {
+  font: 400 var(--step--2) / 1.45 var(--font-mono);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track .s.err {
+  font-family: var(--font-text);
+  color: var(--danger);
+  white-space: normal;
+}
+
+.track .s .a {
+  font-family: var(--font-text);
+  color: var(--text-muted);
+}
+
+/* Creative Commons credit: the licence and where the song lives, both linked. */
+.track .s.cc a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (hover: hover) {
+  .track .s.cc a:hover {
+    color: var(--accent-hi);
+    text-decoration-color: currentColor;
+  }
+}
+
+.track .acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
 
 .track .acts button {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 7px;
   background: none;
   color: var(--text-faint);
   transition: color var(--dur-fast), background-color var(--dur-fast), transform var(--dur-instant);
+  padding: 0;
 }
 
-.track .acts svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.track .acts svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
-.track .acts button[data-act="play"] svg { fill: currentColor; stroke: none; }
+.track .acts button[data-act="play"] svg {
+  fill: currentColor;
+  stroke: none;
+  width: 13px;
+  height: 13px;
+}
 
-.track .acts button:active { transform: scale(0.92); }
+.track .acts button:active {
+  transform: scale(0.92);
+}
 
 @media (hover: hover) {
-  .track:hover { background: var(--ink-2); }
-  .track:hover .mini { transform: rotate(90deg); }
-  .track .acts button:hover { color: var(--text); background: var(--ink-3); }
-  .track .acts button[data-act="play"]:hover { color: var(--on-accent); background: var(--accent); }
-  .track .acts button[data-act="delete"]:hover { color: var(--danger); }
-  .track .acts button[data-act="pl-remove"]:hover { color: oklch(0.85 0.16 70); }
+  .track:hover {
+    background: var(--ink-2);
+  }
+  .track:hover .mini {
+    transform: rotate(90deg);
+  }
+  .track .acts button:hover {
+    color: var(--text);
+    background: var(--ink-3);
+  }
+  .track .acts button[data-act="play"]:hover {
+    color: var(--on-accent);
+    background: var(--accent);
+  }
+  .track .acts button[data-act="delete"]:hover {
+    color: var(--danger);
+  }
+  .track .acts button[data-act="pl-remove"]:hover {
+    color: oklch(0.85 0.16 70);
+  }
   .track .acts button[data-act="move-up"]:hover,
-  .track .acts button[data-act="move-down"]:hover { color: var(--accent-hi); }
-  .track .acts button[data-act="queue-next"]:hover { color: var(--accent-hi); }
-  .track .acts button[data-act="download"]:hover { color: var(--accent); }
-  .track .acts button[data-act="inspect"]:hover { color: var(--text); }
+  .track .acts button[data-act="move-down"]:hover {
+    color: var(--accent-hi);
+  }
+  .track .acts button[data-act="queue-next"]:hover {
+    color: var(--accent-hi);
+  }
+  .track .acts button[data-act="inspect"]:hover {
+    color: var(--text);
+  }
   /* Secondary actions are gently visible when idle, full brightness on hover */
-  .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]):not([data-active="true"]) { opacity: 0.42; }
+  .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]):not([data-active="true"]) {
+    opacity: 0.45;
+  }
+}
+
+@media (hover: none) {
+  /* On touch/mobile devices: hide delete from track row to prevent accidental deletion; delete is in Inspect modal */
+  .track .acts button[data-act="delete"] {
+    display: none;
+  }
 }
 
 .track .acts button[data-act="queue-next"][data-active="true"] {
@@ -1915,29 +2028,22 @@ body.dragging::after {
 }
 
 .track.queued-next {
-  background: oklch(var(--acc) / 0.1);
+  background: oklch(var(--acc) / 0.08);
   box-shadow: inset 2px 0 0 var(--accent-hi);
 }
 
 .badge-queued {
   display: inline-flex;
   align-items: center;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
   background: oklch(var(--acc) / 0.25);
   color: var(--accent-hi);
   border: 1px solid oklch(var(--acc) / 0.6);
   margin-left: 6px;
   vertical-align: middle;
-}
-
-.track .t {
-  cursor: pointer;
-}
-.track .t:hover {
-  color: var(--accent);
 }
 
 .track .acts button:disabled {

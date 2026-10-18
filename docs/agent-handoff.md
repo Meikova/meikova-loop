@@ -270,6 +270,21 @@
        - Nút xem bài liên kết, nút Phát ngay, Phát tiếp theo, và Tải MP3 trực tiếp từ modal.
     6. Nâng cấp Service Worker lên `mashloop-v30`.
 
+- **Ambient Instrument UI Polish & Track Row Layout Fix (Commit `sw-v31`)**:
+  - **Sự cố**: Hàng bài hát (`.track`) bị nhồi nhét tới 7–9 nút bấm (`acts`) rộng tới 250px khiến cột tiêu đề và nghệ sĩ bị bóp nghẹt chỉ còn 30px, dẫn tới chữ bị cắt cụt thành `"S.."`, `"C.."`, `"H.."`. Ô tìm kiếm (`.lib-search`) bị dropdown sắp xếp chiếm nửa thanh điều khiển, placeholder bị cắt thành `"Lọc n"` và đè lên nút xoá `(x)`.
+  - **Khắc phục theo chuẩn Ambient Instrument UI**:
+    1. **Tối ưu thanh công cụ (`.lib-tools`)**:
+       - Cố định kích thước dropdown sắp xếp `#lib-sort-select` ở 104px với nhãn chữ ngắn gọn: `"Mới nhất"`, `"BPM ↑"`, `"BPM ↓"`, `"Key Camelot"`, `"Tên A-Z"`, `"Thời lượng"`.
+       - Mở rộng vùng nhập liệu tìm kiếm lên > 230px, placeholder `"Lọc tên, BPM, Key..."` hiển thị trọn vẹn, không đè nút xoá.
+    2. **Thu gọn hàng bài hát (`.track .acts`)**:
+       - Giảm kích thước nút bấm từ 34px xuống 28px tactile chuẩn.
+       - Loại bỏ các nút phụ trùng lặp khỏi hàng (`download`, `playlist`); giữ 4 nút thao tác nhanh: `queue-next` (chuyển tiếp), `play` (phát), `toggle` (vào/bỏ chuỗi), và `inspect` (chi tiết & tùy chọn).
+       - Thêm `min-width: 0; overflow: hidden;` cho thẻ bao văn bản bài hát; giải phóng hơn 150px chiều rộng cho tiêu đề và nghệ sĩ hiển thị đầy đủ, không bị cắt cụt.
+       - Ẩn nút xoá trực tiếp trên màn hình cảm ứng điện thoại (`@media (hover: none)`) để chống bấm nhầm; nút xoá hiển thị an toàn trên desktop khi rê chuột (`hover: hover`).
+    3. **Nâng cấp Modal Chi tiết (`#inspect-modal`)**:
+       - Bổ sung trọn bộ nút hành động 1-chạm: `"Phát ngay"`, `"Phát tiếp theo"`, `"Tải MP3"`, `"Playlist"`, `"Xoá bài"`.
+    4. Nâng cấp Service Worker lên `mashloop-v31`.
+
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
 - `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `0514425` on `m3ik18dp/MashLoop`)

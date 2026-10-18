@@ -1152,19 +1152,14 @@ function trackRow(m, idx = 0, total = 0) {
     ? `<button type="button" data-act="queue-next" data-active="${isQueued}" aria-label="Chuyển sang bài này tiếp theo" title="${isQueued ? "Đang chờ chuyển (bấm để hủy)" : "Chuyển sang bài này tiếp theo"}">${ICON.queueNext}</button>`
     : "";
   const inspectBtn = m.status === "ready"
-    ? `<button type="button" data-act="inspect" aria-label="Xem chi tiết & phân tích" title="Xem chi tiết & điểm nối">${ICON.inspect}</button>`
-    : "";
-  const downloadBtn = m.status === "ready"
-    ? `<button type="button" data-act="download" aria-label="Tải về ${title}" title="Tải file âm thanh về máy (MP3)">${ICON.download}</button>`
+    ? `<button type="button" data-act="inspect" aria-label="Chi tiết & tùy chọn" title="Chi tiết & tùy chọn (tải MP3, playlist...)">${ICON.inspect}</button>`
     : "";
   const acts = m.status === "ready"
     ? `${reorderBtns}
        ${queueNextBtn}
        <button type="button" data-act="play" aria-label="Phát ${title}" title="Phát từ bài này">${ICON.play}</button>
-       <button type="button" data-act="playlist" aria-label="Sao chép / di chuyển playlist" title="Sao chép / di chuyển bài vào playlist khác">${ICON.playlist}</button>
-       ${inspectBtn}
-       ${downloadBtn}
-       <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>`
+       <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>
+       ${inspectBtn}`
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
   const removeBtn = inPl
     ? `<button type="button" data-act="pl-remove" aria-label="Bỏ khỏi playlist này" title="Bỏ khỏi playlist này">${ICON.plRemove}</button>`
@@ -1806,11 +1801,17 @@ async function openInspectModal(id) {
       <button type="button" class="inspect-btn inspect-btn--play" id="inspect-act-play">
         ${ICON.play} <span>Phát ngay</span>
       </button>
-      <button type="button" class="inspect-btn inspect-btn--queue" id="inspect-act-queue">
+      <button type="button" class="inspect-btn inspect-btn--queue" id="inspect-act-queue" data-act="queue-next">
         ${ICON.queueNext} <span>${isQueued ? "Hủy chờ phát tiếp" : "Phát tiếp theo"}</span>
       </button>
-      <button type="button" class="inspect-btn" id="inspect-act-dl">
+      <button type="button" class="inspect-btn" id="inspect-act-dl" data-act="download">
         ${ICON.download} <span>Tải MP3</span>
+      </button>
+      <button type="button" class="inspect-btn" id="inspect-act-pl" data-act="playlist">
+        ${ICON.playlist} <span>Playlist</span>
+      </button>
+      <button type="button" class="inspect-btn inspect-btn--del" id="inspect-act-del" data-act="delete">
+        ${ICON.del} <span>Xoá</span>
       </button>
     </div>
   `;
@@ -1829,6 +1830,28 @@ async function openInspectModal(id) {
   });
   $("#inspect-act-dl")?.addEventListener("click", (e) => {
     downloadTrack(id, e.currentTarget);
+  });
+  $("#inspect-act-pl")?.addEventListener("click", () => {
+    dlg.close();
+    openPlaylistModal(id);
+  });
+  $("#inspect-act-del")?.addEventListener("click", async () => {
+    dlg.close();
+    if (!session.multiuser) {
+      const ok = await showModal({
+        title: "Xác nhận xoá",
+        message: `Xoá "${song.title}" khỏi thư viện?`,
+        confirmText: "Xoá",
+        cancelText: "Thôi",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    if (player.cur?.track.id === id) player.stop();
+    loader.drop(id);
+    forget(id);
+    await api.remove(id);
+    refresh();
   });
 
   try {
