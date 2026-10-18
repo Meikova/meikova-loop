@@ -6,11 +6,17 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 23:48:00
+- Timestamp: 2026-10-18 23:53:00
 - Exit Code: 0 (All 15 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Thêm biểu tượng SVG xinh xắn cho nút chuyển Tab Bảng điều khiển (`.seg.tabs`)**:
+  - Bổ sung biểu tượng SVG sắc nét đồng bộ phong cách tối giản cho 2 nút chuyển đổi tab Bảng điều khiển:
+    - Tab **Thư viện** (`data-tab="library"`): Icon nốt nhạc đôi thanh thoát (`music notes` 13px) biểu thị kho bài hát.
+    - Tab **Tinh chỉnh** (`data-tab="settings"`): Icon cần gạt âm thanh / fader mixer (`sliders` 13px) biểu thị bảng điều chỉnh và hiệu ứng DJ.
+  - Tự động đổi màu tương phản (`currentColor`) khi được chọn trên nền cam/hổ phách accent hoặc mờ êm dịu khi chưa kích hoạt.
+  - Nâng cấp phiên bản Cache hệ thống: `mashloop-v62` trong `web/sw.js` và `?v=62` trong `web/index.html`.
 - **Hệ thống Quản lý Cookie Nguồn nhạc (Port từ EveryThingDownloader)**:
   - Tích hợp module `loopbox/cookies.py`: Hỗ trợ nạp cookie định dạng chuẩn **Netscape** (`cookies.txt` từ tiện ích *Get cookies.txt LOCALLY*) và **JSON** (từ tiện ích *J2TEAM Cookies*).
   - Tự động phát hiện và gia hạn session/zero-timestamp cookies thêm 1 năm để tránh bị `http.cookiejar` / `yt-dlp` loại bỏ trước khi gửi request tới YouTube.
