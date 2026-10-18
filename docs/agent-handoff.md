@@ -6,11 +6,15 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 18:57:00
-- Exit Code: 0 (All tests passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-18 19:00:00
+- Exit Code: 0 (All 12 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Kiểm thử chuyên sâu & TDD (TDD & Verification Before Completion)**:
+  - Bổ sung `test_zen_hud_and_neon_engine` và `test_responsive_mobile_declutter` vào `tests/test_server_and_features.py`.
+  - Khảo sát và xác thực toàn diện: Zen HUD, phím tắt `F`/`Esc`, neon luminance engine, dynamic modal sizing, mobile topbar SVGs và cache versioning `v58`.
+  - Kết quả kiểm thử: 12/12 test suites đạt tuyệt đối với Exit Code 0.
 - **Kiểm tra, tinh gọn chữ và thay thế bằng SVG sạch đẹp (UI Declutter & SVG Polish)**:
   - **Mobile Topbar**: Trên thiết bị di động (`max-width: 520px`) và tablet (`max-width: 768px`), không ẩn `.topbar__end` mà chuyển đổi các nút thao tác thành các nút tròn 30-32px chứa biểu tượng SVG sắc nét (Toàn màn hình Zen, Cài đặt Mobile, Phím tắt & Trợ giúp), ẩn chữ rườm rà.
   - **Nút hành động Playlist & Thao tác**: Thay thế chữ "Phát" thành SVG icon Tam giác Play đồng bộ; nút "Tính lại điểm nối" bổ sung SVG link; nút "Xem bài này" trong bảng phân tích hòa âm chuyển sang icon mũi tên SVG nhỏ gọn.

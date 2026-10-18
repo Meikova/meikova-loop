@@ -175,6 +175,51 @@ def test_search_sort_queue_inspect():
     assert ".inspect-acts" in app_css
     assert ".track .acts button:focus-visible" in app_css
 
+def test_zen_hud_and_neon_engine():
+    root = Path(__file__).resolve().parent.parent
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    theme_js = (root / "web" / "js" / "theme.js").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+
+    # Zen fullscreen & HUD elements
+    assert "btn-zen" in index_html
+    assert "btn-zen-exit" in index_html
+    assert "zen-hud-top" in index_html
+    assert "zen-fx-tape" in index_html
+    assert "zen-fx-sweep" in index_html
+    assert "zen-glow-toggle" in index_html
+    assert ".btn-topbar-zen" in app_css
+    assert ".zen-hud-top" in app_css
+    assert "toggleZen" in main_js
+    assert "is-zen" in main_js
+    assert "updateZenUI" in main_js
+
+    # Neon glow engine
+    assert 'id="s-glow"' in index_html
+    assert "setGlow" in theme_js
+    assert "reapply" in theme_js
+    assert "--glow-mult" in app_css
+    assert "--glow-mult" in theme_js
+
+def test_responsive_mobile_declutter():
+    root = Path(__file__).resolve().parent.parent
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
+
+    # Cache bump
+    assert "mashloop-v58" in sw_js
+    assert "app.css?v=58" in index_html
+    assert "main.js?v=58" in index_html
+    assert "sw.js?v=58" in index_html
+
+    # Mobile topbar buttons & SVG actions
+    assert "max-width: 520px" in app_css
+    assert "pl-action-btn--play" in index_html
+    assert "btn-relink" in index_html
+    assert "inspect-modal" in index_html
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -186,4 +231,7 @@ if __name__ == "__main__":
     test_batch_tracks_api()
     test_frontend_playlist_management()
     test_search_sort_queue_inspect()
+    test_zen_hud_and_neon_engine()
+    test_responsive_mobile_declutter()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
+
