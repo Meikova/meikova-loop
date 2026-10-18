@@ -247,13 +247,34 @@
       - Thanh công cụ chọn nhiều (`#batch-bar`) tự động hiện thêm nút `"Bỏ playlist"` khi đang ở chế độ duyệt playlist.
     - Nâng cấp Service Worker lên `mashloop-v29`.
 
+- **Live Search, Smart Sorting, Queue Next Track, MP3 Download & Track Inspector (Commit `sw-v30`)**:
+  - **Tính năng**:
+    1. **Tìm kiếm & Lọc thời gian thực (`#lib-search-input`)**:
+       - Tìm nhanh theo tên bài, nghệ sĩ (chuẩn hóa tiếng Việt không dấu qua `cleanVi`).
+       - Lọc theo số BPM (sai số +-3 BPM) hoặc theo cung hòa âm Camelot Key (ví dụ `8A`, `11B`).
+       - Nút xóa bộ lọc nhanh (`#lib-search-clear` & `#btn-clear-search-empty`).
+    2. **Sắp xếp Thư viện Thông minh (`#lib-sort-select`)**:
+       - Mới nhất (mặc định), BPM tăng dần (Chậm -> Nhanh), BPM giảm dần (Nhanh -> Chậm).
+       - Cung hòa âm Camelot Key (vòng tròn 1A-12B cho DJ mix hài âm).
+       - Tên bài hát (A -> Z), Thời lượng (Dài -> Ngắn).
+    3. **Chỉ định Bài hát phát tiếp theo (Queue Next Track `targetNextId`)**:
+       - Nút chuyển tiếp trên từng hàng (`queue-next` icon).
+       - Badge `[Kế tiếp]` hiển thị cạnh tên bài hát.
+       - Thuật toán `_planExit(t)` trong `Player` tự động ưu tiên tìm điểm chuyển nhịp / hòa âm mượt nhất sang bài đã chọn thay vì nhảy ngẫu nhiên.
+    4. **Tải file âm thanh về máy (Direct Client-Side MP3 Download)**:
+       - Tải trực tiếp file `.mp3` chất lượng cao từ bộ nhớ giải mã client qua `api.audio(id)`.
+       - Hoạt động 100% offline/client-side, không cần gọi API render lại từ server, tương thích cả local và Space.
+    5. **Xem chi tiết & Điểm nối hòa âm (Track Inspector Modal `#inspect-modal`)**:
+       - Xem BPM, Camelot Key, Thời lượng, Số điểm nhảy vô tận.
+       - Tải động danh sách các điểm nối (`/api/tracks/${id}/transitions`) sang các bài khác trong thư viện kèm kiểu nối (blend, drop, riser, wash...) và % độ mượt.
+       - Nút xem bài liên kết, nút Phát ngay, Phát tiếp theo, và Tải MP3 trực tiếp từ modal.
+    6. Nâng cấp Service Worker lên `mashloop-v30`.
+
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `a94b5ea` on `m3ik18dp/MashLoop`)
-- GitHub commit `14c9a09` pushed to `origin/main` (Exit Code 0).
 
 ## Các phần còn tồn đọng và cảnh báo kỹ thuật
-- Các tính năng quản lý playlist hoạt động hoàn toàn trên client và đồng bộ qua API `restore` khi ở chế độ đa người dùng (`session.multiuser`).
+- Các tính năng quản lý playlist, tìm kiếm, sắp xếp, queue-next, tải nhạc hoạt động hoàn toàn trên client và đồng bộ qua API `restore` khi ở chế độ đa người dùng (`session.multiuser`).
 - Vẫn duy trì tính cô lập và bảo mật với cơ chế xác thực session IP/cookie.
 
 

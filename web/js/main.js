@@ -194,6 +194,10 @@ const ICON = {
   down: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   move: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
   copy: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  queueNext: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="13" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polygon points="16 10 16 20 23 15 16 10" fill="currentColor"/></svg>',
+  download: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  inspect: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  search: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
   inf: '<svg viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>',
 };
 
@@ -863,6 +867,17 @@ let modalTrackIds = [];
 let plModalMode = "copy"; // "copy" or "move"
 let batchMode = false;
 const selectedTrackIds = new Set();
+let libSearchQuery = "";
+let libSortMode = "default";
+
+function cleanVi(s) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .trim();
+}
 
 function loadPlaylists() {
   try {
@@ -979,6 +994,42 @@ function filterMetas(list) {
       res = (pl.trackIds || []).map((id) => idMap.get(id)).filter(Boolean);
     }
   }
+
+  // Filter by search query (Title, Artist, BPM, Camelot Key)
+  if (libSearchQuery) {
+    const q = cleanVi(libSearchQuery);
+    const isNum = /^\d+(\.\d+)?$/.test(libSearchQuery);
+    const numVal = isNum ? parseFloat(libSearchQuery) : null;
+    res = res.filter((m) => {
+      const s = songOf(m);
+      const title = cleanVi(s.title);
+      const artist = cleanVi(s.artist);
+      if (title.includes(q) || artist.includes(q)) return true;
+      if (m.camelot && m.camelot.toLowerCase().includes(q)) return true;
+      if (numVal != null && m.bpm && Math.abs(m.bpm - numVal) <= 3) return true;
+      return false;
+    });
+  }
+
+  // Sort by chosen mode
+  if (libSortMode !== "default") {
+    if (libSortMode === "bpm-asc") {
+      res = res.slice().sort((a, b) => (a.bpm || 0) - (b.bpm || 0));
+    } else if (libSortMode === "bpm-desc") {
+      res = res.slice().sort((a, b) => (b.bpm || 0) - (a.bpm || 0));
+    } else if (libSortMode === "key") {
+      const parseCam = (s) => {
+        const m = /^(\d{1,2})([AB])$/i.exec(s || "");
+        return m ? +m[1] * 2 + (m[2].toUpperCase() === "B" ? 1 : 0) : 999;
+      };
+      res = res.slice().sort((a, b) => parseCam(a.camelot) - parseCam(b.camelot));
+    } else if (libSortMode === "title") {
+      res = res.slice().sort((a, b) => (songOf(a).title || "").localeCompare(songOf(b).title || "", "vi"));
+    } else if (libSortMode === "duration") {
+      res = res.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0));
+    }
+  }
+
   return res;
 }
 
@@ -1077,6 +1128,7 @@ function checkUrlPlaylistImport() {
 function trackRow(m, idx = 0, total = 0) {
   const playing = player.audible()?.entry.track.id === m.id;
   const isSelected = selectedTrackIds.has(m.id);
+  const isQueued = player.targetNextId === m.id;
   const inPl = activePlaylistId !== "all";
   let lead, status;
   if (m.status === "ready") {
@@ -1096,10 +1148,22 @@ function trackRow(m, idx = 0, total = 0) {
     ? `<button type="button" data-act="move-up" ${idx === 0 ? "disabled" : ""} aria-label="Đưa lên trên" title="Đưa lên trên">${ICON.up}</button>
        <button type="button" data-act="move-down" ${idx === total - 1 ? "disabled" : ""} aria-label="Đưa xuống dưới" title="Đưa xuống dưới">${ICON.down}</button>`
     : "";
+  const queueNextBtn = m.status === "ready"
+    ? `<button type="button" data-act="queue-next" data-active="${isQueued}" aria-label="Chuyển sang bài này tiếp theo" title="${isQueued ? "Đang chờ chuyển (bấm để hủy)" : "Chuyển sang bài này tiếp theo"}">${ICON.queueNext}</button>`
+    : "";
+  const inspectBtn = m.status === "ready"
+    ? `<button type="button" data-act="inspect" aria-label="Xem chi tiết & phân tích" title="Xem chi tiết & điểm nối">${ICON.inspect}</button>`
+    : "";
+  const downloadBtn = m.status === "ready"
+    ? `<button type="button" data-act="download" aria-label="Tải về ${title}" title="Tải file âm thanh về máy (MP3)">${ICON.download}</button>`
+    : "";
   const acts = m.status === "ready"
     ? `${reorderBtns}
+       ${queueNextBtn}
        <button type="button" data-act="play" aria-label="Phát ${title}" title="Phát từ bài này">${ICON.play}</button>
        <button type="button" data-act="playlist" aria-label="Sao chép / di chuyển playlist" title="Sao chép / di chuyển bài vào playlist khác">${ICON.playlist}</button>
+       ${inspectBtn}
+       ${downloadBtn}
        <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>`
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
   const removeBtn = inPl
@@ -1108,9 +1172,9 @@ function trackRow(m, idx = 0, total = 0) {
   const cb = batchMode
     ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
     : "";
-  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""}" data-id="${esc(m.id)}">
+  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""}" data-id="${esc(m.id)}">
     ${cb}${lead}
-    <div><div class="t" title="${full}">${title}</div>${status}</div>
+    <div><div class="t" data-act="inspect" title="Bấm để xem chi tiết & phân tích">${title}${isQueued ? `<span class="badge-queued">Kế tiếp</span>` : ""}</div>${status}</div>
     <div class="acts">${acts}${removeBtn}</div>
   </li>`;
 }
@@ -1160,7 +1224,7 @@ function renderLibrary() {
   updateBatchBar();
 
   const shown = filterMetas(metas);
-  const listToRender = activePlaylistId === "all" ? shown.slice().reverse() : shown;
+  const listToRender = (libSortMode === "default" && activePlaylistId === "all") ? shown.slice().reverse() : shown;
   const have = new Set(shown.map((m) => m.id));
   const offer = samples.libraries.filter((l) => l.ids.some((id) => !have.has(id)));
   let html;
@@ -1171,7 +1235,9 @@ function renderLibrary() {
     }
   } else {
     let intro = "";
-    if (activePlaylistId !== "all") {
+    if (libSearchQuery) {
+      intro = `Không tìm thấy bài hát nào khớp với "<b>${esc(libSearchQuery)}</b>".<br><button type="button" class="batch-btn" id="btn-clear-search-empty" style="margin-top:8px">Xoá bộ lọc tìm kiếm</button>`;
+    } else if (activePlaylistId !== "all") {
       const pl = getPlaylist(activePlaylistId);
       intro = `Playlist "${esc(pl?.name || "")}" đang trống.<br>Bấm biểu tượng <b>${ICON.playlist}</b> ở bất kỳ bài hát nào để đưa vào playlist này.`;
     } else {
@@ -1179,9 +1245,9 @@ function renderLibrary() {
         ? "Thư viện của bạn đang trống.<br>Dán link YouTube, SoundCloud, Zing MP3, Jamendo, gõ tên bài, hoặc thả file nhạc (cả file zip) vào đây."
         : "Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.";
     }
-    html = `<li class="empty">${ICON.inf}${intro}${activePlaylistId === "all" && offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
+    html = `<li class="empty">${ICON.inf}${intro}${activePlaylistId === "all" && !libSearchQuery && offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
   }
-  const currentKey = `${batchMode ? "b:" : ""}${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
+  const currentKey = `${batchMode ? "b:" : ""}${libSortMode}:${libSearchQuery}:${player.targetNextId}:${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
   if (html !== lastListHtml || currentKey !== lastListKey) {
     lastListHtml = html;
     lastListKey = currentKey;
@@ -1257,17 +1323,40 @@ $("#track-list").addEventListener("toggle", (e) => {
 }, true);
 
 $("#track-list").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-act]");
-  if (btn) {
-    if (btn.dataset.act === "samples") return loadSamples(btn);
-    const id = btn.closest(".track").dataset.id;
+  const clearSearchBtn = e.target.closest("#btn-clear-search-empty");
+  if (clearSearchBtn) {
+    libSearchQuery = "";
+    const searchInput = $("#lib-search-input");
+    if (searchInput) searchInput.value = "";
+    const clearBtn = $("#lib-search-clear");
+    if (clearBtn) clearBtn.hidden = true;
+    renderLibrary();
+    return;
+  }
+
+  const actEl = e.target.closest("[data-act]");
+  if (actEl) {
+    if (actEl.dataset.act === "samples") return loadSamples(actEl);
+    const id = actEl.closest(".track")?.dataset.id;
+    if (!id) return;
     const m = byId().get(id);
-    switch (btn.dataset.act) {
+    switch (actEl.dataset.act) {
       case "play":
         await play(id);
         break;
       case "playlist":
         openPlaylistModal(id);
+        return;
+      case "queue-next":
+        player.setTargetNext(player.targetNextId === id ? null : id);
+        renderLibrary();
+        renderTransport();
+        return;
+      case "download":
+        await downloadTrack(id, actEl.tagName === "BUTTON" ? actEl : null);
+        return;
+      case "inspect":
+        openInspectModal(id);
         return;
       case "toggle":
         await api.patch(id, { enabled: m.enabled === false });
@@ -1632,6 +1721,192 @@ $("#pl-modal-new-name")?.addEventListener("keydown", (e) => {
     e.preventDefault();
     handleModalCreatePlaylist();
   }
+});
+
+// --------------------------------------------------- download & track inspector
+async function downloadTrack(id, btn) {
+  const m = byId().get(id);
+  const title = songOf(m).title || id;
+  const origHtml = btn ? btn.innerHTML : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" class="spin"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/></svg>`;
+  }
+  try {
+    const rawBuf = await api.audio(id);
+    const blob = new Blob([rawBuf], { type: "audio/mpeg" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title} - MashLoop.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (err) {
+    await showModal({
+      title: "Không thể tải file",
+      message: `Đã xảy ra lỗi khi tải file âm thanh: ${err.message}`,
+      confirmText: "Đóng",
+    });
+  } finally {
+    if (btn && origHtml) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+
+async function openInspectModal(id) {
+  const m = byId().get(id);
+  if (!m) return;
+  const song = songOf(m);
+  const dlg = $("#inspect-modal");
+  const content = $("#inspect-content");
+  if (!dlg || !content) return;
+
+  const isQueued = player.targetNextId === id;
+  const bpmStr = m.bpm ? `${Math.round(m.bpm)} BPM` : "--";
+  const camStr = m.camelot || "--";
+  const durStr = m.duration ? fmt(m.duration) : "--";
+  const jumpsStr = `${m.jumps ?? 0} nhánh`;
+
+  content.innerHTML = `
+    <div class="inspect-hero">
+      <h3 class="inspect-song-title">${esc(song.title)}</h3>
+      <p class="inspect-song-artist">${esc(song.artist || "Nghệ sĩ chưa rõ")}</p>
+    </div>
+    <div class="inspect-grid">
+      <div class="inspect-card">
+        <span class="inspect-card__val">${esc(bpmStr)}</span>
+        <span class="inspect-card__lbl">Nhịp điệu (Tempo)</span>
+      </div>
+      <div class="inspect-card">
+        <span class="inspect-card__val">${esc(camStr)}</span>
+        <span class="inspect-card__lbl">Tone Camelot Key</span>
+      </div>
+      <div class="inspect-card">
+        <span class="inspect-card__val">${esc(durStr)}</span>
+        <span class="inspect-card__lbl">Thời lượng</span>
+      </div>
+      <div class="inspect-card">
+        <span class="inspect-card__val">${esc(jumpsStr)}</span>
+        <span class="inspect-card__lbl">Điểm nhảy vô tận</span>
+      </div>
+    </div>
+    <div class="inspect-section">
+      <h4 class="inspect-section__title">Các điểm nối hòa âm (Transitions)</h4>
+      <div class="inspect-links" id="inspect-links-box">
+        <div style="text-align:center;padding:12px;color:var(--text-faint);font-size:var(--step--2)">
+          Đang tải dữ liệu điểm nối...
+        </div>
+      </div>
+    </div>
+    <div class="inspect-acts">
+      <button type="button" class="inspect-btn inspect-btn--play" id="inspect-act-play">
+        ${ICON.play} <span>Phát ngay</span>
+      </button>
+      <button type="button" class="inspect-btn inspect-btn--queue" id="inspect-act-queue">
+        ${ICON.queueNext} <span>${isQueued ? "Hủy chờ phát tiếp" : "Phát tiếp theo"}</span>
+      </button>
+      <button type="button" class="inspect-btn" id="inspect-act-dl">
+        ${ICON.download} <span>Tải MP3</span>
+      </button>
+    </div>
+  `;
+
+  dlg.showModal();
+
+  $("#inspect-act-play")?.addEventListener("click", () => {
+    dlg.close();
+    play(id);
+  });
+  $("#inspect-act-queue")?.addEventListener("click", () => {
+    player.setTargetNext(player.targetNextId === id ? null : id);
+    renderLibrary();
+    renderTransport();
+    dlg.close();
+  });
+  $("#inspect-act-dl")?.addEventListener("click", (e) => {
+    downloadTrack(id, e.currentTarget);
+  });
+
+  try {
+    const res = await api.transitions(id);
+    const box = $("#inspect-links-box");
+    if (!box) return;
+    const items = res?.items || [];
+    if (!items.length) {
+      box.innerHTML = `<div style="text-align:center;padding:10px;color:var(--text-faint);font-size:var(--step--2)">Chưa có điểm nối sang bài khác trong thư viện hiện tại.</div>`;
+      return;
+    }
+    const bestByDest = new Map();
+    for (const tr of items) {
+      const curBest = bestByDest.get(tr.to);
+      if (!curBest || (tr.q || 0) > (curBest.q || 0)) {
+        bestByDest.set(tr.to, tr);
+      }
+    }
+    const sorted = Array.from(bestByDest.values()).sort((a, b) => (b.q || 0) - (a.q || 0));
+    box.innerHTML = sorted.map((tr) => {
+      const destMeta = byId().get(tr.to);
+      const destTitle = destMeta ? songOf(destMeta).title : tr.to;
+      const pct = Math.round((tr.q || 0.8) * 100);
+      const typeLabel = KIND_VI[tr.type] || tr.type || "chuyển bài";
+      return `
+        <div class="inspect-link-item">
+          <div class="inspect-link-info">
+            <span class="inspect-link-target">${esc(destTitle)}</span>
+            <span class="inspect-link-meta">Kiểu: ${esc(typeLabel)} · Độ mượt: ${pct}%</span>
+          </div>
+          <button type="button" class="pl-btn-apply" data-goto="${esc(tr.to)}" title="Xem bài này">Xem</button>
+        </div>
+      `;
+    }).join("");
+
+    box.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-goto]");
+      if (b) {
+        const destId = b.dataset.goto;
+        if (destId) openInspectModal(destId);
+      }
+    });
+  } catch (_) {
+    const box = $("#inspect-links-box");
+    if (box) box.innerHTML = `<div style="text-align:center;padding:10px;color:var(--text-faint);font-size:var(--step--2)">Không tải được danh sách điểm nối.</div>`;
+  }
+}
+
+// --------------------------------------------------- library search & sort listeners
+$("#lib-search-input")?.addEventListener("input", (e) => {
+  libSearchQuery = e.target.value.trim();
+  const clearBtn = $("#lib-search-clear");
+  if (clearBtn) clearBtn.hidden = !libSearchQuery;
+  renderLibrary();
+});
+
+$("#lib-search-clear")?.addEventListener("click", () => {
+  libSearchQuery = "";
+  const input = $("#lib-search-input");
+  if (input) input.value = "";
+  const clearBtn = $("#lib-search-clear");
+  if (clearBtn) clearBtn.hidden = true;
+  renderLibrary();
+  input?.focus();
+});
+
+$("#lib-sort-select")?.addEventListener("change", (e) => {
+  libSortMode = e.target.value;
+  renderLibrary();
+});
+
+$("#inspect-close")?.addEventListener("click", () => {
+  $("#inspect-modal")?.close();
+});
+
+player.addEventListener("target-next", () => {
+  renderLibrary();
+  renderTransport();
 });
 
 async function refresh() {

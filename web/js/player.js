@@ -272,6 +272,7 @@ export class Player extends EventTarget {
     this.seekTarget = null;
     this.endPasses = 0;
     this.urgent = false;
+    this.targetNextId = null;
     this.history = [];
     this.timeline = [];
     this.visits = new Map();
@@ -433,6 +434,17 @@ export class Player extends EventTarget {
     this.dispatchEvent(new CustomEvent("lock-change", { detail: { locked: !isLocked } }));
     this.dispatchEvent(new Event("state"));
     return !isLocked;
+  }
+
+  setTargetNext(id) {
+    this.targetNextId = (this.targetNextId === id) ? null : id;
+    if (this.targetNextId) {
+      this.urgent = true;
+      if (this.cur) this._prefetch(true);
+    }
+    this.dispatchEvent(new CustomEvent("target-next", { detail: { id: this.targetNextId } }));
+    this.dispatchEvent(new Event("state"));
+    return this.targetNextId;
   }
 
   requestJump() {
@@ -1276,6 +1288,9 @@ export class Player extends EventTarget {
       if (!best.has(tr.to) || u > best.get(tr.to)) best.set(tr.to, u);
     }
     this.prefetchIds = [...best.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]);
+    if (this.targetNextId && !this.prefetchIds.includes(this.targetNextId)) {
+      this.prefetchIds.unshift(this.targetNextId);
+    }
     for (const id of this.prefetchIds) this.loader.get(id).catch(() => {});
   }
 
@@ -1285,9 +1300,13 @@ export class Player extends EventTarget {
   _planExit(t) {
     const T = this.cur.track;
     const s = this.settings;
-    const items = T.transitions.filter((tr) => s.allow[allowKey(tr.type)] && tr.to !== T.id && this.enabled(tr.to)
+    let items = T.transitions.filter((tr) => s.allow[allowKey(tr.type)] && tr.to !== T.id && this.enabled(tr.to)
       && this._usable(T, tr));
     if (!items.length) return;
+    if (this.targetNextId) {
+      const targeted = items.filter((tr) => tr.to === this.targetNextId);
+      if (targeted.length) items = targeted;
+    }
     const late = this.urgent || t - this.dwellStart >= s.dwellMax;
     const { dist, prev } = T.distances(this.cur.beat, this.maxScore(T));
     const lambda = late ? Math.max(0.15, s.waitCost) : s.waitCost;
@@ -1367,6 +1386,10 @@ export class Player extends EventTarget {
       const last = jumps.size ? jumps.values().next().value : null;
       plan.bendFrom = last ?? this.cur.beat;
       plan.bendBeats = bendBeats(best.tr.pre);
+    }
+    if (this.targetNextId && best.tr.to === this.targetNextId) {
+      this.targetNextId = null;
+      this.dispatchEvent(new CustomEvent("target-next", { detail: { id: null } }));
     }
     this.plan = plan;
     this.loader.get(best.tr.to).then(

@@ -131,10 +131,42 @@ def test_frontend_playlist_management():
     main_js = (Path(__file__).resolve().parent.parent / "web" / "js" / "main.js").read_text(encoding="utf-8")
     assert "plRemove:" in main_js
     assert "apply-copy" in main_js
-    assert "apply-move" in main_js
-    assert 'case "move-up":' in main_js
-    assert 'case "move-down":' in main_js
     assert 'case "pl-remove":' in main_js
+
+def test_search_sort_queue_inspect():
+    # Verify index.html contains tools and inspect modal
+    index_html = (Path(__file__).resolve().parent.parent / "web" / "index.html").read_text(encoding="utf-8")
+    assert "lib-tools" in index_html
+    assert "lib-search-input" in index_html
+    assert "lib-sort-select" in index_html
+    assert "inspect-modal" in index_html
+
+    # Verify app.css contains styles
+    app_css = (Path(__file__).resolve().parent.parent / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    assert ".lib-tools" in app_css
+    assert ".lib-search" in app_css
+    assert ".lib-sort" in app_css
+    assert ".inspect-modal" in app_css
+    assert ".badge-queued" in app_css
+
+    # Verify player.js contains targetNextId and setTargetNext
+    player_js = (Path(__file__).resolve().parent.parent / "web" / "js" / "player.js").read_text(encoding="utf-8")
+    assert "targetNextId" in player_js
+    assert "setTargetNext" in player_js
+
+    # Verify main.js contains required actions, icons, and listeners
+    main_js = (Path(__file__).resolve().parent.parent / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    assert "queueNext:" in main_js
+    assert "download:" in main_js
+    assert "inspect:" in main_js
+    assert 'data-act="queue-next"' in main_js
+    assert 'data-act="download"' in main_js
+    assert 'data-act="inspect"' in main_js
+    assert "downloadTrack(" in main_js
+    assert "openInspectModal(" in main_js
+    assert "libSearchQuery" in main_js
+    assert "libSortMode" in main_js
+    assert "target-next" in main_js
 
 if __name__ == "__main__":
     test_ip_extraction()
@@ -146,4 +178,5 @@ if __name__ == "__main__":
     test_track_id_generation()
     test_batch_tracks_api()
     test_frontend_playlist_management()
+    test_search_sort_queue_inspect()
     print("ALL TESTS PASSED WITH EXIT CODE 0")

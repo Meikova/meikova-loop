@@ -482,6 +482,25 @@
             </div>
           </div>
 
+          <!-- Thanh tìm kiếm & lọc / sắp xếp thư viện -->
+          <div class="lib-tools" id="lib-tools">
+            <div class="lib-search">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="lib-search-input" placeholder="Lọc nhanh tên, BPM, Key..." autocomplete="off" spellcheck="false" />
+              <button type="button" id="lib-search-clear" aria-label="Xoá tìm kiếm" hidden><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="lib-sort">
+              <select id="lib-sort-select" aria-label="Sắp xếp danh sách bài hát">
+                <option value="default">Mới nhất</option>
+                <option value="bpm-asc">BPM ↑ (Chậm → Nhanh)</option>
+                <option value="bpm-desc">BPM ↓ (Nhanh → Chậm)</option>
+                <option value="key">Key Camelot (Hòa âm)</option>
+                <option value="title">Tên bài (A → Z)</option>
+                <option value="duration">Thời lượng (Dài → Ngắn)</option>
+              </select>
+            </div>
+          </div>
+
           <!-- Batch Management Bar (Shown when batch selection is active) -->
           <div class="batch-bar" id="batch-bar" hidden>
             <div class="batch-bar__info">
@@ -1276,6 +1295,20 @@
       </div>
     </dialog>
 
+    <!-- Modal Thông tin chi tiết bài hát & Phân tích hòa âm -->
+    <dialog class="consent inspect-modal" id="inspect-modal" aria-labelledby="inspect-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <h2 id="inspect-title">Chi tiết bài hát</h2>
+        </div>
+        <button type="button" class="mobile-modal__close" id="inspect-close" aria-label="Đóng"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="inspect-content" id="inspect-content">
+        <!-- Rendered dynamically -->
+      </div>
+    </dialog>
+
     <script type="module" src="js/main.js"></script>
     <script>
       if (
@@ -1283,7 +1316,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=29")
+          .register("sw.js?v=30")
           .then((reg) => {
             reg.update();
           })

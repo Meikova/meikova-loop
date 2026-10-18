@@ -1261,7 +1261,88 @@ body.dragging::after {
   color: var(--text);
 }
 .btn-create-pl:active { transform: scale(0.96); }
-.btn-create-pl svg { flex-shrink: 0; stroke: currentColor; }
+/* --------------------------------------------------- library search & sort */
+.lib-tools {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+  align-items: center;
+}
+
+.lib-search {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.lib-search svg {
+  position: absolute;
+  left: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+  stroke: currentColor;
+}
+
+.lib-search input {
+  width: 100%;
+  height: 32px;
+  padding: 0 28px 0 30px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  color: var(--text);
+  font: 400 var(--step--1) var(--font-text);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.lib-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.lib-search button {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink-3);
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+}
+
+.lib-search button:hover {
+  color: var(--text);
+  background: var(--ink-4);
+}
+
+.lib-sort {
+  flex-shrink: 0;
+}
+
+.lib-sort select {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  color: var(--text-muted);
+  font: 500 var(--step--2) var(--font-text);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.lib-sort select:focus {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--text);
+}
 
 /* --------------------------------------------------- batch management */
 .btn-create-pl.on {
@@ -1820,14 +1901,191 @@ body.dragging::after {
   .track .acts button[data-act="pl-remove"]:hover { color: oklch(0.85 0.16 70); }
   .track .acts button[data-act="move-up"]:hover,
   .track .acts button[data-act="move-down"]:hover { color: var(--accent-hi); }
+  .track .acts button[data-act="queue-next"]:hover { color: var(--accent-hi); }
+  .track .acts button[data-act="download"]:hover { color: var(--accent); }
+  .track .acts button[data-act="inspect"]:hover { color: var(--text); }
   /* Secondary actions are gently visible when idle, full brightness on hover */
-  .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]) { opacity: 0.42; }
+  .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]):not([data-active="true"]) { opacity: 0.42; }
+}
+
+.track .acts button[data-act="queue-next"][data-active="true"] {
+  color: var(--accent-hi);
+  background: oklch(var(--acc) / 0.2);
+  opacity: 1 !important;
+}
+
+.track.queued-next {
+  background: oklch(var(--acc) / 0.1);
+  box-shadow: inset 2px 0 0 var(--accent-hi);
+}
+
+.badge-queued {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: oklch(var(--acc) / 0.25);
+  color: var(--accent-hi);
+  border: 1px solid oklch(var(--acc) / 0.6);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.track .t {
+  cursor: pointer;
+}
+.track .t:hover {
+  color: var(--accent);
 }
 
 .track .acts button:disabled {
   opacity: 0.15 !important;
   pointer-events: none;
   cursor: not-allowed;
+}
+
+/* Track Inspector Modal */
+.inspect-modal {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.inspect-hero {
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 12px;
+}
+
+.inspect-song-title {
+  font-size: 1.12rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.inspect-song-artist {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.inspect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.inspect-card {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background: var(--ink-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.inspect-card__val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.inspect-card__lbl {
+  font-size: var(--step--2);
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.inspect-section {
+  margin-bottom: 14px;
+}
+
+.inspect-section__title {
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.inspect-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.inspect-link-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--ink-2);
+  border: 1px solid var(--line-soft);
+  font-size: var(--step--2);
+}
+
+.inspect-link-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inspect-link-target {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inspect-link-meta {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.inspect-acts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.inspect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  color: var(--text);
+  font-size: var(--step--1);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.inspect-btn:hover {
+  background: var(--ink-3);
+  border-color: var(--accent);
+}
+
+.inspect-btn--play {
+  background: oklch(var(--acc) / 0.2);
+  border-color: oklch(var(--acc) / 0.85);
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+
+.inspect-btn--queue {
+  background: oklch(var(--acc) / 0.15);
 }
 
 .track.playing { background: linear-gradient(90deg, var(--accent-lo), transparent 70%); }
