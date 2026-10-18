@@ -272,6 +272,8 @@
 
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `0514425` on `m3ik18dp/MashLoop`)
+- GitHub commit `e4ebdc6` pushed to `origin/main` (Exit Code 0).
 
 ## Các phần còn tồn đọng và cảnh báo kỹ thuật
 - Các tính năng quản lý playlist, tìm kiếm, sắp xếp, queue-next, tải nhạc hoạt động hoàn toàn trên client và đồng bộ qua API `restore` khi ở chế độ đa người dùng (`session.multiuser`).
