@@ -189,6 +189,11 @@ const ICON = {
   in: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M12 9v6"/></svg>',
   retry: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4v4h4"/></svg>',
   del: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+  plRemove: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  up: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
+  down: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  move: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   inf: '<svg viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>',
 };
 
@@ -855,6 +860,7 @@ let playlists = [];
 let activePlaylistId = "all";
 let lockToPlaylist = false;
 let modalTrackIds = [];
+let plModalMode = "copy"; // "copy" or "move"
 let batchMode = false;
 const selectedTrackIds = new Set();
 
@@ -969,11 +975,28 @@ function filterMetas(list) {
   if (activePlaylistId !== "all") {
     const pl = getPlaylist(activePlaylistId);
     if (pl) {
-      const pSet = new Set(pl.trackIds || []);
-      res = res.filter((m) => pSet.has(m.id));
+      const idMap = new Map(res.map((m) => [m.id, m]));
+      res = (pl.trackIds || []).map((id) => idMap.get(id)).filter(Boolean);
     }
   }
   return res;
+}
+
+function updatePlaylistModalModeUI() {
+  const copyBtn = $("#pl-mode-copy");
+  const moveBtn = $("#pl-mode-move");
+  if (copyBtn) copyBtn.classList.toggle("on", plModalMode === "copy");
+  if (moveBtn) moveBtn.classList.toggle("on", plModalMode === "move");
+  const hint = $("#pl-modal-hint");
+  if (hint) {
+    if (plModalMode === "copy") {
+      hint.textContent = "Thêm bản sao vào playlist được chọn (vẫn giữ ở danh sách hiện tại).";
+    } else {
+      hint.textContent = activePlaylistId !== "all"
+        ? "Chuyển bài sang playlist mới và rút khỏi playlist hiện tại."
+        : "Chuyển bài vào playlist đích.";
+    }
+  }
 }
 
 function openPlaylistModal(tids) {
@@ -987,6 +1010,7 @@ function openPlaylistModal(tids) {
   } else {
     $("#pl-modal-song").textContent = `${modalTrackIds.length} bài đã chọn`;
   }
+  updatePlaylistModalModeUI();
   renderPlaylistModalList();
   dlg.showModal();
 }
@@ -999,14 +1023,30 @@ function renderPlaylistModalList() {
     return;
   }
   listEl.innerHTML = playlists.map((pl) => {
-    const isMember = modalTrackIds.length > 0 && modalTrackIds.every((id) => (pl.trackIds || []).includes(id));
-    return `<label class="pl-modal__item">
+    const isCurrent = activePlaylistId === pl.id;
+    const count = (pl.trackIds || []).length;
+    const hasAll = modalTrackIds.length > 0 && modalTrackIds.every((id) => (pl.trackIds || []).includes(id));
+
+    let actHtml = "";
+    if (plModalMode === "move") {
+      if (isCurrent) {
+        actHtml = `<span class="pl-badge-cur">Playlist này</span><button type="button" class="pl-btn-apply" disabled title="Bài hát đã ở trong playlist này">Ở đây</button>`;
+      } else {
+        actHtml = `<button type="button" class="pl-btn-apply" data-action="apply-move" data-pl-id="${esc(pl.id)}" title="Di chuyển ${modalTrackIds.length} bài sang ${esc(pl.name)}">${ICON.move} <span>Chuyển</span></button>`;
+      }
+    } else {
+      actHtml = `${isCurrent ? `<span class="pl-badge-cur">Hiện tại</span>` : ""}<button type="button" class="pl-btn-apply" data-action="apply-copy" data-pl-id="${esc(pl.id)}" title="Sao chép ${modalTrackIds.length} bài vào ${esc(pl.name)}">${hasAll ? "Đã có (+)" : `${ICON.copy} <span>Sao chép</span>`}</button>`;
+    }
+
+    return `<div class="pl-modal__item">
       <div class="pl-modal__item-info">
         <span class="pl-modal__item-title"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${esc(pl.name)}</span>
-        <span class="pl-modal__item-count">${(pl.trackIds || []).length} bài</span>
+        <span class="pl-modal__item-count">${count} bài</span>
       </div>
-      <input type="checkbox" data-pl-id="${esc(pl.id)}" ${isMember ? "checked" : ""} />
-    </label>`;
+      <div class="pl-modal__item-acts">
+        ${actHtml}
+      </div>
+    </div>`;
   }).join("");
 }
 
@@ -1034,9 +1074,10 @@ function checkUrlPlaylistImport() {
   }
 }
 
-function trackRow(m) {
+function trackRow(m, idx = 0, total = 0) {
   const playing = player.audible()?.entry.track.id === m.id;
   const isSelected = selectedTrackIds.has(m.id);
+  const inPl = activePlaylistId !== "all";
   let lead, status;
   if (m.status === "ready") {
     lead = `<canvas class="mini" data-id="${esc(m.id)}" width="76" height="76" aria-hidden="true"></canvas>`;
@@ -1051,18 +1092,26 @@ function trackRow(m) {
   }
   const title = esc(songOf(m).title);
   const full = esc(`${m.title}${m.status === "ready" ? ` · ${m.jumps ?? 0} nhánh nhảy · ${fmt(m.duration || 0)}` : ""}`);
+  const reorderBtns = inPl
+    ? `<button type="button" data-act="move-up" ${idx === 0 ? "disabled" : ""} aria-label="Đưa lên trên" title="Đưa lên trên">${ICON.up}</button>
+       <button type="button" data-act="move-down" ${idx === total - 1 ? "disabled" : ""} aria-label="Đưa xuống dưới" title="Đưa xuống dưới">${ICON.down}</button>`
+    : "";
   const acts = m.status === "ready"
-    ? `<button type="button" data-act="play" aria-label="Phát ${title}" title="Phát từ bài này">${ICON.play}</button>
-       <button type="button" data-act="playlist" aria-label="Thêm vào playlist" title="Thêm vào Playlist / Album">${ICON.playlist}</button>
+    ? `${reorderBtns}
+       <button type="button" data-act="play" aria-label="Phát ${title}" title="Phát từ bài này">${ICON.play}</button>
+       <button type="button" data-act="playlist" aria-label="Sao chép / di chuyển playlist" title="Sao chép / di chuyển bài vào playlist khác">${ICON.playlist}</button>
        <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>`
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
+  const removeBtn = inPl
+    ? `<button type="button" data-act="pl-remove" aria-label="Bỏ khỏi playlist này" title="Bỏ khỏi playlist này">${ICON.plRemove}</button>`
+    : `<button type="button" data-act="delete" aria-label="Xoá ${title}" title="Xoá">${ICON.del}</button>`;
   const cb = batchMode
     ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
     : "";
   return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""}" data-id="${esc(m.id)}">
     ${cb}${lead}
     <div><div class="t" title="${full}">${title}</div>${status}</div>
-    <div class="acts">${acts}<button type="button" data-act="delete" aria-label="Xoá ${title}" title="Xoá">${ICON.del}</button></div>
+    <div class="acts">${acts}${removeBtn}</div>
   </li>`;
 }
 
@@ -1082,6 +1131,11 @@ function updateBatchBar() {
   for (const id of ["batch-btn-in", "batch-btn-out", "batch-btn-pl", "batch-btn-del"]) {
     const btn = $(`#${id}`);
     if (btn) btn.disabled = !hasSelection;
+  }
+  const plRemoveBtn = $("#batch-btn-pl-remove");
+  if (plRemoveBtn) {
+    plRemoveBtn.hidden = activePlaylistId === "all";
+    plRemoveBtn.disabled = !hasSelection;
   }
 }
 
@@ -1106,11 +1160,12 @@ function renderLibrary() {
   updateBatchBar();
 
   const shown = filterMetas(metas);
+  const listToRender = activePlaylistId === "all" ? shown.slice().reverse() : shown;
   const have = new Set(shown.map((m) => m.id));
   const offer = samples.libraries.filter((l) => l.ids.some((id) => !have.has(id)));
   let html;
   if (shown.length) {
-    html = shown.slice().reverse().map(trackRow).join("");
+    html = listToRender.map((m, idx) => trackRow(m, idx, listToRender.length)).join("");
     if (activePlaylistId === "all" && offer.length) {
       html += `<li class="more"><details${moreOpen ? " open" : ""}><summary>Thêm một kho có sẵn · ${offer.length} kho</summary>${libCards(offer)}</details></li>`;
     }
@@ -1220,6 +1275,49 @@ $("#track-list").addEventListener("click", async (e) => {
       case "retry":
         await api.reanalyze(id);
         break;
+      case "move-up": {
+        if (activePlaylistId !== "all") {
+          const pl = getPlaylist(activePlaylistId);
+          if (pl && pl.trackIds) {
+            const curIdx = pl.trackIds.indexOf(id);
+            if (curIdx > 0) {
+              const temp = pl.trackIds[curIdx - 1];
+              pl.trackIds[curIdx - 1] = pl.trackIds[curIdx];
+              pl.trackIds[curIdx] = temp;
+              savePlaylists();
+              renderLibrary();
+            }
+          }
+        }
+        return;
+      }
+      case "move-down": {
+        if (activePlaylistId !== "all") {
+          const pl = getPlaylist(activePlaylistId);
+          if (pl && pl.trackIds) {
+            const curIdx = pl.trackIds.indexOf(id);
+            if (curIdx >= 0 && curIdx < pl.trackIds.length - 1) {
+              const temp = pl.trackIds[curIdx + 1];
+              pl.trackIds[curIdx + 1] = pl.trackIds[curIdx];
+              pl.trackIds[curIdx] = temp;
+              savePlaylists();
+              renderLibrary();
+            }
+          }
+        }
+        return;
+      }
+      case "pl-remove": {
+        if (activePlaylistId !== "all") {
+          const pl = getPlaylist(activePlaylistId);
+          if (pl && pl.trackIds) {
+            pl.trackIds = pl.trackIds.filter((t) => t !== id);
+            savePlaylists();
+            renderLibrary();
+          }
+        }
+        return;
+      }
       case "delete":
         if (!session.multiuser) {
           const ok = await showModal({
@@ -1314,6 +1412,16 @@ $("#batch-btn-out")?.addEventListener("click", async () => {
 $("#batch-btn-pl")?.addEventListener("click", () => {
   if (!selectedTrackIds.size) return;
   openPlaylistModal(Array.from(selectedTrackIds));
+});
+
+$("#batch-btn-pl-remove")?.addEventListener("click", () => {
+  if (activePlaylistId === "all" || !selectedTrackIds.size) return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl || !pl.trackIds) return;
+  pl.trackIds = pl.trackIds.filter((t) => !selectedTrackIds.has(t));
+  selectedTrackIds.clear();
+  savePlaylists();
+  renderLibrary();
 });
 
 $("#batch-btn-del")?.addEventListener("click", async () => {
@@ -1461,30 +1569,59 @@ $("#pl-modal-close")?.addEventListener("click", () => {
   $("#pl-modal")?.close();
 });
 
-$("#pl-modal-list")?.addEventListener("change", (e) => {
-  const cb = e.target.closest("input[type=checkbox][data-pl-id]");
-  if (!cb || !modalTrackIds.length) return;
-  const plId = cb.dataset.plId;
-  const pl = getPlaylist(plId);
-  if (!pl) return;
-  if (cb.checked) {
-    for (const tid of modalTrackIds) {
-      if (!pl.trackIds.includes(tid)) pl.trackIds.push(tid);
-    }
-  } else {
-    pl.trackIds = pl.trackIds.filter((t) => !modalTrackIds.includes(t));
-  }
-  savePlaylists();
+$("#pl-modal-mode")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".pl-mode-btn[data-mode]");
+  if (!btn) return;
+  plModalMode = btn.dataset.mode;
+  updatePlaylistModalModeUI();
   renderPlaylistModalList();
-  renderLibrary();
+});
+
+$("#pl-modal-list")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn || !modalTrackIds.length) return;
+  const plId = btn.dataset.plId;
+  const targetPl = getPlaylist(plId);
+  if (!targetPl) return;
+  const act = btn.dataset.action;
+
+  if (act === "apply-copy") {
+    for (const tid of modalTrackIds) {
+      if (!targetPl.trackIds.includes(tid)) targetPl.trackIds.push(tid);
+    }
+    savePlaylists();
+    renderPlaylistModalList();
+    renderLibrary();
+  } else if (act === "apply-move") {
+    for (const tid of modalTrackIds) {
+      if (!targetPl.trackIds.includes(tid)) targetPl.trackIds.push(tid);
+    }
+    if (activePlaylistId !== "all" && activePlaylistId !== plId) {
+      const curPl = getPlaylist(activePlaylistId);
+      if (curPl) {
+        curPl.trackIds = curPl.trackIds.filter((t) => !modalTrackIds.includes(t));
+      }
+    }
+    savePlaylists();
+    renderLibrary();
+    $("#pl-modal")?.close();
+  }
 });
 
 function handleModalCreatePlaylist() {
   const input = $("#pl-modal-new-name");
   const name = input?.value.trim();
   if (!name) return;
-  createPlaylist(name, [...modalTrackIds]);
+  const targetPl = createPlaylist(name, [...modalTrackIds]);
+  if (plModalMode === "move" && activePlaylistId !== "all" && activePlaylistId !== targetPl.id) {
+    const curPl = getPlaylist(activePlaylistId);
+    if (curPl) {
+      curPl.trackIds = curPl.trackIds.filter((t) => !modalTrackIds.includes(t));
+    }
+    $("#pl-modal")?.close();
+  }
   input.value = "";
+  savePlaylists();
   renderPlaylistModalList();
   renderLibrary();
 }

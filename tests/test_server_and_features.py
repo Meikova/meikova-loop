@@ -111,6 +111,31 @@ def test_batch_tracks_api():
     data_off = resp_off.json()
     assert data_off.get("enabled") is False
 
+def test_frontend_playlist_management():
+    # Verify index.html contains the new batch and playlist modal elements
+    index_html = (Path(__file__).resolve().parent.parent / "web" / "index.html").read_text(encoding="utf-8")
+    assert "batch-btn-pl-remove" in index_html
+    assert "pl-modal-mode" in index_html
+    assert "pl-mode-copy" in index_html
+    assert "pl-mode-move" in index_html
+
+    # Verify app.css contains the new classes
+    app_css = (Path(__file__).resolve().parent.parent / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    assert ".batch-btn--warn" in app_css
+    assert ".pl-modal__mode" in app_css
+    assert ".pl-btn-apply" in app_css
+    assert 'button[data-act="pl-remove"]' in app_css
+    assert 'button[data-act="move-up"]' in app_css
+
+    # Verify main.js contains required actions and icons
+    main_js = (Path(__file__).resolve().parent.parent / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    assert "plRemove:" in main_js
+    assert "apply-copy" in main_js
+    assert "apply-move" in main_js
+    assert 'case "move-up":' in main_js
+    assert 'case "move-down":' in main_js
+    assert 'case "pl-remove":' in main_js
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -120,4 +145,5 @@ if __name__ == "__main__":
     test_ssrf_protection()
     test_track_id_generation()
     test_batch_tracks_api()
+    test_frontend_playlist_management()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
