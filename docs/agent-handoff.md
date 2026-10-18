@@ -6,11 +6,16 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 16:51:00
+- Timestamp: 2026-10-18 17:25:00
 - Exit Code: 0 (All tests passed: test_server_and_features.py & test_onnx_and_mobile.py)
-- Platforms Built: Desktop EXE (dist/MashLoop/MashLoop.exe, 62.7MB), Mobile Capacitor Sync (Android & iOS).
+- Platforms Built: Desktop EXE (dist/MashLoop/MashLoop.exe, 62.7MB), Mobile Capacitor Sync (Android & iOS), Hugging Face Space (commit 4d78a83).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục triệt để hiện tượng con trỏ phát sáng (Playhead) bị khựng / giật (Micro-stutter)**:
+  - **Bù trễ lượng tử hóa đồng hồ âm thanh (Audio hardware buffer quantization)**: Web Audio `currentTime` cập nhật gián đoạn theo chunk buffer WASAPI/CoreAudio (~10–20ms/lần). Màn hình quét 60Hz (16.6ms) hay 120Hz/144Hz (8.3ms/6.9ms) đọc trùng giá trị cũ làm điểm sáng đứng khựng 1 frame rồi vọt tiếp. Khắc phục bằng bộ nội suy thời gian thực trôi pha mượt theo wall-clock `performance.now()` (`_smoothAudioT` với `drift * 0.15`), giữ chuyển động liên tục 144 FPS.
+  - **Khử đông cứng ranh giới beat (Beat boundary freeze)**: Xóa bỏ việc clamp `frac` ở 1.0 theo `T.dur[e.beat]` lý tưởng. Thay bằng delta thời gian thực giữa 2 sự kiện nhịp liên tiếp trong timeline (`nextE.t - e.t`), đảm bảo chuyển động mượt 100% qua các khớp beat.
+  - **Tối ưu hóa lượng giác Halo Spectrum bằng Lookup Table**: Precompute bảng `HALO_COS` & `HALO_SIN` (180 điểm), tính tọa độ vòng tròn qua công thức cộng góc $\cos(a_0 + \theta) = \cos a_0 \cos \theta - \sin a_0 \sin \theta$. Cắt giảm hoàn toàn 360 hàm `Math.cos/sin` mỗi frame và loại bỏ GC allocations qua mảng phẳng.
+  - **Cache Version**: Bump cache `mashloop-v48` trên `web/sw.js` và `?v=48` trên `web/index.html`. Đồng bộ Desktop, Mobile và HF Space.
 - **Độ nét Canvas toàn diện (Web, Desktop, Mobile)**:
   - **Windows Desktop DPI Awareness**: Thêm `SetProcessDpiAwarenessContext(-4)` (Per-Monitor DPI Aware V2) trong `loopbox/desktop.py` triệt tiêu hoàn toàn hiện tượng Windows DWM bitmap-scaling gây mờ pywebview khi màn hình đặt tỉ lệ 125%/150%.
   - **Khử răng cưa & mờ xoay Canvas (2x-4x SSAA)**:
