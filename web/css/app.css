@@ -135,8 +135,12 @@ button { cursor: pointer; }
 
 :focus-visible { outline: none; box-shadow: var(--focus); }
 
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
+.modal-input:focus,
+.modal-input:focus-visible,
+.pl-modal__create input:focus,
+.pl-modal__create input:focus-visible,
+.lib-search input:focus,
+.lib-search input:focus-visible,
 textarea:focus,
 textarea:focus-visible,
 select:focus,
@@ -1056,11 +1060,13 @@ kbd {
   stroke: var(--accent-hi);
 }
 
-.add__field input {
+.add__field input,
+#add-input {
   flex: 1;
   min-width: 0;
   height: 38px;
   border: 0 !important;
+  border-color: transparent !important;
   background: transparent !important;
   outline: none !important;
   box-shadow: none !important;
@@ -1070,10 +1076,16 @@ kbd {
 }
 
 .add__field input:focus,
-.add__field input:focus-visible {
+.add__field input:focus-visible,
+#add-input:focus,
+#add-input:focus-visible,
+#add-form .add__field input:focus,
+#add-form .add__field input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
   border: 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
 }
 
 .add__field input::placeholder {
