@@ -230,6 +230,7 @@ export function setGlow(level) {
   version++;
   cache.clear();
   document.documentElement.style.setProperty("--glow-mult", userGlow.toFixed(3));
+  reapply();
 }
 export const getGlow = () => userGlow;
 export const glowGain = () => (THEMES[current]?.glow ?? 1) * userGlow;
@@ -303,13 +304,23 @@ export const lift = (col, dl = 0.08) => ({ l: Math.min(0.97, col.l + dl), c: col
 // the page as registered custom properties, so CSS animates every colour that
 // is built from them (the chosen tabs, the play button, sliders, glows).
 let lastCss = "";
+let lastAccent = null, lastSecond = null, lastFillAlpha = 0;
 export function applyPage(accent, second, fillAlpha) {
+  lastAccent = accent;
+  lastSecond = second;
+  lastFillAlpha = fillAlpha;
   const g = ground(accent);
   const s = second || accent;
+  const cMult = Math.max(0.15, 0.4 + 0.6 * userGlow);
+  const lBoost = (userGlow - 1) * 0.04;
+  const effL = Math.max(0.55, Math.min(0.95, accent.l + lBoost));
+  const effC = Math.max(0.02, accent.c * cMult);
+  const effS_L = Math.max(0.55, Math.min(0.95, s.l + lBoost));
+  const effS_C = Math.max(0.02, s.c * cMult);
   const vals = {
-    "--acc-l": accent.l.toFixed(3), "--acc-c": accent.c.toFixed(3), "--acc-h": unwrap("--acc-h", accent.h),
-    "--acc2-l": s.l.toFixed(3), "--acc2-c": s.c.toFixed(3), "--acc2-h": unwrap("--acc2-h", s.h),
-    "--gh": unwrap("--gh", g.h), "--gc": g.c.toFixed(3),
+    "--acc-l": effL.toFixed(3), "--acc-c": effC.toFixed(3), "--acc-h": unwrap("--acc-h", accent.h),
+    "--acc2-l": effS_L.toFixed(3), "--acc2-c": effS_C.toFixed(3), "--acc2-h": unwrap("--acc2-h", s.h),
+    "--gh": unwrap("--gh", g.h), "--gc": (g.c * Math.max(0.2, 0.5 + 0.5 * userGlow)).toFixed(3),
     "--fill-a": (fillAlpha * userGlow).toFixed(3),
     "--glow-mult": userGlow.toFixed(3),
   };
@@ -320,6 +331,11 @@ export function applyPage(accent, second, fillAlpha) {
   for (const [k, v] of Object.entries(vals)) root.setProperty(k, v);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = css({ l: 0.17, c: g.c, h: g.h });
+}
+
+export function reapply() {
+  lastCss = "";
+  applyPage(lastAccent || idleAccent(), lastSecond, lastFillAlpha);
 }
 
 // CSS animates the hue as a plain number: keep each new value within half a

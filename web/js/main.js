@@ -656,6 +656,10 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "e" || e.key === "E") {
     const nextIdx = (EQ_LIST.indexOf(engine.eqMode || "flat") + 1) % EQ_LIST.length;
     setEq(EQ_LIST[nextIdx]);
+  } else if (e.key === "f" || e.key === "F") {
+    toggleZen();
+  } else if (e.key === "Escape" && document.body.classList.contains("is-zen")) {
+    toggleZen();
   }
   else if (e.key === "?") { $("#btn-shortcuts-modal")?.click(); }
 });
@@ -2483,6 +2487,100 @@ shortcutsModal?.addEventListener("click", (e) => {
     rect.left <= e.clientX &&
     e.clientX <= rect.left + rect.width;
   if (!inside) shortcutsModal.close();
+});
+
+// ------------------------------------------------------------- Zen Fullscreen Mode
+let zenIdleTimer = null;
+function resetZenIdle() {
+  document.body.classList.remove("zen-idle");
+  clearTimeout(zenIdleTimer);
+  if (document.body.classList.contains("is-zen")) {
+    zenIdleTimer = setTimeout(() => {
+      document.body.classList.add("zen-idle");
+    }, 3500);
+  }
+}
+
+window.addEventListener("pointermove", resetZenIdle, { passive: true });
+window.addEventListener("pointerdown", resetZenIdle, { passive: true });
+window.addEventListener("keydown", resetZenIdle, { passive: true });
+
+function updateZenUI(isZen) {
+  const zenBtn = $("#btn-zen");
+  if (zenBtn) {
+    const label = zenBtn.querySelector(".zen-label");
+    if (label) label.textContent = isZen ? "Thu nhỏ" : "Toàn màn hình";
+    zenBtn.setAttribute("aria-label", isZen ? "Thu nhỏ visualizer (F)" : "Toàn màn hình visualizer (F)");
+    zenBtn.title = isZen ? "Thu nhỏ visualizer (F)" : "Toàn màn hình visualizer (F)";
+  }
+  resetZenIdle();
+  setTimeout(() => viz && typeof viz._resize === "function" && viz._resize(), 50);
+}
+
+export function toggleZen() {
+  const isZen = document.body.classList.toggle("is-zen");
+  if (isZen) {
+    if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  } else {
+    if (document.exitFullscreen && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+  updateZenUI(isZen);
+}
+
+$("#btn-zen")?.addEventListener("click", toggleZen);
+$("#btn-zen-exit")?.addEventListener("click", toggleZen);
+
+document.addEventListener("fullscreenchange", () => {
+  const isFull = !!document.fullscreenElement;
+  if (!isFull && document.body.classList.contains("is-zen")) {
+    document.body.classList.remove("is-zen");
+    updateZenUI(false);
+  }
+});
+
+// Zen HUD tools: Tape stop, Filter sweep, Neon glow booster
+$("#zen-fx-tape")?.addEventListener("click", () => {
+  if (player.cur && player.playing) {
+    player.forceTransition("tape");
+  } else if (player.cur) {
+    player.requestJump();
+  }
+});
+
+$("#zen-fx-sweep")?.addEventListener("click", () => {
+  if (player.cur && player.playing) {
+    player.forceTransition("sweeper");
+  } else if (player.cur) {
+    player.requestJump();
+  }
+});
+
+const GLOW_STEPS = [0.5, 1.0, 1.5, 2.0];
+$("#zen-glow-toggle")?.addEventListener("click", () => {
+  const currentGlow = ui.glow ?? 1.0;
+  let nextIdx = 0;
+  for (let i = 0; i < GLOW_STEPS.length; i++) {
+    if (Math.abs(GLOW_STEPS[i] - currentGlow) < 0.15) {
+      nextIdx = (i + 1) % GLOW_STEPS.length;
+      break;
+    }
+  }
+  const nextGlow = GLOW_STEPS[nextIdx];
+  ui.glow = nextGlow;
+  if (typeof theme.setGlow === "function") theme.setGlow(nextGlow);
+  const glowInput = $("#s-glow");
+  if (glowInput) glowInput.value = nextGlow;
+  const glowVal = $("#v-glow");
+  if (glowVal) glowVal.textContent = `${Math.round(nextGlow * 100)}%`;
+  const zenGlowLabel = $("#zen-glow-val");
+  if (zenGlowLabel) zenGlowLabel.textContent = `${Math.round(nextGlow * 100)}%`;
+  viz.invalidate();
+  recolor();
+  applySettings();
 });
 
 // Drop files anywhere on the page.
