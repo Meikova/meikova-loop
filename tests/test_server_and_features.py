@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v60" in sw_js
-    assert "app.css?v=60" in index_html
-    assert "main.js?v=60" in index_html
-    assert "sw.js?v=60" in index_html
+    assert "mashloop-v61" in sw_js
+    assert "app.css?v=61" in index_html
+    assert "main.js?v=61" in index_html
+    assert "sw.js?v=61" in index_html
 
     # Mobile topbar buttons & SVG actions
     assert "max-width: 520px" in app_css
@@ -284,6 +284,54 @@ def test_download_error_handling_and_ui_cleanup():
     assert "-webkit-line-clamp: 2" in app_css
     assert "cleanUiError" in main_js
 
+def test_cookies_api_and_playlist_scroll_navigation():
+    root = Path(__file__).resolve().parent.parent
+    client = TestClient(app)
+
+    # Clean existing test cookies
+    client.delete("/api/cookies")
+
+    # Initial cookie status
+    res = client.get("/api/cookies")
+    assert res.status_code == 200
+    assert res.json()["has_cookies"] is False
+
+    # Upload test Netscape cookies
+    test_cookie = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tLOGIN_INFO\ttest_token_value\n"
+    res_upload = client.post("/api/cookies", json={"content": test_cookie})
+    assert res_upload.status_code == 200
+    data = res_upload.json()
+    assert data["success"] is True
+    assert "YouTube" in data["domains"]
+
+    # Verify cookie status is now active
+    res_status = client.get("/api/cookies")
+    assert res_status.status_code == 200
+    assert res_status.json()["has_cookies"] is True
+    assert "YouTube" in res_status.json()["domains"]
+
+    # Delete cookies
+    res_del = client.delete("/api/cookies")
+    assert res_del.status_code == 200
+    assert res_del.json()["success"] is True
+
+    # Verify cookie status is false again
+    res_after = client.get("/api/cookies")
+    assert res_after.json()["has_cookies"] is False
+
+    # Verify playlist scroll navigation & hidden relink section
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+
+    assert "pl-scroll-left" in index_html
+    assert "pl-scroll-right" in index_html
+    assert ".pl-nav__arrow" in app_css
+    assert "group-relink" in index_html
+    assert "group-relink" in main_js
+    assert "cookie-modal" in index_html
+    assert "initCookieManagement" in main_js
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -299,5 +347,6 @@ if __name__ == "__main__":
     test_responsive_mobile_declutter()
     test_volume_svg_bounds_and_night_button()
     test_download_error_handling_and_ui_cleanup()
+    test_cookies_api_and_playlist_scroll_navigation()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 

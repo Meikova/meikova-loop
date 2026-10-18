@@ -6,11 +6,29 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 23:25:00
-- Exit Code: 0 (All 13 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-18 23:48:00
+- Exit Code: 0 (All 15 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Hệ thống Quản lý Cookie Nguồn nhạc (Port từ EveryThingDownloader)**:
+  - Tích hợp module `loopbox/cookies.py`: Hỗ trợ nạp cookie định dạng chuẩn **Netscape** (`cookies.txt` từ tiện ích *Get cookies.txt LOCALLY*) và **JSON** (từ tiện ích *J2TEAM Cookies*).
+  - Tự động phát hiện và gia hạn session/zero-timestamp cookies thêm 1 năm để tránh bị `http.cookiejar` / `yt-dlp` loại bỏ trước khi gửi request tới YouTube.
+  - Tự động lưu trữ an toàn tại `DATA_DIR / "cookies.txt"` và tự động truyền cờ `opts["cookiefile"]` vào mọi yêu cầu tải/phân tích bài hát trong `loopbox/download.py`.
+  - Bổ sung 3 API endpoints backend: `GET /api/cookies`, `POST /api/cookies`, `DELETE /api/cookies`.
+  - Giao diện người dùng tối giản trong Cài đặt: Thẻ trạng thái cookie nhỏ gọn, biểu tượng SVG trực quan (Tải file, Dán mã, Xóa), dialog dán mã cookies tức thì (`#cookie-modal`).
+- **Thanh điều hướng cuộn thông minh cho Playlist (`#pl-chips`)**:
+  - Khắc phục lỗi tràn danh sách khi có nhiều playlist trên desktop: Bổ sung 2 nút mũi tên SVG điều hướng trái/phải (`#pl-scroll-left`, `#pl-scroll-right`) ẩn trên màn hình nhỏ di động.
+  - Chuyển đổi lăn chuột dọc thành cuộn ngang (`wheel` -> `scrollLeft`) khi trỏ chuột vào danh sách playlist.
+  - Thiết kế thanh cuộn micro-scrollbar siêu mỏng 3px tinh tế (`scrollbar-width: thin`), nổi bật khi rê chuột.
+  - Cắt ngắn tiêu đề playlist quá dài (`max-width: 150px`, `text-overflow: ellipsis`) kèm tooltip `title` đầy đủ.
+  - Tự động cuộn playlist đang chọn vào trung tâm tầm nhìn (`scrollIntoView({ inline: "nearest" })`).
+- **Khắc phục lỗi mục "Thư viện" trơ trọi không có nội dung trong Cài đặt**:
+  - Nguyên nhân gốc: Khi chạy ở chế độ nhiều người dùng (Hugging Face Spaces), mã JS chỉ ẩn nút `#btn-relink` (`$("#btn-relink").hidden = true`), để lại thẻ cha `<section>` và tiêu đề `<h2>Thư viện</h2>` đứng một mình với khoảng đệm trống.
+  - Khắc phục: Gán định danh `id="group-relink"` cho toàn bộ section và ẩn toàn bộ phần này khi `session.multiuser` kích hoạt.
+- **Tối giản hóa văn bản & Tăng cường SVG theo yêu cầu người dùng**:
+  - Hạn chế tối đa chữ rườm rà, thay thế bằng biểu tượng SVG sắc nét, đồng bộ phong cách tối giản hiện đại.
+  - Nâng cấp phiên bản Cache hệ thống: `mashloop-v61` trong `web/sw.js` và `?v=61` trong `web/index.html`.
 - **Khảo sát giải pháp của dự án EveryThingDownloader & Triển khai toàn diện cho MashLoop**:
   - Đối chiếu mã nguồn EveryThingDownloader (`D:\JOB\DEV\EveryThingDownloader`): Dự án này tải mượt trên Docker/Cloud nhờ 4 yếu tố cốt lõi mà MashLoop trước đó còn thiếu:
     1. **Giả lập TLS Fingerprint bằng `curl-cffi` (`impersonate="chrome"`)**: YouTube và Cloudflare kiểm tra ciphers và TLS ClientHello (JA3/JA4). Python urllib/OpenSSL bị nhận diện ngay là bot datacenter. Cài `curl-cffi>=0.15.0` và tích hợp `ImpersonateTarget.from_str("chrome")` biến mọi kết nối tới YouTube mang TLS fingerprint của trình duyệt Chrome thật 100%.

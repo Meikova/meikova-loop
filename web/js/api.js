@@ -120,6 +120,9 @@ export const api = {
   transitions: (id) => json(`/api/tracks/${id}/transitions`),
   samples: () => json("/api/samples"),
   ingestLocal: (paths) => json("/api/desktop/ingest_local", send("POST", { paths })),
+  cookieStatus: () => json("/api/cookies"),
+  uploadCookies: (content) => json("/api/cookies", send("POST", { content })),
+  deleteCookies: () => json("/api/cookies", { method: "DELETE" }),
   async audio(id, retry = true) {
     return sound(id, "audio", id, retry);
   },

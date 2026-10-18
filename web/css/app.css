@@ -1943,26 +1943,79 @@ body.dragging::after {
 
 /* --------------------------------------------------- playlist & album section */
 .pl-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: 0 0 8px;
+  min-width: 0;
 }
 .pl-nav[hidden] { display: none; }
 
+.pl-nav__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.pl-nav__arrow:hover {
+  background: var(--ink-3);
+  color: var(--text);
+  border-color: oklch(var(--acc) / 0.5);
+  box-shadow: 0 0 8px -2px oklch(var(--acc) / 0.3);
+}
+.pl-nav__arrow[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 520px) {
+  .pl-nav__arrow {
+    display: none !important;
+  }
+}
+
 .pl-chips {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   overflow-x: auto;
-  scrollbar-width: none;
-  padding: 2px 0 4px;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  padding: 2px 2px 5px;
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
-.pl-chips::-webkit-scrollbar { display: none; }
+.pl-chips::-webkit-scrollbar {
+  height: 3px;
+}
+.pl-chips::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pl-chips::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 9999px;
+}
+.pl-chips::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--acc) / 0.7);
+}
 
 .pl-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 9999px;
   border: 1px solid var(--line);
   background: var(--ink-2);
@@ -1972,6 +2025,19 @@ body.dragging::after {
   cursor: pointer;
   flex-shrink: 0;
   transition: all var(--dur-fast) var(--ease-out);
+}
+
+.pl-chip span {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.pl-chip svg {
+  flex-shrink: 0;
 }
 
 .pl-chip:hover {
@@ -3927,3 +3993,114 @@ body.is-zen.zen-idle .deck:hover,
 body.is-zen.zen-idle .zen-hud-top:hover {
   opacity: 1;
 }
+
+/* --------------------------------------------------- Cookie Management */
+.cookie-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--ink-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+.cookie-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cookie-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font: 500 var(--step--2) / 1.3 var(--font-mono);
+  background: var(--ink-3);
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+}
+
+.cookie-badge svg {
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.cookie-badge.active {
+  background: oklch(var(--acc) / 0.15);
+  color: var(--text);
+  border-color: oklch(var(--acc) / 0.7);
+  box-shadow: 0 0 10px -2px oklch(var(--acc) / 0.3);
+}
+
+.cookie-badge.active svg {
+  stroke: oklch(var(--acc));
+}
+
+.cookie-desc {
+  font-size: var(--step--2);
+  color: var(--text-faint);
+  line-height: 1.3;
+}
+
+.cookie-card__acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-cookie {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  color: var(--text-muted);
+  font: 500 var(--step--2) / 1.2 var(--font-text);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.btn-cookie:hover {
+  background: var(--ink-3);
+  color: var(--text);
+  border-color: oklch(var(--acc) / 0.5);
+}
+
+.btn-cookie--del {
+  color: var(--danger);
+  border-color: oklch(0.6 0.15 25 / 0.3);
+}
+
+.btn-cookie--del:hover {
+  background: oklch(0.6 0.15 25 / 0.15);
+  border-color: var(--danger);
+  color: #ff8080;
+}
+
+.cookie-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: 400 var(--step--2) / 1.4 var(--font-mono);
+  color: var(--text);
+  background: var(--ink-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  resize: vertical;
+  min-height: 130px;
+  outline: none;
+}
+
+.cookie-textarea:focus {
+  border-color: oklch(var(--acc) / 0.8);
+  box-shadow: 0 0 10px -2px oklch(var(--acc) / 0.3);
+}
+

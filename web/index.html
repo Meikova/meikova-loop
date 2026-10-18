@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=60" />
+    <link rel="stylesheet" href="css/app.css?v=61" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -616,7 +616,13 @@
 
           <!-- Playlist / Album Chips Strip -->
           <div class="pl-nav" id="pl-nav" hidden>
+            <button type="button" class="pl-nav__arrow pl-nav__arrow--left" id="pl-scroll-left" aria-label="Cuộn sang trái" title="Cuộn sang trái" hidden>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
             <div class="pl-chips" id="pl-chips" role="tablist" aria-label="Danh sách phát và Album"></div>
+            <button type="button" class="pl-nav__arrow pl-nav__arrow--right" id="pl-scroll-right" aria-label="Cuộn sang phải" title="Cuộn sang phải" hidden>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
           </div>
 
           <!-- Active Playlist Info & Actions Banner (Shown only when custom playlist is selected) -->
@@ -1049,7 +1055,35 @@
             </label>
           </section>
 
-          <section class="group" aria-labelledby="g-lib">
+          <section class="group" aria-labelledby="g-cookies">
+            <h2 class="label" id="g-cookies">Cookie</h2>
+            <div class="cookie-card" id="cookie-card">
+              <div class="cookie-card__head">
+                <span class="cookie-badge" id="cookie-badge">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="14" r="1" fill="currentColor"/><circle cx="16" cy="14" r="1" fill="currentColor"/></svg>
+                  <span id="cookie-status-text">Chưa có</span>
+                </span>
+                <span class="cookie-desc" id="cookie-desc">Bypass bot check</span>
+              </div>
+              <div class="cookie-card__acts">
+                <input type="file" id="cookie-file-input" accept=".txt,.json" hidden />
+                <button type="button" class="btn-cookie btn-cookie--upload" id="btn-upload-cookie" title="Tải file Netscape hoặc JSON">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>Tải file</span>
+                </button>
+                <button type="button" class="btn-cookie btn-cookie--paste" id="btn-paste-cookie" title="Dán nội dung cookies">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                  <span>Dán mã</span>
+                </button>
+                <button type="button" class="btn-cookie btn-cookie--del" id="btn-del-cookie" title="Xóa cookies đã lưu" hidden>
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Xóa</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="group" id="group-relink" aria-labelledby="g-lib">
             <h2 class="label" id="g-lib">Thư viện</h2>
             <button id="btn-relink" type="button" class="ghost">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Tính lại điểm nối</span>
@@ -1445,14 +1479,31 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=60"></script>
+    <!-- Modal Dán Cookie -->
+    <dialog class="consent cookie-modal" id="cookie-modal" aria-labelledby="cookie-modal-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10c0-1.66-1.34-3-3-3s-3 1.34-3 3-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3a3 3 0 1 1-6 0c0-3.31 2.69-6 6-6Z"/></svg>
+          <h2 id="cookie-modal-title">Dán nội dung Cookie</h2>
+        </div>
+        <button type="button" class="mobile-modal__close" id="cookie-modal-close" aria-label="Đóng"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <p style="font-size:var(--step--1);color:var(--text-muted);margin:0 0 10px;">Dán chuỗi cookies định dạng <b>Netscape</b> (từ tiện ích <i>Get cookies.txt LOCALLY</i>) hoặc <b>JSON</b> (từ <i>J2TEAM Cookies</i>):</p>
+      <textarea id="cookie-paste-textarea" class="cookie-textarea" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;...&#10;hoặc dán mảng JSON [...]" rows="8"></textarea>
+      <div class="consent__acts" style="margin-top:12px;">
+        <button type="button" class="ghost" id="btn-cancel-cookie">Hủy</button>
+        <button type="button" class="primary" id="btn-save-cookie">Lưu cookie</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="js/main.js?v=61"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=60")
+          .register("sw.js?v=61")
           .then((reg) => {
             reg.update();
           })

@@ -1020,6 +1020,21 @@ function addTracksToActivePlaylist(trackIds) {
   if (changed) savePlaylists();
 }
 
+function updatePlNavArrows() {
+  const container = $("#pl-chips");
+  const leftBtn = $("#pl-scroll-left");
+  const rightBtn = $("#pl-scroll-right");
+  if (!container || !leftBtn || !rightBtn) return;
+  const maxScroll = container.scrollWidth - container.clientWidth;
+  if (maxScroll <= 6) {
+    leftBtn.hidden = true;
+    rightBtn.hidden = true;
+    return;
+  }
+  leftBtn.hidden = container.scrollLeft <= 4;
+  rightBtn.hidden = container.scrollLeft >= maxScroll - 4;
+}
+
 function renderPlaylistChips() {
   const nav = $("#pl-nav");
   const container = $("#pl-chips");
@@ -1030,12 +1045,19 @@ function renderPlaylistChips() {
     return;
   }
   nav.hidden = false;
-  let html = `<button type="button" class="pl-chip ${activePlaylistId === "all" ? "on" : ""}" data-pl-id="all"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg><span>Tất cả</span></button>`;
+  let html = `<button type="button" class="pl-chip ${activePlaylistId === "all" ? "on" : ""}" data-pl-id="all" title="Tất cả bài hát"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg><span>Tất cả</span></button>`;
   for (const pl of playlists) {
     const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
-    html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span>${esc(pl.name)}</span> (${count})</button>`;
+    html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}" title="${esc(pl.name)} (${count} bài)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span>${esc(pl.name)}</span> (${count})</button>`;
   }
   container.innerHTML = html;
+  requestAnimationFrame(() => {
+    updatePlNavArrows();
+    const onChip = container.querySelector(".pl-chip.on");
+    if (onChip) {
+      onChip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+    }
+  });
 }
 
 function renderActivePlaylistHeader() {
@@ -1704,10 +1726,29 @@ async function promptCreatePlaylist() {
 
 $("#btn-create-pl")?.addEventListener("click", promptCreatePlaylist);
 
+const plChipsEl = $("#pl-chips");
+if (plChipsEl) {
+  plChipsEl.addEventListener("scroll", updatePlNavArrows, { passive: true });
+  plChipsEl.addEventListener("wheel", (e) => {
+    if (e.deltaY && plChipsEl.scrollWidth > plChipsEl.clientWidth) {
+      e.preventDefault();
+      plChipsEl.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
+}
+$("#pl-scroll-left")?.addEventListener("click", () => {
+  $("#pl-chips")?.scrollBy({ left: -160, behavior: "smooth" });
+});
+$("#pl-scroll-right")?.addEventListener("click", () => {
+  $("#pl-chips")?.scrollBy({ left: 160, behavior: "smooth" });
+});
+window.addEventListener("resize", updatePlNavArrows, { passive: true });
+
 $("#pl-chips")?.addEventListener("click", (e) => {
   const chip = e.target.closest(".pl-chip[data-pl-id]");
   if (!chip) return;
   activePlaylistId = chip.dataset.plId;
+  chip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
   renderLibrary();
 });
 
@@ -2863,9 +2904,125 @@ setInterval(() => {
   requestAnimationFrame(step);
 })();
 
+// Cookie management
+async function refreshCookieStatus() {
+  const badge = $("#cookie-badge");
+  const statusText = $("#cookie-status-text");
+  const desc = $("#cookie-desc");
+  const delBtn = $("#btn-del-cookie");
+  if (!badge || !statusText) return;
+  try {
+    const res = await api.cookieStatus();
+    if (res.has_cookies) {
+      badge.classList.add("active");
+      const doms = (res.domains || []).join(", ");
+      statusText.textContent = `Sẵn sàng (${res.count})`;
+      if (desc) desc.textContent = doms || "Đã nạp";
+      if (delBtn) delBtn.hidden = false;
+    } else {
+      badge.classList.remove("active");
+      statusText.textContent = "Chưa có";
+      if (desc) desc.textContent = "Bypass bot check";
+      if (delBtn) delBtn.hidden = true;
+    }
+  } catch (_) {
+    statusText.textContent = "Chưa có";
+  }
+}
+
+function initCookieManagement() {
+  const fileInput = $("#cookie-file-input");
+  const uploadBtn = $("#btn-upload-cookie");
+  const pasteBtn = $("#btn-paste-cookie");
+  const delBtn = $("#btn-del-cookie");
+  const modal = $("#cookie-modal");
+  const modalClose = $("#cookie-modal-close");
+  const cancelBtn = $("#btn-cancel-cookie");
+  const saveBtn = $("#btn-save-cookie");
+  const textarea = $("#cookie-paste-textarea");
+
+  uploadBtn?.addEventListener("click", () => fileInput?.click());
+
+  fileInput?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const res = await api.uploadCookies(text);
+      await refreshCookieStatus();
+      await showModal({
+        title: "Đã nạp cookie",
+        message: res.message || "Đã lưu cookie thành công!",
+        confirmText: "Đã hiểu",
+      });
+    } catch (err) {
+      await showModal({
+        title: "Lỗi nạp cookie",
+        message: err.message || "File cookie không đúng định dạng Netscape hoặc JSON.",
+        confirmText: "Đã hiểu",
+      });
+    } finally {
+      fileInput.value = "";
+    }
+  });
+
+  pasteBtn?.addEventListener("click", () => {
+    if (!modal) return;
+    if (textarea) textarea.value = "";
+    modal.showModal();
+  });
+
+  modalClose?.addEventListener("click", () => modal?.close());
+  cancelBtn?.addEventListener("click", () => modal?.close());
+
+  saveBtn?.addEventListener("click", async () => {
+    const text = textarea?.value?.trim();
+    if (!text) {
+      modal?.close();
+      return;
+    }
+    saveBtn.disabled = true;
+    try {
+      const res = await api.uploadCookies(text);
+      modal?.close();
+      await refreshCookieStatus();
+      await showModal({
+        title: "Đã lưu cookie",
+        message: res.message || "Đã lưu cookie thành công!",
+        confirmText: "Đã hiểu",
+      });
+    } catch (err) {
+      await showModal({
+        title: "Lỗi lưu cookie",
+        message: err.message || "Nội dung cookie không hợp lệ.",
+        confirmText: "Đã hiểu",
+      });
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  delBtn?.addEventListener("click", async () => {
+    const ok = await showModal({
+      title: "Xóa cookie",
+      message: "Bạn có chắc chắn muốn xóa toàn bộ cookies đã lưu?",
+      confirmText: "Xóa",
+      cancelText: "Thôi",
+      danger: true,
+    });
+    if (ok) {
+      await api.deleteCookies().catch(() => {});
+      await refreshCookieStatus();
+    }
+  });
+
+  refreshCookieStatus();
+}
+
 loadPlaylists();
 checkUrlPlaylistImport();
 applySettings();
+initCookieManagement();
 renderLooks();
 renderTransport();
 renderStage();
@@ -2874,7 +3031,8 @@ ready().then(async () => {
   if (session.multiuser) {
     // Hosted: a library per visit; pairs are linked automatically and shared.
     $("#add-hint").textContent = "Mỗi lần mở trang là một thư viện mới. Bài ai đó đã thêm trước sẽ vào ngay, không phải chờ phân tích.";
-    $("#btn-relink").hidden = true;
+    const groupRelink = $("#group-relink") || $("#btn-relink")?.closest(".group");
+    if (groupRelink) groupRelink.hidden = true;
     $("#fine").hidden = false;
     for (const el of document.querySelectorAll("[data-ttl]")) el.textContent = session.limits.audio_ttl_h || 12;
 

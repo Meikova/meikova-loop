@@ -221,11 +221,9 @@ def _opts(site: str, **extra) -> dict:
         imp = _get_impersonate()
         if imp:
             opts["impersonate"] = imp
-    from .config import DATA_DIR, ROOT
-    cookie_file = DATA_DIR / "cookies.txt"
-    if not cookie_file.exists():
-        cookie_file = ROOT / "cookies.txt"
-    if cookie_file.exists():
+    from . import cookies as cookie_mgr
+    cookie_file = cookie_mgr.get_cookie_file_path()
+    if cookie_file:
         opts["cookiefile"] = str(cookie_file)
     return opts
 

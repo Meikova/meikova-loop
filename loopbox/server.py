@@ -600,6 +600,45 @@ def get_qr(data: str | None = None, request: Request = None):
     )
 
 
+@app.get("/api/cookies")
+def get_cookie_status():
+    from . import cookies as cookie_mgr
+    return cookie_mgr.cookie_status()
+
+
+@app.post("/api/cookies")
+async def upload_cookies(request: Request):
+    from . import cookies as cookie_mgr
+    content = ""
+    ct = request.headers.get("content-type", "")
+    if "multipart/form-data" in ct:
+        form = await request.form()
+        file = form.get("file")
+        if file and hasattr(file, "read"):
+            data = await file.read()
+            content = data.decode("utf-8", errors="ignore")
+    elif "application/json" in ct:
+        body = await request.json()
+        content = body.get("content", "")
+    else:
+        raw = await request.body()
+        content = raw.decode("utf-8", errors="ignore")
+
+    if not content.strip():
+        raise HTTPException(400, "Nội dung cookie trống")
+
+    res = cookie_mgr.save_cookies(content)
+    if not res.get("success"):
+        raise HTTPException(400, res.get("message", "Cookie không hợp lệ"))
+    return res
+
+
+@app.delete("/api/cookies")
+def delete_cookies():
+    from . import cookies as cookie_mgr
+    return cookie_mgr.delete_cookies()
+
+
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
