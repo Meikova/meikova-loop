@@ -24,6 +24,24 @@ export const THEMES = {
     beatSpread: 90, beatL: [0.56, 0.8], beatC: [1.0, 1.5],
     glow: 1.45,
   },
+  cyberpunk: {
+    label: "Cyberpunk",
+    ground: () => ({ h: 255, c: 0.038 }),
+    beatSpread: 110, beatL: [0.6, 0.85], beatC: [1.2, 1.6],
+    glow: 1.5,
+  },
+  aurora: {
+    label: "Cực quang",
+    ground: () => ({ h: 165, c: 0.025 }),
+    beatSpread: 85, beatL: [0.62, 0.86], beatC: [0.8, 1.35],
+    glow: 1.25,
+  },
+  sunset: {
+    label: "Hoàng hôn",
+    ground: () => ({ h: 330, c: 0.028 }),
+    beatSpread: 95, beatL: [0.62, 0.84], beatC: [1.1, 1.5],
+    glow: 1.3,
+  },
   amber: {
     label: "Hổ phách",
     ground: () => ({ h: 60, c: 0.009 }),
@@ -117,7 +135,16 @@ export function songColor(id) {
   let col;
   if (current === "amber") col = { l: 0.72, c: 0.13, h: hashHue(id) };
   else if (current === "neon") col = { ...moodColor(id), l: 0.74, c: 0.24 };
-  else col = moodColor(id);
+  else if (current === "cyberpunk") {
+    const base = moodColor(id);
+    col = { l: 0.76, c: 0.22, h: base.h < 180 ? 195 : 320 };
+  } else if (current === "aurora") {
+    const base = moodColor(id);
+    col = { l: 0.78, c: 0.17, h: 135 + ((base.h % 120)) };
+  } else if (current === "sunset") {
+    const base = moodColor(id);
+    col = { l: 0.76, c: 0.21, h: base.h < 180 ? 30 : 335 };
+  } else col = moodColor(id);
   col = fit(col);
   cache.set(k, col);
   return col;
@@ -131,6 +158,9 @@ export function accentOf(id) {
 
 export function idleAccent() {
   if (current === "neon") return fit({ l: 0.74, c: 0.24, h: 350 });
+  if (current === "cyberpunk") return fit({ l: 0.82, c: 0.22, h: 195 });
+  if (current === "aurora") return fit({ l: 0.82, c: 0.17, h: 155 });
+  if (current === "sunset") return fit({ l: 0.78, c: 0.21, h: 25 });
   return current === "mood" ? { l: 0.8, c: 0.1, h: 40 } : AMBER;
 }
 
@@ -165,6 +195,21 @@ export function inkOf(id) {
 // Three colours that show what a theme will look like with this library.
 export function preview(name, ids) {
   if (name === "amber") return [AMBER, { l: 0.72, c: 0.12, h: 52 }, { l: 0.6, c: 0.09, h: 40 }];
+  if (name === "cyberpunk") return [
+    fit({ l: 0.82, c: 0.22, h: 195 }),
+    fit({ l: 0.74, c: 0.24, h: 280 }),
+    fit({ l: 0.78, c: 0.25, h: 335 }),
+  ];
+  if (name === "aurora") return [
+    fit({ l: 0.84, c: 0.17, h: 155 }),
+    fit({ l: 0.78, c: 0.16, h: 190 }),
+    fit({ l: 0.72, c: 0.15, h: 270 }),
+  ];
+  if (name === "sunset") return [
+    fit({ l: 0.82, c: 0.19, h: 45 }),
+    fit({ l: 0.76, c: 0.22, h: 18 }),
+    fit({ l: 0.70, c: 0.24, h: 330 }),
+  ];
   const hues = moods.size ? null : [20, 170, 290];
   return [0, 1, 2].map((k) => {
     const base = hues ? { l: 0.79, c: 0.14, h: hues[k] } : moodColor(ids[k] ?? ids[0]);
@@ -179,7 +224,15 @@ export function spreadIds() {
   return [0, 1, 2].map((k) => list[Math.floor((k * list.length) / 3)][0]);
 }
 
-export const glowGain = () => THEMES[current].glow;
+let userGlow = 1.0;
+export function setGlow(level) {
+  userGlow = Math.max(0, Math.min(3, Number(level) ?? 1.0));
+  version++;
+  cache.clear();
+  document.documentElement.style.setProperty("--glow-mult", userGlow.toFixed(3));
+}
+export const getGlow = () => userGlow;
+export const glowGain = () => (THEMES[current]?.glow ?? 1) * userGlow;
 export const ground = (accent) => THEMES[current].ground(accent);
 
 // ------------------------------------------------------------------ colour
@@ -257,7 +310,8 @@ export function applyPage(accent, second, fillAlpha) {
     "--acc-l": accent.l.toFixed(3), "--acc-c": accent.c.toFixed(3), "--acc-h": unwrap("--acc-h", accent.h),
     "--acc2-l": s.l.toFixed(3), "--acc2-c": s.c.toFixed(3), "--acc2-h": unwrap("--acc2-h", s.h),
     "--gh": unwrap("--gh", g.h), "--gc": g.c.toFixed(3),
-    "--fill-a": fillAlpha.toFixed(3),
+    "--fill-a": (fillAlpha * userGlow).toFixed(3),
+    "--glow-mult": userGlow.toFixed(3),
   };
   const key = Object.values(vals).join(",");
   if (key === lastCss) return;

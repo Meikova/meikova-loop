@@ -2,7 +2,7 @@ import { api, hooks, Loader, ready, session } from "./api.js";
 import { Engine } from "./engine.js";
 import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
-import * as theme from "./theme.js";
+import * as theme from "./theme.js?v=55";
 import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
 
 const $ = (s) => document.querySelector(s);
@@ -242,8 +242,7 @@ const BLEND_STYLES = ["long", "eq", "short", "filter", "swap", "stem", "acapella
 const KINDS = ["cut", "drop", "blend", "fade", "echo", "wash", "riser", "flanger", "gap", "brake", "roll", "spin", "gate", "tape", "sweeper"];
 // 2: the abrupt effects (brake, roll) became opt-in; older saved settings that
 // had them on from the first release of effects are switched off once.
-const SETTINGS_VERSION = 2;
-const ui = { freq: 0.45, strict: 0.5, volume: 0.85, theme: "mood", crossKho: true, khoMinutes: 0 };
+const ui = { freq: 0.45, strict: 0.5, volume: 0.85, theme: "mood", crossKho: true, khoMinutes: 0, glow: 1.0 };
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
   if (saved) {
@@ -309,6 +308,12 @@ function applySettings() {
   if (!theme.THEMES[ui.theme]) ui.theme = "mood";
   for (const r of document.querySelectorAll('input[name="look"]')) r.checked = r.value === ui.theme;
   if (theme.setTheme(ui.theme)) recolor();
+  if (ui.glow === undefined) ui.glow = 1.0;
+  if (typeof theme.setGlow === "function") theme.setGlow(ui.glow);
+  const glowInput = $("#s-glow");
+  if (glowInput) glowInput.value = ui.glow;
+  const glowVal = $("#v-glow");
+  if (glowVal) glowVal.textContent = `${Math.round(ui.glow * 100)}%`;
   document.querySelectorAll('input[type="range"]').forEach(syncRange);
   for (const b of document.querySelectorAll(".mode button")) {
     const on = b.dataset.mode === s.mode;
@@ -405,6 +410,15 @@ $("#s-kmin").addEventListener("input", (e) => ((ui.khoMinutes = +e.target.value)
 for (const r of document.querySelectorAll('input[name="look"]')) {
   r.addEventListener("change", () => ((ui.theme = r.value), applySettings()));
 }
+$("#s-glow")?.addEventListener("input", (e) => {
+  ui.glow = +e.target.value;
+  if (typeof theme.setGlow === "function") theme.setGlow(ui.glow);
+  const glowVal = $("#v-glow");
+  if (glowVal) glowVal.textContent = `${Math.round(ui.glow * 100)}%`;
+  viz.invalidate();
+  recolor();
+  applySettings();
+});
 
 // The theme tiles preview their colours with three songs of this library.
 function renderLooks() {

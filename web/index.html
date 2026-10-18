@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=50" />
+    <link rel="stylesheet" href="css/app.css?v=55" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -637,13 +637,41 @@
                 <span><b>Neon</b>màu rực, nền đêm</span>
               </label>
               <label class="kind look">
+                <input type="radio" name="look" value="cyberpunk" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Cyberpunk</b>cyan & tím đêm Tokyo</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="aurora" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Cực quang</b>lục bảo & ngọc phương bắc</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="sunset" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Hoàng hôn</b>cam san hô & tím hoàng hôn</span>
+              </label>
+              <label class="kind look">
                 <input type="radio" name="look" value="amber" />
                 <span class="swatch" aria-hidden="true"
                   ><i></i><i></i><i></i
                 ></span>
-                <span><b>Hổ phách</b>vàng ấm như bản đầu</span>
+                <span><b>Hổ phách</b>vàng ấm hoài niệm</span>
               </label>
             </fieldset>
+            <label class="row" style="margin-top: var(--space-4)">
+              <span class="row__head"
+                ><span>Độ sáng ánh đèn</span><em id="v-glow" class="mono">100%</em></span
+              >
+              <input id="s-glow" type="range" min="0" max="2" step="0.05" value="1" />
+              <small>Tăng giảm độ rực, quầng sáng neon và hiệu ứng ánh sáng phòng</small>
+            </label>
           </section>
 
           <section class="group" aria-labelledby="g-jump">
@@ -1400,14 +1428,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=50"></script>
+    <script type="module" src="js/main.js?v=55"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=50")
+          .register("sw.js?v=55")
           .then((reg) => {
             reg.update();
           })

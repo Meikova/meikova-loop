@@ -39,9 +39,8 @@
   --accent-lo: oklch(var(--acc) / 0.16);
   --on-accent: oklch(0.2 calc(var(--acc-c) * 0.3) var(--acc-h));
   --accent-2: oklch(var(--acc2));
-  --danger: oklch(0.74 0.14 30);
-
-  --glow: 0 0 0 1px oklch(var(--acc) / 0.55), 0 0 28px -6px oklch(var(--acc) / 0.75);
+  --glow-mult: 1;
+  --glow: 0 0 0 1px oklch(var(--acc) / calc(0.55 * var(--glow-mult, 1))), 0 0 calc(28px * var(--glow-mult, 1)) -6px oklch(var(--acc) / calc(0.75 * var(--glow-mult, 1)));
   --focus: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--accent), 0 0 18px oklch(var(--acc) / 0.45);
 
   /* A song change re-lights the room over a bar or two, not in a blink. */
@@ -2830,9 +2829,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .kind {
   position: relative;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
   gap: 8px;
-  justify-items: start;
   padding: 12px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
@@ -2843,11 +2844,32 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .kind input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 
-.kind svg { width: 40px; height: 20px; fill: none; stroke: var(--text-faint); stroke-width: 1.6; transition: stroke var(--dur-fast); }
+.kind svg {
+  width: 40px;
+  height: 20px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.6;
+  transition: stroke var(--dur-fast);
+}
 
-.kind span { font-size: var(--step--2); line-height: 1.4; color: var(--text-faint); }
+.kind span:not(.swatch) {
+  display: block;
+  font-size: var(--step--2);
+  line-height: 1.4;
+  color: var(--text-faint);
+  width: 100%;
+}
 
-.kind b { display: block; font-size: var(--step--1); font-weight: 600; color: var(--text-muted); }
+.kind b {
+  display: block;
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.25;
+  margin-bottom: 3px;
+}
 
 .kind:has(input:checked) { border-color: oklch(var(--acc) / 0.6); background: var(--accent-lo); }
 
@@ -2926,15 +2948,25 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 }
 
 /* Theme tiles: three dots of the colours the theme would give this library. */
-.swatch { display: flex; height: 20px; align-items: center; padding-left: 2px; }
+.swatch {
+  display: flex !important;
+  flex-direction: row !important;
+  height: 20px !important;
+  align-items: center !important;
+  padding-left: 2px;
+  width: auto !important;
+  flex-shrink: 0;
+}
 
 .swatch i {
-  width: 16px;
-  height: 16px;
-  margin-right: -5px;
-  border-radius: 50%;
-  background: var(--c, var(--ink-3));
-  box-shadow: 0 0 0 2px var(--ink-1);
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: -5px !important;
+  border-radius: 50% !important;
+  background: var(--c, var(--ink-3)) !important;
+  box-shadow: 0 0 0 2px var(--ink-1) !important;
+  flex-shrink: 0 !important;
   transition: background-color var(--dur-slow) var(--ease-out), transform var(--dur-base) var(--ease-spring);
 }
 
@@ -3408,7 +3440,7 @@ dialog.shortcuts-modal,
   .readout--tr { right: var(--space-4); }
   .deck { position: sticky; bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px)); z-index: 5; }
   .panel { border-left: 0; border-top: 1px solid var(--line-soft); padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--space-4)); }
-  .panel__head { position: sticky; top: var(--topbar-h, 58px); z-index: 4; }
+  .panel__head { position: relative; top: auto; z-index: 2; }
   .tab { overflow: visible; }
 }
 
@@ -3435,8 +3467,8 @@ dialog.shortcuts-modal,
   .stage { padding: var(--space-3) var(--space-2) var(--space-4); }
   .deck {
     gap: 3px;
-    padding: 4px 6px;
-    max-width: calc(100vw - 16px);
+    padding: 4px 8px;
+    max-width: calc(100vw - 12px);
     justify-content: center;
     border-radius: 9999px;
     box-sizing: border-box;
@@ -3465,13 +3497,14 @@ dialog.shortcuts-modal,
     display: none !important;
   }
   .deck__vol {
-    padding: 0 4px 0 6px;
+    padding: 0 8px 0 6px;
     margin-left: 2px;
+    margin-right: 2px;
     border-left: 1px solid var(--line-soft);
     flex-shrink: 0;
   }
   .deck__vol .btn-mute {
-    width: 36px;
+    width: 32px;
     height: 40px;
     min-height: 40px;
     display: inline-flex;
@@ -3479,8 +3512,8 @@ dialog.shortcuts-modal,
     justify-content: center;
   }
   .deck__vol .btn-mute svg {
-    width: 19px;
-    height: 19px;
+    width: 18px;
+    height: 18px;
   }
   .deck__vol input,
   .deck__vol em,
@@ -3497,14 +3530,14 @@ dialog.shortcuts-modal,
   }
   .readout { max-width: 46%; }
   .kinds { grid-template-columns: 1fr; }
-  .kind { grid-template-columns: 40px 1fr; align-items: center; }
+  .kind { display: grid; grid-template-columns: 40px 1fr; align-items: center; }
 }
 
 @media (max-width: 370px) {
   .deck {
     gap: 1px;
-    padding: 3px 4px;
-    max-width: calc(100vw - 8px);
+    padding: 3px 6px;
+    max-width: calc(100vw - 6px);
   }
   .deck__play {
     width: 44px;
@@ -3524,14 +3557,18 @@ dialog.shortcuts-modal,
     width: 17px;
     height: 17px;
   }
+  .deck__vol {
+    padding: 0 6px 0 4px;
+    margin-right: 2px;
+  }
   .deck__vol .btn-mute {
-    width: 32px;
+    width: 28px;
     height: 36px;
     min-height: 36px;
   }
   .deck__vol .btn-mute svg {
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
   }
   .seg button { padding: 0 9px; font-size: var(--step--2); }
 }
