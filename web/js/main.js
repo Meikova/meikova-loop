@@ -316,14 +316,38 @@ for (const k of BLEND_STYLES) {
   $(`#s-bl-${k}`).addEventListener("change", (e) => ((player.settings.blendStyles[k] = e.target.checked), replanBlend()));
 }
 $("#s-keyshift").addEventListener("change", (e) => ((player.settings.keyShift = e.target.checked), replanBlend()));
-$("#s-vol").addEventListener("input", (e) => {
-  ui.volume = +e.target.value;
-  if (ui.volume > 0) {
-    isMuted = false;
-    const mb = $("#btn-mute");
-    if (mb) mb.dataset.muted = "false";
+export function setAppVolume(val, syncSystem = true) {
+  if (typeof val !== "number" || isNaN(val)) return;
+  const clamped = Math.max(0, Math.min(1, +val.toFixed(3)));
+  ui.volume = clamped;
+  isMuted = ui.volume === 0;
+  const mb = $("#btn-mute");
+  if (mb) mb.dataset.muted = String(isMuted);
+  const sVol = $("#s-vol");
+  if (sVol && Math.abs(+sVol.value - ui.volume) >= 0.005) {
+    sVol.value = ui.volume;
   }
   applySettings();
+  save();
+  if (syncSystem) {
+    window.pywebview?.api?.set_system_volume?.(ui.volume);
+    try {
+      window.AndroidAudio?.setVolume?.(ui.volume);
+    } catch (_) {}
+  }
+}
+
+// Global receiver for OS system volume changes (Desktop, Android, iOS)
+window.__onSystemVolume = (vol) => {
+  if (typeof vol !== "number" || isNaN(vol)) return;
+  const clamped = Math.max(0, Math.min(1, +vol.toFixed(3)));
+  if (Math.abs(ui.volume - clamped) >= 0.01) {
+    setAppVolume(clamped, false);
+  }
+};
+
+$("#s-vol").addEventListener("input", (e) => {
+  setAppVolume(+e.target.value, true);
 });
 $("#s-cross").addEventListener("change", (e) => {
   ui.crossKho = e.target.checked;
@@ -437,15 +461,10 @@ const muteBtn = $("#btn-mute");
 function toggleMute() {
   if (!isMuted) {
     prevVol = ui.volume > 0 ? ui.volume : 0.8;
-    ui.volume = 0;
-    isMuted = true;
+    setAppVolume(0, true);
   } else {
-    ui.volume = prevVol > 0 ? prevVol : 0.8;
-    isMuted = false;
+    setAppVolume(prevVol > 0 ? prevVol : 0.8, true);
   }
-  if (muteBtn) muteBtn.dataset.muted = isMuted;
-  $("#s-vol").value = ui.volume;
-  applySettings();
 }
 if (muteBtn) muteBtn.addEventListener("click", toggleMute);
 
@@ -570,7 +589,16 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "l" || e.key === "L") { player.toggleLoopLock(); applySettings(); }
   else if (e.key === "t" || e.key === "T") { if (timerBtn) timerBtn.click(); }
   else if (e.key === "m" || e.key === "M") { toggleMute(); }
-  else if (e.key === "e" || e.key === "E") {
+  else if (e.key === "AudioVolumeUp" || e.key === "]") {
+    e.preventDefault();
+    setAppVolume(Math.min(1, ui.volume + 0.05), true);
+  } else if (e.key === "AudioVolumeDown" || e.key === "[") {
+    e.preventDefault();
+    setAppVolume(Math.max(0, ui.volume - 0.05), true);
+  } else if (e.key === "AudioVolumeMute") {
+    e.preventDefault();
+    toggleMute();
+  } else if (e.key === "e" || e.key === "E") {
     const nextIdx = (EQ_LIST.indexOf(engine.eqMode || "flat") + 1) % EQ_LIST.length;
     setEq(EQ_LIST[nextIdx]);
   }
@@ -1493,6 +1521,12 @@ function setupDesktopBridge() {
   if (!window.pywebview) return;
   if (row) row.hidden = false;
 
+  if (window.pywebview?.api?.get_system_volume) {
+    window.pywebview.api.get_system_volume().then((vol) => {
+      if (typeof vol === "number" && !isNaN(vol)) setAppVolume(vol, false);
+    }).catch(() => {});
+  }
+
   $("#btn-desktop-files")?.addEventListener("click", async () => {
     try {
       const files = await window.pywebview.api.select_files();
@@ -1526,6 +1560,14 @@ function setupDesktopBridge() {
 
 window.addEventListener("pywebviewready", setupDesktopBridge);
 if (window.pywebview) setupDesktopBridge();
+
+// Sync initial mobile system volume if Android bridge is present
+if (window.AndroidAudio?.getVolume) {
+  try {
+    const mVol = window.AndroidAudio.getVolume();
+    if (typeof mVol === "number" && !isNaN(mVol)) setAppVolume(mVol, false);
+  } catch (_) {}
+}
 
 // Mobile Install Modal
 const mobileModal = $("#mobile-modal");

@@ -1003,9 +1003,7 @@
           class="mobile-modal__close"
           id="mobile-modal-close"
           aria-label="Đóng"
-        >
-          ✕
-        </button>
+        ><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <p class="mobile-modal__sub" id="mobile-modal-sub">
@@ -1134,9 +1132,7 @@
           class="mobile-modal__close"
           id="shortcuts-modal-close"
           aria-label="Đóng"
-        >
-          ✕
-        </button>
+        ><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <div class="shortcuts-grid">
@@ -1170,6 +1166,10 @@
           <h3 class="shortcuts-group__title">Tiện ích & Âm thanh</h3>
           <dl class="shortcuts-list">
             <div class="shortcut-row">
+              <dt><kbd>[</kbd> / <kbd>]</kbd></dt>
+              <dd>Tăng / Giảm âm lượng (đồng bộ hệ thống)</dd>
+            </div>
+            <div class="shortcut-row">
               <dt><kbd>T</kbd></dt>
               <dd>Bật/tắt hẹn giờ tắt (Sleep Timer)</dd>
             </div>
@@ -1193,7 +1193,7 @@
 
       <div class="shortcuts-tips">
         <p>
-          💡 <b>Mẹo nghe nhạc:</b> Nhấp chuột/chạm vào bất kỳ điểm nào trên vòng
+          <b>Mẹo nghe nhạc:</b> Nhấp chuột/chạm vào bất kỳ điểm nào trên vòng
           tròn canvas để tua tới đoạn beat đó. Hẹn giờ sẽ tự động giảm dần âm
           lượng trong 8 giây cuối trước khi dừng hẳn.
         </p>
@@ -1224,7 +1224,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=19")
+          .register("sw.js?v=20")
           .then((reg) => {
             reg.update();
           })
