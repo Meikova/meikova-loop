@@ -30,6 +30,11 @@ BASE_OPTS = {
     "nocheckcertificate": True,
     "js_runtimes": {JS_RUNTIME: {}},
     "socket_timeout": 30,
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["android", "ios", "mweb", "web"]
+        }
+    },
 }
 
 # site -> (hosts, yt-dlp extractors allowed for it)
@@ -120,14 +125,34 @@ def is_youtube(url: str) -> bool:
     return site_of(url) == "youtube"
 
 
+def clean_youtube_url(url: str) -> str:
+    """Cleans tracking query params while preserving video and playlist IDs."""
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+        if "youtube.com" in parsed.netloc or "youtu.be" in parsed.netloc:
+            from urllib.parse import parse_qs
+            qs = parse_qs(parsed.query)
+            v = qs.get("v", [None])[0]
+            l = qs.get("list", [None])[0]
+            if v and l:
+                return f"https://www.youtube.com/watch?v={v}&list={l}"
+            elif l:
+                return f"https://www.youtube.com/playlist?list={l}"
+            elif v:
+                return f"https://www.youtube.com/watch?v={v}"
+    except Exception:
+        pass
+    return url
+
+
 def is_playlist_url(url: str) -> bool:
     if not url:
         return False
     u = url.lower()
     if "youtube.com" in u or "youtu.be" in u:
-        if "/playlist" in u or "list=pl" in u or "list=olak" in u or "list=uu" in u or "list=fl" in u:
-            return True
-        if "list=" in u and "watch?v=" not in u:
+        if "/playlist" in u or "list=" in u:
             return True
     if "soundcloud.com" in u and ("/sets/" in u or "/albums/" in u):
         return True
@@ -270,6 +295,10 @@ def resolve(text: str) -> list[dict]:
     text = text.strip()
     if not re.match(r"^https?://", text):
         return search(text[:200], 1)
+
+    if "youtube.com" in text or "youtu.be" in text:
+        text = clean_youtube_url(text)
+
     site = site_of(text)
     if site is None:
         raise ValueError("link không hợp lệ hoặc không thuộc nguồn internet được hỗ trợ")
@@ -281,18 +310,25 @@ def resolve(text: str) -> list[dict]:
     opts = _opts(site, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST)
     if is_playlist:
         opts["noplaylist"] = False
-    elif site == "youtube" and ("watch?" in text or "youtu.be/" in text):
-        if "list=RD" in text or "list=" not in text:
-            opts["noplaylist"] = True
+    elif site == "youtube":
+        opts["noplaylist"] = True
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(text, download=False)
-    except Exception:
-        if "watch?" in text and not opts.get("noplaylist"):
-            opts["noplaylist"] = True
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(text, download=False)
+    except Exception as e:
+        if "watch?v=" in text or "youtu.be/" in text:
+            m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", text)
+            if m:
+                single_url = f"https://www.youtube.com/watch?v={m.group(1)}"
+                opts["noplaylist"] = True
+                try:
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(single_url, download=False)
+                except Exception:
+                    raise e
+            else:
+                raise
         else:
             raise
 
@@ -307,7 +343,10 @@ def resolve(text: str) -> list[dict]:
                 out.append(entry_obj)
             if len(out) >= MAX_PLAYLIST:
                 break
-        return out
+        if out:
+            return out
+        single = _entry(info, site)
+        return [single] if single else []
 
     e = _entry(info, site)
     return [e] if e else []
@@ -328,9 +367,9 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     last_error = None
-    # YouTube intermittently answers 403 for one player client's stream URLs;
-    # another client usually gets through.
-    for client in ((None, "tv", "web_safari", "mweb") if site == "youtube" else (None,)):
+    # YouTube intermittently answers 403 or blocks player response for some clients;
+    # cycling android, ios, mweb, web, tv ensures datacenter/cloud connectivity.
+    for client in (("android", "ios", "mweb", "web", "tv") if site == "youtube" else (None,)):
         for stale in dest_dir.glob("source.*"):
             stale.unlink(missing_ok=True)
         opts = _opts(site, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),

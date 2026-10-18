@@ -1335,8 +1335,11 @@ async function refresh() {
     const msg = err?.message || "";
     if (msg.includes("quá nhiều") || msg.includes("429")) {
       $("#worker").textContent = msg;
-    } else if (msg.includes("502") || msg.includes("503") || msg.includes("Failed to fetch")) {
+    } else if (msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("Failed to fetch") || msg.includes("session expired") || msg.includes("410")) {
       $("#worker").textContent = "Đang kết nối lại server…";
+      if (msg.includes("session expired") || msg.includes("410")) {
+        session.id = null;
+      }
     } else {
       $("#worker").textContent = "Mất kết nối tới server";
     }

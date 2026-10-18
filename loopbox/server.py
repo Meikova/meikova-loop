@@ -56,6 +56,11 @@ def view_of(x_session: str | None = Header(default=None)) -> sessions.View:
     return v
 
 
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "multiuser": MULTIUSER}
+
+
 def _public(m: dict) -> dict:
     keys = ("id", "title", "channel", "duration", "thumbnail", "url", "status", "stage", "progress",
             "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at", "mood", "source", "credit")

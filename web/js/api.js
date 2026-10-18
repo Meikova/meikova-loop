@@ -92,11 +92,13 @@ async function fail(r) {
 async function json(url, opts = {}, retry = true) {
   await ready();
   const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), "X-Session": session.id } });
-  if (r.status === 410 && retry) {
+  if (r.status === 410) {
     session.id = null;
-    await open();
-    await hooks.restore();
-    return json(url, opts, false);
+    if (retry) {
+      await open();
+      await hooks.restore();
+      return json(url, opts, false);
+    }
   }
   if (!r.ok) await fail(r);
   return r.json();
