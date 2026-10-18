@@ -6,11 +6,42 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 17:25:00
-- Exit Code: 0 (All tests passed: test_server_and_features.py & test_onnx_and_mobile.py)
-- Platforms Built: Desktop EXE (dist/MashLoop/MashLoop.exe, 62.7MB), Mobile Capacitor Sync (Android & iOS), Hugging Face Space (commit 4d78a83).
+- Timestamp: 2026-10-18 18:25:00
+- Exit Code: 0 (All tests passed: tests/test_server_and_features.py)
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Thanh tăng giảm độ sáng ánh đèn (Room Light / Neon Glow Slider)**:
+  - Thêm thanh trượt `#s-glow` (0% đến 200%, mặc định 100%) tại tab Cài đặt > Màu ("Ánh sáng của căn phòng").
+  - Tích hợp hàm `theme.setGlow(level)` điều khiển trực tiếp biến CSS `--glow-mult`, khuếch đại hào quang `--glow`, độ rực màu `--fill-a`, và `theme.glowGain()` trong visualizer Canvas (bụi sáng, xung nhịp, dải spectrum, halo).
+  - Phòng vệ an toàn với `typeof theme.setGlow === "function"` chống lỗi cache module.
+- **Thêm 3 bộ màu mới (Theme Color Palettes)**:
+  - **Cyberpunk**: Cyan điện quang kết hợp tím đêm Tokyo rực rỡ (`#00f0ff` & `#bd00ff`).
+  - **Cực quang (Aurora)**: Xanh ngọc mint & lục bảo phương bắc huyền ảo (`#00e6a8` & `#10b981`).
+  - **Hoàng hôn (Sunset)**: Vàng hoàng kim, cam san hô và tím chiều sâu lắng (`#f59e0b` & `#f43f5e`).
+  - Nâng tổng số theme lên 6 bộ hoàn chỉnh: Theo mood, Neon, Cyberpunk, Cực quang, Hoàng hôn, Hổ phách.
+- **Khắc phục lỗi CSS các khối màu swatch (`.swatch`)**:
+  - Tách selector `.kind span` thành `.kind span:not(.swatch)` để không ghi đè layout `display: flex !important` của 3 chấm tròn màu `<i>` trong `.swatch`.
+  - Khôi phục hình tròn 16px hoàn hảo với box-shadow viền nét.
+- **Sửa lỗi lệch vị trí khối tab ([Thư viện] [Tinh chỉnh]) đè lên ô tìm kiếm trên Mobile**:
+  - Gỡ bỏ thuộc tính lỗi `position: sticky; top: var(--topbar-h, 58px);` trên `.panel__head` ở breakpoint mobile (`max-width: 899px`).
+  - Trả `.panel__head` về luồng tài liệu tự nhiên (`position: relative;`), chấm dứt triệt để hiện tượng header tab trôi lơ lửng và đè lên input tìm kiếm thư viện.
+- **Khắc phục lỗi xén icon âm lượng trên Mobile**:
+  - Bổ sung `padding: 0 8px 0 6px` và `margin-right: 2px` cho `.deck__vol` tại `@media (max-width: 520px)` và `@media (max-width: 370px)`.
+  - Giữ khoảng cách an toàn 26px so với đường cong bán nguyệt của viền dock, ngăn chặn hoàn toàn việc sóng âm bị viền nét đứt cắt vào.
+- **Căn thẳng hàng các thẻ theo cấp bậc (Icon, Tiêu đề, Mô tả)**:
+  - Chuyển `.kind` từ CSS Grid không cố định hàng sang `display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 8px;`.
+  - Căn đồng mức pixel tuyệt đối theo chiều ngang cho toàn bộ thẻ trong mọi hàng: Cấp 1 (Icon/Swatch), Cấp 2 (Tiêu đề in đậm), Cấp 3 (Đoạn mô tả ngắn).
+- **Thanh xử lý lỗi theo lô (Error Management Bar)**:
+  - Thanh capsule phong cách ambient tinh tế `#lib-error-bar` với nút `Thử lại` và `Xoá`.
+  - Tích hợp endpoint `/api/tracks/batch` hành động `"reanalyze"` xử lý hàng loạt bài hát lỗi trong 1 request.
+- **Dọn dẹp note phím tắt và hoàn thiện Modal phím tắt (`?`)**:
+  - Xóa bỏ đoạn text note phím tắt rườm rà dưới tab Cài đặt. Toàn bộ phím tắt được tập trung đầy đủ trong modal phím tắt (mở bằng icon `?` hoặc nhấn phím `?`).
+- **Nâng cấp Động cơ chuyển bài (Transition Engine)**:
+  - Chuyển bài cưỡng bức (Force Transition): Nhấn nút Next, phím `N` hoặc click trực tiếp vào nút giao hòa âm $\infty$ trên canvas.
+  - Sidechain Vocal Ducking tự động hạ 3.5 dB mid band bài trước khi mix kiểu mashup/acapella.
+  - Huy hiệu Camelot hòa âm (`keyA ⇄ keyB`) trực quan tại điểm giao nhau $\infty$.
+  - 2 hiệu ứng chuyển bài DJ mới: Tape stop (`tape`) và Filter sweep (`sweeper`).
 - **Khắc phục triệt để hiện tượng con trỏ phát sáng (Playhead) bị khựng / giật (Micro-stutter)**:
   - **Bù trễ lượng tử hóa đồng hồ âm thanh (Audio hardware buffer quantization)**: Web Audio `currentTime` cập nhật gián đoạn theo chunk buffer WASAPI/CoreAudio (~10–20ms/lần). Màn hình quét 60Hz (16.6ms) hay 120Hz/144Hz (8.3ms/6.9ms) đọc trùng giá trị cũ làm điểm sáng đứng khựng 1 frame rồi vọt tiếp. Khắc phục bằng bộ nội suy thời gian thực trôi pha mượt theo wall-clock `performance.now()` (`_smoothAudioT` với `drift * 0.15`), giữ chuyển động liên tục 144 FPS.
   - **Khử đông cứng ranh giới beat (Beat boundary freeze)**: Xóa bỏ việc clamp `frac` ở 1.0 theo `T.dur[e.beat]` lý tưởng. Thay bằng delta thời gian thực giữa 2 sự kiện nhịp liên tiếp trong timeline (`nextE.t - e.t`), đảm bảo chuyển động mượt 100% qua các khớp beat.
