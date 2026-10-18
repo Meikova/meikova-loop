@@ -220,9 +220,9 @@ def add(req: AddRequest, request: Request, v: sessions.View = Depends(view_of)):
     try:
         entries = download.resolve(text)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, download.clean_error(e))
     except Exception as e:
-        raise HTTPException(502, f"could not resolve: {e}")
+        raise HTTPException(502, download.clean_error(e))
     if not entries:
         raise HTTPException(404, "nothing found")
     by_id = {e["id"]: e for e in entries}

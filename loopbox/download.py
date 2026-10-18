@@ -313,24 +313,43 @@ def resolve(text: str) -> list[dict]:
     elif site == "youtube":
         opts["noplaylist"] = True
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(text, download=False)
-    except Exception as e:
+    clients = ("android", "ios", "mweb", "web", "tv") if site == "youtube" else (None,)
+    info = None
+    last_e = None
+    for client in clients:
+        cur_opts = dict(opts)
+        if client:
+            cur_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+        try:
+            with yt_dlp.YoutubeDL(cur_opts) as ydl:
+                info = ydl.extract_info(text, download=False)
+            break
+        except Exception as e:
+            last_e = e
+            msg = str(e).lower()
+            if site != "youtube" or ("bot" not in msg and "403" not in msg and "forbidden" not in msg):
+                break
+
+    if info is None:
         if "watch?v=" in text or "youtu.be/" in text:
             m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", text)
             if m:
                 single_url = f"https://www.youtube.com/watch?v={m.group(1)}"
-                opts["noplaylist"] = True
-                try:
-                    with yt_dlp.YoutubeDL(opts) as ydl:
-                        info = ydl.extract_info(single_url, download=False)
-                except Exception:
-                    raise e
-            else:
-                raise
-        else:
-            raise
+                for client in clients:
+                    single_opts = dict(opts)
+                    single_opts["noplaylist"] = True
+                    if client:
+                        single_opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+                    try:
+                        with yt_dlp.YoutubeDL(single_opts) as ydl:
+                            info = ydl.extract_info(single_url, download=False)
+                        break
+                    except Exception as e:
+                        last_e = e
+            if info is None and last_e:
+                raise last_e
+        elif last_e:
+            raise last_e
 
     if info.get("_type") == "playlist" or "entries" in info:
         entries = info.get("entries") or []
@@ -350,6 +369,31 @@ def resolve(text: str) -> list[dict]:
 
     e = _entry(info, site)
     return [e] if e else []
+
+
+def clean_error(err: str | Exception) -> str:
+    """Produces a short, human-readable error description without terminal spam or long URLs."""
+    s = str(err).strip()
+    s = re.sub(r"^(?:could not resolve|error):\s*", "", s, flags=re.I)
+    s = re.sub(r"^\[[^\]]+\]\s*", "", s)
+    low = s.lower()
+    if "confirm you're not a bot" in low or ("bot" in low and "sign in" in low):
+        return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi"
+    if "this video is unavailable" in low or "unavailable" in low:
+        return "Video này không khả dụng hoặc đã bị tác giả gỡ trên YouTube"
+    if "private video" in low:
+        return "Video này được đặt ở chế độ riêng tư"
+    if "unsupported url" in low:
+        return "Đường link không thuộc nguồn được hỗ trợ hoặc sai định dạng"
+    if "vip" in low:
+        return "Bài này yêu cầu tài khoản VIP của nền tảng nguồn"
+    if "timed out" in low or "timeout" in low:
+        return "Hết thời gian kết nối tới máy chủ nguồn (timeout)"
+    # Strip any URLs, cookies references, or wiki links
+    s = re.sub(r"https?://\S+", "", s)
+    s = re.sub(r"--cookies[^\s.]*", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s[:120] if s else "Không thể tải bài từ đường link này"
 
 
 def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | None = None) -> tuple[Path, dict]:
@@ -397,6 +441,6 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
             msg = str(e)
             if "VIP" in msg:
                 raise RuntimeError(f"bài này chỉ dành cho tài khoản VIP của {SITE_NAMES.get(site, site)}") from None
-            if site != "youtube" or ("403" not in msg and "Forbidden" not in msg):
+            if site != "youtube" or ("403" not in msg and "Forbidden" not in msg and "bot" not in msg.lower()):
                 raise
     raise last_error

@@ -1405,12 +1405,73 @@ async function consent() {
   return consented;
 }
 
+function cleanUiError(msg) {
+  let s = String(msg || "").trim();
+  s = s.replace(/^(?:could not resolve|error):\s*/i, "");
+  s = s.replace(/^\[[^\]]+\]\s*/i, "");
+  const low = s.toLowerCase();
+  if (low.includes("confirm you're not a bot") || (low.includes("bot") && low.includes("sign in"))) {
+    return "YouTube yêu cầu xác minh bot hoặc video bị giới hạn vùng/độ tuổi.";
+  }
+  if (low.includes("this video is unavailable") || low.includes("unavailable")) {
+    return "Video này không khả dụng hoặc đã bị tác giả xóa.";
+  }
+  if (low.includes("private video")) {
+    return "Video này được đặt ở chế độ riêng tư.";
+  }
+  if (low.includes("unsupported url")) {
+    return "Đường link không thuộc nguồn được hỗ trợ hoặc sai định dạng.";
+  }
+  if (low.includes("vip")) {
+    return "Bài này yêu cầu tài khoản VIP của nền tảng nguồn.";
+  }
+  s = s.replace(/https?:\/\/\S+/g, "");
+  s = s.replace(/--cookies[^\s.]*/g, "");
+  s = s.replace(/\s+/g, " ").trim();
+  if (s.length > 120) s = s.slice(0, 120) + "…";
+  return s ? `Không thêm được: ${s}` : "Không thêm được bài từ đường link này.";
+}
+
 $("#add-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("#add-input").value.trim();
   if (!text) return;
   const box = $("#search-results");
   const submit = $("#add-form button[type=submit]");
+
+  // Check if user pasted a MashLoop share URL
+  if (text.includes("pl_tracks=") || text.includes("tracks=")) {
+    try {
+      const u = new URL(text);
+      const name = u.searchParams.get("pl_name") || "Playlist đã chia sẻ";
+      const tracksParam = u.searchParams.get("pl_tracks") || u.searchParams.get("tracks");
+      if (tracksParam) {
+        const tids = tracksParam.split(",").map((s) => s.trim()).filter(Boolean);
+        if (tids.length) {
+          let existing = playlists.find((p) => p.name === name);
+          if (!existing) {
+            existing = createPlaylist(name, tids);
+          } else {
+            for (const tid of tids) {
+              if (!existing.trackIds.includes(tid)) existing.trackIds.push(tid);
+            }
+            savePlaylists();
+          }
+          activePlaylistId = existing.id;
+          if (session.multiuser) {
+            api.restore(tids).catch(() => {});
+          }
+          box.innerHTML = `<div class="msg">Đã nạp playlist <b>"${esc(name)}"</b> (${tids.length} bài) thành công.</div>`;
+          $("#add-input").value = "";
+          refresh();
+          renderPlaylists();
+          setTimeout(() => (box.innerHTML = ""), 4500);
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+
   if (isUrl(text) && !(await consent())) return;
   submit.disabled = true;
   if (isUrl(text)) {
@@ -1437,7 +1498,7 @@ $("#add-form").addEventListener("submit", async (e) => {
       $("#add-input").value = "";
       setTimeout(() => (box.innerHTML = ""), 4500);
     } catch (err) {
-      box.innerHTML = `<div class="msg">Không thêm được: ${esc(err.message)}</div>`;
+      box.innerHTML = `<div class="msg msg--err">${cleanUiError(err.message)}</div>`;
     }
     submit.disabled = false;
     refresh();
@@ -1456,7 +1517,7 @@ $("#add-form").addEventListener("submit", async (e) => {
         </div>`).join("")
       : `<div class="msg">Không tìm thấy bài nào. Thử tên khác, hoặc dán link YouTube.</div>`;
   } catch (err) {
-    box.innerHTML = `<div class="msg">Tìm không được: ${esc(err.message)}</div>`;
+    box.innerHTML = `<div class="msg msg--err">${cleanUiError(err.message)}</div>`;
   }
   submit.disabled = false;
 });
