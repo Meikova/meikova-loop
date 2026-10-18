@@ -204,11 +204,28 @@
     - Đã kiểm thử trực tiếp: URL `https://youtube.com/playlist?list=RDOZYOyuLU5pg` nạp thành công trọn vẹn 50 bài hát mà không báo lỗi.
   - Nâng cấp Service Worker lên `mashloop-v26`.
 
+- **Fix Space Worker Spawn Bootstrap Crash & Multiuser Playlist Auto-Restore (Commit `98fb4bc`, Space `def6374`)**:
+  - **Nguyên nhân sự cố trên Space**:
+    1. Khi deploy lên HF Space, container khởi động lại mất 30–60s gây HTTP 502/503 tạm thời. Giao diện báo cam: *"Đang kết nối lại server…"*. Cơ chế exponential backoff trước đó tăng chu kỳ poll lên tới 30 giây khiến thông báo bị treo rất lâu ngay cả khi Space đã online.
+    2. HF Space chạy chế độ `MULTIUSER = 1`. Khi container reboot, session RAM trên server bị reset (HTTP 410). `hooks.restore` cũ chỉ nạp lại bài từ `metas.map(m => m.id)` (vốn đã rỗng), nên không nạp lại các bài hát nằm trong Playlist được lưu tại `localStorage` của trình duyệt. Dẫn tới chip hiển thị `Album (42 bài) (0)` và thư viện trống.
+    3. Trong `app.py`, hàm `_ensure_worker()` bị gọi tại phạm vi module cấp cao (module level). Khi `worker.start()` spawn tiến trình con qua `ProcessPoolExecutor(..., mp_context=spawn)`, tiến trình con nạp lại `app.py` và kích hoạt lỗi `RuntimeError: An attempt has been made to start a new process before the current process has finished its bootstrapping phase`, làm chết pool phân tích.
+  - **Giải pháp**:
+    1. `app.py`: Dời việc khởi động worker ra khỏi module level; đặt vào hook `@fastapi_app.on_event("startup")` và khối `if __name__ == "__main__":` kèm `multiprocessing.freeze_support()`, chặn tiến trình con chạy đè `_ensure_worker()`.
+    2. `web/js/main.js`: Cập nhật `hooks.restore` tự động thu thập bài hát từ cả `metas` và tất cả `playlists.flatMap(p => p.trackIds)` để khôi phục phiên nghe tức thì khi server khởi động lại.
+    3. `web/js/main.js`: Bổ sung cơ chế auto-restore trong `ready().then(...)` cho chế độ `session.multiuser`, đưa chu kỳ poll khi mất kết nối về 2.5 giây thay vì trễ 30 giây.
+    4. Nâng cấp Service Worker lên `mashloop-v27`.
+
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe -c "import tests.test_server_and_features as t; t.test_ip_extraction(); t.test_qr_api(); t.test_samples_api(); t.test_multi_source_detection(); print('PASS')"` -> Exit Code 0
-- `.venv\Scripts\python.exe -c "from loopbox import download; res = download.resolve('https://youtube.com/playlist?list=RDOZYOyuLU5pg'); print('RESOLVED:', len(res))"` -> Exit Code 0 (50 bài)
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `d75f20d7` on `m3ik18dp/MashLoop`)
-- GitHub commit `46ef1e5` pushed to `origin/main` (Exit Code 0)
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `def63748` on `m3ik18dp/MashLoop`)
+- Test trực tiếp Space HF `https://m3ik18dp-mashloop.hf.space`:
+  - `GET /api/health` -> 200 OK (0.84s)
+  - `POST /api/session` -> 200 OK
+  - `GET /api/tracks` -> 200 OK (0.5s)
+  - `POST /api/tracks` -> 200 OK
+  - Background beat analysis -> status=`analyzing`, stage=`beats` chạy ổn định, phản hồi poll 0.89s.
+- GitHub commit `98fb4bc` pushed to `origin/main` (Exit Code 0).
+
 
 
 
