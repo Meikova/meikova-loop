@@ -460,6 +460,44 @@
             <h2 class="label">Các vòng trong thư viện</h2>
             <span id="lib-count" class="mono"></span>
           </div>
+
+          <!-- Playlist / Album Chips Strip -->
+          <div class="pl-nav" id="pl-nav">
+            <div class="pl-chips" id="pl-chips" role="tablist" aria-label="Danh sách phát và Album"></div>
+          </div>
+
+          <!-- Active Playlist Info & Actions Banner (Shown only when custom playlist is selected) -->
+          <div class="pl-header" id="pl-header" hidden>
+            <div class="pl-header__info">
+              <span class="pl-header__icon" aria-hidden="true">📁</span>
+              <div class="pl-header__texts">
+                <div class="pl-header__title-row">
+                  <h3 class="pl-header__title" id="pl-active-title">Playlist</h3>
+                  <label class="pl-header__lock-label" title="Chỉ chuyển vòng lặp giữa các bài trong playlist này khi ở chế độ Chuỗi">
+                    <input type="checkbox" id="pl-lock-toggle" />
+                    <span>Khoá chuỗi</span>
+                  </label>
+                </div>
+                <p class="pl-header__stats" id="pl-active-stats">0 bài</p>
+              </div>
+            </div>
+            <div class="pl-header__actions">
+              <button type="button" class="pl-action-btn pl-action-btn--play" id="pl-play-btn" title="Phát từ đầu playlist này">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span>Phát</span>
+              </button>
+              <button type="button" class="pl-action-btn" id="pl-rename-btn" title="Đổi tên playlist">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button type="button" class="pl-action-btn" id="pl-share-btn" title="Sao chép link chia sẻ playlist">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button type="button" class="pl-action-btn pl-action-btn--del" id="pl-delete-btn" title="Xoá playlist này">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+
           <ul id="track-list" class="tracks"></ul>
         </div>
 
@@ -902,9 +940,18 @@
       aria-labelledby="modal-title"
       aria-describedby="modal-body"
     >
-      <form method="dialog">
+      <form method="dialog" id="modal-form">
         <h2 id="modal-title">Thông báo</h2>
         <p id="modal-body"></p>
+        <div id="modal-input-wrap" class="modal-input-wrap" hidden>
+          <input
+            type="text"
+            id="modal-input"
+            class="modal-input"
+            autocomplete="off"
+            maxlength="60"
+          />
+        </div>
         <div class="consent__acts" id="modal-acts">
           <button type="button" class="consent__no" id="modal-cancel">
             Thôi
@@ -1145,6 +1192,23 @@
           lượng trong 8 giây cuối trước khi dừng hẳn.
         </p>
       </div>
+    <!-- Modal Thêm vào Playlist / Album -->
+    <dialog class="consent pl-modal" id="pl-modal" aria-labelledby="pl-modal-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <h2 id="pl-modal-title">Thêm vào Playlist / Album</h2>
+        </div>
+        <button type="button" class="mobile-modal__close" id="pl-modal-close" aria-label="Đóng">✕</button>
+      </div>
+      <p class="pl-modal__song" id="pl-modal-song">Đang chọn bài…</p>
+      <div class="pl-modal__list" id="pl-modal-list">
+        <!-- Playlists checkboxes rendered dynamically -->
+      </div>
+      <div class="pl-modal__create">
+        <input type="text" id="pl-modal-new-name" placeholder="Tên playlist mới…" maxlength="40" />
+        <button type="button" id="pl-modal-new-btn">＋ Tạo & Thêm</button>
+      </div>
     </dialog>
 
     <script type="module" src="js/main.js"></script>
@@ -1154,7 +1218,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=16")
+          .register("sw.js?v=17")
           .then((reg) => {
             reg.update();
           })

@@ -15,28 +15,45 @@ export function showModal({
   confirmText = "Đồng ý",
   cancelText = null,
   danger = false,
+  prompt = false,
+  defaultValue = "",
+  placeholder = "",
 } = {}) {
   const dlg = $("#app-modal");
   if (!dlg || typeof dlg.showModal !== "function") {
+    if (prompt) return Promise.resolve(window.prompt(message || title, defaultValue));
     if (cancelText) return Promise.resolve(window.confirm(message));
     window.alert(message);
     return Promise.resolve(true);
   }
   const titleEl = $("#modal-title");
   const bodyEl = $("#modal-body");
+  const inputWrap = $("#modal-input-wrap");
+  const inputEl = $("#modal-input");
   const cancelBtn = $("#modal-cancel");
   const okBtn = $("#modal-ok");
 
   if (titleEl) titleEl.textContent = title;
-  if (bodyEl) bodyEl.textContent = message;
+  if (bodyEl) {
+    bodyEl.textContent = message;
+    bodyEl.hidden = !message;
+  }
+  if (inputWrap && inputEl) {
+    inputWrap.hidden = !prompt;
+    if (prompt) {
+      inputEl.value = defaultValue || "";
+      inputEl.placeholder = placeholder || "";
+    }
+  }
   if (okBtn) {
     okBtn.textContent = confirmText;
     okBtn.classList.toggle("consent__yes--danger", !!danger);
   }
 
   if (cancelBtn) {
-    cancelBtn.hidden = !cancelText;
+    cancelBtn.hidden = !cancelText && !prompt;
     if (cancelText) cancelBtn.textContent = cancelText;
+    else if (prompt) cancelBtn.textContent = "Thôi";
   }
 
   return new Promise((resolve) => {
@@ -44,6 +61,7 @@ export function showModal({
     const cleanup = () => {
       cancelBtn?.removeEventListener("click", onCancel);
       dlg.removeEventListener("close", onClose);
+      form?.removeEventListener("submit", onSubmit);
     };
     const onCancel = (e) => {
       e?.preventDefault();
@@ -51,20 +69,40 @@ export function showModal({
       resolved = true;
       cleanup();
       dlg.close("cancel");
-      resolve(false);
+      resolve(prompt ? null : false);
+    };
+    const onSubmit = (e) => {
+      e?.preventDefault();
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      const val = prompt ? (inputEl?.value.trim() ?? "") : true;
+      dlg.close("ok");
+      resolve(val);
     };
     const onClose = () => {
       if (resolved) return;
       resolved = true;
       cleanup();
-      resolve(dlg.returnValue === "ok");
+      if (dlg.returnValue === "ok") {
+        resolve(prompt ? (inputEl?.value.trim() ?? "") : true);
+      } else {
+        resolve(prompt ? null : false);
+      }
     };
 
+    const form = $("#modal-form");
+    form?.addEventListener("submit", onSubmit);
     cancelBtn?.addEventListener("click", onCancel, { once: true });
     dlg.addEventListener("close", onClose, { once: true });
     dlg.returnValue = "cancel";
     dlg.showModal();
-    okBtn?.focus();
+    if (prompt && inputEl) {
+      inputEl.focus();
+      inputEl.select();
+    } else {
+      okBtn?.focus();
+    }
   });
 }
 
@@ -123,6 +161,10 @@ const titleOf = (id) => {
 player.enabled = (id) => {
   const m = byId().get(id);
   if (!m || m.status !== "ready" || m.enabled === false) return false;
+  if (lockToPlaylist && activePlaylistId !== "all") {
+    const pl = getPlaylist(activePlaylistId);
+    if (pl && pl.trackIds && !pl.trackIds.includes(id)) return false;
+  }
   if (!kho.cur) return true;
   const lib = libOf(id);
   if (kho.force) return lib === kho.next;
@@ -139,6 +181,7 @@ loader.addEventListener("transitions", () => {
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  playlist: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   out: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6"/></svg>',
   in: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M12 9v6"/></svg>',
   retry: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4v4h4"/></svg>',
@@ -748,6 +791,179 @@ function libCards(libs) {
     </button>`).join("")}</div>`;
 }
 
+// ------------------------------------------------------------- playlists & albums
+const PL_STORE_KEY = "mashloop.playlists.v1";
+let playlists = [];
+let activePlaylistId = "all";
+let lockToPlaylist = false;
+let modalTrackId = null;
+
+function loadPlaylists() {
+  try {
+    const raw = localStorage.getItem(PL_STORE_KEY);
+    playlists = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(playlists)) playlists = [];
+  } catch (_) {
+    playlists = [];
+  }
+}
+
+function savePlaylists() {
+  try {
+    localStorage.setItem(PL_STORE_KEY, JSON.stringify(playlists));
+  } catch (_) {}
+  renderPlaylistChips();
+  renderActivePlaylistHeader();
+}
+
+function getPlaylist(id) {
+  return playlists.find((p) => p.id === id) || null;
+}
+
+function createPlaylist(name, trackIds = []) {
+  const cleanName = (name || "").trim() || "Playlist mới";
+  const pl = {
+    id: "pl_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+    name: cleanName,
+    trackIds: Array.from(new Set(trackIds)),
+    createdAt: Date.now(),
+  };
+  playlists.push(pl);
+  savePlaylists();
+  return pl;
+}
+
+function deletePlaylist(id) {
+  playlists = playlists.filter((p) => p.id !== id);
+  if (activePlaylistId === id) {
+    activePlaylistId = "all";
+    lockToPlaylist = false;
+  }
+  savePlaylists();
+  renderLibrary();
+}
+
+function renamePlaylist(id, newName) {
+  const pl = getPlaylist(id);
+  if (pl && newName.trim()) {
+    pl.name = newName.trim();
+    savePlaylists();
+    renderLibrary();
+  }
+}
+
+function renderPlaylistChips() {
+  const container = $("#pl-chips");
+  if (!container) return;
+  if (!playlists.length) {
+    container.innerHTML = `
+      <button type="button" class="btn-create-pl" id="btn-create-pl" title="Tạo playlist / album mới">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Tạo playlist</span>
+      </button>
+    `;
+    return;
+  }
+  let html = `<button type="button" class="pl-chip ${activePlaylistId === "all" ? "on" : ""}" data-pl-id="all">Tất cả</button>`;
+  for (const pl of playlists) {
+    const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
+    html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}">📁 ${esc(pl.name)} (${count})</button>`;
+  }
+  html += `
+    <button type="button" class="pl-chip pl-chip--add" id="btn-create-pl" title="Tạo playlist mới">
+      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>Tạo mới</span>
+    </button>
+  `;
+  container.innerHTML = html;
+}
+
+function renderActivePlaylistHeader() {
+  const header = $("#pl-header");
+  if (!header) return;
+  if (activePlaylistId === "all") {
+    header.hidden = true;
+    return;
+  }
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl) {
+    header.hidden = true;
+    return;
+  }
+  header.hidden = false;
+  $("#pl-active-title").textContent = pl.name;
+  const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
+  $("#pl-active-stats").textContent = `${count} bài hát`;
+  const lockCb = $("#pl-lock-toggle");
+  if (lockCb) lockCb.checked = lockToPlaylist;
+}
+
+function filterMetas(list) {
+  let res = list.filter((m) => shownLib(libOf(m.id)));
+  if (activePlaylistId !== "all") {
+    const pl = getPlaylist(activePlaylistId);
+    if (pl) {
+      const pSet = new Set(pl.trackIds || []);
+      res = res.filter((m) => pSet.has(m.id));
+    }
+  }
+  return res;
+}
+
+function openPlaylistModal(tid) {
+  modalTrackId = tid;
+  const m = byId().get(tid);
+  const dlg = $("#pl-modal");
+  if (!dlg) return;
+  const title = songOf(m).title || tid;
+  $("#pl-modal-song").textContent = title;
+  renderPlaylistModalList();
+  dlg.showModal();
+}
+
+function renderPlaylistModalList() {
+  const listEl = $("#pl-modal-list");
+  if (!listEl) return;
+  if (!playlists.length) {
+    listEl.innerHTML = `<div style="text-align:center;padding:12px;color:var(--text-faint);font-size:var(--step--1)">Chưa có playlist nào. Nhập tên ở ô bên dưới để tạo!</div>`;
+    return;
+  }
+  listEl.innerHTML = playlists.map((pl) => {
+    const isMember = (pl.trackIds || []).includes(modalTrackId);
+    return `<label class="pl-modal__item">
+      <div class="pl-modal__item-info">
+        <span>📁 ${esc(pl.name)}</span>
+        <span class="pl-modal__item-count">${(pl.trackIds || []).length} bài</span>
+      </div>
+      <input type="checkbox" data-pl-id="${esc(pl.id)}" ${isMember ? "checked" : ""} />
+    </label>`;
+  }).join("");
+}
+
+function checkUrlPlaylistImport() {
+  const params = new URLSearchParams(window.location.search);
+  const name = params.get("pl_name");
+  const tracksParam = params.get("pl_tracks");
+  if (name && tracksParam) {
+    const tids = tracksParam.split(",").map((s) => s.trim()).filter(Boolean);
+    if (tids.length) {
+      let existing = playlists.find((p) => p.name === name);
+      if (!existing) {
+        existing = createPlaylist(name, tids);
+      } else {
+        for (const tid of tids) {
+          if (!existing.trackIds.includes(tid)) existing.trackIds.push(tid);
+        }
+        savePlaylists();
+      }
+      activePlaylistId = existing.id;
+      if (session.multiuser) {
+        api.restore(tids).catch(() => {});
+      }
+    }
+  }
+}
+
 function trackRow(m) {
   const playing = player.audible()?.entry.track.id === m.id;
   let lead, status;
@@ -766,6 +982,7 @@ function trackRow(m) {
   const full = esc(`${m.title}${m.status === "ready" ? ` · ${m.jumps ?? 0} nhánh nhảy · ${fmt(m.duration || 0)}` : ""}`);
   const acts = m.status === "ready"
     ? `<button type="button" data-act="play" aria-label="Phát ${title}" title="Phát từ bài này">${ICON.play}</button>
+       <button type="button" data-act="playlist" aria-label="Thêm vào playlist" title="Thêm vào Playlist / Album">${ICON.playlist}</button>
        <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>`
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
   return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""}" data-id="${esc(m.id)}">
@@ -777,31 +994,42 @@ function trackRow(m) {
 
 let lastListHtml = "";
 function renderLibrary() {
-  const shown = metas.filter((m) => shownLib(libOf(m.id))); // the next sample library stays out of sight
+  renderPlaylistChips();
+  renderActivePlaylistHeader();
+
+  const shown = filterMetas(metas);
   const have = new Set(shown.map((m) => m.id));
-  const offer = samples.libraries.filter((l) => l.ids.some((id) => !have.has(id))); // not yet wholly here
+  const offer = samples.libraries.filter((l) => l.ids.some((id) => !have.has(id)));
   let html;
   if (shown.length) {
     html = shown.slice().reverse().map(trackRow).join("");
-    if (offer.length) {
+    if (activePlaylistId === "all" && offer.length) {
       html += `<li class="more"><details${moreOpen ? " open" : ""}><summary>Thêm một kho có sẵn · ${offer.length} kho</summary>${libCards(offer)}</details></li>`;
     }
   } else {
-    const intro = session.multiuser
-      ? "Thư viện của bạn đang trống.<br>Dán link YouTube, SoundCloud, Zing MP3, Jamendo, gõ tên bài, hoặc thả file nhạc (cả file zip) vào đây."
-      : "Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.";
-    html = `<li class="empty">${ICON.inf}${intro}${offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
+    let intro = "";
+    if (activePlaylistId !== "all") {
+      const pl = getPlaylist(activePlaylistId);
+      intro = `Playlist "${esc(pl?.name || "")}" đang trống.<br>Bấm biểu tượng <b>${ICON.playlist}</b> ở bất kỳ bài hát nào để đưa vào playlist này.`;
+    } else {
+      intro = session.multiuser
+        ? "Thư viện của bạn đang trống.<br>Dán link YouTube, SoundCloud, Zing MP3, Jamendo, gõ tên bài, hoặc thả file nhạc (cả file zip) vào đây."
+        : "Thư viện còn trống.<br>Gõ tên một bài ở ô phía trên để thêm vòng đầu tiên.";
+    }
+    html = `<li class="empty">${ICON.inf}${intro}${activePlaylistId === "all" && offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
   }
   if (html !== lastListHtml) {
     lastListHtml = html;
     $("#track-list").innerHTML = html;
     paintMinis();
   }
-  const readyCount = metas.filter((m) => m.status === "ready").length;
+  const readyCount = shown.filter((m) => m.status === "ready").length;
   const own = metas.filter((m) => !samples.ids.includes(m.id)).length;
-  $("#lib-count").textContent = session.limits.tracks
-    ? `${own}/${session.limits.tracks} bài`
-    : metas.length ? `${readyCount}/${metas.length}` : "";
+  $("#lib-count").textContent = activePlaylistId !== "all"
+    ? `${shown.length} bài trong playlist`
+    : session.limits.tracks
+      ? `${own}/${session.limits.tracks} bài`
+      : metas.length ? `${readyCount}/${metas.length}` : "";
   const w = workerState || {};
   const busy = metas.filter((m) => m.status !== "ready" && m.status !== "error");
   const active = busy.filter((m) => m.status !== "queued");
@@ -873,6 +1101,9 @@ $("#track-list").addEventListener("click", async (e) => {
     case "play":
       await play(id);
       break;
+    case "playlist":
+      openPlaylistModal(id);
+      return;
     case "toggle":
       await api.patch(id, { enabled: m.enabled === false });
       break;
@@ -897,6 +1128,156 @@ $("#track-list").addEventListener("click", async (e) => {
       break;
   }
   refresh();
+});
+
+// --------------------------------------------------- playlist event listeners
+async function promptCreatePlaylist() {
+  const name = await showModal({
+    title: "Tạo playlist / album mới",
+    message: "Nhập tên danh sách phát:",
+    prompt: true,
+    placeholder: "Ví dụ: Nhạc Chill, Quán Cafe, Vinahey...",
+    confirmText: "Tạo playlist",
+    cancelText: "Thôi",
+  });
+  if (name && name.trim()) {
+    const pl = createPlaylist(name.trim());
+    activePlaylistId = pl.id;
+    renderLibrary();
+  }
+}
+
+$("#pl-chips")?.addEventListener("click", async (e) => {
+  const createBtn = e.target.closest("#btn-create-pl, .btn-create-pl, .pl-chip--add");
+  if (createBtn) {
+    await promptCreatePlaylist();
+    return;
+  }
+  const chip = e.target.closest(".pl-chip[data-pl-id]");
+  if (!chip) return;
+  activePlaylistId = chip.dataset.plId;
+  renderLibrary();
+});
+
+$("#pl-play-btn")?.addEventListener("click", async () => {
+  if (activePlaylistId === "all") return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl || !pl.trackIds.length) return;
+  const readyInPl = metas.find((m) => m.status === "ready" && pl.trackIds.includes(m.id));
+  if (!readyInPl) {
+    await showModal({
+      title: "Chưa có bài sẵn sàng",
+      message: "Chưa có bài hát nào đã hoàn tất phân tích trong playlist này.",
+      confirmText: "Đã hiểu",
+    });
+    return;
+  }
+  lockToPlaylist = true;
+  const lockCb = $("#pl-lock-toggle");
+  if (lockCb) lockCb.checked = true;
+  engine.ctx.resume();
+  await play(readyInPl.id);
+});
+
+$("#pl-lock-toggle")?.addEventListener("change", (e) => {
+  lockToPlaylist = e.target.checked;
+  prepareNext();
+});
+
+$("#pl-rename-btn")?.addEventListener("click", async () => {
+  if (activePlaylistId === "all") return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl) return;
+  const newName = await showModal({
+    title: "Đổi tên playlist / album",
+    prompt: true,
+    defaultValue: pl.name,
+    confirmText: "Lưu thay đổi",
+    cancelText: "Thôi",
+  });
+  if (newName && newName.trim() && newName.trim() !== pl.name) {
+    renamePlaylist(pl.id, newName.trim());
+  }
+});
+
+$("#pl-share-btn")?.addEventListener("click", async () => {
+  if (activePlaylistId === "all") return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl || !pl.trackIds.length) return;
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("pl_name", pl.name);
+  url.searchParams.set("pl_tracks", pl.trackIds.join(","));
+  try {
+    await navigator.clipboard.writeText(url.toString());
+    await showModal({
+      title: "Đã sao chép link",
+      message: `Đã sao chép link chia sẻ playlist "${pl.name}" vào clipboard!\nGửi link này cho bạn bè để cùng nghe playlist này.`,
+      confirmText: "Đã hiểu",
+    });
+  } catch (_) {
+    await showModal({
+      title: "Link chia sẻ playlist",
+      message: "Sao chép link dưới đây để gửi cho bạn bè:",
+      prompt: true,
+      defaultValue: url.toString(),
+      confirmText: "Xong",
+      cancelText: "Đóng",
+    });
+  }
+});
+
+$("#pl-delete-btn")?.addEventListener("click", async () => {
+  if (activePlaylistId === "all") return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl) return;
+  const ok = await showModal({
+    title: "Xoá playlist",
+    message: `Xoá playlist "${pl.name}"? Các bài hát vẫn được giữ nguyên trong thư viện.`,
+    confirmText: "Xoá",
+    cancelText: "Thôi",
+    danger: true,
+  });
+  if (ok) {
+    deletePlaylist(pl.id);
+  }
+});
+
+$("#pl-modal-close")?.addEventListener("click", () => {
+  $("#pl-modal")?.close();
+});
+
+$("#pl-modal-list")?.addEventListener("change", (e) => {
+  const cb = e.target.closest("input[type=checkbox][data-pl-id]");
+  if (!cb || !modalTrackId) return;
+  const plId = cb.dataset.plId;
+  const pl = getPlaylist(plId);
+  if (!pl) return;
+  if (cb.checked) {
+    if (!pl.trackIds.includes(modalTrackId)) pl.trackIds.push(modalTrackId);
+  } else {
+    pl.trackIds = pl.trackIds.filter((t) => t !== modalTrackId);
+  }
+  savePlaylists();
+  renderPlaylistModalList();
+  renderLibrary();
+});
+
+function handleModalCreatePlaylist() {
+  const input = $("#pl-modal-new-name");
+  const name = input?.value.trim();
+  if (!name) return;
+  createPlaylist(name, modalTrackId ? [modalTrackId] : []);
+  input.value = "";
+  renderPlaylistModalList();
+  renderLibrary();
+}
+
+$("#pl-modal-new-btn")?.addEventListener("click", handleModalCreatePlaylist);
+$("#pl-modal-new-name")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleModalCreatePlaylist();
+  }
 });
 
 async function refresh() {
@@ -980,7 +1361,10 @@ $("#add-form").addEventListener("submit", async (e) => {
       const todo = total - have;
       let msg = "";
       if (total > 1) {
-        msg = `Đã nạp thành công <b>${total} bài</b> từ album / playlist (${todo} bài mới vào hàng đợi phân tích)`;
+        const albumName = `Album (${total} bài)`;
+        const newPl = createPlaylist(albumName, r.added.map((m) => m.id));
+        activePlaylistId = newPl.id;
+        msg = `Đã nạp thành công <b>${total} bài</b> và gom vào <b>"${esc(newPl.name)}"</b> (${todo} bài mới vào hàng đợi)`;
       } else {
         msg = [have && `Đã thêm ${have} bài có sẵn`, todo && `${have ? "" : "Đã thêm "}${todo} bài vào hàng đợi phân tích`].filter(Boolean).join(", ") || "Không thêm được bài nào";
       }
@@ -1065,6 +1449,11 @@ async function uploadFiles(files) {
       u.done = true;
       u.count = r?.added?.length || 0;
       u.note = r?.note || "";
+      if (r?.added?.length > 1) {
+        const albumName = (u.file?.name || "Album").replace(/\.[^/.]+$/, "");
+        const newPl = createPlaylist(albumName, r.added.map((m) => m.id));
+        activePlaylistId = newPl.id;
+      }
     } catch (err) {
       u.error = `Không tải lên được: ${err.message}`;
     }
@@ -1433,6 +1822,8 @@ setInterval(() => {
   requestAnimationFrame(step);
 })();
 
+loadPlaylists();
+checkUrlPlaylistImport();
 applySettings();
 renderLooks();
 renderTransport();
