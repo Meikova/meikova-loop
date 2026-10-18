@@ -6,11 +6,20 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 18:25:00
+- Timestamp: 2026-10-18 18:32:00
 - Exit Code: 0 (All tests passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Dynamic kích thước các thành phần trên Modal (Responsive Modal System)**:
+  - Tinh chỉnh các modal dialog (`.consent`, `#app-modal`, `.mobile-modal`, `.shortcuts-modal`, `.pl-modal`, `.inspect-modal`) với hệ số co giãn linh hoạt (`clamp()`).
+  - `.consent`: Thu gọn độ rộng cơ sở về `width: min(410px, calc(100vw - 28px))`, padding mượt `clamp(14px, 3.8vw, 20px)`, bo góc `clamp(12px, 3vw, 16px)`.
+  - Heading `.consent h2`: Đổi từ font display to rộng sang `var(--font-text)` với `font: 600 clamp(0.95rem, 2.5vw, 1.08rem) / 1.35`, chống tràn 2 dòng vụng về trên màn hình vừa và nhỏ.
+  - Form inputs `.modal-input`: Đổi sang chiều cao gọn `clamp(32px, 4vw, 36px)`, padding `0 clamp(8px, 2vw, 12px)`, font chữ `clamp(0.8rem, 2vw, 0.86rem)`.
+  - Action buttons `.consent__acts button`: Chiều cao gọn `clamp(30px, 4vw, 34px)`, padding `0 clamp(12px, 3vw, 16px)`, khoảng cách nút `clamp(6px, 1.8vw, 8px)`.
+  - Icon & Close button: Scale icon `.mobile-modal__icon` về `clamp(16px, 2.2vw, 18px)` và nút đóng `.mobile-modal__close` về `clamp(26px, 3.2vw, 28px)`.
+  - Modal danh sách / phím tắt: Điều chỉnh `.shortcuts-modal`, `.mobile-modal`, `.pl-modal`, `.inspect-modal` co giãn đồng bộ theo `vw` không chiếm dụng quá mức không gian hiển thị.
+  - Bump cache `mashloop-v56` trên `web/sw.js` và `?v=56` trên `web/index.html`. Đồng bộ Desktop, Mobile, Git và HF Space.
 - **Thanh tăng giảm độ sáng ánh đèn (Room Light / Neon Glow Slider)**:
   - Thêm thanh trượt `#s-glow` (0% đến 200%, mặc định 100%) tại tab Cài đặt > Màu ("Ánh sáng của căn phòng").
   - Tích hợp hàm `theme.setGlow(level)` điều khiển trực tiếp biến CSS `--glow-mult`, khuếch đại hào quang `--glow`, độ rực màu `--fill-a`, và `theme.glowGain()` trong visualizer Canvas (bụi sáng, xung nhịp, dải spectrum, halo).
