@@ -417,6 +417,13 @@ def batch(req: BatchRequest, v: sessions.View = Depends(view_of)):
     elif req.action == "disable":
         v.set_enabled_many(ids, False)
         return {"updated": ids, "enabled": False}
+    elif req.action == "reanalyze":
+        for tid in ids:
+            m = library.read_meta(tid)
+            if m and (not MULTIUSER or m.get("status") == "error"):
+                library.update(tid, status="queued", stage="queued", progress=0.0, error=None)
+                worker.enqueue_ingest(tid)
+        return {"queued": ids}
     raise HTTPException(400, "unknown action")
 
 

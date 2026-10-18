@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=48" />
+    <link rel="stylesheet" href="css/app.css?v=50" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -596,6 +596,24 @@
             </div>
           </div>
 
+          <!-- Error Management Banner (Shown when tracks have failed status) -->
+          <div class="lib-error-bar" id="lib-error-bar" hidden>
+            <div class="lib-error-bar__info">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span id="lib-error-msg"><b>0</b> bài lỗi</span>
+            </div>
+            <div class="lib-error-bar__actions">
+              <button type="button" class="lib-error-btn lib-error-btn--retry" id="btn-retry-all-errors" title="Thử lại phân tích tất cả các bài bị lỗi">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <span>Thử lại</span>
+              </button>
+              <button type="button" class="lib-error-btn lib-error-btn--clean" id="btn-clean-all-errors" title="Xoá tất cả bài bị lỗi khỏi danh sách">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Xoá</span>
+              </button>
+            </div>
+          </div>
+
           <ul id="track-list" class="tracks"></ul>
         </div>
 
@@ -825,6 +843,23 @@
                 </svg>
                 <span><b>Gate</b>băm nhịp bài trước, đột ngột</span>
               </label>
+              <label class="kind">
+                <input id="s-tape" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <circle cx="12" cy="10" r="5" />
+                  <circle cx="28" cy="10" r="5" />
+                  <line x1="12" y1="15" x2="28" y2="15" />
+                </svg>
+                <span><b>Tape stop</b>giảm tốc độ băng cối, hoài cổ</span>
+              </label>
+              <label class="kind">
+                <input id="s-sweeper" type="checkbox" />
+                <svg viewBox="0 0 40 20" aria-hidden="true">
+                  <path d="M4 16 C 14 16, 20 12, 28 4" />
+                  <circle cx="34" cy="10" r="4" />
+                </svg>
+                <span><b>Filter sweep</b>quét dải lọc cao trào rồi drop</span>
+              </label>
             </fieldset>
             <fieldset class="kinds" id="blend-styles">
               <legend class="sub">
@@ -976,10 +1011,6 @@
             <button id="btn-relink" type="button" class="ghost">
               Tính lại điểm nối giữa các bài
             </button>
-            <p class="keys-line">
-              Phím tắt: <kbd>Space</kbd> phát / dừng · <kbd>J</kbd> nhảy ·
-              <kbd>N</kbd> bài khác · <kbd>K</kbd> kho khác
-            </p>
           </section>
         </div>
 
@@ -1369,14 +1400,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=48"></script>
+    <script type="module" src="js/main.js?v=50"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=48")
+          .register("sw.js?v=50")
           .then((reg) => {
             reg.update();
           })

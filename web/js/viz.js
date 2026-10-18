@@ -26,6 +26,7 @@ export const KIND_VI = {
   cut: "Nối thẳng", drop: "Drop vào đoạn mới", blend: "Blend khớp nhịp", fade: "Crossfade",
   echo: "Echo vang", wash: "Reverb wash", riser: "Build-up", flanger: "Flanger", gap: "Ngắt lặng 1 beat",
   brake: "Phanh đĩa", roll: "Cuộn nhịp", spin: "Spinback", gate: "Gate",
+  tape: "Tape stop", sweeper: "Filter sweep",
 };
 
 // What the bridge does to the tempo and the key, in words: "hai bài cùng
@@ -121,7 +122,7 @@ class Ring {
 const ROLE_VI = { intro: "Intro", verse: "Verse", chorus: "Điệp khúc", breakdown: "Đoạn lắng", drop: "Drop", outro: "Outro" };
 
 export class Viz {
-  constructor(canvas, player, { center, tip, onPick, onSeek, onCaption } = {}) {
+  constructor(canvas, player, { center, tip, onPick, onSeek, onCaption, onCrossClick } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.player = player;
@@ -130,6 +131,7 @@ export class Viz {
     this.onPick = onPick || (() => {});
     this.onSeek = onSeek || (() => false);
     this.onCaption = onCaption || (() => {});
+    this.onCrossClick = onCrossClick || (() => this.player.forceTransition());
     this._captionId = null;
     this.titles = new Map();
     this.rings = new Map();
@@ -967,6 +969,36 @@ export class Viz {
       ctx.stroke();
       ctx.lineCap = "butt";
     }
+
+    // Harmonic Camelot Badge at crossing point
+    const second = [...this.rings.values()].find((r) => r.role === "second");
+    if (primary && second && second.alpha > 0.25) {
+      const keyA = primary.track?.analysis?.key_camelot;
+      const keyB = second.track?.analysis?.key_camelot;
+      if (keyA && keyB) {
+        const isHover = this.hover?.kind === "cross";
+        const badgeY = c.y + (this.w >= this.h * 1.05 ? 28 : 30);
+        ctx.save();
+        ctx.font = `600 10px "JetBrains Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const text = `${keyA} ⇄ ${keyB}`;
+        const tw = ctx.measureText(text).width;
+        const bw = Math.max(60, tw + 14);
+        const bh = 18;
+        ctx.fillStyle = theme.css(theme.ground(mid), isHover ? 0.95 : 0.8);
+        ctx.strokeStyle = theme.css(theme.lift(mid, 0.25), isHover ? 0.95 : 0.5);
+        ctx.lineWidth = isHover ? 1.5 : 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(c.x - bw / 2, badgeY - bh / 2, bw, bh, 9);
+        else ctx.rect(c.x - bw / 2, badgeY - bh / 2, bw, bh);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = theme.css(theme.lift(mid, 0.45), isHover ? 1 : 0.9);
+        ctx.fillText(text, c.x, badgeY);
+        ctx.restore();
+      }
+    }
   }
 
   _drawLive(ctx, ring, view, now) {
@@ -1420,6 +1452,13 @@ export class Viz {
       const p = pos(e);
       this.pointer = p;
       const hit = this._hitTest(p.x, p.y);
+      if (hit?.kind === "cross") {
+        this.onCrossClick?.();
+        this.pickFeedback = { kind: "cross", ok: true, at: performance.now(), x: hit.x, y: hit.y };
+        this.hover = null;
+        if (p.type !== "mouse") this.pointer = null;
+        return;
+      }
       if (hit?.kind === "beat" && this._seekable(hit)) {
         // A beat of the playing song: play from there (on a touch screen,
         // the first tap shows where, a second tap on the ring goes).
@@ -1455,6 +1494,10 @@ export class Viz {
   }
 
   _hitTest(px, py) {
+    if (this.cross) {
+      const d = Math.hypot(px - this.cross.x, py - this.cross.y);
+      if (d < 34) return { kind: "cross", x: this.cross.x, y: this.cross.y, d };
+    }
     const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
     if (!primary || primary.alpha < 0.5) return null;
     const T = primary.track;
@@ -1485,7 +1528,7 @@ export class Viz {
   _drawHover(ctx) {
     if (this.pointer && this.pointer.type === "mouse") this.hover = this._hitTest(this.pointer.x, this.pointer.y);
     const h = this.hover;
-    this.canvas.style.cursor = h?.kind === "exit" || (h?.kind === "beat" && this._seekable(h)) ? "pointer" : "";
+    this.canvas.style.cursor = h?.kind === "exit" || h?.kind === "cross" || (h?.kind === "beat" && this._seekable(h)) ? "pointer" : "";
     const fb = this.pickFeedback && performance.now() - this.pickFeedback.at < 1800 ? this.pickFeedback : null;
     // Right after a pick the loop turns under the pointer; the confirmation
     // wins over whatever beat slides beneath it, unless another exit is hovered.
@@ -1495,6 +1538,16 @@ export class Viz {
     }
     if (!h) {
       this._showTip(null);
+      return;
+    }
+    if (h.kind === "cross") {
+      const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
+      const second = [...this.rings.values()].find((r) => r.role === "second");
+      const keyA = primary?.track.analysis.key_camelot || "";
+      const keyB = second?.track.analysis.key_camelot || "";
+      const fit = (keyA && keyB) ? `${keyA} ⇄ ${keyB}` : "Điểm giao ∞";
+      const html = `<b>Điểm giao hòa âm</b> → <span class="k">${fit}</span><small>Bấm để chuyển bài ngay lập tức</small>`;
+      this._showTip(html, h.x, h.y);
       return;
     }
     if (h.kind === "beat") {
@@ -1559,6 +1612,9 @@ export class Viz {
 
   _feedbackHtml() {
     const f = this.pickFeedback;
+    if (f.kind === "cross") {
+      return `<b>Chuyển ngay tức thì</b><small>Đang vào bài kế tiếp ở điểm gần nhất</small>`;
+    }
     if (f.kind === "seek") {
       if (f.ok) return `<b>Phát từ <span class="mono">${fmt(f.t)}</span></b><small>Vào ngay ở nhịp kế tiếp</small>`;
       return this.player.seekError === "busy"

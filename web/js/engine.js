@@ -447,6 +447,14 @@ export class Engine {
     this._keep([send, dl, fb, wet], end + 0.6);
   }
 
+  // Resonant filter sweep: resonant high-pass with climbing Q factor, white noise whoosh and impact
+  sweeper(voice, start, end) {
+    const dur = end - start;
+    voice.hpSweep(start, 30, 2600, dur, 0.8, 5.0);
+    this.riser(start, end);
+    this.impact(end);
+  }
+
   stopAll(fade = 0.08) {
     const t = this.ctx.currentTime;
     for (const v of this.voices) v.release(t, fade);
@@ -785,6 +793,25 @@ export class Voice {
       p.linearRampToValueAtTime(0.05, t1);
     }
     const tf = t0 + (t1 - t0) * 0.5;
+    this._curve(FADE_OUT, tf, t1 - tf);
+    this.stopAt(t1 + 0.02);
+  }
+
+  // Vintage cassette tape stop: exponential pitch deceleration with top-end loss
+  tape(t0, t1, from) {
+    if (this.stretch) {
+      for (let k = 0; k < 12; k++) {
+        const u = k / 11;
+        const decay = Math.exp(-3.5 * u);
+        this.setRate(t0 + (t1 - t0) * u, Math.max(0.01, from * decay));
+      }
+    } else {
+      const p = this.src.playbackRate;
+      p.setValueAtTime(from, t0);
+      p.exponentialRampToValueAtTime(0.01, t1);
+    }
+    this.sweep(t0, 18000, 180, t1 - t0);
+    const tf = t0 + (t1 - t0) * 0.7;
     this._curve(FADE_OUT, tf, t1 - tf);
     this.stopAt(t1 + 0.02);
   }

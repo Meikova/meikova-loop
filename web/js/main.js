@@ -136,6 +136,7 @@ const viz = new Viz($("#viz"), player, {
   onPick: (tr) => player.planTransition(tr),
   onSeek: (track, beat) => player.seek(beat),
   onCaption: () => renderStage(),
+  onCrossClick: () => player.forceTransition(),
 });
 
 let metas = [];
@@ -238,7 +239,7 @@ document.fonts?.ready.then(placeIndicators);
 const STORE = "loopbox.settings.v1";
 const BLEND_STYLES = ["long", "eq", "short", "filter", "swap", "stem", "acapella", "loop", "mashup", "double"];
 // Every kind of transition, each with its switch (#s-<kind>).
-const KINDS = ["cut", "drop", "blend", "fade", "echo", "wash", "riser", "flanger", "gap", "brake", "roll", "spin", "gate"];
+const KINDS = ["cut", "drop", "blend", "fade", "echo", "wash", "riser", "flanger", "gap", "brake", "roll", "spin", "gate", "tape", "sweeper"];
 // 2: the abrupt effects (brake, roll) became opt-in; older saved settings that
 // had them on from the first release of effects are switched off once.
 const SETTINGS_VERSION = 2;
@@ -488,7 +489,7 @@ $("#btn-play").addEventListener("click", async () => {
   renderTransport();
 });
 $("#btn-jump").addEventListener("click", () => player.requestJump());
-$("#btn-next").addEventListener("click", () => player.requestNextSong());
+$("#btn-next").addEventListener("click", () => player.forceTransition());
 $("#btn-kho").addEventListener("click", () => switchKho());
 
 // --- Deck controls: Lock, Timer, Night EQ, Quick Mute ---
@@ -627,7 +628,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     $("#btn-play").click();
   } else if (e.key === "j" || e.key === "J") player.requestJump();
-  else if (e.key === "n" || e.key === "N") player.requestNextSong();
+  else if (e.key === "n" || e.key === "N") player.forceTransition();
   else if (e.key === "k" || e.key === "K") switchKho();
   else if (e.key === "l" || e.key === "L") { player.toggleLoopLock(); applySettings(); }
   else if (e.key === "t" || e.key === "T") { if (timerBtn) timerBtn.click(); }
@@ -1228,6 +1229,18 @@ function renderLibrary() {
   if (batchBar) batchBar.hidden = !batchMode;
   updateBatchBar();
 
+  const errors = metas.filter((m) => m.status === "error");
+  const errorBar = $("#lib-error-bar");
+  if (errorBar) {
+    if (errors.length > 0) {
+      errorBar.hidden = false;
+      const msg = $("#lib-error-msg");
+      if (msg) msg.innerHTML = `<b>${errors.length}</b> bài lỗi`;
+    } else {
+      errorBar.hidden = true;
+    }
+  }
+
   const shown = filterMetas(metas);
   const listToRender = (libSortMode === "default" && activePlaylistId === "all") ? shown.slice().reverse() : shown;
   const have = new Set(shown.map((m) => m.id));
@@ -1549,6 +1562,55 @@ $("#batch-btn-del")?.addEventListener("click", async () => {
   selectedTrackIds.clear();
   renderLibrary();
   refresh();
+});
+
+$("#btn-retry-all-errors")?.addEventListener("click", async () => {
+  const errIds = metas.filter((m) => m.status === "error").map((m) => m.id);
+  if (!errIds.length) return;
+  const btn = $("#btn-retry-all-errors");
+  if (btn) btn.disabled = true;
+  try {
+    await api.batch(errIds, "reanalyze");
+  } catch (_) {
+    for (const id of errIds) await api.reanalyze(id).catch(() => {});
+  }
+  refresh();
+  if (btn) btn.disabled = false;
+});
+
+$("#btn-clean-all-errors")?.addEventListener("click", async () => {
+  const errIds = metas.filter((m) => m.status === "error").map((m) => m.id);
+  if (!errIds.length) return;
+  const ok = await showModal({
+    title: "Xác nhận xoá tất cả lỗi",
+    message: `Xoá toàn bộ ${errIds.length} bài hát bị lỗi khỏi danh sách?`,
+    confirmText: `Xoá ${errIds.length} bài lỗi`,
+    cancelText: "Thôi",
+    danger: true,
+  });
+  if (!ok) return;
+
+  const btn = $("#btn-clean-all-errors");
+  if (btn) btn.disabled = true;
+  for (const id of errIds) {
+    if (player.cur?.track.id === id) player.stop();
+    loader.drop(id);
+    forget(id);
+  }
+  try {
+    await api.batch(errIds, "delete");
+  } catch (_) {
+    for (const id of errIds) await api.remove(id).catch(() => {});
+  }
+  const errSet = new Set(errIds);
+  metas = metas.filter((m) => !errSet.has(m.id));
+  for (const pl of playlists) {
+    pl.trackIds = (pl.trackIds || []).filter((t) => !errSet.has(t));
+  }
+  savePlaylists();
+  renderLibrary();
+  refresh();
+  if (btn) btn.disabled = false;
 });
 
 // --------------------------------------------------- playlist event listeners

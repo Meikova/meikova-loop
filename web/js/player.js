@@ -21,7 +21,7 @@ const PREFETCH_LEAD = 20; // start loading likely next songs this long before le
 // abrupt effects (brake, roll, spinback, gate) last and off by default.
 const TYPE_BIAS = {
   cut: 0.08, drop: 0.02, blend: 0.06, fade: 0.0, echo: -0.08, wash: -0.06, riser: -0.06, flanger: -0.08, gap: -0.1,
-  roll: -0.12, gate: -0.12, brake: -0.15, spin: -0.15,
+  roll: -0.12, gate: -0.12, brake: -0.15, spin: -0.15, tape: -0.15, sweeper: -0.06,
 };
 // Variety: the same kind twice in a row, and an effect soon after another,
 // sound like a machine at work (listeners rate predictable transitions lower).
@@ -36,9 +36,9 @@ const MOOD_WEIGHT = 0.35;
 // Effect transitions: the old song winds down over a few beats (echo, wash,
 // brake, roll, build-up, spinback, gate, flanger, a beat of silence) and the
 // new one comes in on its own tempo, no beat matching needed.
-const FX = new Set(["echo", "wash", "brake", "roll", "riser", "spin", "gate", "flanger", "gap"]);
+const FX = new Set(["echo", "wash", "brake", "roll", "riser", "spin", "gate", "flanger", "gap", "tape", "sweeper"]);
 // Effects after which the new song comes in filtered, under the old one's tail.
-const FX_UNDER_TAIL = new Set(["echo", "wash", "flanger"]);
+const FX_UNDER_TAIL = new Set(["echo", "wash", "flanger", "sweeper"]);
 const KILL = -60; // dB: a band switched off (engine.KILL_DB)
 // Beats over which the playing song bends toward the meeting tempo before a
 // tempo-bridged junction: at least 16, more for a wider gap, so the ramp
@@ -219,7 +219,7 @@ export const DEFAULTS = {
   criterion: "balanced", // see CRITERIA
   allow: {
     cut: true, drop: true, blend: true, fade: true, echo: true, wash: true, riser: true, flanger: true, gap: true,
-    brake: false, roll: false, spin: false, gate: false,
+    brake: false, roll: false, spin: false, gate: false, tape: false, sweeper: true,
   },
   // How a blend may mix the two songs (each switched off, the chain picks among the rest).
   blendStyles: {
@@ -491,6 +491,27 @@ export class Player extends EventTarget {
     this.plan = null;
     this.urgent = true;
     this._prefetch(true);
+  }
+
+  // Manually force transition to next song at the nearest downbeat/junction
+  forceTransition(preferredType = null) {
+    if (!this.cur || this.blend || this.fx) return false;
+    const T = this.cur.track;
+    if (preferredType) {
+      const candidates = T.transitions.filter(
+        (tr) => tr.type === preferredType && tr.to !== T.id && this.enabled(tr.to)
+      );
+      if (candidates.length) {
+        candidates.sort((a, b) => (b.q || 0) - (a.q || 0));
+        const ok = this.pick(candidates[0]);
+        if (ok) return true;
+      }
+    }
+    this.plan = null;
+    this.urgent = true;
+    this._prefetch(true);
+    this._planExit(this.engine.audibleTime());
+    return true;
   }
 
   // ---------------------------------------------------------------- scheduling
@@ -1036,6 +1057,9 @@ export class Player extends EventTarget {
       voiceB.rampBand("low", tSw - swap, 0, 2 * swap);
       voiceA.rampBand("low", tSw - swap, KILL, 2 * swap);
       voiceA.rampBand("high", tS, -12, tEnd - tS);
+      // Auto sidechain vocal ducking: dip A's mid by 3.5 dB while B's vocal is isolated over A's band
+      voiceA.rampBand("mid", t0, -3.5, beat);
+      voiceA.rampBand("mid", tS, 0, tEnd - tS);
       return;
     }
     if (style === "loop" && tr.stems) voiceA.vocals(t0, "instrumental", beat);
@@ -1059,6 +1083,9 @@ export class Player extends EventTarget {
         voiceB.rampBand("low", tSwap - swap, 0, 2 * swap);
         voiceA.rampBand("low", tSwap - swap, KILL, 2 * swap);
         voiceA.rampBand("high", tP, -12, tEnd - tP);
+        // Auto sidechain vocal ducking: dip A's mid by 3.5 dB while B's vocal plays over A's band
+        voiceA.rampBand("mid", t0, -3.5, beat);
+        voiceA.rampBand("mid", tSwap - swap, 0, 2 * swap);
         return;
       }
     }
@@ -1121,6 +1148,11 @@ export class Player extends EventTarget {
       voiceA.fadeOut(end - 0.005, 0.01);
     } else if (tr.type === "brake") {
       voiceA.brake(t, end, rate);
+    } else if (tr.type === "tape") {
+      voiceA.tape(t, end, rate);
+    } else if (tr.type === "sweeper") {
+      this.engine.sweeper(voiceA, t, end);
+      voiceA.fadeOut(end - 0.005, 0.01);
     } else if (tr.type === "riser") {
       // Build-up: the song thins out under a rising noise sweep and is cut on
       // the downbeat, where an impact lands with the new song.
