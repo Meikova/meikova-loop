@@ -6,20 +6,39 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-18 18:32:00
+- Timestamp: 2026-10-18 18:44:00
 - Exit Code: 0 (All tests passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục chữ trong input trên Modal bị to (`.modal-input`, `.pl-modal__create input`)**:
+  - Tìm ra nguyên nhân gốc: Rule CSS cũ `input[type="text"], ... .modal-input { font-size: 16px !important; }` (nhằm tránh iOS Safari auto-zoom) đã đè lên mọi clamp font-size của modal, khiến chữ và placeholder trong input to bất thường (16px) lấn át cả tiêu đề và nút bấm.
+  - Xóa bỏ selector cưỡng bức 16px toàn cục (thẻ meta viewport đã có `maximum-scale=1` chống zoom an toàn).
+  - Khóa font size `.modal-input` và `.pl-modal__create input` chuẩn tỷ lệ `clamp(0.78rem, 2vw, 0.84rem) !important` và placeholder `clamp(0.74rem, 1.9vw, 0.8rem)`, hài hòa 100% với nhãn và nút bấm trên mobile.
+- **Toàn màn hình Visualizer & Thanh công cụ HUD tương tác (Zen Fullscreen Canvas Mode)**:
+  - Thêm nút chuyển đổi "Toàn màn hình" (`#btn-zen`) trên topbar và hỗ trợ phím tắt `F` (hoặc `Esc` để thoát).
+  - Khi kích hoạt: Canvas bung trọn 100vw x 100vh với visualizer siêu nét (SSAA hardware interpolation).
+  - Tích hợp thanh công cụ HUD nổi viền neon trên màn hình (`.zen-hud-top` & `.deck`):
+    - Góc trái: Tên bài hát, nghệ sĩ, tempo và mood tag thời gian thực.
+    - Góc phải: Bộ công cụ DJ nhanh (`Tape` hãm đĩa, `Sweep` quét filter, nút tăng nhanh độ sáng `Neon` 50%→100%→150%→200%), đồng hồ phách và nút đóng `[✕]`.
+    - Dưới cùng: Dock điều khiển nổi (Lock, Jump, Play/Pause, Next, Timer, EQ, Volume).
+    - Tự động ẩn nhẹ (Inactivity Dimming): Sau 3.5 giây không di chuột/chạm màn hình, các công cụ mờ dần về `opacity: 0.12` để người dùng đắm chìm vào vòng lặp ánh sáng; chạm nhẹ lập tức hiện rõ.
+- **Thanh cấu hình độ sáng màu neon ở các nơi trong giao diện (Neon Luminance Engine)**:
+  - Cập nhật nhãn và mô tả `#s-glow` trong tab Cài đặt: "Độ sáng màu neon & ánh đèn".
+  - Nâng cấp `theme.js` & `app.css`: Thanh trượt điều khiển trực tiếp độ rực (`--acc-c`), độ sáng (`--acc-l`), độ ấm nền (`--gc`), và quầng sáng `--glow-mult` trên toàn bộ giao diện:
+    - Biểu tượng Vô cực thương hiệu (`.brand__inf`).
+    - Nút bấm, tab đang chọn (`.seg__ind`).
+    - Thanh trượt âm lượng và vị trí (`input[type="range"]::-webkit-slider-thumb`).
+    - Vạch sáng bài đang phát (`.track.playing::before`).
+    - Bụi sáng và ánh nền phòng chiếu (`.field`).
+  - Tích hợp hàm `theme.reapply()` và `recolor()` cập nhật tức thì màu neon ngay khi kéo trượt mà không cần đợi đổi bài.
 - **Dynamic kích thước các thành phần trên Modal (Responsive Modal System)**:
   - Tinh chỉnh các modal dialog (`.consent`, `#app-modal`, `.mobile-modal`, `.shortcuts-modal`, `.pl-modal`, `.inspect-modal`) với hệ số co giãn linh hoạt (`clamp()`).
   - `.consent`: Thu gọn độ rộng cơ sở về `width: min(410px, calc(100vw - 28px))`, padding mượt `clamp(14px, 3.8vw, 20px)`, bo góc `clamp(12px, 3vw, 16px)`.
   - Heading `.consent h2`: Đổi từ font display to rộng sang `var(--font-text)` với `font: 600 clamp(0.95rem, 2.5vw, 1.08rem) / 1.35`, chống tràn 2 dòng vụng về trên màn hình vừa và nhỏ.
-  - Form inputs `.modal-input`: Đổi sang chiều cao gọn `clamp(32px, 4vw, 36px)`, padding `0 clamp(8px, 2vw, 12px)`, font chữ `clamp(0.8rem, 2vw, 0.86rem)`.
   - Action buttons `.consent__acts button`: Chiều cao gọn `clamp(30px, 4vw, 34px)`, padding `0 clamp(12px, 3vw, 16px)`, khoảng cách nút `clamp(6px, 1.8vw, 8px)`.
   - Icon & Close button: Scale icon `.mobile-modal__icon` về `clamp(16px, 2.2vw, 18px)` và nút đóng `.mobile-modal__close` về `clamp(26px, 3.2vw, 28px)`.
-  - Modal danh sách / phím tắt: Điều chỉnh `.shortcuts-modal`, `.mobile-modal`, `.pl-modal`, `.inspect-modal` co giãn đồng bộ theo `vw` không chiếm dụng quá mức không gian hiển thị.
-  - Bump cache `mashloop-v56` trên `web/sw.js` và `?v=56` trên `web/index.html`. Đồng bộ Desktop, Mobile, Git và HF Space.
+  - Bump cache `mashloop-v57` trên `web/sw.js` và `?v=57` trên `web/index.html`. Đồng bộ Desktop, Mobile, Git và HF Space.
 - **Thanh tăng giảm độ sáng ánh đèn (Room Light / Neon Glow Slider)**:
   - Thêm thanh trượt `#s-glow` (0% đến 200%, mặc định 100%) tại tab Cài đặt > Màu ("Ánh sáng của căn phòng").
   - Tích hợp hàm `theme.setGlow(level)` điều khiển trực tiếp biến CSS `--glow-mult`, khuếch đại hào quang `--glow`, độ rực màu `--fill-a`, và `theme.glowGain()` trong visualizer Canvas (bụi sáng, xung nhịp, dải spectrum, halo).
