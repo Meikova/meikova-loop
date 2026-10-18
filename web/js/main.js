@@ -28,12 +28,26 @@ export function showModal({
   }
   const titleEl = $("#modal-title");
   const bodyEl = $("#modal-body");
+  const iconEl = $("#modal-icon");
   const inputWrap = $("#modal-input-wrap");
   const inputEl = $("#modal-input");
   const cancelBtn = $("#modal-cancel");
+  const closeBtn = $("#modal-close");
   const okBtn = $("#modal-ok");
 
   if (titleEl) titleEl.textContent = title;
+  if (iconEl) {
+    if (danger) {
+      iconEl.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>';
+      iconEl.style.stroke = "var(--danger)";
+    } else if (prompt || /playlist|album/i.test(title)) {
+      iconEl.innerHTML = '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>';
+      iconEl.style.stroke = "var(--accent)";
+    } else {
+      iconEl.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+      iconEl.style.stroke = "var(--accent)";
+    }
+  }
   if (bodyEl) {
     bodyEl.textContent = message;
     bodyEl.hidden = !message;
@@ -60,6 +74,7 @@ export function showModal({
     let resolved = false;
     const cleanup = () => {
       cancelBtn?.removeEventListener("click", onCancel);
+      closeBtn?.removeEventListener("click", onCancel);
       dlg.removeEventListener("close", onClose);
       form?.removeEventListener("submit", onSubmit);
     };
@@ -92,6 +107,7 @@ export function showModal({
     };
 
     const form = $("#modal-form");
+    closeBtn?.addEventListener("click", onCancel, { once: true });
     form?.addEventListener("submit", onSubmit);
     cancelBtn?.addEventListener("click", onCancel, { once: true });
     dlg.addEventListener("close", onClose, { once: true });
@@ -183,10 +199,10 @@ loader.addEventListener("transitions", () => {
 });
 
 const ICON = {
-  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7 4.5 19 12 7 19.5 7 4.5"/></svg>',
   playlist: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
-  out: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6"/></svg>',
-  in: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M12 9v6"/></svg>',
+  out: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  in: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
   retry: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4v4h4"/></svg>',
   del: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>',
   plRemove: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
@@ -194,9 +210,9 @@ const ICON = {
   down: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   move: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
   copy: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  queueNext: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="13" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polygon points="16 10 16 20 23 15 16 10" fill="currentColor"/></svg>',
+  queueNext: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="12" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/><polygon points="15 10 15 19 21 14.5 15 10" fill="currentColor"/></svg>',
   download: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-  inspect: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  inspect: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
   inf: '<svg viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>',
 };
@@ -263,7 +279,7 @@ function applySettings() {
   s.jumpEvery = 60 * Math.pow(0.1, ui.freq);
   s.keep = 0.15 + 0.85 * ui.strict;
   if (s.dwellMax < s.dwellMin) s.dwellMax = s.dwellMin;
-  engine.setVolume(ui.volume);
+  engine.setVolume(window.pywebview ? (isMuted ? 0 : 1.0) : (isMuted ? 0 : ui.volume));
   $("#s-freq").value = ui.freq;
   $("#v-freq").textContent = `~${Math.round(s.jumpEvery)} giây một lần`;
   $("#s-strict").value = ui.strict;
@@ -370,7 +386,7 @@ export function setAppVolume(val, syncSystem = true) {
 window.__onSystemVolume = (vol) => {
   if (typeof vol !== "number" || isNaN(vol)) return;
   const clamped = Math.max(0, Math.min(1, +vol.toFixed(3)));
-  if (Math.abs(ui.volume - clamped) >= 0.01) {
+  if (Math.abs(ui.volume - clamped) >= 0.005) {
     setAppVolume(clamped, false);
   }
 };
@@ -605,21 +621,6 @@ if (timerBtn && timerPopover) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "AudioVolumeUp") {
-    e.preventDefault();
-    setAppVolume(Math.min(1, ui.volume + 0.05), true);
-    return;
-  }
-  if (e.key === "AudioVolumeDown") {
-    e.preventDefault();
-    setAppVolume(Math.max(0, ui.volume - 0.05), true);
-    return;
-  }
-  if (e.key === "AudioVolumeMute") {
-    e.preventDefault();
-    toggleMute();
-    return;
-  }
   if (e.target.closest("input, textarea, select")) return;
   if (e.code === "Space") {
     if (e.target.closest("button")) return; // a focused button handles Space itself
@@ -633,10 +634,10 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "m" || e.key === "M") { toggleMute(); }
   else if (e.key === "]") {
     e.preventDefault();
-    setAppVolume(Math.min(1, ui.volume + 0.05), true);
+    setAppVolume(Math.min(1, +(ui.volume + 0.02).toFixed(2)), true);
   } else if (e.key === "[") {
     e.preventDefault();
-    setAppVolume(Math.max(0, ui.volume - 0.05), true);
+    setAppVolume(Math.max(0, +(ui.volume - 0.02).toFixed(2)), true);
   } else if (e.key === "e" || e.key === "E") {
     const nextIdx = (EQ_LIST.indexOf(engine.eqMode || "flat") + 1) % EQ_LIST.length;
     setEq(EQ_LIST[nextIdx]);
@@ -790,12 +791,12 @@ function miniRing(id) {
         miniCache.delete(key);
         return null;
       }
-      const size = 76;
+      const size = 72;
       const c = document.createElement("canvas");
       c.width = size;
       c.height = size;
       const ctx = c.getContext("2d");
-      const r = size / 2 - 7;
+      const r = size / 2 - 6;
       const end = a.duration;
       const lmax = Math.max(...a.loud), lmin = Math.min(...a.loud);
       const colors = theme.beatColors(id, a.color);
@@ -1132,7 +1133,7 @@ function trackRow(m, idx = 0, total = 0) {
   const inPl = activePlaylistId !== "all";
   let lead, status;
   if (m.status === "ready") {
-    lead = `<canvas class="mini" data-id="${esc(m.id)}" width="76" height="76" aria-hidden="true"></canvas>`;
+    lead = `<canvas class="mini" data-id="${esc(m.id)}" width="72" height="72" aria-hidden="true"></canvas>`;
     const artist = songOf(m).artist;
     status = `<div class="s">${artist ? `<span class="a">${esc(artist)}</span> · ` : ""}${m.bpm ? m.bpm.toFixed(0) : "?"} BPM · ${esc(m.camelot || "")}</div>${creditLine(m.credit)}`;
   } else if (m.status === "error") {
@@ -1163,14 +1164,25 @@ function trackRow(m, idx = 0, total = 0) {
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
   const removeBtn = inPl
     ? `<button type="button" data-act="pl-remove" aria-label="Bỏ khỏi playlist này" title="Bỏ khỏi playlist này">${ICON.plRemove}</button>`
-    : `<button type="button" data-act="delete" aria-label="Xoá ${title}" title="Xoá">${ICON.del}</button>`;
+    : (m.status === "error" ? `<button type="button" data-act="delete" aria-label="Xoá lỗi" title="Xoá">${ICON.del}</button>` : "");
   const cb = batchMode
     ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
     : "";
+  const durHtml = (m.status === "ready" && m.duration)
+    ? `<span class="track__dur">${fmt(m.duration)}</span>`
+    : "";
   return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""}" data-id="${esc(m.id)}">
     ${cb}${lead}
-    <div><div class="t" data-act="inspect" title="Bấm để xem chi tiết & phân tích">${title}${isQueued ? `<span class="badge-queued">Kế tiếp</span>` : ""}</div>${status}</div>
-    <div class="acts">${acts}${removeBtn}</div>
+    <div class="track__body">
+      <div class="track__top">
+        <div class="t" data-act="inspect" title="Bấm để xem chi tiết & phân tích">${title}${isQueued ? `<span class="badge-queued">Kế tiếp</span>` : ""}</div>
+        ${durHtml}
+      </div>
+      <div class="track__bottom">
+        ${status}
+        <div class="acts">${acts}${removeBtn}</div>
+      </div>
+    </div>
   </li>`;
 }
 
@@ -1351,6 +1363,7 @@ $("#track-list").addEventListener("click", async (e) => {
         await downloadTrack(id, actEl.tagName === "BUTTON" ? actEl : null);
         return;
       case "inspect":
+        actEl?.blur();
         openInspectModal(id);
         return;
       case "toggle":
@@ -1801,18 +1814,20 @@ async function openInspectModal(id) {
       <button type="button" class="inspect-btn inspect-btn--play" id="inspect-act-play">
         ${ICON.play} <span>Phát ngay</span>
       </button>
-      <button type="button" class="inspect-btn inspect-btn--queue" id="inspect-act-queue" data-act="queue-next">
-        ${ICON.queueNext} <span>${isQueued ? "Hủy chờ phát tiếp" : "Phát tiếp theo"}</span>
-      </button>
-      <button type="button" class="inspect-btn" id="inspect-act-dl" data-act="download">
-        ${ICON.download} <span>Tải MP3</span>
-      </button>
-      <button type="button" class="inspect-btn" id="inspect-act-pl" data-act="playlist">
-        ${ICON.playlist} <span>Playlist</span>
-      </button>
-      <button type="button" class="inspect-btn inspect-btn--del" id="inspect-act-del" data-act="delete">
-        ${ICON.del} <span>Xoá</span>
-      </button>
+      <div class="inspect-acts__sub">
+        <button type="button" class="inspect-btn inspect-btn--queue" id="inspect-act-queue" data-act="queue-next" title="${isQueued ? "Hủy chờ phát tiếp" : "Phát tiếp theo"}">
+          ${ICON.queueNext} <span>${isQueued ? "Hủy chờ" : "Kế tiếp"}</span>
+        </button>
+        <button type="button" class="inspect-btn" id="inspect-act-dl" data-act="download" title="Tải file MP3">
+          ${ICON.download} <span>Tải MP3</span>
+        </button>
+        <button type="button" class="inspect-btn" id="inspect-act-pl" data-act="playlist" title="Thêm vào playlist">
+          ${ICON.playlist} <span>Playlist</span>
+        </button>
+        <button type="button" class="inspect-btn inspect-btn--del" id="inspect-act-del" data-act="delete" title="Xoá bài khỏi thư viện">
+          ${ICON.del} <span>Xoá</span>
+        </button>
+      </div>
     </div>
   `;
 
@@ -1918,13 +1933,64 @@ $("#lib-search-clear")?.addEventListener("click", () => {
   input?.focus();
 });
 
-$("#lib-sort-select")?.addEventListener("change", (e) => {
+const sortBtn = $("#lib-sort-btn");
+const sortPopover = $("#lib-sort-popover");
+const sortLabel = $("#lib-sort-label");
+const sortSelect = $("#lib-sort-select");
+
+function closeSortPopover() {
+  if (sortPopover && !sortPopover.hidden) {
+    sortPopover.hidden = true;
+    sortBtn?.setAttribute("aria-expanded", "false");
+  }
+}
+
+sortBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const willOpen = sortPopover ? sortPopover.hidden : false;
+  if (sortPopover) sortPopover.hidden = !willOpen;
+  sortBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#lib-sort-wrap")) {
+    closeSortPopover();
+  }
+});
+
+sortPopover?.addEventListener("click", (e) => {
+  const opt = e.target.closest(".lib-sort-opt");
+  if (!opt) return;
+  const val = opt.getAttribute("data-val") || "default";
+  libSortMode = val;
+  if (sortSelect) sortSelect.value = val;
+  if (sortLabel) sortLabel.textContent = opt.querySelector("span")?.textContent || "Mới nhất";
+  sortPopover.querySelectorAll(".lib-sort-opt").forEach((el) => {
+    el.classList.toggle("on", el === opt);
+  });
+  closeSortPopover();
+  renderLibrary();
+});
+
+sortSelect?.addEventListener("change", (e) => {
   libSortMode = e.target.value;
+  const matchingOpt = sortPopover?.querySelector(`[data-val="${libSortMode}"]`);
+  if (matchingOpt && sortLabel) {
+    sortLabel.textContent = matchingOpt.querySelector("span")?.textContent || "Mới nhất";
+    sortPopover?.querySelectorAll(".lib-sort-opt").forEach((el) => {
+      el.classList.toggle("on", el === matchingOpt);
+    });
+  }
   renderLibrary();
 });
 
 $("#inspect-close")?.addEventListener("click", () => {
   $("#inspect-modal")?.close();
+  document.activeElement?.blur();
+});
+
+$("#inspect-modal")?.addEventListener("close", () => {
+  document.activeElement?.blur();
 });
 
 player.addEventListener("target-next", () => {
@@ -2156,7 +2222,7 @@ function renderUploads() {
 
 async function uploadFiles(files) {
   if (!files.length || !(await consent())) return;
-  const maxMb = session.limits.upload_mb || 80;
+  const maxMb = session.limits.upload_mb || 500;
   for (const f of files) {
     const u = { name: f.name, p: 0, done: false, error: null, file: f };
     if (f.size > maxMb * 1024 * 1024) u.error = `Lớn hơn ${maxMb} MB`;

@@ -172,16 +172,20 @@ export class Viz {
 
   _resize() {
     const box = this.canvas.parentElement.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    this.w = Math.max(200, box.width);
-    this.h = Math.max(200, box.height);
-    this.canvas.width = Math.round(this.w * dpr);
-    this.canvas.height = Math.round(this.h * dpr);
+    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+    const w = Math.max(200, Math.round(box.width));
+    const h = Math.max(200, Math.round(box.height));
+    this.w = w;
+    this.h = h;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    this.canvas.style.width = `${w}px`;
+    this.canvas.style.height = `${h}px`;
     this.ctx.imageSmoothingEnabled = true;
     this.ctx.imageSmoothingQuality = "high";
-    this.baseR = Math.min(this.w, this.h) * 0.37;
-    // Redraw layers when scale changes by more than 3% to keep hairlines crisp
-    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.03) {
+    this.baseR = Math.round(Math.min(w, h) * 0.37);
+    // Redraw layers when scale changes by more than 2% to keep hairlines crisp
+    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.02) {
       this.layerR = this.baseR;
       this.invalidate();
     }
@@ -254,16 +258,19 @@ export class Viz {
   // Everything about a song that does not move: drawn once, then rotated and
   // scaled as the loop travels.
   _buildLayer(track) {
-    const RL = this.layerR;
+    const RL = Math.round(this.layerR);
     const th = this._thickness(RL);
-    const S = Math.ceil(RL * 2.6);
+    let S = Math.ceil(RL * 2.6);
+    if (S % 2 !== 0) S++;
+    // Supersample the offscreen texture (SSAA) so rotated drawImage remains razor sharp
+    const layerScale = Math.min(Math.max(Math.round(this.dpr * 2), 2), 4);
     const c = document.createElement("canvas");
-    c.width = Math.round(S * this.dpr);
-    c.height = Math.round(S * this.dpr);
+    c.width = Math.round(S * layerScale);
+    c.height = Math.round(S * layerScale);
     const ctx = c.getContext("2d");
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.scale(this.dpr, this.dpr);
+    ctx.scale(layerScale, layerScale);
     ctx.translate(S / 2, S / 2);
     const a = track.analysis;
     const maxScore = this.player.maxScore(track);
@@ -391,7 +398,9 @@ export class Viz {
     const s = ring.r / this.layerR;
     const rin = (this.layerR - this._thickness(this.layerR) / 2 - 3) * s;
     ctx.save();
-    ctx.translate(ring.x, ring.y);
+    const px = Math.round(ring.x * this.dpr) / this.dpr;
+    const py = Math.round(ring.y * this.dpr) / this.dpr;
+    ctx.translate(px, py);
     ctx.rotate(ring.rot);
     ctx.scale(1, ring.dir);
     this._chordPath(ctx, rin, this._ang(T, T.beats[i] + T.dur[i]), this._ang(T, T.beats[j]));
@@ -558,7 +567,9 @@ export class Viz {
     this.mixNow = this._mix(view);
     this._update(view, dt);
 
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const sx = this.canvas.width / this.w;
+    const sy = this.canvas.height / this.h;
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
 
     this._beatPulse(view, dt);
@@ -794,12 +805,15 @@ export class Viz {
       ring.layerKey = key;
     }
     const L = ring.layer;
-    const s = ring.r / L.RL;
+    let s = ring.r / L.RL;
+    if (Math.abs(s - 1) < 0.003) s = 1;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.globalAlpha = Math.min(1, ring.alpha);
-    ctx.translate(ring.x, ring.y);
+    const px = Math.round(ring.x * this.dpr) / this.dpr;
+    const py = Math.round(ring.y * this.dpr) / this.dpr;
+    ctx.translate(px, py);
     ctx.rotate(ring.rot);
     ctx.scale(s, s * ring.dir);
     if (ring.fill < 1) {
@@ -1032,8 +1046,8 @@ export class Viz {
 
   // A little above the middle: the caption hangs under it, and the two weigh as one.
   _idleGeom() {
-    const a = Math.min(this.w * 0.36, this.h * 0.95);
-    return { a, cx: this.w / 2, cy: this.h * 0.42, th: Math.max(3, a * 0.024) };
+    const a = Math.round(Math.min(this.w * 0.36, this.h * 0.95));
+    return { a, cx: Math.round(this.w / 2), cy: Math.round(this.h * 0.42), th: Math.max(3, Math.round(a * 0.024)) };
   }
 
   // A point of the lemniscate (u: 0..2π; the right loop where cos u > 0, the
@@ -1061,15 +1075,18 @@ export class Viz {
   // One ghost loop drawn once (redrawn when its colour has moved a few degrees).
   _idleLayer(side, col) {
     const st = this.idleSt;
-    const key = `${this.w}x${this.h}@${this.dpr}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}`;
+    const layerScale = Math.min(Math.max(Math.round(this.dpr * 2), 2), 4);
+    const key = `${this.w}x${this.h}@${layerScale}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}`;
     const have = st.layers[side];
     if (have && have.key === key) return have.canvas;
     const g = this._idleGeom();
     const c = have?.canvas || document.createElement("canvas");
-    c.width = Math.round(this.w * this.dpr);
-    c.height = Math.round(this.h * this.dpr);
+    c.width = Math.round(this.w * layerScale);
+    c.height = Math.round(this.h * layerScale);
     const ctx = c.getContext("2d");
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.setTransform(layerScale, 0, 0, layerScale, 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
     const rnd = seeded(side > 0 ? 7741 : 3319);
     const N = 112; // beats round the loop
@@ -1141,6 +1158,8 @@ export class Viz {
 
     ctx.save();
     // The two ghost loops, breathing.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.globalAlpha = alpha * (0.76 + 0.24 * breath);
     for (const side of [-1, 1]) ctx.drawImage(this._idleLayer(side, loopCol(side)), 0, 0, this.w, this.h);
 

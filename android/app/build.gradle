@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.truclv.mashloop"
+    namespace "com.m3ik18dp.mashloop"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.truclv.mashloop"
+        applicationId "com.m3ik18dp.mashloop"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

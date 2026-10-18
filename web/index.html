@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/app.css?v=45" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -72,8 +72,14 @@
 
       <div class="seg mode" role="radiogroup" aria-label="Chế độ phát">
         <span class="seg__ind" aria-hidden="true"></span>
-        <button type="button" data-mode="single" role="radio">Một bài</button>
-        <button type="button" data-mode="chain" role="radio">Chuỗi</button>
+        <button type="button" data-mode="single" role="radio">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/><path d="M11 10h1v4"/></svg>
+          <span>Một bài</span>
+        </button>
+        <button type="button" data-mode="chain" role="radio">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 1 0 0-8c-2 0-4 1.33-6 4Z"/></svg>
+          <span>Chuỗi</span>
+        </button>
       </div>
 
       <div class="topbar__end">
@@ -380,27 +386,29 @@
       </section>
 
       <aside class="panel" id="panel" aria-label="Thư viện và tinh chỉnh">
-        <div class="seg tabs" role="tablist" aria-label="Bảng điều khiển">
-          <span class="seg__ind" aria-hidden="true"></span>
-          <button
-            type="button"
-            data-tab="library"
-            role="tab"
-            class="on"
-            aria-selected="true"
-            aria-controls="tab-library"
-          >
-            Thư viện
-          </button>
-          <button
-            type="button"
-            data-tab="settings"
-            role="tab"
-            aria-selected="false"
-            aria-controls="tab-settings"
-          >
-            Tinh chỉnh
-          </button>
+        <div class="panel__head">
+          <div class="seg tabs" role="tablist" aria-label="Bảng điều khiển">
+            <span class="seg__ind" aria-hidden="true"></span>
+            <button
+              type="button"
+              data-tab="library"
+              role="tab"
+              class="on"
+              aria-selected="true"
+              aria-controls="tab-library"
+            >
+              Thư viện
+            </button>
+            <button
+              type="button"
+              data-tab="settings"
+              role="tab"
+              aria-selected="false"
+              aria-controls="tab-settings"
+            >
+              Tinh chỉnh
+            </button>
+          </div>
         </div>
 
         <div id="tab-library" class="tab on" role="tabpanel">
@@ -489,9 +497,21 @@
               <input type="text" id="lib-search-input" placeholder="Lọc tên, BPM, Key..." autocomplete="off" spellcheck="false" />
               <button type="button" id="lib-search-clear" aria-label="Xoá tìm kiếm" hidden><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
-            <div class="lib-sort">
-              <select id="lib-sort-select" aria-label="Sắp xếp danh sách bài hát">
-                <option value="default">Mới nhất</option>
+            <div class="lib-sort" id="lib-sort-wrap">
+              <button type="button" class="lib-sort-btn" id="lib-sort-btn" aria-haspopup="listbox" aria-expanded="false" title="Sắp xếp danh sách bài hát">
+                <span id="lib-sort-label">Mới nhất</span>
+                <svg class="chevron" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="lib-sort-popover" id="lib-sort-popover" role="listbox" hidden>
+                <button type="button" role="option" class="lib-sort-opt on" data-val="default"><span>Mới nhất</span></button>
+                <button type="button" role="option" class="lib-sort-opt" data-val="bpm-asc"><span>BPM ↑</span><small>Chậm → Nhanh</small></button>
+                <button type="button" role="option" class="lib-sort-opt" data-val="bpm-desc"><span>BPM ↓</span><small>Nhanh → Chậm</small></button>
+                <button type="button" role="option" class="lib-sort-opt" data-val="key"><span>Key Camelot</span><small>Hòa âm DJ</small></button>
+                <button type="button" role="option" class="lib-sort-opt" data-val="title"><span>Tên bài</span><small>A → Z</small></button>
+                <button type="button" role="option" class="lib-sort-opt" data-val="duration"><span>Thời lượng</span><small>Dài → Ngắn</small></button>
+              </div>
+              <select id="lib-sort-select" aria-label="Sắp xếp danh sách bài hát" style="display:none">
+                <option value="default" selected>Mới nhất</option>
                 <option value="bpm-asc">BPM ↑</option>
                 <option value="bpm-desc">BPM ↓</option>
                 <option value="key">Key Camelot</option>
@@ -503,36 +523,39 @@
 
           <!-- Batch Management Bar (Shown when batch selection is active) -->
           <div class="batch-bar" id="batch-bar" hidden>
-            <div class="batch-bar__info">
-              <label class="batch-bar__all" title="Chọn / bỏ chọn tất cả">
-                <input type="checkbox" id="batch-select-all" />
-                <span>Tất cả</span>
-              </label>
-              <span class="batch-bar__count" id="batch-count">0 đã chọn</span>
+            <div class="batch-bar__head">
+              <div class="batch-bar__info">
+                <label class="batch-bar__all" title="Chọn / bỏ chọn tất cả">
+                  <input type="checkbox" id="batch-select-all" />
+                  <span>Tất cả</span>
+                </label>
+                <span class="batch-bar__count" id="batch-count">0 đã chọn</span>
+              </div>
+              <button type="button" class="batch-btn batch-btn--close" id="batch-btn-close" aria-label="Đóng chọn nhiều" title="Xong">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Xong</span>
+              </button>
             </div>
             <div class="batch-bar__actions">
               <button type="button" class="batch-btn" id="batch-btn-in" title="Đưa các bài đã chọn vào chuỗi">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M12 9v6"/></svg>
-                <span>Vào chuỗi</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <span>Vào</span>
               </button>
               <button type="button" class="batch-btn" id="batch-btn-out" title="Bỏ các bài đã chọn khỏi chuỗi">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6"/></svg>
-                <span>Bỏ chuỗi</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <span>Bỏ</span>
               </button>
               <button type="button" class="batch-btn" id="batch-btn-pl" title="Thêm vào playlist / album">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                <span>+ Playlist</span>
+                <span>Playlist</span>
               </button>
-              <button type="button" class="batch-btn batch-btn--warn" id="batch-btn-pl-remove" title="Bỏ các bài đã chọn khỏi playlist này" hidden>
+              <button type="button" class="batch-btn batch-btn--warn" id="batch-btn-pl-remove" title="Gỡ các bài đã chọn khỏi playlist này" hidden>
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                <span>Bỏ playlist</span>
+                <span>Gỡ</span>
               </button>
               <button type="button" class="batch-btn batch-btn--del" id="batch-btn-del" title="Xoá các bài đã chọn khỏi thư viện">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 <span>Xoá</span>
-              </button>
-              <button type="button" class="batch-btn batch-btn--close" id="batch-btn-close" aria-label="Đóng chọn nhiều" title="Xong">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
           </div>
@@ -983,7 +1006,25 @@
       aria-describedby="consent-body"
     >
       <form method="dialog">
-        <h2 id="consent-title">Trước khi thêm nhạc</h2>
+        <div class="mobile-modal__head">
+          <div class="mobile-modal__title-wrap">
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              width="20"
+              height="20"
+              class="mobile-modal__icon"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <h2 id="consent-title">Trước khi thêm nhạc</h2>
+          </div>
+        </div>
         <p id="consent-body">
           Bạn xác nhận mình có quyền dùng những bài đưa vào đây: bài của chính
           bạn, nhạc có giấy phép cho phép, hoặc đã được chủ sở hữu đồng ý. Bạn
@@ -1017,7 +1058,27 @@
       aria-describedby="modal-body"
     >
       <form method="dialog" id="modal-form">
-        <h2 id="modal-title">Thông báo</h2>
+        <div class="mobile-modal__head">
+          <div class="mobile-modal__title-wrap">
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              width="20"
+              height="20"
+              class="mobile-modal__icon"
+              id="modal-icon"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+            <h2 id="modal-title">Thông báo</h2>
+          </div>
+          <button type="button" class="mobile-modal__close" id="modal-close" aria-label="Đóng"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
         <p id="modal-body"></p>
         <div id="modal-input-wrap" class="modal-input-wrap" hidden>
           <input
@@ -1309,14 +1370,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/main.js?v=45"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=31")
+          .register("sw.js?v=45")
           .then((reg) => {
             reg.update();
           })

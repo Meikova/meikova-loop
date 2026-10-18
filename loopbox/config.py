@@ -65,7 +65,7 @@ WORKER_THREADS = _env_int("MASHLOOP_WORKER_THREADS", 4)
 MAX_STORE_GB = float(os.environ.get("MASHLOOP_MAX_STORE_GB") or 0)  # 0 = no limit
 MAX_SESSION_TRACKS = _env_int("MASHLOOP_MAX_SESSION_TRACKS", 60)
 MAX_PLAYLIST = _env_int("MASHLOOP_MAX_PLAYLIST", 50)
-MAX_UPLOAD_MB = _env_int("MASHLOOP_MAX_UPLOAD_MB", 80)
+MAX_UPLOAD_MB = _env_int("MASHLOOP_MAX_UPLOAD_MB", 500)
 SESSION_TTL_S = _env_int("MASHLOOP_SESSION_TTL_H", 12) * 3600
 # Hosted, the sound of a song nobody has used for this long is deleted; what the
 # analysis made stays, so adding the song again only fetches the sound (an
@@ -79,7 +79,7 @@ JS_RUNTIME = os.environ.get("MASHLOOP_JS_RUNTIME") or "node"
 SAMPLE_RATE = 44100
 ANALYSIS_SR = 22050
 TARGET_LUFS = -14.0
-MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60)
+MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 60 * 60)
 
 DEVICE = "cuda"  # falls back to cpu at runtime when CUDA is unavailable
 

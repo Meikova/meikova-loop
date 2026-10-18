@@ -167,6 +167,13 @@ def test_search_sort_queue_inspect():
     assert "libSearchQuery" in main_js
     assert "libSortMode" in main_js
     assert "target-next" in main_js
+    assert "lib-sort-popover" in index_html
+    assert "lib-sort-btn" in index_html
+    assert "lib-sort-popover" in app_css
+    assert "batch-bar__head" in index_html
+    assert "batch-bar__head" in app_css
+    assert ".inspect-acts" in app_css
+    assert ".track .acts button:focus-visible" in app_css
 
 if __name__ == "__main__":
     test_ip_extraction()

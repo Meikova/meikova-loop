@@ -26,6 +26,19 @@ logger = logging.getLogger("mashloop.desktop")
 import ctypes
 from ctypes import wintypes, c_float, c_void_p, byref, HRESULT, WINFUNCTYPE, Structure
 
+if sys.platform == "win32":
+    try:
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+    except Exception:
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+
+
 class _GUID(Structure):
     _fields_ = [
         ('Data1', wintypes.DWORD),
@@ -305,12 +318,12 @@ def main(argv=None):
         except Exception:
             pass
         thread_win_vol = WindowsVolume()
-        last_v = thread_win_vol.get_volume()
+        last_v = -1.0  # Force immediate sync on first tick
         while True:
-            time.sleep(0.12)
+            time.sleep(0.04)  # 25Hz fast polling for instant smooth response
             try:
                 cur_v = thread_win_vol.get_volume()
-                if abs(cur_v - last_v) >= 0.01:
+                if abs(cur_v - last_v) >= 0.005:
                     last_v = cur_v
                     if bridge._window:
                         bridge._window.evaluate_js(f"window.__onSystemVolume && window.__onSystemVolume({cur_v:.3f});")

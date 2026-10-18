@@ -1,4 +1,4 @@
-package com.truclv.mashloop;
+package com.m3ik18dp.mashloop;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

@@ -46,7 +46,7 @@ def test_t43_mobile():
     assert cap_file.exists(), "capacitor.config.json missing"
     with open(cap_file, "r", encoding="utf-8") as f:
         cap = json.load(f)
-    assert cap.get("appId") == "com.truclv.mashloop"
+    assert cap.get("appId") == "com.m3ik18dp.mashloop"
     assert cap.get("webDir") == "web"
     assert cap.get("plugins", {}).get("SplashScreen", {}).get("backgroundColor") == "#0b0d10"
     assert cap.get("server", {}).get("url") == "http://100.118.230.52:8765", "Tailscale IP missing in capacitor.config.json"
@@ -66,8 +66,8 @@ def test_t43_mobile():
     css_file = ROOT / "web" / "css" / "app.css"
     with open(css_file, "r", encoding="utf-8") as f:
         css = f.read()
-    assert "env(safe-area-inset-top)" in css, "Missing safe-area-inset-top in CSS"
-    assert "env(safe-area-inset-bottom)" in css, "Missing safe-area-inset-bottom in CSS"
+    assert "env(safe-area-inset-top" in css, "Missing safe-area-inset-top in CSS"
+    assert "env(safe-area-inset-bottom" in css, "Missing safe-area-inset-bottom in CSS"
     assert "overscroll-behavior-y: none" in css, "Missing overscroll-behavior-y in CSS"
     assert ".mobile-modal" in css, "Missing .mobile-modal in CSS"
     print("PASS: Mobile viewport safe-area and mobile modal styles verified in app.css")

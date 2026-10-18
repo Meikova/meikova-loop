@@ -6,8 +6,39 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-17 22:05:00
-- Exit Code: 0
+- Timestamp: 2026-10-18 16:51:00
+- Exit Code: 0 (All tests passed: test_server_and_features.py & test_onnx_and_mobile.py)
+- Platforms Built: Desktop EXE (dist/MashLoop/MashLoop.exe, 62.7MB), Mobile Capacitor Sync (Android & iOS).
+
+## Cải tiến & Khắc phục Mới Nhất
+- **Độ nét Canvas toàn diện (Web, Desktop, Mobile)**:
+  - **Windows Desktop DPI Awareness**: Thêm `SetProcessDpiAwarenessContext(-4)` (Per-Monitor DPI Aware V2) trong `loopbox/desktop.py` triệt tiêu hoàn toàn hiện tượng Windows DWM bitmap-scaling gây mờ pywebview khi màn hình đặt tỉ lệ 125%/150%.
+  - **Khử răng cưa & mờ xoay Canvas (2x-4x SSAA)**:
+    - `web/js/viz.js`: Supersample `_buildLayer` và `_idleLayer` (hình vô cực $\infty$) bằng canvas ngoài luồng độ phân giải cao `layerScale = Math.min(Math.max(round(dpr * 2), 2), 4)`. Khi xoay góc tùy ý (`_drawRing` / `_drawIdle`), thuật toán downsampling SSAA phần cứng giữ cho các nét hairline 1px, vạch chia dial, điểm hạt bụi (dust) và khối nhịp luôn sắc sảo tuyệt đối, không bị nhòe mờ.
+    - Ép kích thước `S` (đường kính layer) luôn là số chẵn (`S % 2 === 0`), triệt tiêu độ lệch 0.5px subpixel gây nhòe nét.
+    - Snapping tọa độ tâm `px, py` về lưới pixel vật lý (`Math.round(val * dpr) / dpr`).
+    - Làm tròn kích thước layout `w, h` và gán trực tiếp `canvas.style.width = w + "px"`, `canvas.style.height = h + "px"`, chống GPU compositor làm mờ subpixel trên mobile flex/grid.
+    - Cập nhật canvas mini track thumbnail thành 72x72px (tỉ lệ 2x nguyên vẹn với 36px CSS).
+- **Sửa lỗi đè CSS làm hẹp Modal Playlist (#pl-modal) & Phím tắt (#shortcuts-modal)**:
+  - Selector `.consent` ở cuối file CSS (`min(460px, ...)`) trước đó đã đè lên `.pl-modal` do cùng độ đặc hiệu và nằm sau, khiến width bị khóa ở 460px làm chữ "tại)." bị rớt dòng đơn độc.
+  - Sửa thành `.consent.pl-modal, dialog.pl-modal, .pl-modal { width: min(530px, calc(100vw - 32px)) !important; }` và thêm `text-wrap: pretty;` cho `.pl-modal__hint`.
+  - Mở rộng `.shortcuts-modal` lên `min(640px, calc(100vw - 32px)) !important;` và `text-wrap: pretty;` chống rớt từ "cuối." trong mẹo phím tắt.
+- **Sửa lỗi nút Thêm Playlist không hiển thị modal**:
+  - Khắc phục `ReferenceError: Cannot access 'onCancel' before initialization` (TDZ error) trong `showModal()` tại `web/js/main.js`.
+- **Sửa viền kép / bóng đổ input focus**:
+  - Chuẩn hóa CSS focus của input text thành viền sáng đơn sắc `oklch(var(--acc) / 0.85)` và bóng mờ nhẹ, triệt tiêu lỗi đè 3 viền dày của nút bấm.
+- **Đồng bộ âm lượng Desktop với Windows & Tuyến tính hóa**:
+  - Khắc phục lỗi suy hao bậc 2 ($V^2$): khi pywebview điều khiển Master Volume của Windows, Web Audio `master.gain` được giữ cố định ở `1.0` (hoặc `0` khi mute).
+  - Tăng tần số đồng bộ lên 25Hz và ép đồng bộ tức thì lúc khởi động.
+  - Loại bỏ keydown intercept phím âm lượng phần cứng trên bàn phím.
+- **Nâng trần Dung lượng & Thời lượng Nhạc**:
+  - `MAX_UPLOAD_MB`: Tăng từ 80 MB lên **500 MB** (hỗ trợ file WAV/FLAC, file nén zip nhiều bài đến 2 GB).
+  - `MAX_DURATION_S`: Tăng từ 15 phút (900s) lên **60 phút** (3600s, 1 tiếng trọn vẹn).
+- **Cập nhật định danh ứng dụng di động (appId)**:
+  - Đổi toàn bộ `com.truclv.mashloop` thành `com.m3ik18dp.mashloop` trên `capacitor.config.json`, Gradle `build.gradle`, Android Java package (`com/m3ik18dp/mashloop/MainActivity.java`), XML strings, iOS Xcode project (`project.pbxproj`) và test suite `tools/test_onnx_and_mobile.py`.
+- **Service Worker & Cache**:
+  - Cập nhật cache version `mashloop-v45` trong `web/sw.js` và `?v=45` trong `web/index.html`.
+
 
 ## Mục tiêu Hoàn thành
 - **Rà soát & Vá lỗ hổng**:
@@ -283,16 +314,37 @@
        - Ẩn nút xoá trực tiếp trên màn hình cảm ứng điện thoại (`@media (hover: none)`) để chống bấm nhầm; nút xoá hiển thị an toàn trên desktop khi rê chuột (`hover: hover`).
     3. **Nâng cấp Modal Chi tiết (`#inspect-modal`)**:
        - Bổ sung trọn bộ nút hành động 1-chạm: `"Phát ngay"`, `"Phát tiếp theo"`, `"Tải MP3"`, `"Playlist"`, `"Xoá bài"`.
-    4. Nâng cấp Service Worker lên `mashloop-v31`.
+- **Ambient Custom Popover, Batch-Bar Grid & Focus Bracket Fix (Awaiting User Review)**:
+  - **Sự cố khắc phục**:
+    1. **Nút modal Chi tiết (`#inspect-modal`) bị đè**: Nút `.inspect-acts` flex-wrap làm icon SVG phình to đè lên text, chữ bị tràn ra ngoài.
+    2. **Viền focus ngoặc đơn cam `( (i) )`**: Nút `(i)` và các nút trên hàng `.track .acts` bị hiệu ứng focus-visible 4px cong 2 mép tạo thành hình ngoặc đơn méo mó.
+    3. **Dropdown sắp xếp bật menu trắng Windows**: Thẻ `<select id="lib-sort-select">` kích hoạt popup native của Windows OS làm phá vỡ giao diện ambient dark chamber.
+    4. **Thanh chọn theo lô (`#batch-bar`) bị wrap 3 dòng**: Nút chọn nhiều, đếm số lượng và các nút hành động bị wrap lộn xộn thành 3 dòng.
+    5. **Hàng bài hát chật hẹp**: Panel desktop chỉ 392px, hàng bài hát có nút xoá chiếm chỗ làm tên bài bị cắt ngắn.
+  - **Giải pháp xử lý**:
+    1. **Custom Popover `#lib-sort-popover`**: Thay thế select native bằng popover kính mờ ambient (`oklch(0.20 var(--gc) var(--gh) / 0.96)`, blur 20px, border `oklch(var(--acc) / 0.35)`). Giữ hidden select cho test suite và trợ năng.
+    2. **Cấu trúc lại `#batch-bar` 2 tầng**: Tầng trên `.batch-bar__head` (Tất cả + đếm số lượng + nút Xong); tầng dưới `.batch-bar__actions` chia lưới đều 4 cột (`grid-template-columns: repeat(4, 1fr)`) cho Chuỗi, Playlist, Tải MP3, Xoá.
+    3. **Chia lưới 2 cột cho `#inspect-modal`**: `.inspect-acts` chuyển sang grid 2 cột (`repeat(2, 1fr)`), nút "Phát ngay" full width cột trên cùng. Cố định kích thước SVG `15px x 15px`, `white-space: nowrap`, loại bỏ hoàn toàn hiện tượng icon đè chữ.
+    4. **Loại bỏ focus bracket**: Thêm rule riêng `.track .acts button:focus-visible` với `box-shadow: 0 0 0 1.5px var(--accent); border-radius: 6px`, không còn ngoặc cam `( (i) )`.
+    6. **Triệt tiêu toàn diện border active/focus rác trên track acts**: Gán `outline: none !important; box-shadow: none !important; border: 0 !important;` cho `.track .acts button` trong mọi trạng thái (`:focus`, `:focus-visible`, `:active`), đồng thời gọi `actEl?.blur()` khi bấm và đóng modal để triệt tiêu mọi vệt outline/ngoặc đơn méo mó.
+    7. **Thêm padding cho thanh Tab điều khiển (`.panel__head`)**: Bọc `.seg.tabs` vào container `.panel__head` với padding 16px đều 4 phía, ngăn chặn hoàn toàn việc nội dung thẻ con bị cắt ngang sát đáy nút tab khi cuộn.
+    8. **Tái thiết kế ô nhập liệu (`.add__field`) chuẩn `ambient-instrument-ui`**:
+       - Vỏ container kính mờ OKLCH (`oklch(0.18 ... / 0.85)`), bo góc 12px, bóng chìm `inset 0 1px 2px rgba(0,0,0,0.35)`.
+       - Khi focus: Viền phát sáng amber dịu mắt (`oklch(var(--acc) / 0.85)` + glow `18px`), triệt tiêu hoàn toàn viền chữ nhật thừa bên trong input con.
+       - Nút "Tìm" tactile bo góc 9px với hiệu ứng hover amber neon.
+    9. **Tối ưu bộ công cụ lọc & sắp xếp (`.lib-tools`)**:
+       - Đồng bộ chiều cao chuẩn 36px cho cả ô lọc (`.lib-search input`) và nút sắp xếp (`.lib-sort-btn`).
+       - Ô tìm kiếm kính mờ bo góc 10px, icon kính lúp phát sáng amber khi focus.
+       - Nút sắp xếp mở popover kính mờ 24px blur, tùy chọn hòa âm DJ / Camelot / BPM sắc nét.
+    10. Nâng cấp Service Worker lên `mashloop-v35` kèm cache-busting `?v=35` trên `index.html`.
 
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `c1ceb05` on `m3ik18dp/MashLoop`)
-- GitHub commit `a9f94b9` pushed to `origin/main` (Exit Code 0).
+- `http://localhost:8765` -> HTTP 200 OK
+- **Lưu ý quan trọng**: Chưa commit git push và chưa deploy HF Space theo chỉ thị của người dùng ("Sửa xong hãy đợi tôi duyệt, chưa đẩy lên git và HF đâu nhé").
 
 ## Các phần còn tồn đọng và cảnh báo kỹ thuật
-- Các tính năng quản lý playlist, tìm kiếm, sắp xếp, queue-next, tải nhạc hoạt động hoàn toàn trên client và đồng bộ qua API `restore` khi ở chế độ đa người dùng (`session.multiuser`).
-- Vẫn duy trì tính cô lập và bảo mật với cơ chế xác thực session IP/cookie.
+- Chờ người dùng nghiệm thu giao diện trên localhost:8765 trước khi commit và deploy.
 
 
 
