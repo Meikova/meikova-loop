@@ -181,7 +181,7 @@ loader.addEventListener("transitions", () => {
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>',
-  playlist: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  playlist: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/><line x1="18" y1="15" x2="18" y2="21"/><line x1="15" y1="18" x2="21" y2="18"/></svg>',
   out: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6"/></svg>',
   in: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M9 12h6M12 9v6"/></svg>',
   retry: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4v4h4"/></svg>',
@@ -858,8 +858,8 @@ function renderPlaylistChips() {
   if (!playlists.length) {
     container.innerHTML = `
       <button type="button" class="btn-create-pl" id="btn-create-pl" title="Tạo playlist / album mới">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>Tạo playlist</span>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Playlist</span>
       </button>
     `;
     return;
@@ -867,7 +867,7 @@ function renderPlaylistChips() {
   let html = `<button type="button" class="pl-chip ${activePlaylistId === "all" ? "on" : ""}" data-pl-id="all">Tất cả</button>`;
   for (const pl of playlists) {
     const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
-    html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}">📁 ${esc(pl.name)} (${count})</button>`;
+    html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span>${esc(pl.name)}</span> (${count})</button>`;
   }
   html += `
     <button type="button" class="pl-chip pl-chip--add" id="btn-create-pl" title="Tạo playlist mới">
@@ -932,7 +932,7 @@ function renderPlaylistModalList() {
     const isMember = (pl.trackIds || []).includes(modalTrackId);
     return `<label class="pl-modal__item">
       <div class="pl-modal__item-info">
-        <span>📁 ${esc(pl.name)}</span>
+        <span class="pl-modal__item-title"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${esc(pl.name)}</span>
         <span class="pl-modal__item-count">${(pl.trackIds || []).length} bài</span>
       </div>
       <input type="checkbox" data-pl-id="${esc(pl.id)}" ${isMember ? "checked" : ""} />
@@ -1023,13 +1023,13 @@ function renderLibrary() {
     $("#track-list").innerHTML = html;
     paintMinis();
   }
-  const readyCount = shown.filter((m) => m.status === "ready").length;
+  const readyMetas = shown.filter((m) => m.status === "ready");
+  const inChainCount = readyMetas.filter((m) => m.enabled !== false).length;
+  const totalCount = readyMetas.length;
   const own = metas.filter((m) => !samples.ids.includes(m.id)).length;
-  $("#lib-count").textContent = activePlaylistId !== "all"
-    ? `${shown.length} bài trong playlist`
-    : session.limits.tracks
-      ? `${own}/${session.limits.tracks} bài`
-      : metas.length ? `${readyCount}/${metas.length}` : "";
+  $("#lib-count").textContent = session.limits.tracks
+    ? `${own}/${session.limits.tracks}`
+    : shown.length ? `${inChainCount}/${totalCount}` : "";
   const w = workerState || {};
   const busy = metas.filter((m) => m.status !== "ready" && m.status !== "error");
   const active = busy.filter((m) => m.status !== "queued");

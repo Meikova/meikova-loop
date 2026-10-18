@@ -1182,15 +1182,15 @@ body.dragging::after {
 
 .results .msg { padding: 12px 14px; font-size: var(--step--1); color: var(--text-muted); }
 
-.worker { min-height: 1.5em; margin: var(--space-4) 0 var(--space-2); font-size: var(--step--2); color: var(--accent); }
+.worker { min-height: 1.5em; margin: 8px 0 4px; font-size: var(--step--2); color: var(--accent); }
 
-.worker:empty { margin: var(--space-2) 0 0; }
+.worker:empty { display: none; margin: 0; }
 
 .shelf-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: var(--space-4) 0 var(--space-2);
+  margin: 10px 0 6px;
 }
 
 .shelf-head .mono { font-size: var(--step--2); color: var(--text-faint); }
@@ -1198,8 +1198,8 @@ body.dragging::after {
 .btn-create-pl {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: 5px;
+  padding: 4px 10px;
   font: 500 var(--step--2) / 1 var(--font-text);
   color: var(--text-muted);
   background: var(--ink-2);
@@ -1219,7 +1219,7 @@ body.dragging::after {
 
 /* --------------------------------------------------- playlist & album section */
 .pl-nav {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 8px;
 }
 
 .pl-chips {
@@ -1296,7 +1296,7 @@ body.dragging::after {
   min-width: 0;
 }
 
-.pl-header__icon { font-size: 1.15rem; flex-shrink: 0; }
+.pl-header__icon { display: inline-flex; align-items: center; justify-content: center; color: var(--accent); flex-shrink: 0; }
 
 .pl-header__texts { min-width: 0; }
 
