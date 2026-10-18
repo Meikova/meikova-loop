@@ -617,9 +617,12 @@ kbd {
 }
 .btn-mute:active { transform: scale(0.92); }
 .btn-mute:hover { color: var(--accent); }
-.btn-mute .i-mute { display: none !important; }
-.btn-mute[data-muted="true"] .i-vol { display: none !important; }
-.btn-mute[data-muted="true"] .i-mute { display: block !important; color: #f87171; }
+.btn-mute svg { display: none !important; }
+.btn-mute:not([data-level]) .i-vol-high { display: block !important; }
+.btn-mute[data-level="mute"] .i-vol-mute { display: block !important; color: #f87171; }
+.btn-mute[data-level="low"] .i-vol-low { display: block !important; }
+.btn-mute[data-level="med"] .i-vol-med { display: block !important; }
+.btn-mute[data-level="high"] .i-vol-high { display: block !important; }
 
 /* Loop Lock Button */
 .deck__lock .i-lock { display: none !important; }

@@ -273,6 +273,7 @@ function applySettings() {
   $("#blend-match").disabled = !s.allow.blend;
   $("#s-vol").value = ui.volume;
   $("#v-vol").textContent = `${Math.round(ui.volume * 100)}`;
+  updateVolumeIcon(ui.volume, isMuted);
   $("#s-cross").checked = ui.crossKho;
   $("#s-kmin").value = ui.khoMinutes;
   $("#v-kmin").textContent = ui.khoMinutes ? `${ui.khoMinutes} phút` : "tắt";
@@ -316,13 +317,29 @@ for (const k of BLEND_STYLES) {
   $(`#s-bl-${k}`).addEventListener("change", (e) => ((player.settings.blendStyles[k] = e.target.checked), replanBlend()));
 }
 $("#s-keyshift").addEventListener("change", (e) => ((player.settings.keyShift = e.target.checked), replanBlend()));
+let isMuted = false;
+let prevVol = ui.volume || 0.8;
+
+function updateVolumeIcon(vol, muted) {
+  const mb = $("#btn-mute");
+  if (!mb) return;
+  const isMute = muted || vol <= 0.005;
+  mb.dataset.muted = String(isMute);
+  let level = "high";
+  if (isMute) level = "mute";
+  else if (vol <= 0.33) level = "low";
+  else if (vol <= 0.66) level = "med";
+  else level = "high";
+  mb.dataset.level = level;
+  mb.title = isMute ? "Bật tiếng (M)" : `Âm lượng ${Math.round(vol * 100)}% (M: Tắt)`;
+}
+
 export function setAppVolume(val, syncSystem = true) {
   if (typeof val !== "number" || isNaN(val)) return;
   const clamped = Math.max(0, Math.min(1, +val.toFixed(3)));
   ui.volume = clamped;
   isMuted = ui.volume === 0;
-  const mb = $("#btn-mute");
-  if (mb) mb.dataset.muted = String(isMuted);
+  updateVolumeIcon(ui.volume, isMuted);
   const sVol = $("#s-vol");
   if (sVol && Math.abs(+sVol.value - ui.volume) >= 0.005) {
     sVol.value = ui.volume;
@@ -455,8 +472,6 @@ if (lockBtn) {
   });
 }
 
-let isMuted = false;
-let prevVol = ui.volume || 0.8;
 const muteBtn = $("#btn-mute");
 function toggleMute() {
   if (!isMuted) {
@@ -578,6 +593,21 @@ if (timerBtn && timerPopover) {
 }
 
 document.addEventListener("keydown", (e) => {
+  if (e.key === "AudioVolumeUp") {
+    e.preventDefault();
+    setAppVolume(Math.min(1, ui.volume + 0.05), true);
+    return;
+  }
+  if (e.key === "AudioVolumeDown") {
+    e.preventDefault();
+    setAppVolume(Math.max(0, ui.volume - 0.05), true);
+    return;
+  }
+  if (e.key === "AudioVolumeMute") {
+    e.preventDefault();
+    toggleMute();
+    return;
+  }
   if (e.target.closest("input, textarea, select")) return;
   if (e.code === "Space") {
     if (e.target.closest("button")) return; // a focused button handles Space itself
@@ -589,15 +619,12 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "l" || e.key === "L") { player.toggleLoopLock(); applySettings(); }
   else if (e.key === "t" || e.key === "T") { if (timerBtn) timerBtn.click(); }
   else if (e.key === "m" || e.key === "M") { toggleMute(); }
-  else if (e.key === "AudioVolumeUp" || e.key === "]") {
+  else if (e.key === "]") {
     e.preventDefault();
     setAppVolume(Math.min(1, ui.volume + 0.05), true);
-  } else if (e.key === "AudioVolumeDown" || e.key === "[") {
+  } else if (e.key === "[") {
     e.preventDefault();
     setAppVolume(Math.max(0, ui.volume - 0.05), true);
-  } else if (e.key === "AudioVolumeMute") {
-    e.preventDefault();
-    toggleMute();
   } else if (e.key === "e" || e.key === "E") {
     const nextIdx = (EQ_LIST.indexOf(engine.eqMode || "flat") + 1) % EQ_LIST.length;
     setEq(EQ_LIST[nextIdx]);

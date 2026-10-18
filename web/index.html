@@ -343,16 +343,27 @@
               id="btn-mute"
               title="Tắt / Bật tiếng (M)"
               aria-label="Tắt hoặc bật tiếng"
+              data-level="high"
             >
-              <svg class="i-vol" viewBox="0 0 24 24" aria-hidden="true">
+              <svg class="i-vol-mute" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-                <path d="M15.5 9a4 4 0 0 1 0 6" />
-                <path d="M18 6.5a7.5 7.5 0 0 1 0 11" />
+                <line x1="22" y1="9" x2="16" y2="15" />
+                <line x1="16" y1="9" x2="22" y2="15" />
               </svg>
-              <svg class="i-mute" viewBox="0 0 24 24" aria-hidden="true" hidden>
+              <svg class="i-vol-low" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-                <line x1="23" y1="9" x2="17" y2="15" />
-                <line x1="17" y1="9" x2="23" y2="15" />
+                <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
+              </svg>
+              <svg class="i-vol-med" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
+                <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
+                <path d="M18.5 7a7 7 0 0 1 0 10" />
+              </svg>
+              <svg class="i-vol-high" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
+                <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
+                <path d="M18.5 7a7 7 0 0 1 0 10" />
+                <path d="M21.5 4.5a10.5 10.5 0 0 1 0 15" />
               </svg>
             </button>
             <span class="sr">Âm lượng</span>
@@ -1224,7 +1235,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=22")
+          .register("sw.js?v=23")
           .then((reg) => {
             reg.update();
           })
