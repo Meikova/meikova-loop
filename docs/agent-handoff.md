@@ -215,16 +215,26 @@
     3. `web/js/main.js`: Bổ sung cơ chế auto-restore trong `ready().then(...)` cho chế độ `session.multiuser`, đưa chu kỳ poll khi mất kết nối về 2.5 giây thay vì trễ 30 giây.
     4. Nâng cấp Service Worker lên `mashloop-v27`.
 
+- **Batch Track Management - Quản lý bài hát theo lô (Commit `d3be697`, Space `1ffd3c6`)**:
+  - **Tính năng**:
+    - Nút toggle `"Chọn"` / `"Xong"` tại header thư viện (`#btn-batch-toggle`) kích hoạt chế độ chọn nhiều bài hát.
+    - Thanh điều khiển theo lô (`#batch-bar`):
+      - Checkbox `"Tất cả"` chọn/bỏ chọn toàn bộ bài hát đang hiển thị.
+      - Bộ đếm số lượng bài đã chọn (`#batch-count`).
+      - Nút `"Vào chuỗi"`: Bật hàng loạt bài hát đã chọn vào chuỗi phát vô hạn (`enabled: true`).
+      - Nút `"Bỏ chuỗi"`: Tắt hàng loạt bài hát đã chọn khỏi chuỗi phát (`enabled: false`).
+      - Nút `"+ Playlist"`: Thêm hàng loạt bài đã chọn vào Playlist hiện có hoặc tạo Playlist mới.
+      - Nút `"Xoá"`: Xoá hàng loạt bài hát đã chọn với modal cảnh báo an toàn.
+      - Nút `"Xong"` / `✕`: Đóng nhanh chế độ chọn lô.
+    - Checkbox trên từng hàng bài hát: Tự động đổi màu nền khi được chọn, bấm bất kỳ đâu trên hàng để toggle chọn/bỏ chọn.
+    - Endpoint backend nguyên tử `POST /api/tracks/batch` (`loopbox/server.py`) và các hàm `set_enabled_many`, `remove_many` (`loopbox/sessions.py`) xử lý toàn bộ danh sách trong 1 request duy nhất (< 50ms), chống nghẽn mạng và rate-limit.
+    - Nâng cấp Service Worker lên `mashloop-v28`.
+
 ## Lệnh Kiểm tra đã Chạy & Exit Code
-- `.venv\Scripts\python.exe -c "import tests.test_server_and_features as t; t.test_ip_extraction(); t.test_qr_api(); t.test_samples_api(); t.test_multi_source_detection(); print('PASS')"` -> Exit Code 0
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `def63748` on `m3ik18dp/MashLoop`)
-- Test trực tiếp Space HF `https://m3ik18dp-mashloop.hf.space`:
-  - `GET /api/health` -> 200 OK (0.84s)
-  - `POST /api/session` -> 200 OK
-  - `GET /api/tracks` -> 200 OK (0.5s)
-  - `POST /api/tracks` -> 200 OK
-  - Background beat analysis -> status=`analyzing`, stage=`beats` chạy ổn định, phản hồi poll 0.89s.
-- GitHub commit `98fb4bc` pushed to `origin/main` (Exit Code 0).
+- `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `1ffd3c64` on `m3ik18dp/MashLoop`)
+- GitHub commit `d3be697` pushed to `origin/main` (Exit Code 0).
+
 
 
 
