@@ -13,6 +13,14 @@ import * as theme from "./theme.js";
 
 const TAU = Math.PI * 2;
 const HALO_BANDS = 48;
+const HALO_N = 180;
+const HALO_COS = new Float32Array(HALO_N + 1);
+const HALO_SIN = new Float32Array(HALO_N + 1);
+for (let k = 0; k <= HALO_N; k++) {
+  const theta = Math.PI + (k / HALO_N) * TAU;
+  HALO_COS[k] = Math.cos(theta);
+  HALO_SIN[k] = Math.sin(theta);
+}
 const reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
 export const KIND_VI = {
   cut: "Nối thẳng", drop: "Drop vào đoạn mới", blend: "Blend khớp nhịp", fade: "Crossfade",
@@ -144,6 +152,9 @@ export class Viz {
     this.accent = null; // the room's colour as the canvas sees it, eased
     this.secondCol = null;
     this.last = performance.now();
+    this._smoothAudioT = null;
+    this._lastAudioWall = null;
+    this._lastAudioVal = null;
     this.ro = new ResizeObserver(() => this._resize());
     this.ro.observe(canvas.parentElement);
     this._resize();
@@ -564,6 +575,28 @@ export class Viz {
     this.last = now;
     const ctx = this.ctx;
     const view = this.player.audible();
+
+    // Wall-clock interpolation to smooth out AudioContext hardware buffer quantization
+    let effectiveNow = view ? view.now : 0;
+    if (view && typeof view.now === "number") {
+      const rate = view.entry?.rate || 1;
+      if (this._smoothAudioT === null || Math.abs(view.now - this._smoothAudioT) > 0.3) {
+        this._smoothAudioT = view.now;
+        this._lastAudioWall = now;
+        this._lastAudioVal = view.now;
+      } else {
+        const dtWall = Math.min(0.1, Math.max(0, (now - (this._lastAudioWall || now)) / 1000));
+        this._lastAudioWall = now;
+        this._smoothAudioT += dtWall * rate;
+        const drift = view.now - this._smoothAudioT;
+        this._smoothAudioT += drift * 0.15;
+      }
+      effectiveNow = this._smoothAudioT;
+    } else {
+      this._smoothAudioT = null;
+      this._lastAudioWall = null;
+    }
+
     this.mixNow = this._mix(view);
     this._update(view, dt);
 
@@ -578,7 +611,7 @@ export class Viz {
     this._roomColor(primary, view, dt);
     if (this.idle > 0.01) this._drawIdle(ctx, now, this.idle);
 
-    this.heads = this._heads(primary, view);
+    this.heads = this._heads(primary, view, effectiveNow);
     this._trackCrossing(now);
     this.capPlace = this._captionPlace(primary, view);
     this.captionTrack = this.capPlace.ring?.track || null;
@@ -601,19 +634,30 @@ export class Viz {
   // Where the light is. On the playing loop, until a blend reaches the
   // crossing: from there it runs on round the next loop, and the playing loop
   // keeps a ghost of it that fades as that song fades out.
-  _heads(primary, view) {
+  _heads(primary, view, effectiveNow) {
     if (!primary || !view) return { lead: null, ghost: null };
+    const curNow = (effectiveNow !== undefined && effectiveNow !== null) ? effectiveNow : view.now;
     const T = primary.track;
     const e = view.entry;
-    const frac = Math.max(0, Math.min(1, ((view.now - e.t) * (e.rate || 1)) / T.dur[e.beat]));
+    const rate = e.rate || 1;
+    let span = T.dur[e.beat];
+    const tl = this.player?.timeline;
+    if (tl && view.index !== undefined && view.index + 1 < tl.length) {
+      const nextE = tl[view.index + 1];
+      if (nextE && (nextE.track === e.track || nextE.track?.id === e.track?.id) && nextE.t > e.t) {
+        span = (nextE.t - e.t) * rate;
+      }
+    }
+    const frac = span > 0 ? Math.max(0, Math.min(1, ((curNow - e.t) * rate) / span)) : 0;
     const onA = this._head(primary, e.beat, frac);
     const b = this.mixNow?.blend ? this.mixNow.m : null;
-    const sr = b && view.now >= b.times[0] ? this.rings.get(b.B.id) : null;
+    const sr = b && curNow >= b.times[0] ? this.rings.get(b.B.id) : null;
     if (!sr || sr.role !== "second" || sr.alpha < 0.05) return { lead: onA, ghost: null };
     let k = 0;
-    while (k + 1 < b.times.length && b.times[k + 1] <= view.now) k++;
+    while (k + 1 < b.times.length && b.times[k + 1] <= curNow) k++;
     k = Math.min(k, b.L - 1);
-    const f = Math.max(0, Math.min(1, (view.now - b.times[k]) / (b.times[k + 1] - b.times[k])));
+    const spanB = b.times[k + 1] - b.times[k];
+    const f = spanB > 0 ? Math.max(0, Math.min(1, (curNow - b.times[k]) / spanB)) : 0;
     // tB holds B's audio time at each master beat, whatever the beat ratio.
     const at = this._beatAt(sr.track, b.tB[k] + f * (b.tB[k + 1] - b.tB[k]));
     return { lead: this._head(sr, at.beat, at.frac), ghost: { ...onA, alpha: 1 - this._mixProgress(view) } };
@@ -730,7 +774,7 @@ export class Viz {
     const th = this._thickness(ring.r);
     const r0 = ring.r + th / 2 + 1;
     const H = ring.r * 0.1 * Math.min(1.3, theme.glowGain());
-    const N = 180;
+    const N = HALO_N;
     const amp = (k) => {
       const u = 1 - Math.abs((k / N) * 2 - 1); // 1 at the playhead, 0 opposite
       const x = (1 - u) * (HALO_BANDS - 1);
@@ -749,10 +793,13 @@ export class Viz {
     g.addColorStop(1, theme.css(col, 0));
     ctx.fillStyle = g;
     ctx.beginPath();
+    const cosA0 = Math.cos(a0), sinA0 = Math.sin(a0);
     for (let k = 0; k <= N; k++) {
-      const a = a0 + Math.PI + (k / N) * TAU;
+      const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
+      const ca = cosA0 * cosTh - sinA0 * sinTh;
+      const sa = sinA0 * cosTh + cosA0 * sinTh;
       const r = r0 + amp(k) * H;
-      const x = ring.x + r * Math.cos(a), y = ring.y + r * Math.sin(a);
+      const x = ring.x + r * ca, y = ring.y + r * sa;
       if (k) ctx.lineTo(x, y);
       else ctx.moveTo(x, y);
     }
@@ -767,19 +814,23 @@ export class Viz {
     for (let k = 0; k < N; k++) {
       const v = amp(k);
       if (v < 0.015) continue;
-      groups[Math.min(3, Math.floor(v * 4))].push([a0 + Math.PI + (k / N) * TAU, v]);
+      const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
+      const ca = cosA0 * cosTh - sinA0 * sinTh;
+      const sa = sinA0 * cosTh + cosA0 * sinTh;
+      groups[Math.min(3, Math.floor(v * 4))].push(ca, sa, v);
     }
-    groups.forEach((bars, q) => {
+    for (let q = 0; q < 4; q++) {
+      const bars = groups[q];
       if (!bars.length) return;
       ctx.strokeStyle = theme.css(hi, 0.3 + 0.18 * q);
       ctx.beginPath();
-      for (const [a, v] of bars) {
-        const c = Math.cos(a), s = Math.sin(a);
+      for (let i = 0; i < bars.length; i += 3) {
+        const c = bars[i], s = bars[i + 1], v = bars[i + 2];
         ctx.moveTo(ring.x + (r0 + 2) * c, ring.y + (r0 + 2) * s);
         ctx.lineTo(ring.x + (r0 + 3 + v * H) * c, ring.y + (r0 + 3 + v * H) * s);
       }
       ctx.stroke();
-    });
+    }
     ctx.restore();
   }
 
