@@ -59,9 +59,6 @@ def _ensure_worker():
             sessions.local().link()
         _worker_started = True
 
-@fastapi_app.on_event("startup")
-def _on_fastapi_startup():
-    _ensure_worker()
 
 
 HEAD = """
@@ -103,6 +100,7 @@ with gr.Blocks(title="Mash ∞ Loop") as demo:
 def _mount_mashloop(target_app):
     if not target_app:
         return
+    _ensure_worker()
     for r in fastapi_app.router.routes:
         if getattr(r, "name", "") != "web" and r not in target_app.router.routes:
             target_app.router.routes.append(r)
