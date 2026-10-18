@@ -1193,13 +1193,20 @@ body.dragging::after {
   margin: 10px 0 6px;
 }
 
+.shelf-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .shelf-head .mono { font-size: var(--step--2); color: var(--text-faint); }
 
 .btn-create-pl {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 3px 10px;
+  height: 24px;
   font: 500 var(--step--2) / 1 var(--font-text);
   color: var(--text-muted);
   background: var(--ink-2);
@@ -1221,6 +1228,7 @@ body.dragging::after {
 .pl-nav {
   margin: 0 0 8px;
 }
+.pl-nav[hidden] { display: none; }
 
 .pl-chips {
   display: flex;

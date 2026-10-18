@@ -852,29 +852,35 @@ function renamePlaylist(id, newName) {
   }
 }
 
+function addTracksToActivePlaylist(trackIds) {
+  if (activePlaylistId === "all" || !trackIds || !trackIds.length) return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl) return;
+  let changed = false;
+  for (const tid of trackIds) {
+    if (!pl.trackIds.includes(tid)) {
+      pl.trackIds.push(tid);
+      changed = true;
+    }
+  }
+  if (changed) savePlaylists();
+}
+
 function renderPlaylistChips() {
+  const nav = $("#pl-nav");
   const container = $("#pl-chips");
-  if (!container) return;
+  if (!container || !nav) return;
   if (!playlists.length) {
-    container.innerHTML = `
-      <button type="button" class="btn-create-pl" id="btn-create-pl" title="Tạo playlist / album mới">
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>Playlist</span>
-      </button>
-    `;
+    nav.hidden = true;
+    container.innerHTML = "";
     return;
   }
+  nav.hidden = false;
   let html = `<button type="button" class="pl-chip ${activePlaylistId === "all" ? "on" : ""}" data-pl-id="all">Tất cả</button>`;
   for (const pl of playlists) {
     const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
     html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span>${esc(pl.name)}</span> (${count})</button>`;
   }
-  html += `
-    <button type="button" class="pl-chip pl-chip--add" id="btn-create-pl" title="Tạo playlist mới">
-      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Tạo mới</span>
-    </button>
-  `;
   container.innerHTML = html;
 }
 
@@ -1147,12 +1153,9 @@ async function promptCreatePlaylist() {
   }
 }
 
-$("#pl-chips")?.addEventListener("click", async (e) => {
-  const createBtn = e.target.closest("#btn-create-pl, .btn-create-pl, .pl-chip--add");
-  if (createBtn) {
-    await promptCreatePlaylist();
-    return;
-  }
+$("#btn-create-pl")?.addEventListener("click", promptCreatePlaylist);
+
+$("#pl-chips")?.addEventListener("click", (e) => {
   const chip = e.target.closest(".pl-chip[data-pl-id]");
   if (!chip) return;
   activePlaylistId = chip.dataset.plId;
@@ -1360,7 +1363,11 @@ $("#add-form").addEventListener("submit", async (e) => {
       const have = r.added.filter((m) => m.status === "ready").length;
       const todo = total - have;
       let msg = "";
-      if (total > 1) {
+      if (activePlaylistId !== "all") {
+        addTracksToActivePlaylist(r.added.map((m) => m.id));
+        const curPl = getPlaylist(activePlaylistId);
+        msg = `Đã nạp ${total} bài vào playlist "${esc(curPl?.name || "")}"`;
+      } else if (total > 1) {
         const albumName = `Album (${total} bài)`;
         const newPl = createPlaylist(albumName, r.added.map((m) => m.id));
         activePlaylistId = newPl.id;
@@ -1402,7 +1409,8 @@ $("#search-results").addEventListener("click", async (e) => {
   btn.disabled = true;
   btn.textContent = "…";
   try {
-    await api.add(btn.dataset.url);
+    const r = await api.add(btn.dataset.url);
+    if (r?.added) addTracksToActivePlaylist(r.added.map((m) => m.id));
     btn.textContent = "Đã thêm";
   } catch (err) {
     btn.textContent = "Lỗi";
@@ -1449,10 +1457,14 @@ async function uploadFiles(files) {
       u.done = true;
       u.count = r?.added?.length || 0;
       u.note = r?.note || "";
-      if (r?.added?.length > 1) {
-        const albumName = (u.file?.name || "Album").replace(/\.[^/.]+$/, "");
-        const newPl = createPlaylist(albumName, r.added.map((m) => m.id));
-        activePlaylistId = newPl.id;
+      if (r?.added?.length) {
+        if (activePlaylistId !== "all") {
+          addTracksToActivePlaylist(r.added.map((m) => m.id));
+        } else if (r.added.length > 1) {
+          const albumName = (u.file?.name || "Album").replace(/\.[^/.]+$/, "");
+          const newPl = createPlaylist(albumName, r.added.map((m) => m.id));
+          activePlaylistId = newPl.id;
+        }
       }
     } catch (err) {
       u.error = `Không tải lên được: ${err.message}`;

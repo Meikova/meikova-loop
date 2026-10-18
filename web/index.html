@@ -458,11 +458,17 @@
           <p id="worker" class="worker" aria-live="polite"></p>
           <div class="shelf-head">
             <h2 class="label">Các vòng trong thư viện</h2>
-            <span id="lib-count" class="mono"></span>
+            <div class="shelf-head__actions">
+              <span id="lib-count" class="mono"></span>
+              <button type="button" class="btn-create-pl" id="btn-create-pl" title="Tạo playlist / album mới">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Playlist</span>
+              </button>
+            </div>
           </div>
 
           <!-- Playlist / Album Chips Strip -->
-          <div class="pl-nav" id="pl-nav">
+          <div class="pl-nav" id="pl-nav" hidden>
             <div class="pl-chips" id="pl-chips" role="tablist" aria-label="Danh sách phát và Album"></div>
           </div>
 
@@ -1218,7 +1224,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=18")
+          .register("sw.js?v=19")
           .then((reg) => {
             reg.update();
           })
