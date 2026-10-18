@@ -343,9 +343,11 @@
 - `.venv\Scripts\python.exe tools/test_onnx_and_mobile.py` -> Exit Code 0 (`ALL T4.2 & T4.3 VERIFICATION TESTS PASSED`)
 - `.venv\Scripts\pyinstaller.exe --noconfirm mashloop.spec` -> Exit Code 0 (Đóng gói hoàn tất `dist\MashLoop\MashLoop.exe`, 62.7 MB)
 - `npx cap sync` -> Exit Code 0 (Đồng bộ tài nguyên web sang Android & iOS targets)
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (Deploy HF Space: commit `9a42fc9` trên `m3ik18dp/MashLoop`)
-- `git push origin main` -> Exit Code 0 (Push GitHub: commit `3e511d2` trên `m3iK18dp/mashloop`)
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (Deploy HF Space: commit `7ecb87f` trên `m3ik18dp/MashLoop`)
+- `git push origin main` -> Exit Code 0 (Push GitHub: commit `126f62d` trên `m3iK18dp/mashloop`)
 
 ## Các phần còn tồn đọng và cảnh báo kỹ thuật
 - Toàn bộ các nền tảng (Desktop EXE, Web, Mobile Capacitor, HF Space) đã được re-build và đồng bộ bản mới nhất.
+- Đã loại bỏ dòng thống kê "X bài hát" thừa dưới tiêu đề playlist/album.
+- Đã triệt tiêu viền chữ nhật focus của ô `#add-input`.
 - Đổi appId sang `com.m3ik18dp.mashloop` hoàn tất đồng bộ trên Gradle, Java MainActivity, strings.xml, Xcode pbxproj, capacitor.config.json.
