@@ -1473,6 +1473,9 @@ body.dragging::after {
 }
 
 .pl-modal__create button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 12px;
   min-height: 34px;
   background: var(--accent);
@@ -1484,6 +1487,10 @@ body.dragging::after {
   cursor: pointer;
   white-space: nowrap;
   transition: transform var(--dur-instant) var(--ease-out);
+}
+.pl-modal__create button svg {
+  flex-shrink: 0;
+  stroke: currentColor;
 }
 
 .pl-modal__create button:active { transform: scale(0.96); }
@@ -1545,8 +1552,8 @@ body.dragging::after {
   .track .acts button:hover { color: var(--text); background: var(--ink-3); }
   .track .acts button[data-act="play"]:hover { color: var(--on-accent); background: var(--accent); }
   .track .acts button[data-act="delete"]:hover { color: var(--danger); }
-  /* Secondary actions wait for the pointer; touch and keyboard always see them. */
-  .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]) { opacity: 0; }
+  /* Secondary actions are gently visible when idle, full brightness on hover */
+  .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]) { opacity: 0.42; }
 }
 
 .track.playing { background: linear-gradient(90deg, var(--accent-lo), transparent 70%); }
@@ -1983,6 +1990,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .shortcuts-tips p {
   margin: 0;
+}
+.tip-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 5px;
+  color: var(--accent);
 }
 
 .mobile-modal {
