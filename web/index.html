@@ -1136,7 +1136,7 @@
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <h2 id="shortcuts-modal-title">Phím tắt & Hướng dẫn</h2>
+          <h2 id="shortcuts-modal-title">Phím tắt</h2>
         </div>
         <button
           type="button"
@@ -1148,11 +1148,11 @@
 
       <div class="shortcuts-grid">
         <div class="shortcuts-group">
-          <h3 class="shortcuts-group__title">Điều khiển phát nhạc</h3>
+          <h3 class="shortcuts-group__title">Phát nhạc</h3>
           <dl class="shortcuts-list">
             <div class="shortcut-row">
               <dt><kbd>Space</kbd></dt>
-              <dd>Phát hoặc tạm dừng</dd>
+              <dd>Phát / Tạm dừng</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>J</kbd></dt>
@@ -1160,43 +1160,41 @@
             </div>
             <div class="shortcut-row">
               <dt><kbd>N</kbd></dt>
-              <dd>Chuyển bài khác ở điểm nối gần nhất</dd>
+              <dd>Chuyển bài (Next)</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>K</kbd></dt>
-              <dd>Sang kho bài khác</dd>
+              <dd>Đổi kho bài (Switch Kho)</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>L</kbd></dt>
-              <dd>Khoá lặp bài này mãi (Loop Lock)</dd>
+              <dd>Khóa lặp bài (Loop Lock)</dd>
             </div>
           </dl>
         </div>
 
         <div class="shortcuts-group">
-          <h3 class="shortcuts-group__title">Tiện ích & Âm thanh</h3>
+          <h3 class="shortcuts-group__title">Âm thanh & Tiện ích</h3>
           <dl class="shortcuts-list">
             <div class="shortcut-row">
               <dt><kbd>[</kbd> / <kbd>]</kbd></dt>
-              <dd>Tăng / Giảm âm lượng (đồng bộ hệ thống)</dd>
-            </div>
-            <div class="shortcut-row">
-              <dt><kbd>T</kbd></dt>
-              <dd>Bật/tắt hẹn giờ tắt (Sleep Timer)</dd>
+              <dd>Giảm / Tăng âm lượng</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>M</kbd></dt>
-              <dd>Tắt / Bật tiếng nhanh (Mute)</dd>
+              <dd>Tắt / Bật tiếng (Mute)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>T</kbd></dt>
+              <dd>Hẹn giờ ngủ (Sleep Timer)</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>E</kbd></dt>
-              <dd>
-                Chuyển hiệu ứng EQ (Chuẩn, Đêm dịu, Bass Boost, Tôn giọng, Lofi)
-              </dd>
+              <dd>Bộ lọc EQ</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>?</kbd></dt>
-              <dd>Mở bảng phím tắt này</dd>
+              <dd>Mở bảng phím tắt</dd>
             </div>
           </dl>
         </div>
@@ -1204,11 +1202,10 @@
 
       <div class="shortcuts-tips">
         <p>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="tip-icon"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"/></svg><b>Mẹo nghe nhạc:</b> Nhấp chuột/chạm vào bất kỳ điểm nào trên vòng
-          tròn canvas để tua tới đoạn beat đó. Hẹn giờ sẽ tự động giảm dần âm
-          lượng trong 8 giây cuối trước khi dừng hẳn.
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="tip-icon"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"/></svg><b>Mẹo:</b> Chạm vào vòng tròn canvas để tua phách. Hẹn giờ tự hạ âm lượng 8s cuối.
         </p>
       </div>
+    </dialog>
     <!-- Modal Thêm vào Playlist / Album -->
     <dialog class="consent pl-modal" id="pl-modal" aria-labelledby="pl-modal-title">
       <div class="mobile-modal__head">
@@ -1235,7 +1232,7 @@
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=23")
+          .register("sw.js?v=24")
           .then((reg) => {
             reg.update();
           })

@@ -1674,6 +1674,10 @@ export const closeShortcuts = () => shortcutsModal?.close();
 $("#btn-shortcuts-modal")?.addEventListener("click", openShortcuts);
 $("#shortcuts-modal-close")?.addEventListener("click", closeShortcuts);
 shortcutsModal?.addEventListener("click", (e) => {
+  if (e.target === shortcutsModal) {
+    shortcutsModal.close();
+    return;
+  }
   const rect = shortcutsModal.getBoundingClientRect();
   const inside =
     rect.top <= e.clientY &&
