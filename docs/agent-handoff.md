@@ -230,10 +230,31 @@
     - Endpoint backend nguyên tử `POST /api/tracks/batch` (`loopbox/server.py`) và các hàm `set_enabled_many`, `remove_many` (`loopbox/sessions.py`) xử lý toàn bộ danh sách trong 1 request duy nhất (< 50ms), chống nghẽn mạng và rate-limit.
     - Nâng cấp Service Worker lên `mashloop-v28`.
 
+- **Playlist Track Move, Copy, Reorder & Remove (Commit `14c9a09`, Space `a94b5ea`)**:
+  - **Tính năng**:
+    - **Sao chép / Di chuyển bài hát vào Playlist (`#pl-modal`)**:
+      - Phân tách 2 chế độ rõ ràng qua thanh chuyển đổi trạng thái:
+        - `[ Sao chép sang ]`: Giữ bài ở playlist hiện tại, nhân bản vào playlist đích.
+        - `[ Di chuyển sang ]`: Thêm bài vào playlist đích, đồng thời tự động rút khỏi playlist hiện tại (khi đang duyệt một playlist cụ thể).
+      - Hỗ trợ thao tác cho cả bài đơn lẻ và chọn nhiều bài theo lô (Batch mode).
+      - Tạo playlist mới trực tiếp từ modal cũng hỗ trợ chuyển / sao chép tương ứng.
+    - **Sắp xếp thứ tự bài hát trong Playlist (Reorder `▲` / `▼`)**:
+      - Hiển thị 2 nút mũi tên lên `▲` và xuống `▼` trực tiếp trên từng hàng bài hát khi duyệt playlist.
+      - Hoán đổi vị trí nguyên tử trong mảng `pl.trackIds`, lưu ngay vào `localStorage` và cập nhật giao diện không cần reload.
+      - Chuẩn hóa hàm `filterMetas` và `renderLibrary` để hiển thị bài hát theo đúng thứ tự mảng playlist (từ bài 1 đến bài cuối).
+    - **Bỏ bài hát khỏi Playlist (`pl-remove`)**:
+      - Khi duyệt playlist cụ thể, nút xoá đỏ nguy hiểm được thay thế bằng nút `"Bỏ khỏi playlist này"` (biểu tượng dấu trừ). Thao tác này chỉ gỡ bài khỏi danh sách phát mà không xóa file gốc trên server / ổ đĩa.
+      - Thanh công cụ chọn nhiều (`#batch-bar`) tự động hiện thêm nút `"Bỏ playlist"` khi đang ở chế độ duyệt playlist.
+    - Nâng cấp Service Worker lên `mashloop-v29`.
+
 ## Lệnh Kiểm tra đã Chạy & Exit Code
 - `.venv\Scripts\python.exe tests\test_server_and_features.py` -> Exit Code 0 (`ALL TESTS PASSED WITH EXIT CODE 0`)
-- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `1ffd3c64` on `m3ik18dp/MashLoop`)
-- GitHub commit `d3be697` pushed to `origin/main` (Exit Code 0).
+- `.venv\Scripts\python.exe tools/upload_to_space.py` -> Exit Code 0 (commit `a94b5ea` on `m3ik18dp/MashLoop`)
+- GitHub commit `14c9a09` pushed to `origin/main` (Exit Code 0).
+
+## Các phần còn tồn đọng và cảnh báo kỹ thuật
+- Các tính năng quản lý playlist hoạt động hoàn toàn trên client và đồng bộ qua API `restore` khi ở chế độ đa người dùng (`session.multiuser`).
+- Vẫn duy trì tính cô lập và bảo mật với cơ chế xác thực session IP/cookie.
 
 
 
