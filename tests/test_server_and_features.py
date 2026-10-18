@@ -73,7 +73,7 @@ def test_playlist_and_album_detection():
     assert download.is_playlist_url("https://www.youtube.com/playlist?list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI") is True
     assert download.is_playlist_url("https://www.youtube.com/watch?v=abc&list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI") is True
     assert download.is_playlist_url("https://www.youtube.com/watch?v=abc&list=OLAK5uy_k12345") is True
-    assert download.is_playlist_url("https://www.youtube.com/watch?v=abc&list=RD12345") is False  # radio mix should be single song
+    assert download.is_playlist_url("https://www.youtube.com/watch?v=abc&list=RD12345") is True  # radio mix is now supported as playlist
     assert download.is_playlist_url("https://open.spotify.com/album/4m2880jivSbbyEGAKfITCa") is True
     assert download.is_playlist_url("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M") is True
     assert download.is_playlist_url("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT") is False
@@ -98,6 +98,19 @@ def test_track_id_generation():
     tid = download.track_id("soundcloud", "12345678")
     assert tid.startswith("x") and len(tid) == 17
 
+def test_batch_tracks_api():
+    client = TestClient(app)
+    # Test batch enable/disable
+    resp = client.post("/api/tracks/batch", json={"ids": ["dQw4w9WgXcQ"], "action": "enable"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("enabled") is True
+
+    resp_off = client.post("/api/tracks/batch", json={"ids": ["dQw4w9WgXcQ"], "action": "disable"})
+    assert resp_off.status_code == 200
+    data_off = resp_off.json()
+    assert data_off.get("enabled") is False
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -106,4 +119,5 @@ if __name__ == "__main__":
     test_playlist_and_album_detection()
     test_ssrf_protection()
     test_track_id_generation()
+    test_batch_tracks_api()
     print("ALL TESTS PASSED WITH EXIT CODE 0")

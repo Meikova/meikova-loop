@@ -1263,6 +1263,138 @@ body.dragging::after {
 .btn-create-pl:active { transform: scale(0.96); }
 .btn-create-pl svg { flex-shrink: 0; stroke: currentColor; }
 
+/* --------------------------------------------------- batch management */
+.btn-create-pl.on {
+  background: oklch(var(--acc) / 0.2);
+  border-color: oklch(var(--acc) / 0.85);
+  border-style: solid;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 4px 0 10px;
+  border: 1px solid oklch(var(--acc) / 0.45);
+  border-radius: var(--radius);
+  background: oklch(0.18 var(--gc) var(--gh) / 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.45);
+}
+
+.batch-bar[hidden] {
+  display: none !important;
+}
+
+.batch-bar__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--step--2);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.batch-bar__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text);
+  user-select: none;
+}
+
+.batch-bar__all input,
+.track-cb {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+
+.batch-bar__count {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.batch-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--ink-2);
+  color: var(--text-muted);
+  font-size: var(--step--2);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+
+.batch-btn svg {
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+
+.batch-btn:hover {
+  background: var(--ink-3);
+  color: var(--text);
+  border-color: oklch(var(--acc) / 0.5);
+}
+
+.batch-btn:active {
+  transform: scale(0.96);
+}
+
+.batch-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.batch-btn--del:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: oklch(0.22 0.06 20 / 0.5);
+}
+
+.batch-btn--close {
+  padding: 0 6px;
+}
+
+.tracks.batch-mode .track {
+  grid-template-columns: 20px 38px minmax(0, 1fr) auto;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.tracks.batch-mode .track.selected {
+  background: oklch(var(--acc) / 0.12);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tracks.batch-mode .track:hover {
+  background: oklch(var(--acc) / 0.16);
+}
+
 /* --------------------------------------------------- playlist & album section */
 .pl-nav {
   margin: 0 0 8px;

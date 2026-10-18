@@ -113,6 +113,7 @@ export const api = {
   restore: (ids) => json("/api/tracks", send("POST", { ids }), false),
   patch: (id, data) => json(`/api/tracks/${id}`, send("PATCH", data)),
   remove: (id) => json(`/api/tracks/${id}`, { method: "DELETE" }),
+  batch: (ids, action) => json("/api/tracks/batch", send("POST", { ids, action })),
   reanalyze: (id) => json(`/api/tracks/${id}/reanalyze`, { method: "POST" }),
   relink: () => json("/api/relink", { method: "POST" }),
   analysis: (id) => json(`/api/tracks/${id}/analysis`),

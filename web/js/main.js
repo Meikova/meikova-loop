@@ -854,7 +854,9 @@ const PL_STORE_KEY = "mashloop.playlists.v1";
 let playlists = [];
 let activePlaylistId = "all";
 let lockToPlaylist = false;
-let modalTrackId = null;
+let modalTrackIds = [];
+let batchMode = false;
+const selectedTrackIds = new Set();
 
 function loadPlaylists() {
   try {
@@ -974,13 +976,17 @@ function filterMetas(list) {
   return res;
 }
 
-function openPlaylistModal(tid) {
-  modalTrackId = tid;
-  const m = byId().get(tid);
+function openPlaylistModal(tids) {
+  modalTrackIds = Array.isArray(tids) ? tids : [tids];
   const dlg = $("#pl-modal");
   if (!dlg) return;
-  const title = songOf(m).title || tid;
-  $("#pl-modal-song").textContent = title;
+  if (modalTrackIds.length === 1) {
+    const m = byId().get(modalTrackIds[0]);
+    const title = songOf(m).title || modalTrackIds[0];
+    $("#pl-modal-song").textContent = title;
+  } else {
+    $("#pl-modal-song").textContent = `${modalTrackIds.length} bài đã chọn`;
+  }
   renderPlaylistModalList();
   dlg.showModal();
 }
@@ -993,7 +999,7 @@ function renderPlaylistModalList() {
     return;
   }
   listEl.innerHTML = playlists.map((pl) => {
-    const isMember = (pl.trackIds || []).includes(modalTrackId);
+    const isMember = modalTrackIds.length > 0 && modalTrackIds.every((id) => (pl.trackIds || []).includes(id));
     return `<label class="pl-modal__item">
       <div class="pl-modal__item-info">
         <span class="pl-modal__item-title"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> ${esc(pl.name)}</span>
@@ -1030,6 +1036,7 @@ function checkUrlPlaylistImport() {
 
 function trackRow(m) {
   const playing = player.audible()?.entry.track.id === m.id;
+  const isSelected = selectedTrackIds.has(m.id);
   let lead, status;
   if (m.status === "ready") {
     lead = `<canvas class="mini" data-id="${esc(m.id)}" width="76" height="76" aria-hidden="true"></canvas>`;
@@ -1049,17 +1056,54 @@ function trackRow(m) {
        <button type="button" data-act="playlist" aria-label="Thêm vào playlist" title="Thêm vào Playlist / Album">${ICON.playlist}</button>
        <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>`
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
-  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""}" data-id="${esc(m.id)}">
-    ${lead}
+  const cb = batchMode
+    ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
+    : "";
+  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""}" data-id="${esc(m.id)}">
+    ${cb}${lead}
     <div><div class="t" title="${full}">${title}</div>${status}</div>
     <div class="acts">${acts}<button type="button" data-act="delete" aria-label="Xoá ${title}" title="Xoá">${ICON.del}</button></div>
   </li>`;
 }
 
+function updateBatchBar() {
+  const bar = $("#batch-bar");
+  if (!bar || bar.hidden) return;
+  const countEl = $("#batch-count");
+  if (countEl) countEl.textContent = `${selectedTrackIds.size} đã chọn`;
+  const selectAllCb = $("#batch-select-all");
+  const shown = filterMetas(metas);
+  if (selectAllCb) {
+    const allSelected = shown.length > 0 && shown.every((m) => selectedTrackIds.has(m.id));
+    selectAllCb.checked = allSelected;
+    selectAllCb.indeterminate = selectedTrackIds.size > 0 && !allSelected;
+  }
+  const hasSelection = selectedTrackIds.size > 0;
+  for (const id of ["batch-btn-in", "batch-btn-out", "batch-btn-pl", "batch-btn-del"]) {
+    const btn = $(`#${id}`);
+    if (btn) btn.disabled = !hasSelection;
+  }
+}
+
 let lastListHtml = "";
+let lastListKey = "";
 function renderLibrary() {
   renderPlaylistChips();
   renderActivePlaylistHeader();
+
+  const trackListEl = $("#track-list");
+  if (trackListEl) trackListEl.classList.toggle("batch-mode", batchMode);
+
+  const batchToggleBtn = $("#btn-batch-toggle");
+  if (batchToggleBtn) {
+    batchToggleBtn.classList.toggle("on", batchMode);
+    const span = batchToggleBtn.querySelector("span");
+    if (span) span.textContent = batchMode ? "Xong" : "Chọn";
+  }
+
+  const batchBar = $("#batch-bar");
+  if (batchBar) batchBar.hidden = !batchMode;
+  updateBatchBar();
 
   const shown = filterMetas(metas);
   const have = new Set(shown.map((m) => m.id));
@@ -1082,9 +1126,11 @@ function renderLibrary() {
     }
     html = `<li class="empty">${ICON.inf}${intro}${activePlaylistId === "all" && offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
   }
-  if (html !== lastListHtml) {
+  const currentKey = `${batchMode ? "b:" : ""}${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
+  if (html !== lastListHtml || currentKey !== lastListKey) {
     lastListHtml = html;
-    $("#track-list").innerHTML = html;
+    lastListKey = currentKey;
+    if (trackListEl) trackListEl.innerHTML = html;
     paintMinis();
   }
   const readyMetas = shown.filter((m) => m.status === "ready");
@@ -1157,40 +1203,148 @@ $("#track-list").addEventListener("toggle", (e) => {
 
 $("#track-list").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-act]");
-  if (!btn) return;
-  if (btn.dataset.act === "samples") return loadSamples(btn);
-  const id = btn.closest(".track").dataset.id;
-  const m = byId().get(id);
-  switch (btn.dataset.act) {
-    case "play":
-      await play(id);
-      break;
-    case "playlist":
-      openPlaylistModal(id);
-      return;
-    case "toggle":
-      await api.patch(id, { enabled: m.enabled === false });
-      break;
-    case "retry":
-      await api.reanalyze(id);
-      break;
-    case "delete":
-      if (!session.multiuser) {
-        const ok = await showModal({
-          title: "Xác nhận xoá",
-          message: `Xoá "${m.title}" khỏi thư viện?`,
-          confirmText: "Xoá",
-          cancelText: "Thôi",
-          danger: true,
-        });
-        if (!ok) return;
-      }
-      if (player.cur?.track.id === id) player.stop();
-      loader.drop(id);
-      forget(id);
-      await api.remove(id);
-      break;
+  if (btn) {
+    if (btn.dataset.act === "samples") return loadSamples(btn);
+    const id = btn.closest(".track").dataset.id;
+    const m = byId().get(id);
+    switch (btn.dataset.act) {
+      case "play":
+        await play(id);
+        break;
+      case "playlist":
+        openPlaylistModal(id);
+        return;
+      case "toggle":
+        await api.patch(id, { enabled: m.enabled === false });
+        break;
+      case "retry":
+        await api.reanalyze(id);
+        break;
+      case "delete":
+        if (!session.multiuser) {
+          const ok = await showModal({
+            title: "Xác nhận xoá",
+            message: `Xoá "${m.title}" khỏi thư viện?`,
+            confirmText: "Xoá",
+            cancelText: "Thôi",
+            danger: true,
+          });
+          if (!ok) return;
+        }
+        if (player.cur?.track.id === id) player.stop();
+        loader.drop(id);
+        forget(id);
+        await api.remove(id);
+        break;
+    }
+    refresh();
+    return;
   }
+
+  if (batchMode) {
+    const row = e.target.closest(".track");
+    if (!row) return;
+    const id = row.dataset.id;
+    if (!id) return;
+    if (selectedTrackIds.has(id)) {
+      selectedTrackIds.delete(id);
+    } else {
+      selectedTrackIds.add(id);
+    }
+    const cb = row.querySelector(".track-cb");
+    if (cb) cb.checked = selectedTrackIds.has(id);
+    row.classList.toggle("selected", selectedTrackIds.has(id));
+    updateBatchBar();
+  }
+});
+
+// --------------------------------------------------- batch management listeners
+$("#btn-batch-toggle")?.addEventListener("click", () => {
+  batchMode = !batchMode;
+  if (!batchMode) selectedTrackIds.clear();
+  renderLibrary();
+});
+
+$("#batch-btn-close")?.addEventListener("click", () => {
+  batchMode = false;
+  selectedTrackIds.clear();
+  renderLibrary();
+});
+
+$("#batch-select-all")?.addEventListener("change", (e) => {
+  const shown = filterMetas(metas);
+  if (e.target.checked) {
+    for (const m of shown) selectedTrackIds.add(m.id);
+  } else {
+    for (const m of shown) selectedTrackIds.delete(m.id);
+  }
+  renderLibrary();
+});
+
+$("#batch-btn-in")?.addEventListener("click", async () => {
+  if (!selectedTrackIds.size) return;
+  const ids = Array.from(selectedTrackIds);
+  try {
+    await api.batch(ids, "enable");
+    for (const m of metas) {
+      if (selectedTrackIds.has(m.id)) m.enabled = true;
+    }
+    renderLibrary();
+    renderStage();
+  } catch (err) {
+    await showModal({ title: "Lỗi thao tác", message: `Không thể đưa các bài đã chọn vào chuỗi: ${err.message}`, confirmText: "Đóng" });
+  }
+});
+
+$("#batch-btn-out")?.addEventListener("click", async () => {
+  if (!selectedTrackIds.size) return;
+  const ids = Array.from(selectedTrackIds);
+  try {
+    await api.batch(ids, "disable");
+    for (const m of metas) {
+      if (selectedTrackIds.has(m.id)) m.enabled = false;
+    }
+    renderLibrary();
+    renderStage();
+  } catch (err) {
+    await showModal({ title: "Lỗi thao tác", message: `Không thể bỏ các bài đã chọn khỏi chuỗi: ${err.message}`, confirmText: "Đóng" });
+  }
+});
+
+$("#batch-btn-pl")?.addEventListener("click", () => {
+  if (!selectedTrackIds.size) return;
+  openPlaylistModal(Array.from(selectedTrackIds));
+});
+
+$("#batch-btn-del")?.addEventListener("click", async () => {
+  if (!selectedTrackIds.size) return;
+  const ids = Array.from(selectedTrackIds);
+  const ok = await showModal({
+    title: "Xác nhận xoá theo lô",
+    message: `Xoá ${ids.length} bài đã chọn khỏi thư viện?`,
+    confirmText: `Xoá ${ids.length} bài`,
+    cancelText: "Thôi",
+    danger: true,
+  });
+  if (!ok) return;
+
+  for (const id of ids) {
+    if (player.cur?.track.id === id) player.stop();
+    loader.drop(id);
+    forget(id);
+  }
+  try {
+    await api.batch(ids, "delete");
+  } catch (_) {
+    for (const id of ids) await api.remove(id).catch(() => {});
+  }
+  metas = metas.filter((m) => !selectedTrackIds.has(m.id));
+  for (const pl of playlists) {
+    pl.trackIds = (pl.trackIds || []).filter((t) => !selectedTrackIds.has(t));
+  }
+  savePlaylists();
+  selectedTrackIds.clear();
+  renderLibrary();
   refresh();
 });
 
@@ -1309,14 +1463,16 @@ $("#pl-modal-close")?.addEventListener("click", () => {
 
 $("#pl-modal-list")?.addEventListener("change", (e) => {
   const cb = e.target.closest("input[type=checkbox][data-pl-id]");
-  if (!cb || !modalTrackId) return;
+  if (!cb || !modalTrackIds.length) return;
   const plId = cb.dataset.plId;
   const pl = getPlaylist(plId);
   if (!pl) return;
   if (cb.checked) {
-    if (!pl.trackIds.includes(modalTrackId)) pl.trackIds.push(modalTrackId);
+    for (const tid of modalTrackIds) {
+      if (!pl.trackIds.includes(tid)) pl.trackIds.push(tid);
+    }
   } else {
-    pl.trackIds = pl.trackIds.filter((t) => t !== modalTrackId);
+    pl.trackIds = pl.trackIds.filter((t) => !modalTrackIds.includes(t));
   }
   savePlaylists();
   renderPlaylistModalList();
@@ -1327,7 +1483,7 @@ function handleModalCreatePlaylist() {
   const input = $("#pl-modal-new-name");
   const name = input?.value.trim();
   if (!name) return;
-  createPlaylist(name, modalTrackId ? [modalTrackId] : []);
+  createPlaylist(name, [...modalTrackIds]);
   input.value = "";
   renderPlaylistModalList();
   renderLibrary();

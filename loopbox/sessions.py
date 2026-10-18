@@ -178,9 +178,25 @@ class SessionView(View):
             self.off.discard(tid)
             _save_session_db(self)
 
+    def remove_many(self, tids: list[str]) -> None:
+        with _lock:
+            s_set = set(tids)
+            self.ids = [t for t in self.ids if t not in s_set]
+            self.off.difference_update(s_set)
+            _save_session_db(self)
+
     def set_enabled(self, tid: str, on: bool) -> None:
         with _lock:
             (self.off.discard if on else self.off.add)(tid)
+            _save_session_db(self)
+
+    def set_enabled_many(self, tids: list[str], on: bool) -> None:
+        with _lock:
+            s_set = set(tids)
+            if on:
+                self.off.difference_update(s_set)
+            else:
+                self.off.update(s_set)
             _save_session_db(self)
 
 
@@ -208,8 +224,16 @@ class LocalView(View):
     def remove(self, tid):
         library.delete(tid)
 
+    def remove_many(self, tids: list[str]):
+        for tid in tids:
+            library.delete(tid)
+
     def set_enabled(self, tid, on):
         library.update(tid, enabled=on)
+
+    def set_enabled_many(self, tids: list[str], on: bool):
+        for tid in tids:
+            library.update(tid, enabled=on)
 
 
 def create() -> View:

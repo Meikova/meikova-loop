@@ -45,6 +45,11 @@ class PatchRequest(BaseModel):
     enabled: bool | None = None
 
 
+class BatchRequest(BaseModel):
+    ids: list[str]
+    action: str  # "enable", "disable", "delete"
+
+
 class LocalIngestRequest(BaseModel):
     paths: list[str]
 
@@ -398,6 +403,21 @@ def delete(tid: str, v: sessions.View = Depends(view_of)):
     _meta(tid)
     v.remove(tid)
     return {"deleted": tid}
+
+
+@app.post("/api/tracks/batch")
+def batch(req: BatchRequest, v: sessions.View = Depends(view_of)):
+    ids = [t for t in req.ids if library.valid_id(t)]
+    if req.action == "delete":
+        v.remove_many(ids)
+        return {"deleted": ids}
+    elif req.action == "enable":
+        v.set_enabled_many(ids, True)
+        return {"updated": ids, "enabled": True}
+    elif req.action == "disable":
+        v.set_enabled_many(ids, False)
+        return {"updated": ids, "enabled": False}
+    raise HTTPException(400, "unknown action")
 
 
 @app.post("/api/tracks/{tid}/reanalyze")
