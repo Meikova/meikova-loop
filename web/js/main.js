@@ -144,8 +144,11 @@ const libByKey = (key) => samples.libraries.find((l) => l.key === key) || null;
 const shownLib = (key) => !key || kho.pinned.has(key) || key === kho.cur; // in the list (null: the listener's own song)
 // The server forgot this visit's library (it restarted): add the songs back.
 hooks.restore = async () => {
-  const ids = metas.map((m) => m.id);
-  if (ids.length) await api.restore(ids).catch(() => {});
+  const allIds = [...new Set([
+    ...metas.map((m) => m.id),
+    ...playlists.flatMap((p) => p.trackIds || []),
+  ])].filter(Boolean);
+  if (allIds.length) await api.restore(allIds).catch(() => {});
 };
 const byId = () => new Map(metas.map((m) => [m.id, m]));
 // A credited song (the Creative Commons libraries) has its exact title and
@@ -1382,7 +1385,7 @@ function schedulePoll() {
   const delay = working ? 1200 : pollInterval;
   pollTimer = setTimeout(async () => {
     const ok = await refresh();
-    pollInterval = ok ? 5000 : Math.min(30000, Math.round(pollInterval * 1.5));
+    pollInterval = ok ? 5000 : 2500;
     schedulePoll();
   }, delay);
 }
@@ -1981,13 +1984,19 @@ renderLooks();
 renderTransport();
 renderStage();
 placeIndicators();
-ready().then(() => {
+ready().then(async () => {
   if (session.multiuser) {
     // Hosted: a library per visit; pairs are linked automatically and shared.
     $("#add-hint").textContent = "Mỗi lần mở trang là một thư viện mới. Bài ai đó đã thêm trước sẽ vào ngay, không phải chờ phân tích.";
     $("#btn-relink").hidden = true;
     $("#fine").hidden = false;
     for (const el of document.querySelectorAll("[data-ttl]")) el.textContent = session.limits.audio_ttl_h || 12;
+
+    const plIds = [...new Set(playlists.flatMap((p) => p.trackIds || []))].filter(Boolean);
+    if (plIds.length && !metas.length) {
+      await api.restore(plIds).catch(() => {});
+      await refresh();
+    }
   }
   if (session.limits.upload_mb) $("#upload-limit").textContent = `, tối đa ${session.limits.upload_mb} MB`;
   renderLibrary();

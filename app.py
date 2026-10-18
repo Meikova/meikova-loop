@@ -49,6 +49,9 @@ _worker_started = False
 def _ensure_worker():
     global _worker_started
     if not _worker_started:
+        import multiprocessing
+        if multiprocessing.current_process().name != "MainProcess":
+            return
         worker.start()
         if MULTIUSER:
             worker.start_retention(AUDIO_TTL_S, sessions.in_use)
@@ -56,7 +59,10 @@ def _ensure_worker():
             sessions.local().link()
         _worker_started = True
 
-_ensure_worker()
+@fastapi_app.on_event("startup")
+def _on_fastapi_startup():
+    _ensure_worker()
+
 
 HEAD = """
 <script>
@@ -115,6 +121,9 @@ _mount_mashloop(demo.app)
 app = demo.app
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     port = int(os.environ.get("PORT", PORT))
     demo.launch(
         server_name="0.0.0.0",
@@ -128,6 +137,7 @@ if __name__ == "__main__":
 
     # Post-mount on demo.server_app because launch() recreates server_app
     _mount_mashloop(demo.server_app)
+    _ensure_worker()
 
     try:
         demo.block_thread()
