@@ -180,7 +180,13 @@ export class Viz {
   setScale(scale) {
     const s = Math.max(0.6, Math.min(1.5, +scale || 1.0));
     if (Math.abs((this.scale || 1.0) - s) > 0.005) {
+      const oldScale = this.scale || 1.0;
       this.scale = s;
+      const ratio = s / oldScale;
+      for (const ring of this.rings.values()) {
+        if (ring.r) ring.r *= ratio;
+        if (ring.target?.r) ring.target.r *= ratio;
+      }
       this.layerR = null;
       this._resize();
       this.invalidate();
@@ -1140,7 +1146,8 @@ export class Viz {
 
   // A little above the middle: the caption hangs under it, and the two weigh as one.
   _idleGeom() {
-    const a = Math.round(Math.min(this.w * 0.36, this.h * 0.95));
+    const sc = this.scale || 1.0;
+    const a = Math.round(Math.min(this.w * 0.36, this.h * 0.95) * sc);
     return { a, cx: Math.round(this.w / 2), cy: Math.round(this.h * 0.42), th: Math.max(3, Math.round(a * 0.024)) };
   }
 
@@ -1170,7 +1177,8 @@ export class Viz {
   _idleLayer(side, col) {
     const st = this.idleSt;
     const layerScale = Math.min(Math.max(Math.round(this.dpr * 2), 2), 4);
-    const key = `${this.w}x${this.h}@${layerScale}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}`;
+    const sc = (this.scale || 1.0).toFixed(2);
+    const key = `${this.w}x${this.h}@${layerScale}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}|${sc}`;
     const have = st.layers[side];
     if (have && have.key === key) return have.canvas;
     const g = this._idleGeom();

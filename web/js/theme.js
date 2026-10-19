@@ -226,7 +226,9 @@ export function spreadIds() {
 
 let userGlow = 1.0;
 export function setGlow(level) {
-  userGlow = Math.max(0, Math.min(3, Number(level) ?? 1.0));
+  const next = Math.max(0, Math.min(3, Number(level) ?? 1.0));
+  if (Math.abs(userGlow - next) < 0.001) return;
+  userGlow = next;
   version++;
   cache.clear();
   document.documentElement.style.setProperty("--glow-mult", userGlow.toFixed(3));

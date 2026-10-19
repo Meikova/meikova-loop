@@ -6,11 +6,25 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 15:12:00
-- Exit Code: 0 (All 18 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`, commit `d6f4d08`).
+- Timestamp: 2026-10-19 15:36:00
+- Exit Code: 0 (All 19 test suites passed: tests/test_server_and_features.py)
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi thanh trượt "Kích thước vòng vô cực" làm đổi màu thay vì đổi kích thước (Viz Scaling & Glow Decoupling Fix)**:
+  - **Nguyên nhân gốc rễ**:
+    1. **Kích thước bị triệt tiêu khi đang kéo (Scale Cancellation)**: Trong `web/js/viz.js`, hàm `setScale(s)` cập nhật `this.scale = s` và `this.layerR = this.baseR`. Tuy nhiên các vòng tròn `ring.r` đang phát được nội suy chậm bằng hàm exponential decay (`ring.r += (tg.r - ring.r) * k`). Trong `_drawRing`, hệ số tỉ lệ `s = ring.r / L.RL`. Khi `L.RL` lập tức mang giá trị mới trong khi `ring.r` còn giữ giá trị cũ, `s` đã tỉ lệ nghịch kéo thu nhỏ canvas texture về đúng kích thước cũ, làm vòng tròn không thay đổi kích thước tức thì khi người dùng đang kéo thanh trượt. Ngoài ra, hình vẽ `_idleGeom()` (2 vòng vô cực lúc chờ) hoàn toàn không nhân hệ số `this.scale`.
+    2. **Đổi màu do hàm setGlow chạy thừa mứa**: Mỗi lần thanh trượt `#s-viz-scale` phát sinh sự kiện `input`, hàm `applySettings()` được kích hoạt và gọi `theme.setGlow(ui.glow)`. Trong `web/js/theme.js`, hàm `setGlow` không hề kiểm tra xem giá trị `userGlow` có thay đổi hay không mà luôn thực hiện `version++; cache.clear(); reapply()`. Điều này khiến toàn bộ cache màu (`beatColors`, `songColor`) bị xóa sạch, kích hoạt vẽ lại màu và re-render CSS variables `--acc-*`, tạo cảm giác "chỉnh kích thước nhưng lại đi chỉnh màu".
+    3. `applySettings()` còn gọi `viz.invalidate()` không cần thiết mỗi lần bất kỳ thanh trượt nào di chuyển.
+  - **Khắc phục**:
+    1. **Thêm guard check trong `setGlow`**: `if (Math.abs(userGlow - next) < 0.001) return;` trong `web/js/theme.js`. Ngăn chặn hoàn toàn việc xóa cache màu và reapply style khi độ sáng neon không đổi.
+    2. **Cập nhật kích thước tức thời trong `setScale`**: Khi `scale` thay đổi, lập tức nhân tỉ lệ `ratio = s / oldScale` vào `ring.r` và `ring.target.r` của tất cả các vòng tròn đang có trên sân khấu, giúp vòng to/nhỏ ngay lập tức dưới ngón tay/chuột người dùng mà không bị trễ hay lag.
+    3. **Hỗ trợ phóng to/thu nhỏ 2 vòng lúc chờ (`_idleGeom`)**: Nhân `sc = this.scale || 1.0` vào bán kính `a` trong `_idleGeom()` và thêm `scale` vào cache key của `_idleLayer`.
+    4. **Cô lập sự kiện `input` của `#s-viz-scale` và `#s-ui-scale`**: Gọi trực tiếp `viz.setScale()` và `save()`, không chạy qua toàn bộ chu trình `applySettings()`.
+    5. **Xóa `viz.invalidate()` thừa** khỏi `applySettings()`.
+    6. **Nâng cấp Cache**: `mashloop-v73` trong `web/sw.js` và `?v=73` trong `web/index.html`. Đồng bộ toàn bộ tài nguyên sang `dist/MashLoop/_internal/web/`.
+    7. **Kiểm thử tự động**: Viết test suite `test_viz_scaling_and_glow_stability()` trong `tests/test_server_and_features.py` (Toàn bộ 19 test suites passed, Exit Code 0).
+
 - **Tính năng kéo thả trực tiếp tại mép giao diện (Edge Resizer) & Tinh chỉnh tỷ lệ Visualizer / UI Scale**:
   - **Bối cảnh & Yêu cầu**:
     1. Người dùng yêu cầu không dùng thanh kéo slider trong cài đặt để chỉnh độ rộng panel, mà cho phép đưa chuột vào mép giao giữa Stage và Panel để kéo thả trực tiếp.

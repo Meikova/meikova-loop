@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=72" />
+    <link rel="stylesheet" href="css/app.css?v=73" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -1526,14 +1526,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=72"></script>
+    <script type="module" src="js/main.js?v=73"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=72")
+          .register("sw.js?v=73")
           .then((reg) => {
             reg.update();
           })

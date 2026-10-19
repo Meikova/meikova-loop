@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v72" in sw_js
-    assert "app.css?v=72" in index_html
-    assert "main.js?v=72" in index_html
-    assert "sw.js?v=72" in index_html
+    assert "mashloop-v73" in sw_js
+    assert "app.css?v=73" in index_html
+    assert "main.js?v=73" in index_html
+    assert "sw.js?v=73" in index_html
 
     # Proportions & sizing resizer and sliders
     assert 'id="panel-resizer"' in index_html
@@ -443,6 +443,29 @@ def test_settings_api_and_client_persistence():
             SETTINGS_FILE.unlink()
 
 
+def test_viz_scaling_and_glow_stability():
+    root = Path(__file__).resolve().parent.parent
+    theme_js = (root / "web" / "js" / "theme.js").read_text(encoding="utf-8")
+    viz_js = (root / "web" / "js" / "viz.js").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+
+    # setGlow must guard against redundant cache clearing and color reapply
+    assert "if (Math.abs(userGlow - next) < 0.001) return;" in theme_js
+
+    # setScale must immediately scale existing rings without lag
+    assert "for (const ring of this.rings.values())" in viz_js
+    assert "ring.r *= ratio;" in viz_js
+    assert "ring.target?.r" in viz_js
+
+    # _idleGeom must support scale factor
+    assert "const sc = this.scale || 1.0;" in viz_js
+    assert "Math.round(Math.min(this.w * 0.36, this.h * 0.95) * sc)" in viz_js
+
+    # s-viz-scale and s-ui-scale listeners in main.js must be isolated
+    assert '$("#s-viz-scale")?.addEventListener("input"' in main_js
+    assert "viz.setScale?.(ui.vizScale);" in main_js
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -462,6 +485,7 @@ if __name__ == "__main__":
     test_track_cancellation_on_delete()
     test_max_duration_guard_and_frontend_limits()
     test_settings_api_and_client_persistence()
+    test_viz_scaling_and_glow_stability()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

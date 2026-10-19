@@ -394,7 +394,6 @@ function applySettings() {
     b.setAttribute("aria-checked", on);
   }
   placeIndicator($(".mode"));
-  viz.invalidate();
   renderTransport();
   save();
 }
@@ -549,11 +548,20 @@ initPanelResizer();
 
 $("#s-viz-scale")?.addEventListener("input", (e) => {
   ui.vizScale = +e.target.value / 100;
-  applySettings();
+  viz.setScale?.(ui.vizScale);
+  const vVizScale = $("#v-viz-scale");
+  if (vVizScale) vVizScale.textContent = `${Math.round(ui.vizScale * 100)}%`;
+  syncRange(e.target);
+  save();
 });
 $("#s-ui-scale")?.addEventListener("input", (e) => {
   ui.uiScale = +e.target.value / 100;
-  applySettings();
+  document.documentElement.style.setProperty("--ui-scale", ui.uiScale);
+  document.documentElement.style.fontSize = `${16 * ui.uiScale}px`;
+  const vUiScale = $("#v-ui-scale");
+  if (vUiScale) vUiScale.textContent = `${Math.round(ui.uiScale * 100)}%`;
+  syncRange(e.target);
+  save();
 });
 
 
