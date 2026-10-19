@@ -24,6 +24,35 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+def _sync_private_code():
+    if (ROOT / "loopbox" / "server.py").exists() and (ROOT / "web" / "index.html").exists():
+        return
+    gh_token = os.environ.get("GH_TOKEN")
+    if not gh_token:
+        print("WARN: GH_TOKEN secret not found on Space.")
+        return
+    import urllib.request, zipfile, io
+    print("Syncing private codebase from GitHub...")
+    url = "https://api.github.com/repos/m3iK18dp/mashloop/zipball/main"
+    req = urllib.request.Request(url, headers={"Authorization": f"token {gh_token}", "User-Agent": "MashLoop-Space"})
+    with urllib.request.urlopen(req) as resp:
+        z = zipfile.ZipFile(io.BytesIO(resp.read()))
+    prefix = z.namelist()[0].split("/")[0] + "/"
+    count = 0
+    for m in z.namelist():
+        if m.endswith("/"):
+            continue
+        rel = m[len(prefix):]
+        if rel.startswith("loopbox/") or rel.startswith("web/"):
+            target = ROOT / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with z.open(m) as s, open(target, "wb") as d:
+                d.write(s.read())
+            count += 1
+    print(f"Sync complete: {count} private files loaded.")
+
+_sync_private_code()
+
 os.environ.setdefault("MASHLOOP_HOST", "0.0.0.0")
 os.environ.setdefault("MASHLOOP_PORT", os.environ.get("PORT", "7860"))
 os.environ.setdefault("MASHLOOP_MULTIUSER", "1")
