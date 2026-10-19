@@ -79,8 +79,9 @@ JS_RUNTIME = os.environ.get("MASHLOOP_JS_RUNTIME") or "node"
 SAMPLE_RATE = 44100
 ANALYSIS_SR = 22050
 TARGET_LUFS = -14.0
-# 15 minutes max per track by default (long enough for any extended mix, prevents OOM in Web Audio)
-MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60)
+# Up to 60 minutes per track (covers full DJ sets, mixtapes and extended tracks on Desktop).
+# Mobile devices are guarded separately by frontend MAX_SAFE_DURATION_S (12 mins) in api.js.
+MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 60 * 60)
 
 DEVICE = "cuda"  # falls back to cpu at runtime when CUDA is unavailable
 
