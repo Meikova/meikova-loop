@@ -11,6 +11,8 @@
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Kiểm chứng tải thực tế YouTube với Cookie Fallback**:
+  - Đã chạy test thực tế tải URL video YouTube (`fAafG7BPznQ`) với cookie đang bật: Cơ chế fallback hoạt động chuẩn xác, tải trọn vẹn file 285 MB thành công (Exit Code 0).
 - **Sửa lỗi thụt dòng nghiêm trọng trong `download()` — Cookie fallback không hoạt động**:
   - Nguyên nhân gốc: Khối `try/except` (lines 531-558) của `download()` trong `loopbox/download.py` bị thụt ra **ngoài** vòng lặp `for client in clients:`. Hệ quả: chỉ cấu hình client cuối cùng được thực thi, cơ chế xoay vòng client và fallback không-cookie hoàn toàn vô hiệu.
   - Khắc phục: Thụt toàn bộ `try/except` vào đúng trong `for client` loop. Đổi `cookie_passes` mặc định từ `[False]` sang `[True]` khi không có cookie.
