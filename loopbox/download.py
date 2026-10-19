@@ -509,7 +509,7 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     last_error = None
     from . import cookies as cookie_mgr
     has_cookies = bool(cookie_mgr.get_cookie_file_path()) if site == "youtube" else False
-    cookie_passes = [True, False] if has_cookies else [False]
+    cookie_passes = [True, False] if has_cookies else [True]
 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
@@ -526,34 +526,35 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
                 stale.unlink(missing_ok=True)
             opts = _opts(site, use_cookies=use_cookies, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),
                          progress_hooks=[hook], retries=3)
-        if client:
-            opts["extractor_args"] = {"youtube": {"player_client": client}}
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                dur = info.get("duration")
-                if dur and dur > MAX_DURATION_S:
-                    raise RuntimeError(f"dài hơn {MAX_DURATION_S // 60} phút ({dur // 60} phút), không thể phân tích phách nhịp")
-                info = ydl.extract_info(url, download=True)
-            previews = any("preview" in str(f.get("format_id", "")) for f in info.get("requested_downloads") or [])
-            if site == "soundcloud" and (previews or (info.get("duration") or 99) <= 31):
-                raise RuntimeError("SoundCloud chỉ cho nghe thử 30 giây bài này")
-            if info.get("requested_downloads"):
-                path = Path(info["requested_downloads"][0]["filepath"])
-            elif info.get("_filename"):
-                path = Path(info["_filename"])
-            else:
-                downloaded = list(dest_dir.glob("source.*"))
-                if not downloaded:
-                    raise RuntimeError("không tìm thấy file tải về")
-                path = downloaded[0]
-            return path, _entry(info, site) or {}
-        except yt_dlp.utils.DownloadError as e:
-            last_error = e
-            msg = str(e)
-            if "VIP" in msg:
-                raise RuntimeError(f"bài này chỉ dành cho tài khoản VIP của {SITE_NAMES.get(site, site)}") from None
-            if site == "youtube":
-                continue
-            raise
+            if client:
+                opts["extractor_args"] = {"youtube": {"player_client": client}}
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    dur = info.get("duration")
+                    if dur and dur > MAX_DURATION_S:
+                        raise RuntimeError(f"dài hơn {MAX_DURATION_S // 60} phút ({dur // 60} phút), không thể phân tích phách nhịp")
+                    info = ydl.extract_info(url, download=True)
+                previews = any("preview" in str(f.get("format_id", "")) for f in info.get("requested_downloads") or [])
+                if site == "soundcloud" and (previews or (info.get("duration") or 99) <= 31):
+                    raise RuntimeError("SoundCloud chỉ cho nghe thử 30 giây bài này")
+                if info.get("requested_downloads"):
+                    path = Path(info["requested_downloads"][0]["filepath"])
+                elif info.get("_filename"):
+                    path = Path(info["_filename"])
+                else:
+                    downloaded = list(dest_dir.glob("source.*"))
+                    if not downloaded:
+                        raise RuntimeError("không tìm thấy file tải về")
+                    path = downloaded[0]
+                return path, _entry(info, site) or {}
+            except yt_dlp.utils.DownloadError as e:
+                last_error = e
+                msg = str(e)
+                if "VIP" in msg:
+                    raise RuntimeError(f"bài này chỉ dành cho tài khoản VIP của {SITE_NAMES.get(site, site)}") from None
+                if site == "youtube":
+                    continue
+                raise
+        # If all clients failed for this cookie pass, try next pass
     raise last_error

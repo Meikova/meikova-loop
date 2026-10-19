@@ -6,11 +6,15 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 00:06:00
+- Timestamp: 2026-10-19 08:36:00
 - Exit Code: 0 (All 15 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Sửa lỗi thụt dòng nghiêm trọng trong `download()` — Cookie fallback không hoạt động**:
+  - Nguyên nhân gốc: Khối `try/except` (lines 531-558) của `download()` trong `loopbox/download.py` bị thụt ra **ngoài** vòng lặp `for client in clients:`. Hệ quả: chỉ cấu hình client cuối cùng được thực thi, cơ chế xoay vòng client và fallback không-cookie hoàn toàn vô hiệu.
+  - Khắc phục: Thụt toàn bộ `try/except` vào đúng trong `for client` loop. Đổi `cookie_passes` mặc định từ `[False]` sang `[True]` khi không có cookie.
+  - Kiểm thử: 15/15 test suites đạt Exit Code 0.
 - **Khắc phục lỗi YouTube SABR Stream & Cơ chế Fallback Hai Lớp Cho Cookie (`Requested format is not available`)**:
   - Tìm ra nguyên nhân gốc rễ:
     1. Khi người dùng nạp cookie tài khoản YouTube cá nhân, YouTube áp dụng thử nghiệm streaming SABR (Server-side Adaptive Bitrate) trên phiên đăng nhập. Do thiếu Web PO-Token (Proof of Origin), `yt-dlp` bị YouTube tước bỏ toàn bộ luồng stream âm thanh/video thông thường, chỉ trả về dạng ảnh/storyboard, dẫn đến lỗi `Requested format is not available. Use --list-formats...`.
