@@ -11,6 +11,13 @@
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Triển khai Kiến trúc Giấu Mã Nguồn Tuyệt Đối trên Hugging Face Spaces (Private Code Loader)**:
+  - **Mục tiêu**: Người dùng muốn repo Space để Public (để web app `https://m3ik18dp-mashloop.hf.space` ai cũng dùng được), nhưng giấu 100% mã nguồn dự án (`loopbox/`, `web/`) và xóa sạch lịch sử commit cũ trên Space.
+  - **Triển khai**:
+    1. **Dynamic Private Code Loader (`app.py`)**: Khi Space khởi động, `_sync_private_code()` đọc secret `GH_TOKEN` trên Space, tải zipball trực tiếp từ GitHub API của repo private `m3iK18dp/mashloop`, giải nén `loopbox/` và `web/` thẳng vào RAM/container mà không lưu mã nguồn vào repo Space.
+    2. **Xóa sổ toàn bộ commit cũ trên Hugging Face Space**: Tạo root commit duy nhất `5945d2f`, force push (`git push --force`) đè toàn bộ git history trên Space. Space hiện chỉ có duy nhất 1 commit và đúng 4 file vỏ bọc: `app.py`, `requirements.txt`, `README.md`, `.gitignore`. Không còn bất kỳ file source code nào trong cây git của Space.
+    3. **Cấu hình `tools/upload_to_space.py`**: Khóa cứng `allow_patterns = ["app.py", "requirements.txt", ".gitignore"]`, ngăn chặn vĩnh viễn việc upload nhầm file mã nguồn lên Space trong tương lai.
+    4. **Kiểm thử**: Space chuyển sang `STAGE: RUNNING`, `https://m3ik18dp-mashloop.hf.space` trả về HTTP 200, `/api/cookies` trả về HTTP 200.
 - **Kiểm chứng tải thực tế YouTube với Cookie Fallback**:
   - Đã chạy test thực tế tải URL video YouTube (`fAafG7BPznQ`) với cookie đang bật: Cơ chế fallback hoạt động chuẩn xác, tải trọn vẹn file 285 MB thành công (Exit Code 0).
 - **Sửa lỗi thụt dòng nghiêm trọng trong `download()` — Cookie fallback không hoạt động**:
