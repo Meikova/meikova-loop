@@ -59,11 +59,6 @@ BASE_OPTS = {
     "nocheckcertificate": True,
     "js_runtimes": _find_js_runtimes(),
     "socket_timeout": 30,
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["web_embedded", "android", "web"]
-        }
-    },
 }
 
 # site -> (hosts, yt-dlp extractors allowed for it)
@@ -366,11 +361,12 @@ def resolve(text: str) -> list[dict]:
     cookie_passes = [True, False] if has_cookies else [False]
 
     clients = (
-        ["web_embedded", "android", "web"],
-        ["android", "web"],
-        ["mweb"],
-        ["web"],
         None,
+        ["android"],
+        ["web"],
+        ["tv_downgraded", "web"],
+        ["mweb"],
+        ["web_embedded", "web"],
     ) if site == "youtube" else (None,)
     info = None
     last_e = None
@@ -516,11 +512,12 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
     clients = (
-        ["web_embedded", "android", "web"],
-        ["android", "web"],
-        ["mweb"],
-        ["web"],
         None,
+        ["android"],
+        ["web"],
+        ["tv_downgraded", "web"],
+        ["mweb"],
+        ["web_embedded", "web"],
     ) if site == "youtube" else (None,)
     for use_cookies in cookie_passes:
         for client in clients:

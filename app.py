@@ -25,12 +25,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 def _sync_private_code():
-    if (ROOT / "loopbox" / "server.py").exists() and (ROOT / "web" / "index.html").exists():
+    is_space = bool(os.environ.get("SPACE_ID"))
+    if not is_space and (ROOT / "loopbox" / "server.py").exists() and (ROOT / "web" / "index.html").exists():
+        return
+    if os.environ.get("_MASHLOOP_SYNCED"):
         return
     gh_token = os.environ.get("GH_TOKEN")
     if not gh_token:
         print("WARN: GH_TOKEN secret not found on Space.")
         return
+    os.environ["_MASHLOOP_SYNCED"] = "1"
     import urllib.request, zipfile, io
     print("Syncing private codebase from GitHub...")
     url = "https://api.github.com/repos/m3iK18dp/mashloop/zipball/main"
@@ -49,6 +53,17 @@ def _sync_private_code():
             with z.open(m) as s, open(target, "wb") as d:
                 d.write(s.read())
             count += 1
+    print(f"Synced {count} files from GitHub private repository.")
+
+def _sync_cookies():
+    cookie_content = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES_TXT")
+    if cookie_content and cookie_content.strip():
+        try:
+            from loopbox.cookies import save_cookies
+            res = save_cookies(cookie_content.strip())
+            print(f"Space Secret cookies loaded: {res.get('message', 'OK')}")
+        except Exception as e:
+            print(f"Failed to load Space Secret cookies: {e}")
 def _ensure_deno():
     if sys.platform.startswith("win"):
         return
@@ -77,6 +92,7 @@ def _ensure_deno():
 
 _ensure_deno()
 _sync_private_code()
+_sync_cookies()
 
 os.environ.setdefault("MASHLOOP_HOST", "0.0.0.0")
 os.environ.setdefault("MASHLOOP_PORT", os.environ.get("PORT", "7860"))

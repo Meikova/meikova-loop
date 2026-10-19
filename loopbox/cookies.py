@@ -2,6 +2,7 @@
 Parses Netscape / JSON cookie formats and persists to cookies.txt for yt-dlp."""
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -18,6 +19,15 @@ def get_cookie_file_path() -> Path | None:
     root_f = ROOT / "cookies.txt"
     if root_f.exists() and root_f.stat().st_size > 0:
         return root_f
+    env_cookies = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES_TXT")
+    if env_cookies and env_cookies.strip():
+        try:
+            save_cookies(env_cookies.strip())
+            if COOKIES_PATH.exists() and COOKIES_PATH.stat().st_size > 0:
+                logger.info("Auto-initialized cookies from environment variable / Space Secret.")
+                return COOKIES_PATH
+        except Exception as e:
+            logger.warning(f"Failed to auto-initialize cookies from environment: {e}")
     return None
 
 
@@ -169,9 +179,9 @@ def save_cookies(content: str) -> dict:
     if not new_cookies:
         return {"success": False, "message": "Nội dung cookie không hợp lệ (hỗ trợ định dạng Netscape hoặc JSON)."}
 
-    # Merge with existing
+    # Merge with existing file if any
     existing = {}
-    fpath = get_cookie_file_path()
+    fpath = COOKIES_PATH if (COOKIES_PATH.exists() and COOKIES_PATH.stat().st_size > 0) else (ROOT / "cookies.txt" if (ROOT / "cookies.txt").exists() else None)
     if fpath and fpath.exists():
         try:
             existing = parse_cookies_to_dict(fpath.read_text(encoding="utf-8", errors="ignore"))

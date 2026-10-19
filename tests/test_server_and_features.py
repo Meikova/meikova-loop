@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v64" in sw_js
-    assert "app.css?v=64" in index_html
-    assert "main.js?v=64" in index_html
-    assert "sw.js?v=64" in index_html
+    assert "mashloop-v65" in sw_js
+    assert "app.css?v=65" in index_html
+    assert "main.js?v=65" in index_html
+    assert "sw.js?v=65" in index_html
 
     # Segmented tabs SVG icons
     assert '<button type="button" data-tab="library"' in index_html or 'data-tab="library"' in index_html
@@ -271,9 +271,10 @@ def test_download_error_handling_and_ui_cleanup():
     unavail_clean = download.clean_error(unavail_raw)
     assert "không khả dụng" in unavail_clean
 
-    # Verify web_embedded player_client and impersonate in BASE_OPTS
-    assert download.BASE_OPTS["extractor_args"]["youtube"]["player_client"][0] == "web_embedded"
+    # Verify js_runtimes in BASE_OPTS and dynamic client selection
     assert "js_runtimes" in download.BASE_OPTS
+    opts = download._opts("youtube")
+    assert "allowed_extractors" in opts
 
     # Verify Deno in Dockerfile
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
@@ -323,6 +324,18 @@ def test_cookies_api_and_playlist_scroll_navigation():
     # Verify cookie status is false again
     res_after = client.get("/api/cookies")
     assert res_after.json()["has_cookies"] is False
+
+    # Test env var cookie loading (for Hugging Face Space secrets)
+    import os
+    from loopbox import cookies as cookie_mgr
+    os.environ["YOUTUBE_COOKIES"] = test_cookie
+    try:
+        p = cookie_mgr.get_cookie_file_path()
+        assert p is not None
+        assert p.exists()
+    finally:
+        os.environ.pop("YOUTUBE_COOKIES", None)
+        client.delete("/api/cookies")
 
     # Verify playlist scroll navigation & hidden relink section
     index_html = (root / "web" / "index.html").read_text(encoding="utf-8")

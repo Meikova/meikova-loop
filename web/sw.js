@@ -1,4 +1,4 @@
-const CACHE_NAME = "mashloop-v64";
+const CACHE_NAME = "mashloop-v65";
 const STATIC_ASSETS = [
   "/",
   "/css/app.css",
