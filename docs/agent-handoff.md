@@ -6,11 +6,31 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 14:45:00
+- Timestamp: 2026-10-19 15:12:00
 - Exit Code: 0 (All 18 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`, commit `c3eecf0`).
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`, commit `d6f4d08`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Tính năng kéo thả trực tiếp tại mép giao diện (Edge Resizer) & Tinh chỉnh tỷ lệ Visualizer / UI Scale**:
+  - **Bối cảnh & Yêu cầu**:
+    1. Người dùng yêu cầu không dùng thanh kéo slider trong cài đặt để chỉnh độ rộng panel, mà cho phép đưa chuột vào mép giao giữa Stage và Panel để kéo thả trực tiếp.
+    2. Cung cấp thanh trượt tinh chỉnh kích thước/tỷ lệ các thành phần (Visualizer Canvas và Zoom giao diện UI).
+    3. Tránh hoàn toàn việc vỡ layout 2 cột (Stage trái, Panel phải).
+  - **Triển khai**:
+    1. **Edge Resizer trực tiếp (`#panel-resizer`)**:
+       - Đặt thẻ `<div class="panel__resizer" id="panel-resizer"></div>` bên trong `<aside class="panel">` với `position: absolute; left: 0; transform: translateX(-50%); width: 14px;`.
+       - Giữ nguyên cấu trúc CSS Grid `<main class="layout">` chỉ có đúng 2 phần tử con trực tiếp (`.stage` và `.panel`), ngăn chặn triệt để lỗi grid wrapping xuống dòng dọc.
+       - Hỗ trợ đầy đủ sự kiện chuột và cảm ứng (`mousedown`, `mousemove`, `mouseup`, `touchstart`, `touchmove`, `touchend`).
+       - Thêm sự kiện `dblclick` để reset độ rộng panel về mặc định 420px.
+       - Giới hạn kéo thả an toàn: `minWidth = 320px`, `maxWidth = Math.min(720px, window.innerWidth * 0.6)`.
+       - Hiệu ứng thị giác: Khi hover hiển thị con trỏ `col-resize` và thanh sáng neon tím dọc ranh giới.
+    2. **Thanh trượt tỷ lệ Visualizer & Zoom UI trong tab Tinh chỉnh**:
+       - `#s-viz-scale`: Phạm vi 70% – 130%, kết nối trực tiếp `viz.setScale()` trong `web/js/viz.js`.
+       - `#s-ui-scale`: Phạm vi 80% – 125%, kết nối biến CSS `--ui-scale` và kích thước font gốc trên `document.documentElement`.
+       - Toàn bộ giá trị tự động lưu vào `localStorage` và gửi đồng bộ lên server `/api/settings`.
+    3. **Nâng cấp Cache**: `mashloop-v72` trong `web/sw.js` và `?v=72` trong `web/index.html`. Đồng bộ toàn bộ tài nguyên sang `dist/MashLoop/_internal/web/`.
+    4. **Kiểm thử tự động**: Chạy toàn bộ 18 test suites trong `tests/test_server_and_features.py` đạt **Exit Code 0**. Đã commit và push GitHub (`d6f4d08`).
+
 - **Khắc phục lỗi toàn bộ tham số, cài đặt và playlist bị reset về mặc định khi tải lại web (Settings Persistence Fix)**:
   - **Nguyên nhân gốc rễ**:
     1. Trong `web/js/main.js` (line 265 cũ), hàm `save()` gọi `JSON.stringify({ v: SETTINGS_VERSION, ui, player: player.settings })`. Tuy nhiên, biến `SETTINGS_VERSION` không hề được khai báo trong codebase (`ReferenceError: SETTINGS_VERSION is not defined`).
