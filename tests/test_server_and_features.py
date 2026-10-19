@@ -388,6 +388,7 @@ def test_track_cancellation_on_delete():
 def test_max_duration_guard_and_frontend_limits():
     """Verify backend max duration is 15 minutes and frontend guards protect against Web Audio OOM."""
     from loopbox import config
+    assert config.TARGET_LUFS == -14.0
     assert config.MAX_DURATION_S == 15 * 60, f"Expected 900s, got {config.MAX_DURATION_S}"
 
     api_js = (Path(__file__).parent.parent / "web" / "js" / "api.js").read_text(encoding="utf-8")
