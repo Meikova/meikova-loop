@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller specification for MashLoop Desktop Application."""
+import sys
 from pathlib import Path
 
 block_cipher = None
@@ -37,9 +38,14 @@ hiddenimports = [
     "loopbox.analysis.voice",
     "onnxruntime",
     "soundfile",
-    "clr",
-    "webview.platforms.winforms",
 ]
+
+if sys.platform == "win32":
+    hiddenimports.extend(["clr", "webview.platforms.winforms"])
+elif sys.platform == "darwin":
+    hiddenimports.extend(["webview.platforms.cocoa", "objc"])
+elif sys.platform.startswith("linux"):
+    hiddenimports.extend(["webview.platforms.gtk", "gi"])
 
 a = Analysis(
     ["mashloop_app.py"],
@@ -88,3 +94,16 @@ coll = COLLECT(
     upx_exclude=[],
     name="MashLoop",
 )
+
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="MashLoop.app",
+        icon=str(ROOT / "web" / "img" / "icon.ico") if (ROOT / "web" / "img" / "icon.ico").exists() else None,
+        bundle_identifier="com.mashloop.app",
+        info_plist={
+            "NSPrincipalClass": "NSApplication",
+            "NSAppleScriptEnabled": False,
+            "NSHighResolutionCapable": "True",
+        },
+    )

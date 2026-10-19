@@ -596,6 +596,87 @@ def test_deck_infinity_loading_path():
     assert '@keyframes trace { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -120; } }' in app_css
 
 
+def test_mediasession_windows_smtc_controls():
+    """Verify that MediaSession integration properly connects to Windows SMTC with responsive controls."""
+    media_js = Path("web/js/mediasession.js").read_text(encoding="utf-8")
+    engine_js = Path("web/js/engine.js").read_text(encoding="utf-8")
+    player_js = Path("web/js/player.js").read_text(encoding="utf-8")
+
+    # Nexttrack action must trigger skipToNext for immediate DJ transition
+    assert 'player.skipToNext' in media_js, "nexttrack must invoke player.skipToNext for instant transition"
+
+    # Previoustrack action must seek to beginning or return to previous track in history
+    assert 'player.history' in media_js and 'player.seek(0)' in media_js, "previoustrack must support history and seek(0)"
+
+    # setPositionState must have non-zero playbackRate (W3C spec)
+    assert 'playbackRate: Math.max(0.25' in media_js, "playbackRate must never be zero"
+
+    # Engine must handle external play event from OS media keys
+    assert 'this._onExternalPlay' in engine_js, "engine must listen for OS play event"
+    assert 'this.engine._onExternalPlay' in player_js, "player must hook engine._onExternalPlay"
+
+    # Player must not have invalid seekTo call
+    assert 'this.seekTo(' not in player_js, "player must use this.seek(0)"
+
+
+def test_cross_platform_releases_and_media_controls():
+    """Verify cross-platform build specifications, release workflows, download APIs, and media controls."""
+    client = TestClient(app)
+
+    # 1. Download endpoints routing
+    for target, expected_file in [
+        ("windows", "MashLoop-Windows.zip"),
+        ("desktop", "MashLoop-Windows.zip"),
+        ("macos", "MashLoop-macOS.zip"),
+        ("mac", "MashLoop-macOS.zip"),
+        ("linux", "MashLoop-Linux.tar.gz"),
+        ("apk", "MashLoop.apk"),
+        ("android", "MashLoop.apk"),
+        ("ipa", "MashLoop.ipa"),
+        ("ios", "MashLoop.ipa"),
+    ]:
+        resp = client.head(f"/api/download/{target}", follow_redirects=False)
+        assert resp.status_code in (200, 307), f"Download route /api/download/{target} must return 200 or 307, got {resp.status_code}"
+        if resp.status_code == 307:
+            loc = resp.headers.get("location", "")
+            assert expected_file in loc, f"Expected {expected_file} in redirect location, got {loc}"
+        elif resp.status_code == 200:
+            assert int(resp.headers.get("content-length", 0)) > 0, "Local file should have positive content-length"
+
+    # Invalid download target returns 404
+    resp_invalid = client.head("/api/download/unknown_target", follow_redirects=False)
+    assert resp_invalid.status_code == 404, "Invalid download target must return 404"
+
+    # 2. PyInstaller spec cross-platform support
+    spec_content = Path("mashloop.spec").read_text(encoding="utf-8")
+    assert 'sys.platform == "darwin"' in spec_content, "Spec must support macOS darwin"
+    assert 'sys.platform.startswith("linux")' in spec_content, "Spec must support Linux"
+    assert 'BUNDLE(' in spec_content, "Spec must create macOS BUNDLE"
+
+    # 3. GitHub Actions workflow cross-platform jobs
+    wf_content = Path(".github/workflows/build-release.yml").read_text(encoding="utf-8")
+    assert "build-android:" in wf_content, "Workflow must include build-android"
+    assert "build-ios:" in wf_content, "Workflow must include build-ios"
+    assert "build-windows:" in wf_content, "Workflow must include build-windows"
+    assert "build-linux:" in wf_content, "Workflow must include build-linux"
+    assert "build-macos:" in wf_content, "Workflow must include build-macos"
+
+    # 4. iOS AppDelegate audio session for background playback and lock screen controls
+    app_delegate = Path("ios/App/App/AppDelegate.swift").read_text(encoding="utf-8")
+    assert "import AVFoundation" in app_delegate, "AppDelegate must import AVFoundation"
+    assert "AVAudioSession.sharedInstance().setCategory(.playback" in app_delegate, "AppDelegate must configure playback audio session"
+
+    # 5. Frontend download cards for all 5 platforms
+    index_html = Path("web/index.html").read_text(encoding="utf-8")
+    for btn_id in ["btn-dl-desktop", "btn-dl-macos", "btn-dl-linux", "btn-dl-apk", "btn-dl-ipa"]:
+        assert f'id="{btn_id}"' in index_html, f"index.html must include download card {btn_id}"
+
+    # 6. Desktop core cross-platform volume and window safety
+    desktop_py = Path("loopbox/desktop.py").read_text(encoding="utf-8")
+    assert 'if sys.platform == "win32":' in desktop_py, "desktop.py must guard Windows ctypes"
+    assert 'class WindowsVolume:' in desktop_py, "desktop.py must provide WindowsVolume class"
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -620,6 +701,8 @@ if __name__ == "__main__":
     test_volume_150_themes_skip_and_shortcuts()
     test_downloads_and_expanded_modals()
     test_deck_infinity_loading_path()
+    test_mediasession_windows_smtc_controls()
+    test_cross_platform_releases_and_media_controls()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

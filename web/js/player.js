@@ -246,6 +246,11 @@ export class Player extends EventTarget {
     this.engine._onExternalPause = async () => {
       await this.pause();
     };
+    this.engine._onExternalPlay = async () => {
+      if (this.userPaused) {
+        await this.play();
+      }
+    };
     this.engine._onAnchorExpired = () => {
       if (this.userPaused) {
         this.dispatchEvent(new Event("expired"));
@@ -564,7 +569,7 @@ export class Player extends EventTarget {
 
     if (!targetId) {
       // Only one song: seek to start
-      this.seekTo(0);
+      this.seek(0);
       return true;
     }
 

@@ -6,11 +6,58 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 20:53:00
-- Exit Code: 0 (All 23 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`dist/MashLoop/_internal/web`, `web/downloads/MashLoop-Windows.zip`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
+- Timestamp: 2026-10-19 22:38:00
+- Exit Code: 0 (All 25 test suites passed: tests/test_server_and_features.py)
+- Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Mở rộng hỗ trợ Đa Nền tảng Toàn diện (Linux & macOS Desktop) & Universal Media Controls**:
+  - **Mục tiêu**: Xây dựng ứng dụng native desktop cho cả Linux (`.tar.gz`) và macOS (`.app` / `.zip`) song song với Windows (`.exe` / `.zip`), Android (`.apk`), iOS (`.ipa`). Đảm bảo hệ thống điều khiển phát nhạc tích hợp sâu với OS:
+    1. **Windows**: System Media Transport Controls (SMTC) overlay & phím Media phần cứng.
+    2. **iOS (iPhone/iPad)**: Lock Screen Now Playing widget, Dynamic Island, Control Center, phím tai nghe AirPods.
+    3. **macOS**: Now Playing widget, Control Center, Touch Bar, phím F7/F8/F9.
+    4. **Android**: Lock Screen Media Notification, Quick Settings media tile.
+    5. **Linux**: MPRIS2 D-Bus interface tích hợp với panel môi trường GNOME / KDE / XFCE.
+  - **Thay đổi chi tiết**:
+    1. **`loopbox/desktop.py`**:
+       - Bọc bảo vệ `ctypes.wintypes` trong `if sys.platform == "win32":` để tránh crash ImportError/AttributeError trên macOS và Linux.
+       - Cung cấp class `WindowsVolume` fallback tương thích đa nền tảng.
+    2. **`mashloop.spec`**:
+       - Tự động nhận diện nền tảng `sys.platform`:
+         - Windows: hiddenimports `clr`, `webview.platforms.winforms`.
+         - macOS (`darwin`): hiddenimports `webview.platforms.cocoa`, `objc`; cấu hình `BUNDLE` tạo `MashLoop.app` với bundle identifier `com.mashloop.app`.
+         - Linux: hiddenimports `webview.platforms.gtk`, `gi`.
+    3. **`.github/workflows/build-release.yml`**:
+       - Thêm job `build-linux` (runner `ubuntu-latest`, cài `libwebkit2gtk-4.1-dev`, `PyGObject`, nén `MashLoop-Linux.tar.gz`).
+       - Thêm job `build-macos` (runner `macos-14`, cài `pyobjc-framework-WebKit`, nén `MashLoop-macOS.zip` chứa `MashLoop.app`).
+       - Tự động phát hành đầy đủ 5 nền tảng lên GitHub Releases (`MashLoop-Windows.zip`, `MashLoop-macOS.zip`, `MashLoop-Linux.tar.gz`, `MashLoop.apk`, `MashLoop.ipa`).
+    4. **`loopbox/server.py`**:
+       - Mở rộng `/api/download/{target}` hỗ trợ `macos` (`MashLoop-macOS.zip`) và `linux` (`MashLoop-Linux.tar.gz`), tự động chuyển hướng 307 tới GitHub Releases.
+    5. **`ios/App/App/AppDelegate.swift`**:
+       - Import `AVFoundation` và cấu hình `AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .allowAirPlay, .allowBluetooth])` để giữ background audio và hiển thị widget Lock Screen / Dynamic Island.
+    6. **`web/index.html` & `web/css/app.css`**:
+       - Cập nhật modal tải ứng dụng với đủ 5 thẻ nền tảng (Windows `.EXE`, macOS `.APP`, Linux `.TAR.GZ`, Android `.APK`, iOS `.IPA`) theo chuẩn Design System (Zero-Icon, 100% Inline SVG, OKLCH, căn thẳng hàng baseline).
+       - Bổ sung thẻ hướng dẫn Desktop (Windows SMTC, macOS Now Playing, Linux MPRIS2).
+    7. **Kiểm thử tự động (`tests/test_server_and_features.py`)**:
+       - Bổ sung suite `test_cross_platform_releases_and_media_controls` kiểm tra toàn bộ 5 route download, spec, workflow, AppDelegate và HTML.
+       - Đạt 25/25 tests Pass với Exit Code 0.
+
+- **Khắc phục lỗi các nút điều khiển Media trên Windows (SMTC overlay của Edge) không thao tác được**:
+  - **Nguyên nhân**:
+    1. **Nút Next (`>>|`)**: `mediasession.js` gọi `player.requestNextSong()` chỉ bật cờ nội bộ `urgent = true` chờ bộ lập lịch tới điểm ra của bài (có thể mất vài phút hoặc không có tác dụng ở chế độ Single), không chuyển bài ngay khiến người dùng thấy bấm không phản hồi.
+    2. **Nút Previous (`|<<`)**: `mediasession.js` gọi `player.requestJump()` chỉ bật cờ `jumpNow = true` để tìm điểm nhảy trong bài thay vì tua lại đầu bài hoặc lùi về bài trước trong lịch sử phát.
+    3. **Nút Play/Pause (`||` / `▶`)**: Khi tạm dừng, `engine.stopAnchor()` trước đây thiết lập `setTimeout` 3 phút mới dừng thẻ `<audio>` chạy ngầm `silence.mp3`. Do thẻ audio vẫn `paused == false`, Edge báo cho Windows SMTC rằng media vẫn đang chạy, dẫn đến xung đột trạng thái giữa `mediaSession.playbackState = "paused"` và `HTMLMediaElement.paused = false` (Windows SMTC bị kẹt ở icon Pause `||`, không hiển thị icon Play `▶` để bấm tiếp tục). Ngoài ra thiếu sự kiện `play` trên thẻ audio để bắt lệnh phát từ phím phần cứng / SMTC.
+    4. **Lỗi W3C Media Session Spec**: `updatePositionState()` truyền `playbackRate = 0` khi dừng, vi phạm chuẩn W3C khiến Chromium ném `TypeError: The playback rate must not be zero`.
+    5. **Bug gọi hàm không tồn tại**: Trong `player.js` dòng 567 gọi `this.seekTo(0)` (hàm đúng là `this.seek(0)`).
+  - **Khắc phục**:
+    1. `safeSetHandler("nexttrack")`: chuyển sang gọi trực tiếp `await player.skipToNext()` (hoặc `forceTransition()`), thực hiện DJ crossfade mượt mà sang bài kế tiếp ngay lập tức khi bấm.
+    2. `safeSetHandler("previoustrack")`: nếu bài đã phát qua 4 ô nhịp (`beat > 16`) thì tua lại đầu bài (`player.seek(0)`); nếu ở đầu bài thì lấy bài trước từ `player.history` (`player.start(prevId)`), đúng chuẩn trải nghiệm Spotify / Apple Music / Windows Media Player.
+    3. `web/js/engine.js`: cập nhật `stopAnchor()` ngắt ngay thẻ `<audio>` để Chromium lập tức chuyển trạng thái sang Paused và đổi icon SMTC sang `▶`. Bổ sung listener `a.addEventListener("play")` và callback `_onExternalPlay` trong `player.js` để đồng bộ 2 chiều khi Windows ra lệnh Play.
+    4. `updatePositionState()`: đảm bảo `playbackRate` luôn $> 0$ (kẹp trong khoảng `0.25 .. 4.0`), loại bỏ triệt để TypeError.
+    5. Sửa `this.seekTo(0)` thành `this.seek(0)` trong `player.js`.
+    6. Bổ sung bài kiểm thử tự động `test_mediasession_windows_smtc_controls` trong `tests/test_server_and_features.py` (24/24 tests Pass).
+    7. Đồng bộ toàn bộ code sang `dist/MashLoop/_internal/web/`.
+
 - **Khắc phục lỗi chuyển động vô cực chỉ chạy nửa hình trên nút Play của Deck**:
   - **Nguyên nhân**: Trong commit `e1f5d61`, khi canh chỉnh format HTML, thẻ `<path>` của SVG `.i-load` trên nút `#btn-play` vô tình bị xoá mất nửa vòng lemniscate bên trái (` C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z`), chỉ còn vòng bên phải (`d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z"`). Khi animation `@keyframes trace` chạy với `stroke-dashoffset: 0 -> -120` và `stroke-dasharray: 26 94`, nét vẽ chỉ chạy trên vòng bên phải rồi biến mất ở nửa chu kỳ còn lại vì không còn đường dẫn SVG.
   - **Khắc phục**:

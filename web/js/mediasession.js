@@ -49,7 +49,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
       const pos = Math.min(duration, Math.max(0, track.beats?.[beat] || 0));
       navigator.mediaSession.setPositionState({
         duration: Math.max(1, duration),
-        playbackRate: player.playing ? Math.max(0.25, Math.min(4, player.cur.rate || 1)) : 0,
+        playbackRate: Math.max(0.25, Math.min(4, player.cur?.rate || 1)),
         position: Math.min(pos, Math.max(1, duration)),
       });
     } catch (_) {}
@@ -85,12 +85,23 @@ export function setupMediaSession(player, engine, getSongMeta) {
 
   safeSetHandler("play", async () => {
     navigator.mediaSession.playbackState = "playing";
-    await player.play();
+    if (player.cur) {
+      await player.play();
+    } else {
+      const first = player.loader?.metas ? [...player.loader.metas.values()].find((m) => m.status === "ready" && m.enabled !== false) : null;
+      if (first) await player.start(first.id);
+    }
+    updatePlaybackState();
+    updatePositionState();
   });
 
   safeSetHandler("pause", async () => {
     navigator.mediaSession.playbackState = "paused";
-    await player.pause();
+    if (player.cur) {
+      await player.pause();
+    }
+    updatePlaybackState();
+    updatePositionState();
   });
 
   safeSetHandler("stop", () => {
@@ -101,12 +112,43 @@ export function setupMediaSession(player, engine, getSongMeta) {
     player.stop();
   });
 
-  safeSetHandler("nexttrack", () => {
-    player.requestNextSong();
+  safeSetHandler("nexttrack", async () => {
+    if (!player.cur) return;
+    if (player.skipToNext) {
+      const ok = await player.skipToNext();
+      if (!ok && player.forceTransition) {
+        player.forceTransition();
+      }
+    } else if (player.forceTransition) {
+      player.forceTransition();
+    } else {
+      player.requestNextSong();
+    }
+    updateMetadata();
+    updatePlaybackState();
+    updatePositionState();
   });
 
-  safeSetHandler("previoustrack", () => {
-    player.requestJump();
+  safeSetHandler("previoustrack", async () => {
+    if (!player.cur) return;
+    const curBeat = player.cur.beat || 0;
+    // If more than 4 bars into track (beat > 16), restart current track from beginning
+    if (curBeat > 16) {
+      player.seek(0);
+      updatePositionState();
+      return;
+    }
+    // If near start and session history has previous songs, return to previous song
+    if (player.history && player.history.length >= 2) {
+      const prev = player.history[player.history.length - 2];
+      if (prev && prev.id && prev.id !== player.cur.track.id) {
+        await player.start(prev.id);
+        return;
+      }
+    }
+    // Fallback: seek to beginning
+    player.seek(0);
+    updatePositionState();
   });
 
   safeSetHandler("seekto", (details) => {
@@ -123,6 +165,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
         }
       }
       player.seek(bestBeat);
+      if (player.userPaused && player.cur) player.cur.beat = bestBeat;
       updatePositionState();
     }
   });
@@ -144,6 +187,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
         }
       }
       player.seek(bestBeat);
+      if (player.userPaused && player.cur) player.cur.beat = bestBeat;
       updatePositionState();
     }
   });
@@ -165,9 +209,16 @@ export function setupMediaSession(player, engine, getSongMeta) {
         }
       }
       player.seek(bestBeat);
+      if (player.userPaused && player.cur) player.cur.beat = bestBeat;
       updatePositionState();
     }
   });
+
+  if (player.cur) {
+    updateMetadata();
+    updatePlaybackState();
+    updatePositionState();
+  }
 
   // Keep position synchronized on lock screen periodically while playing
   setInterval(() => {

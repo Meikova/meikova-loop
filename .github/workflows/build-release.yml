@@ -163,3 +163,100 @@ jobs:
           files: MashLoop-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===============================================================
+  # 4. BUILD & RELEASE LINUX DESKTOP
+  # ===============================================================
+  build-linux:
+    name: Build Linux Desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies for PyWebView
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgirepository1.0-dev gir1.2-webkit2-4.1
+
+      - name: Install Python Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pyinstaller pywebview uvicorn fastapi soundfile onnxruntime PyGObject
+
+      - name: Prepare Directories and Build Desktop Executable
+        run: |
+          mkdir -p data/models
+          pyinstaller --noconfirm mashloop.spec
+
+      - name: Compress Desktop Release
+        run: |
+          tar -czvf MashLoop-Linux.tar.gz -C dist MashLoop
+          ls -lh MashLoop-Linux.tar.gz
+
+      - name: Publish Linux Desktop to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          name: "MashLoop Release ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}"
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: MashLoop-Linux.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===============================================================
+  # 5. BUILD & RELEASE MACOS DESKTOP
+  # ===============================================================
+  build-macos:
+    name: Build macOS Desktop
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pyinstaller pywebview uvicorn fastapi soundfile onnxruntime pyobjc-framework-WebKit
+
+      - name: Prepare Directories and Build Desktop App
+        run: |
+          mkdir -p data/models
+          pyinstaller --noconfirm mashloop.spec
+
+      - name: Compress macOS Desktop Release
+        run: |
+          if [ -d "dist/MashLoop.app" ]; then
+            cd dist && zip -rq ../MashLoop-macOS.zip MashLoop.app && cd ..
+          else
+            cd dist && zip -rq ../MashLoop-macOS.zip MashLoop && cd ..
+          fi
+          ls -lh MashLoop-macOS.zip
+
+      - name: Publish macOS Desktop to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          name: "MashLoop Release ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}"
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: MashLoop-macOS.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

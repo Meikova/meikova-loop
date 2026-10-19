@@ -703,6 +703,24 @@ def download_app(target: str, request: Request):
             return _serve(exe_file, "application/octet-stream", "MashLoop.exe")
         return RedirectResponse(f"{release_base}/MashLoop-Windows.zip", status_code=307)
 
+    elif target_lower in ("macos", "mac", "darwin", "osx"):
+        zip_file = dl_dir / "MashLoop-macOS.zip"
+        if zip_file.exists() and zip_file.stat().st_size > 0:
+            return _serve(zip_file, "application/zip", "MashLoop-macOS.zip")
+        dist_zip = root / "dist" / "MashLoop-macOS.zip"
+        if dist_zip.exists() and dist_zip.stat().st_size > 0:
+            return _serve(dist_zip, "application/zip", "MashLoop-macOS.zip")
+        return RedirectResponse(f"{release_base}/MashLoop-macOS.zip", status_code=307)
+
+    elif target_lower in ("linux", "tar.gz"):
+        tar_file = dl_dir / "MashLoop-Linux.tar.gz"
+        if tar_file.exists() and tar_file.stat().st_size > 0:
+            return _serve(tar_file, "application/gzip", "MashLoop-Linux.tar.gz")
+        dist_tar = root / "dist" / "MashLoop-Linux.tar.gz"
+        if dist_tar.exists() and dist_tar.stat().st_size > 0:
+            return _serve(dist_tar, "application/gzip", "MashLoop-Linux.tar.gz")
+        return RedirectResponse(f"{release_base}/MashLoop-Linux.tar.gz", status_code=307)
+
     elif target_lower in ("apk", "android"):
         apk_file = dl_dir / "MashLoop.apk"
         if apk_file.exists() and apk_file.stat().st_size > 0:

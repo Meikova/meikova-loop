@@ -23,10 +23,9 @@ except (ImportError, ValueError):
 
 logger = logging.getLogger("mashloop.desktop")
 
-import ctypes
-from ctypes import wintypes, c_float, c_void_p, byref, HRESULT, WINFUNCTYPE, Structure
-
 if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes, c_float, c_void_p, byref, HRESULT, WINFUNCTYPE, Structure
     try:
         ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
     except Exception:
@@ -39,25 +38,25 @@ if sys.platform == "win32":
                 pass
 
 
-class _GUID(Structure):
-    _fields_ = [
-        ('Data1', wintypes.DWORD),
-        ('Data2', wintypes.WORD),
-        ('Data3', wintypes.WORD),
-        ('Data4', wintypes.BYTE * 8)
-    ]
+    class _GUID(Structure):
+        _fields_ = [
+            ('Data1', wintypes.DWORD),
+            ('Data2', wintypes.WORD),
+            ('Data3', wintypes.WORD),
+            ('Data4', wintypes.BYTE * 8)
+        ]
 
-def _guid(s: str) -> _GUID:
-    g = _GUID()
-    try:
-        ctypes.oledll.ole32.CLSIDFromString(ctypes.c_wchar_p(s), byref(g))
-    except Exception:
-        pass
-    return g
+    def _guid(s: str) -> _GUID:
+        g = _GUID()
+        try:
+            ctypes.oledll.ole32.CLSIDFromString(ctypes.c_wchar_p(s), byref(g))
+        except Exception:
+            pass
+        return g
 
-class WindowsVolume:
-    """Zero-dependency Windows Core Audio Master Volume controller using ctypes."""
-    def __init__(self):
+    class WindowsVolume:
+        """Zero-dependency Windows Core Audio Master Volume controller using ctypes."""
+        def __init__(self):
         self._vol_endpoint = None
         self._get_scalar = None
         self._set_scalar = None
@@ -123,6 +122,18 @@ class WindowsVolume:
                     self._set_mute(self._vol_endpoint, 0, None)
         except Exception:
             self._init_endpoint()
+else:
+    class WindowsVolume:
+        """Fallback volume controller for non-Windows platforms (macOS / Linux)."""
+        def __init__(self):
+            pass
+
+        def get_volume(self) -> float:
+            return 1.0
+
+        def set_volume(self, val: float):
+            pass
+
 
 AUDIO_EXT = {".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".oga", ".opus", ".webm", ".aiff", ".aif", ".wma"}
 
