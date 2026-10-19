@@ -1,4 +1,4 @@
-import { api, hooks, Loader, ready, session } from "./api.js";
+import { api, hooks, isMobile, Loader, ready, session } from "./api.js";
 import { Engine } from "./engine.js";
 import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
@@ -2215,6 +2215,11 @@ async function refresh() {
     renderLibrary();
     return true;
   } catch (err) {
+    console.error("Refresh error:", err);
+    if (err instanceof ReferenceError || err instanceof TypeError) {
+      $("#worker").textContent = `Lỗi script: ${err.message}`;
+      return false;
+    }
     const msg = err?.message || "";
     if (msg.includes("quá nhiều") || msg.includes("429")) {
       $("#worker").textContent = msg;
