@@ -22,6 +22,7 @@ LINK_CHUNK = 6  # songs per linking job, so several link workers share a big lib
 _lock = threading.RLock()
 _pools: dict[str, ProcessPoolExecutor] = {}
 _ingesting: dict[str, int] = {}  # track id -> attempts
+_futures: dict[str, any] = {}  # track id -> Future
 _linking: set[tuple[str, str]] = set()  # ordered pairs being computed
 _relinking = {"on": False}
 on_ready: list[Callable[[str], None]] = []  # called with a track id once it is analysed
@@ -91,6 +92,7 @@ def _reset_pool(kind: str, broken: ProcessPoolExecutor) -> None:
 
 def enqueue_ingest(tid: str) -> None:
     with _lock:
+        library.clear_cancelled(tid)
         if tid in _ingesting:
             return
         _ingesting[tid] = _ingesting.get(tid, 0)
@@ -98,30 +100,57 @@ def enqueue_ingest(tid: str) -> None:
 
 
 def _submit_ingest(tid: str) -> None:
-    pool = _pool("ingest")
-    fut = pool.submit(_ingest_job, tid)
+    with _lock:
+        if library.is_cancelled(tid):
+            _ingesting.pop(tid, None)
+            return
+        pool = _pool("ingest")
+        fut = pool.submit(_ingest_job, tid)
+        _futures[tid] = fut
     fut.add_done_callback(lambda f: _ingest_done(tid, pool, f))
 
 
+def cancel(tid: str) -> bool:
+    """Cancels background ingestion/analysis of a track immediately."""
+    with _lock:
+        library.mark_cancelled(tid)
+        fut = _futures.pop(tid, None)
+        if fut:
+            fut.cancel()
+        _ingesting.pop(tid, None)
+        return True
+
+
+def cancel_many(tids: list[str]) -> int:
+    with _lock:
+        for tid in tids:
+            cancel(tid)
+        return len(tids)
+
+
 def _ingest_done(tid: str, pool, fut) -> None:
+    with _lock:
+        _futures.pop(tid, None)
+        was_ingesting = _ingesting.pop(tid, None)
+    if library.is_cancelled(tid) or fut.cancelled():
+        library.clear_cancelled(tid)
+        return
     status = "error"
     try:
         status = fut.result()
     except BrokenProcessPool:
         _reset_pool("ingest", pool)
         with _lock:
-            tries = _ingesting.get(tid, 0) + 1
+            tries = (was_ingesting or 0) + 1
             _ingesting[tid] = tries
-        if tries < 2:
-            with _lock:
-                _submit_ingest(tid)
+        if tries < 2 and not library.is_cancelled(tid):
+            _submit_ingest(tid)
             return
-        library.update(tid, status="error", stage="error", progress=0.0, error="máy phân tích bị lỗi với bài này")
+        if not library.is_cancelled(tid):
+            library.update(tid, status="error", stage="error", progress=0.0, error="máy phân tích bị lỗi với bài này")
     except Exception:
-        traceback.print_exc()
-    with _lock:
-        _ingesting.pop(tid, None)
-    if status == "ready":
+        pass
+    if status == "ready" and not library.is_cancelled(tid):
         for cb in on_ready:
             try:
                 cb(tid)

@@ -80,8 +80,11 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
             on_update(m)
 
     try:
+        if library.is_cancelled(tid):
+            library.clear_cancelled(tid)
+            return "error"
         meta = library.read_meta(tid)
-        if meta is None:
+        if meta is None or library.is_cancelled(tid):
             return "error"
         if (meta.get("analysis_version") or 0) > ANALYSIS_VERSION:
             raise RuntimeError("analysed by a newer Mash ∞ Loop version: restart the server")
@@ -97,6 +100,10 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
             else:
                 stage("downloading", 0.0, status="downloading")
                 src, info = download.download(meta, d, lambda p: stage("downloading", 0.3 * p, status="downloading"))
+                if library.is_cancelled(tid):
+                    library.clear_cancelled(tid)
+                    library.delete(tid)
+                    return "error"
                 if info:
                     library.update(tid, title=info["title"], channel=info["channel"],
                                    duration=info.get("duration"), thumbnail=info.get("thumbnail") or meta.get("thumbnail"),
@@ -128,6 +135,10 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
                 stage("ready", 1.0, status="ready", error=None)
                 return "ready"
 
+        if library.is_cancelled(tid):
+            library.clear_cancelled(tid)
+            library.delete(tid)
+            return "error"
         from .analysis import pipeline
         stage("analyzing", 0.32, status="analyzing")
         stats = pipeline.analyze(tid, lambda s, p: stage(s, 0.32 + 0.66 * p, status="analyzing"))
@@ -135,6 +146,10 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
         stage("ready", 1.0, status="ready", error=None)
         return "ready"
     except Exception as e:  # surfaced in the UI, never kills the worker
+        if library.is_cancelled(tid) or "huỷ" in str(e).lower() or "cancel" in str(e).lower():
+            library.clear_cancelled(tid)
+            library.delete(tid)
+            return "error"
         err_msg = str(e) if isinstance(e, RuntimeError) else download.clean_error(e)
         logger.warning(f"Nạp bài thất bại ({tid}): {err_msg}")
         stage("error", 0.0, status="error", error=err_msg)

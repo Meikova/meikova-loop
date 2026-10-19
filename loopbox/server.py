@@ -402,6 +402,10 @@ def delete(tid: str, v: sessions.View = Depends(view_of)):
     """Hosted, the song only leaves this library (the store keeps it for others)."""
     _meta(tid)
     v.remove(tid)
+    m = library.read_meta(tid) or {}
+    if not MULTIUSER or not sessions.in_use(tid) or m.get("status") != "ready":
+        worker.cancel(tid)
+        library.delete(tid)
     return {"deleted": tid}
 
 
@@ -410,6 +414,11 @@ def batch(req: BatchRequest, v: sessions.View = Depends(view_of)):
     ids = [t for t in req.ids if library.valid_id(t)]
     if req.action == "delete":
         v.remove_many(ids)
+        for tid in ids:
+            m = library.read_meta(tid) or {}
+            if not MULTIUSER or not sessions.in_use(tid) or m.get("status") != "ready":
+                worker.cancel(tid)
+                library.delete(tid)
         return {"deleted": ids}
     elif req.action == "enable":
         v.set_enabled_many(ids, True)

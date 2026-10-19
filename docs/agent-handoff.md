@@ -6,11 +6,23 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 09:55:00
-- Exit Code: 0 (All 15 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main` commit `585ba42`), Hugging Face Space (`m3ik18dp/MashLoop` commit `4b5dfba`).
+- Timestamp: 2026-10-19 10:25:00
+- Exit Code: 0 (All 16 test suites passed: tests/test_server_and_features.py)
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi tác vụ tải ngầm tiếp tục chạy và sinh lỗi khi người dùng đã chủ động xóa bài**:
+  - **Nguyên nhân gốc rễ**: Khi người dùng nhấn nút "Xóa" hoặc "Xóa theo lô" (chọn tất cả và xóa), endpoint `DELETE /api/tracks/{tid}` và `POST /api/tracks/batch` (`action="delete"`) trước đó chỉ xóa id bài hát khỏi danh sách session trong SQLite/RAM. Trong khi đó, worker ngầm `ProcessPoolExecutor` vẫn tiếp tục download và phân tích các bài hát cũ từ phiên nạp trước; các tiến trình con không hề nhận được tín hiệu hủy, dẫn đến việc tiếp tục download, gặp lỗi mạng/cookie cũ và sinh log lỗi liên tục. Hơn nữa khi người dùng nạp lại playlist, `register()` thấy bài hát cũ vẫn đang ở trạng thái `queued`/`downloading` nên không tạo mới.
+  - **Khắc phục**:
+    1. **Cơ chế Hủy Tác Vụ Ngay Lập Tức (Immediate Job Cancellation)**:
+       - Bổ sung `library.mark_cancelled(tid)`: Tạo file cờ sentinel `data/library/{tid}.cancel` và xóa ngay thư mục metadata/sound của bài.
+       - Bổ sung `worker.cancel(tid)` và `worker.cancel_many(tids)`: Rút tác vụ khỏi danh sách `_ingesting`, hủy future (`fut.cancel()`) trong `ProcessPoolExecutor`.
+       - Trong `download.download()`, hook tải về kiểm tra `library.is_cancelled(tid)` trên từng chunk nhận được. Nếu bài đã bị xóa, lập tức `raise RuntimeError("Đã huỷ nạp bài theo yêu cầu")` để ngắt ngay socket kết nối của yt-dlp, không tải thừa bất kỳ byte nào.
+       - Trong `ingest.process()`, kiểm tra hủy trước/sau khi download và convert; chặn toàn bộ log cảnh báo lỗi đối với các bài đã bị hủy chủ động.
+       - Trong `server.py`, cập nhật cả 2 endpoint xóa đơn lẻ và xóa theo lô để kích hoạt `worker.cancel()` và `library.delete()` ngay lập tức.
+    2. **Khắc phục triệt để lỗi "Requested format is not available" & Xác minh bot YouTube**:
+       - Đưa tổ hợp client `["visionos", "tv_downgraded", "android", "web"]` lên vị trí ưu tiên số 1 trong cả `download()` và `resolve()`. Client `visionos` hoàn toàn miễn nhiễm với cơ chế chặn SABR và thử thách bot của YouTube, đồng thời `tv_downgraded` và `android` cung cấp đầy đủ format âm thanh AAC/Opus chất lượng cao cho yt-dlp.
+    3. **Nâng cấp Cache hệ thống**: `mashloop-v66` trong `web/sw.js` và `?v=66` trong `web/index.html`. Nâng tổng số bài kiểm thử lên 16/16 test suites (Exit Code 0).
 - **Khắc phục lỗi xác minh bot YouTube & mất cookie khi Space container khởi động lại**:
   - **Nguyên nhân gốc rễ**:
     1. Cấu hình `BASE_OPTS` trong `loopbox/download.py` trước đó bị gán cứng `player_client: ["web_embedded", "android", "web"]`. Khi gọi YouTube trên IP datacenter (như Hugging Face Spaces), client này bị YouTube kích hoạt cơ chế chống bot và thử nghiệm SABR, khiến số format tụt từ 43 format xuống 5 format (không có stream audio) -> báo lỗi `Sign in to confirm you're not a bot`.

@@ -361,6 +361,7 @@ def resolve(text: str) -> list[dict]:
     cookie_passes = [True, False] if has_cookies else [False]
 
     clients = (
+        ["visionos", "tv_downgraded", "android", "web"],
         None,
         ["android"],
         ["web"],
@@ -473,6 +474,8 @@ def clean_error(err: str | Exception) -> str:
         return "Kênh YouTube đăng video này đã bị khóa tài khoản"
     if "terms of service" in low:
         return "Video bị gỡ do vi phạm điều khoản YouTube"
+    if "huỷ" in low or "cancel" in low:
+        return "Đã huỷ nạp bài theo yêu cầu"
     if "requested format is not available" in low or "no formats" in low:
         return "Video không khả dụng hoặc định dạng bị hạn chế"
     if "private video" in low:
@@ -492,12 +495,18 @@ def clean_error(err: str | Exception) -> str:
 
 def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | None = None) -> tuple[Path, dict]:
     """Fetches the best audio of a registered track into dest_dir/source.*"""
+    from . import library
+    tid = meta.get("id") or ""
+    if tid and library.is_cancelled(tid):
+        raise RuntimeError("Đã huỷ nạp bài theo yêu cầu")
     site = meta.get("source") or "youtube"
     url = f"https://www.youtube.com/watch?v={meta['id']}" if site == "youtube" else meta["url"]
     if site_of(url) is None:
         raise ValueError("link không thuộc nguồn được hỗ trợ hoặc địa chỉ không hợp lệ")
 
     def hook(d):
+        if tid and library.is_cancelled(tid):
+            raise RuntimeError("Đã huỷ nạp bài theo yêu cầu")
         if on_progress and d.get("status") == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate")
             if total:
@@ -512,6 +521,7 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
     clients = (
+        ["visionos", "tv_downgraded", "android", "web"],
         None,
         ["android"],
         ["web"],
@@ -521,6 +531,8 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     ) if site == "youtube" else (None,)
     for use_cookies in cookie_passes:
         for client in clients:
+            if tid and library.is_cancelled(tid):
+                raise RuntimeError("Đã huỷ nạp bài theo yêu cầu")
             for stale in dest_dir.glob("source.*"):
                 stale.unlink(missing_ok=True)
             opts = _opts(site, use_cookies=use_cookies, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),

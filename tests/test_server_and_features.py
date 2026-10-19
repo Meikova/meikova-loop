@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v65" in sw_js
-    assert "app.css?v=65" in index_html
-    assert "main.js?v=65" in index_html
-    assert "sw.js?v=65" in index_html
+    assert "mashloop-v66" in sw_js
+    assert "app.css?v=66" in index_html
+    assert "main.js?v=66" in index_html
+    assert "sw.js?v=66" in index_html
 
     # Segmented tabs SVG icons
     assert '<button type="button" data-tab="library"' in index_html or 'data-tab="library"' in index_html
@@ -350,6 +350,21 @@ def test_cookies_api_and_playlist_scroll_navigation():
     assert "cookie-modal" in index_html
     assert "initCookieManagement" in main_js
 
+def test_track_cancellation_on_delete():
+    from loopbox import library, worker
+    client = TestClient(app)
+    test_id = "testcanc001"
+    library.create(test_id, source="test", url="http://example.com", title="Test Cancel", status="queued", stage="queued")
+    assert library.is_cancelled(test_id) is False
+    worker.enqueue_ingest(test_id)
+    assert test_id in worker._ingesting
+
+    res = client.delete(f"/api/tracks/{test_id}")
+    assert res.status_code == 200
+    assert library.is_cancelled(test_id) is True
+    assert test_id not in worker._ingesting
+    library.clear_cancelled(test_id)
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -366,5 +381,6 @@ if __name__ == "__main__":
     test_volume_svg_bounds_and_night_button()
     test_download_error_handling_and_ui_cleanup()
     test_cookies_api_and_playlist_scroll_navigation()
+    test_track_cancellation_on_delete()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 

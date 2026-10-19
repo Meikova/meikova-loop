@@ -200,6 +200,40 @@ def delete(tid: str) -> None:
             (d / f"{tid}.json").unlink(missing_ok=True)
 
 
+def mark_cancelled(tid: str) -> None:
+    """Marks a track as cancelled so background workers abort it immediately."""
+    if not valid_id(tid):
+        return
+    try:
+        LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+        (LIBRARY_DIR / f"{tid}.cancel").touch()
+    except OSError:
+        pass
+    delete(tid)
+
+
+def is_cancelled(tid: str) -> bool:
+    """Checks if a track has been cancelled or deleted by user."""
+    if not valid_id(tid):
+        return True
+    try:
+        if (LIBRARY_DIR / f"{tid}.cancel").exists():
+            return True
+        d = track_dir(tid)
+        return not d.exists() or not (d / "meta.json").exists()
+    except Exception:
+        return True
+
+
+def clear_cancelled(tid: str) -> None:
+    if not valid_id(tid):
+        return
+    try:
+        (LIBRARY_DIR / f"{tid}.cancel").unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def samples_path() -> Path:
     return LIBRARY_DIR.parent / "samples.json"
 
