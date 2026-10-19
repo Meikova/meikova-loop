@@ -11,6 +11,14 @@
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi "Requested format is not available" & Xác minh bot YouTube trên Cloud/Local**:
+  - **Nguyên nhân gốc rễ**:
+    1. Danh sách `clients` trong `resolve()` và `download()` trước đó chỉ xoay vòng quanh `web_embedded` và `mweb`, không bao giờ thử client chuẩn mặc định (`None`) hay `["android", "web"]`. Khi người dùng nạp cookie, YouTube áp dụng SABR trên `web_embedded`, khiến yt-dlp chỉ nhận diện ảnh storyboard (0 format âm thanh/video) -> `Requested format is not available`.
+    2. Trên môi trường đám mây Hugging Face Space (Gradio image), hệ thống hoàn toàn thiếu Javascript engine (không có Node lẫn Deno). Khi yt-dlp gặp thử thách `n-sig challenge`, do không giải mã được chữ ký nên YouTube tước bỏ mọi luồng audio.
+  - **Khắc phục**:
+    1. Đưa `None` (cấu hình mặc định tự thích ứng của yt-dlp), `["android", "web"]`, `["web_embedded", "android", "web"]`, và `["mweb"]` vào chuỗi fallback của cả `resolve()` và `download()`.
+    2. Tích hợp cơ chế tự động cài đặt Deno `_ensure_deno()` trong `app.py`: Tự động tải standalone binary Deno (35MB) trên Linux container khi khởi động, đưa vào PATH để yt-dlp giải mã chữ ký n-sig 100%.
+    3. Đã khởi động lại server local chạy nền trên `0.0.0.0:8765` (PID: 32188).
 - **Triển khai Kiến trúc Giấu Mã Nguồn Tuyệt Đối trên Hugging Face Spaces (Private Code Loader)**:
   - **Mục tiêu**: Người dùng muốn repo Space để Public (để web app `https://m3ik18dp-mashloop.hf.space` ai cũng dùng được), nhưng giấu 100% mã nguồn dự án (`loopbox/`, `web/`) và xóa sạch lịch sử commit cũ trên Space.
   - **Triển khai**:
