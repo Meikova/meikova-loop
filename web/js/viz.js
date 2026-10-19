@@ -177,6 +177,16 @@ export class Viz {
     for (const ring of this.rings.values()) ring.layerKey = "";
   }
 
+  setScale(scale) {
+    const s = Math.max(0.6, Math.min(1.5, +scale || 1.0));
+    if (Math.abs((this.scale || 1.0) - s) > 0.005) {
+      this.scale = s;
+      this.layerR = null;
+      this._resize();
+      this.invalidate();
+    }
+  }
+
   get reduced() {
     return reduceMQ.matches;
   }
@@ -196,7 +206,7 @@ export class Viz {
     this.canvas.style.height = `${h}px`;
     this.ctx.imageSmoothingEnabled = true;
     this.ctx.imageSmoothingQuality = "high";
-    this.baseR = Math.round(Math.min(w, h) * 0.37);
+    this.baseR = Math.round(Math.min(w, h) * 0.37 * (this.scale || 1.0));
     // Redraw layers when scale changes by more than 2% to keep hairlines crisp
     if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.02) {
       this.layerR = this.baseR;
@@ -214,11 +224,12 @@ export class Viz {
   _layout(two, swap = 0) {
     const { w, h } = this;
     const k = SECOND_RATIO;
-    if (!two) return { a: { x: w / 2, y: h / 2, r: Math.min(w, h) * 0.37 } };
+    const sc = this.scale || 1.0;
+    if (!two) return { a: { x: w / 2, y: h / 2, r: Math.min(w, h) * 0.37 * sc } };
     const s = easeInOut(Math.max(0, Math.min(1, swap)));
     const fa = 1 - (1 - k) * s, fb = k + (1 - k) * s;
     if (w >= h * 1.05) {
-      const R = Math.min(h * 0.37, (w * 0.86) / (2 * (1 + k)));
+      const R = Math.min(h * 0.37, (w * 0.86) / (2 * (1 + k))) * sc;
       const x0 = (w - 2 * R * (1 + k)) / 2;
       return {
         a: { x: x0 + fa * R, y: h / 2, r: fa * R, face: 0 },
@@ -226,7 +237,7 @@ export class Viz {
         cross: { x: x0 + 2 * fa * R, y: h / 2 },
       };
     }
-    const R = Math.min(w * 0.37, (h * 0.86) / (2 * (1 + k)));
+    const R = Math.min(w * 0.37, (h * 0.86) / (2 * (1 + k))) * sc;
     const y0 = (h - 2 * R * (1 + k)) / 2;
     return {
       a: { x: w / 2, y: y0 + fa * R, r: fa * R, face: Math.PI / 2 },

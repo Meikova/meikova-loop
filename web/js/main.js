@@ -256,6 +256,9 @@ const ui = {
   lockToPlaylist: false,
   libSortMode: "default",
   activeTab: "library",
+  panelWidth: 420,
+  vizScale: 1.0,
+  uiScale: 1.0,
 };
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -366,6 +369,28 @@ function applySettings() {
   if (glowInput) glowInput.value = ui.glow;
   const glowVal = $("#v-glow");
   if (glowVal) glowVal.textContent = `${Math.round(ui.glow * 100)}%`;
+  if (ui.panelWidth) {
+    document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);
+    const sPanelW = $("#s-panel-w");
+    if (sPanelW) sPanelW.value = ui.panelWidth;
+    const vPanelW = $("#v-panel-w");
+    if (vPanelW) vPanelW.textContent = `${ui.panelWidth} px`;
+  }
+  if (ui.vizScale !== undefined) {
+    viz.setScale?.(ui.vizScale);
+    const sVizScale = $("#s-viz-scale");
+    if (sVizScale) sVizScale.value = Math.round(ui.vizScale * 100);
+    const vVizScale = $("#v-viz-scale");
+    if (vVizScale) vVizScale.textContent = `${Math.round(ui.vizScale * 100)}%`;
+  }
+  if (ui.uiScale !== undefined) {
+    document.documentElement.style.setProperty("--ui-scale", ui.uiScale);
+    document.documentElement.style.fontSize = `${16 * ui.uiScale}px`;
+    const sUiScale = $("#s-ui-scale");
+    if (sUiScale) sUiScale.value = Math.round(ui.uiScale * 100);
+    const vUiScale = $("#v-ui-scale");
+    if (vUiScale) vUiScale.textContent = `${Math.round(ui.uiScale * 100)}%`;
+  }
   document.querySelectorAll('input[type="range"]').forEach(syncRange);
   for (const b of document.querySelectorAll(".mode button")) {
     const on = b.dataset.mode === s.mode;
@@ -472,6 +497,20 @@ $("#s-glow")?.addEventListener("input", (e) => {
   recolor();
   applySettings();
 });
+
+$("#s-panel-w")?.addEventListener("input", (e) => {
+  ui.panelWidth = +e.target.value;
+  applySettings();
+});
+$("#s-viz-scale")?.addEventListener("input", (e) => {
+  ui.vizScale = +e.target.value / 100;
+  applySettings();
+});
+$("#s-ui-scale")?.addEventListener("input", (e) => {
+  ui.uiScale = +e.target.value / 100;
+  applySettings();
+});
+
 
 // The theme tiles preview their colours with three songs of this library.
 function renderLooks() {

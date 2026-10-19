@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=70" />
+    <link rel="stylesheet" href="css/app.css?v=71" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -732,6 +732,34 @@
               >
               <input id="s-glow" type="range" min="0" max="2" step="0.05" value="1" />
               <small>Chỉnh độ rực rỡ neon của nút bấm, viền và ánh sáng phòng</small>
+            </label>
+          </section>
+
+          <section class="group" aria-labelledby="g-size">
+            <h2 class="label" id="g-size">Kích thước & Tỷ lệ thành phần</h2>
+            <label class="row">
+              <span class="row__head">
+                <span>Độ rộng thư viện & tinh chỉnh</span>
+                <em id="v-panel-w" class="mono">420 px</em>
+              </span>
+              <input id="s-panel-w" type="range" min="300" max="700" step="10" value="420" />
+              <small>Chỉnh độ rộng cột thư viện (hoặc kéo thả viền giữa 2 cột)</small>
+            </label>
+            <label class="row">
+              <span class="row__head">
+                <span>Kích thước vòng vô cực</span>
+                <em id="v-viz-scale" class="mono">100%</em>
+              </span>
+              <input id="s-viz-scale" type="range" min="70" max="130" step="5" value="100" />
+              <small>Thu nhỏ hoặc phóng to 2 vòng tròn sân khấu</small>
+            </label>
+            <label class="row">
+              <span class="row__head">
+                <span>Tỷ lệ chữ & giao diện</span>
+                <em id="v-ui-scale" class="mono">100%</em>
+              </span>
+              <input id="s-ui-scale" type="range" min="80" max="125" step="5" value="100" />
+              <small>Thu phóng tỷ lệ kích thước chữ và các nút bấm toàn trang</small>
             </label>
           </section>
 
@@ -1498,14 +1526,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=70"></script>
+    <script type="module" src="js/main.js?v=71"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=70")
+          .register("sw.js?v=71")
           .then((reg) => {
             reg.update();
           })
