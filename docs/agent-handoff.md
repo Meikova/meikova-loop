@@ -6,11 +6,30 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 13:25:00
-- Exit Code: 0 (All 17 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`, commit `9c14ceb`), Hugging Face Space (`m3ik18dp/MashLoop`).
+- Timestamp: 2026-10-19 14:45:00
+- Exit Code: 0 (All 18 test suites passed: tests/test_server_and_features.py)
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`, commit `c3eecf0`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi toàn bộ tham số, cài đặt và playlist bị reset về mặc định khi tải lại web (Settings Persistence Fix)**:
+  - **Nguyên nhân gốc rễ**:
+    1. Trong `web/js/main.js` (line 265 cũ), hàm `save()` gọi `JSON.stringify({ v: SETTINGS_VERSION, ui, player: player.settings })`. Tuy nhiên, biến `SETTINGS_VERSION` không hề được khai báo trong codebase (`ReferenceError: SETTINGS_VERSION is not defined`).
+    2. Do hàm `save()` bọc trong `try ... catch (_) { /* storage unavailable */ }`, lỗi `ReferenceError` bị nuốt chửng âm thầm (vi phạm nguyên tắc *Fail Loudly*).
+    3. Kết quả: Bất kỳ thay đổi nào của người dùng (âm lượng, giao diện màu sắc, độ sáng neon, thời gian ở lại dwell min/max, tần suất nhảy, bộ lọc chuyển bài cut/drop/blend..., độ đa dạng, danh sách kho nhạc, v.v.) đều **không bao giờ được ghi vào `localStorage`**. Mỗi khi F5 hoặc tải lại trang web, `localStorage.getItem("loopbox.settings.v1")` luôn trả về `null` khiến toàn bộ tham số bị reset về mặc định gốc.
+    4. Thêm vào đó: switch `#s-tempo` thiếu `addEventListener`; các trạng thái `activePlaylistId`, `lockToPlaylist`, `libSortMode`, `activeTab` chưa được liên kết đồng bộ vào `ui`.
+  - **Khắc phục**:
+    1. **Khai báo chuẩn xác `SETTINGS_VERSION = 2`** trong `web/js/main.js`.
+    2. **Đồng bộ toàn diện cấu hình vào `ui`**:
+       - Bổ sung `activePlaylistId`, `lockToPlaylist`, `libSortMode`, `activeTab` vào đối tượng `ui`.
+       - Lưu vào `localStorage` lập tức khi người dùng click chip playlist, đổi kiểu sắp xếp (sort), chuyển tab (library/settings) hoặc toggle chế độ lock.
+       - Tự động khôi phục đúng tab đang đứng và sắp xếp thư viện khi tải lại trang web.
+    3. **Bổ sung API lưu trữ trên server backend (`/api/settings`)**:
+       - Tạo 2 endpoint `GET /api/settings` và `POST /api/settings` trong `loopbox/server.py` lưu file `data/settings.json`.
+       - Đồng bộ 2 chiều: Client lưu nhanh vào `localStorage` (phản hồi tức thì 0ms, không lag giao diện) và tự động debounce gửi bản sao lên server (`data/settings.json`) để đồng bộ xuyên suốt giữa Web browser và Desktop App.
+    4. **Bổ sung event listener cho switch `#s-tempo`** để ghi nhận và lưu cài đặt đồng bộ tempo.
+    5. **Nâng cấp Cache**: `mashloop-v70` trong `web/sw.js` và `?v=70` trong `web/index.html`. Đồng bộ tài nguyên sang `dist/MashLoop/_internal/web/`.
+    6. **Kiểm thử tự động**: Viết test suite `test_settings_api_and_client_persistence()` trong `tests/test_server_and_features.py` (Toàn bộ 18 test suites passed, Exit Code 0). Đã commit và push GitHub (`c3eecf0`).
+
 - **Khắc phục lỗi worker bị dừng xử lý hàng đợi (ProcessPoolExecutor Deadlock on Windows)**:
   - **Nguyên nhân gốc rễ**: Khi thêm `max_tasks_per_child = 3` vào `ProcessPoolExecutor`, trên môi trường Windows (`mp_context="spawn"`), tiến trình con sau khi hoàn thành 3 tác vụ sẽ tự thoát để hệ thống spawn tiến trình mới. Tuy nhiên trên Windows, luồng quản lý hàng đợi `_queue_management_worker` của Python gặp tình trạng deadlock với pipe IPC sau 3 chu kỳ tái sinh (đúng 9 tác vụ) khiến hàng đợi dừng lại hoàn toàn, các bài còn lại bị kẹt ở trạng thái `đang chờ · 0%`.
   - **Khắc phục**:
