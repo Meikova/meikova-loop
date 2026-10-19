@@ -6,11 +6,25 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 15:36:00
-- Exit Code: 0 (All 19 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`).
+- Timestamp: 2026-10-19 15:50:00
+- Exit Code: 0 (All 20 test suites passed: tests/test_server_and_features.py)
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Tính năng thanh trượt "Chuyển bài muộn nhất sau" (Dwell Max) động theo giới hạn nền tảng Server (Dynamic Dwell Duration Limits)**:
+  - **Bối cảnh & Yêu cầu**:
+    1. Mỗi nền tảng có giới hạn độ dài video khác nhau: Desktop / Local app cho phép xử lý video dài tới 60 phút (`3600s`), trong khi HF Space / Multiuser giới hạn 15 phút (`900s`).
+    2. Thanh trượt `#s-dmax` ("Chuyển bài muộn nhất sau") trước đây bị fix cứng `max="900"` trong HTML, khiến người dùng Desktop không thể kéo lên trên 15 phút cho các mixtape / DJ set dài.
+  - **Triển khai**:
+    1. **Backend Platform-Aware (`loopbox/config.py`)**: `MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60 if MULTIUSER else 60 * 60)`. Tự động nhận diện 15 phút trên Space/Multiuser và 60 phút trên Desktop/Local.
+    2. **Truyền `max_duration_s` qua các Endpoint Backend**: Bổ sung `max_duration_s` vào `@app.post("/api/session")` (trong `limits`), `@app.get("/api/tracks")`, và `@app.get("/api/settings")` trong `loopbox/server.py`.
+    3. **Tự động điều chỉnh Slider Frontend (`web/js/main.js`)**:
+       - Hàm `updateDurationLimits(maxSeconds)` cập nhật thuộc tính `.max` và `.step` của `#s-dmax` và `#s-dmin` dựa theo thông số trả về từ backend server.
+       - Với desktop (3600s): `#s-dmax` tự động mở rộng trần lên 60 phút (step 30s), `#s-dmin` mở rộng trần lên 30 phút.
+       - Tự động gọi khi nhận dữ liệu từ `/api/settings`, `/api/session`, và trong chu kỳ `refresh()` của `/api/tracks`.
+    4. **Nâng cấp Cache**: `mashloop-v74` trong `web/sw.js` và `?v=74` trong `web/index.html`. Đồng bộ sang `dist/MashLoop/_internal/web/`.
+    5. **Kiểm thử tự động**: Viết test suite `test_dynamic_dwell_and_server_duration_limits()` trong `tests/test_server_and_features.py` (Toàn bộ 20 test suites passed, Exit Code 0).
+
 - **Khắc phục lỗi thanh trượt "Kích thước vòng vô cực" làm đổi màu thay vì đổi kích thước (Viz Scaling & Glow Decoupling Fix)**:
   - **Nguyên nhân gốc rễ**:
     1. **Kích thước bị triệt tiêu khi đang kéo (Scale Cancellation)**: Trong `web/js/viz.js`, hàm `setScale(s)` cập nhật `this.scale = s` và `this.layerR = this.baseR`. Tuy nhiên các vòng tròn `ring.r` đang phát được nội suy chậm bằng hàm exponential decay (`ring.r += (tg.r - ring.r) * k`). Trong `_drawRing`, hệ số tỉ lệ `s = ring.r / L.RL`. Khi `L.RL` lập tức mang giá trị mới trong khi `ring.r` còn giữ giá trị cũ, `s` đã tỉ lệ nghịch kéo thu nhỏ canvas texture về đúng kích thước cũ, làm vòng tròn không thay đổi kích thước tức thì khi người dùng đang kéo thanh trượt. Ngoài ra, hình vẽ `_idleGeom()` (2 vòng vô cực lúc chờ) hoàn toàn không nhân hệ số `this.scale`.

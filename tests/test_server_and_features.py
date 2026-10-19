@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v73" in sw_js
-    assert "app.css?v=73" in index_html
-    assert "main.js?v=73" in index_html
-    assert "sw.js?v=73" in index_html
+    assert "mashloop-v74" in sw_js
+    assert "app.css?v=74" in index_html
+    assert "main.js?v=74" in index_html
+    assert "sw.js?v=74" in index_html
 
     # Proportions & sizing resizer and sliders
     assert 'id="panel-resizer"' in index_html
@@ -466,6 +466,26 @@ def test_viz_scaling_and_glow_stability():
     assert "viz.setScale?.(ui.vizScale);" in main_js
 
 
+def test_dynamic_dwell_and_server_duration_limits():
+    root = Path(__file__).resolve().parent.parent
+    server_py = (root / "loopbox" / "server.py").read_text(encoding="utf-8")
+    config_py = (root / "loopbox" / "config.py").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+
+    # Server config must have MAX_DURATION_S platform-aware
+    assert "MAX_DURATION_S" in config_py
+    assert "15 * 60 if MULTIUSER else 60 * 60" in config_py
+
+    # Server endpoints must return max_duration_s
+    assert '"max_duration_s": MAX_DURATION_S' in server_py
+
+    # Frontend must have updateDurationLimits
+    assert "function updateDurationLimits(maxSeconds)" in main_js
+    assert "dmaxInput.max = maxSeconds;" in main_js
+    assert "dminInput.max = newDminMax;" in main_js
+    assert "if (r.max_duration_s) updateDurationLimits(r.max_duration_s);" in main_js
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -486,6 +506,7 @@ if __name__ == "__main__":
     test_max_duration_guard_and_frontend_limits()
     test_settings_api_and_client_persistence()
     test_viz_scaling_and_glow_stability()
+    test_dynamic_dwell_and_server_duration_limits()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

@@ -276,24 +276,62 @@ try {
   console.warn("Could not load local settings:", e);
 }
 
+export function updateDurationLimits(maxSeconds) {
+  if (!maxSeconds || typeof maxSeconds !== "number" || maxSeconds <= 0) return;
+  const dmaxInput = $("#s-dmax");
+  const dminInput = $("#s-dmin");
+  if (!dmaxInput || !dminInput) return;
+
+  const currentMax = +dmaxInput.max;
+  if (currentMax === maxSeconds) return;
+
+  dmaxInput.max = maxSeconds;
+  dmaxInput.step = maxSeconds > 1200 ? 30 : 10;
+
+  const newDminMax = Math.min(1800, Math.floor(maxSeconds / 2));
+  dminInput.max = newDminMax;
+  dminInput.step = newDminMax > 600 ? 20 : 10;
+
+  if (player.settings.dwellMax > maxSeconds) {
+    player.settings.dwellMax = maxSeconds;
+  }
+  if (player.settings.dwellMin > player.settings.dwellMax) {
+    player.settings.dwellMin = player.settings.dwellMax;
+  }
+
+  syncRange(dmaxInput);
+  syncRange(dminInput);
+  const vdmax = $("#v-dmax");
+  if (vdmax) vdmax.textContent = fmt(player.settings.dwellMax);
+  const vdmin = $("#v-dmin");
+  if (vdmin) vdmin.textContent = fmt(player.settings.dwellMin);
+}
+
 // Fetch server settings and merge if available
 fetch("/api/settings")
   .then((r) => (r.ok ? r.json() : null))
   .then((serverData) => {
-    if (serverData && (serverData.ui || serverData.player)) {
-      const localEmpty = !localStorage.getItem(STORE);
-      if (localEmpty) {
-        if (serverData.ui) Object.assign(ui, serverData.ui);
-        if (serverData.player) {
-          Object.assign(player.settings, serverData.player);
-          player.settings.allow = { ...DEFAULTS.allow, ...(serverData.player.allow || {}) };
-          player.settings.blendStyles = { ...DEFAULTS.blendStyles, ...(serverData.player.blendStyles || {}) };
+    if (serverData) {
+      if (serverData.max_duration_s) updateDurationLimits(serverData.max_duration_s);
+      if (serverData.ui || serverData.player) {
+        const localEmpty = !localStorage.getItem(STORE);
+        if (localEmpty) {
+          if (serverData.ui) Object.assign(ui, serverData.ui);
+          if (serverData.player) {
+            Object.assign(player.settings, serverData.player);
+            player.settings.allow = { ...DEFAULTS.allow, ...(serverData.player.allow || {}) };
+            player.settings.blendStyles = { ...DEFAULTS.blendStyles, ...(serverData.player.blendStyles || {}) };
+          }
+          applySettings();
         }
-        applySettings();
       }
     }
   })
   .catch(() => {});
+
+ready().then((s) => {
+  if (s?.limits?.max_duration_s) updateDurationLimits(s.limits.max_duration_s);
+}).catch(() => {});
 
 let saveTimer = null;
 function save() {
@@ -2366,6 +2404,7 @@ player.addEventListener("plan-failed", (e) => {
 async function refresh() {
   try {
     const r = await api.tracks();
+    if (r.max_duration_s) updateDurationLimits(r.max_duration_s);
     metas = r.tracks;
     for (const m of metas) known.set(m.id, m);
     workerState = r.worker;

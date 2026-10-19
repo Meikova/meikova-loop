@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from . import download, ingest, library, ratelimit, sessions, worker
 from .audio import BITRATE as SOUND_KBPS
 from .audio import encode as encode_sound
-from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
+from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
     WEB_DIR
 
 # Songs waiting to be fetched and analysed, all listeners together: past this
@@ -72,12 +72,14 @@ SETTINGS_FILE = DATA_DIR / "settings.json"
 
 @app.get("/api/settings")
 def get_settings():
+    res = {}
     if SETTINGS_FILE.exists():
         try:
-            return json.loads(SETTINGS_FILE.read_text("utf-8"))
+            res = json.loads(SETTINGS_FILE.read_text("utf-8"))
         except Exception:
             pass
-    return {}
+    res["max_duration_s"] = MAX_DURATION_S
+    return res
 
 
 @app.post("/api/settings")
@@ -206,14 +208,16 @@ def new_session(request: Request):
     v = sessions.create()
     return {"sid": v.id, "multiuser": MULTIUSER, "k": base64.b64encode(v.key).decode() if v.key else None,
             "limits": {"tracks": MAX_SESSION_TRACKS if MULTIUSER else None, "playlist": MAX_PLAYLIST,
-                       "upload_mb": MAX_UPLOAD_MB, "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None}}
+                       "upload_mb": MAX_UPLOAD_MB, "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None,
+                       "max_duration_s": MAX_DURATION_S}}
 
 
 @app.get("/api/tracks")
 def tracks(v: sessions.View = Depends(view_of)):
     metas = v.metas()
     return {"tracks": [_public(m) for m in metas], "worker": worker.status([m["id"] for m in metas]),
-            "links": v.link_ver, "room": v.room() if MULTIUSER else None, "stale_server": worker.stale(metas)}
+            "links": v.link_ver, "room": v.room() if MULTIUSER else None, "stale_server": worker.stale(metas),
+            "max_duration_s": MAX_DURATION_S}
 
 
 @app.get("/api/search")
