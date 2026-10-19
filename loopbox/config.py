@@ -78,8 +78,8 @@ JS_RUNTIME = os.environ.get("MASHLOOP_JS_RUNTIME") or "node"
 # Audio stored for playback and analysis: identical samples on both sides.
 SAMPLE_RATE = 44100
 ANALYSIS_SR = 22050
-TARGET_LUFS = -14.0
-MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 60 * 60)
+# 15 minutes max per track by default (long enough for any extended mix, prevents OOM in Web Audio)
+MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60)
 
 DEVICE = "cuda"  # falls back to cpu at runtime when CUDA is unavailable
 

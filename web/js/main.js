@@ -1271,8 +1271,9 @@ function trackRow(m, idx = 0, total = 0) {
   const cb = batchMode
     ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
     : "";
+  const isTooLong = m.status === "ready" && loader.isOversized(m);
   const durHtml = (m.status === "ready" && m.duration)
-    ? `<span class="track__dur">${fmt(m.duration)}</span>`
+    ? `<span class="track__dur" ${isTooLong ? 'style="color:var(--c-warn,#f59e0b)" title="Bài quá dài cho bộ nhớ thiết bị di động"' : ""}>${fmt(m.duration)}${isTooLong ? " ⚠️" : ""}</span>`
     : "";
   return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""}" data-id="${esc(m.id)}">
     ${cb}${lead}
@@ -2180,6 +2181,13 @@ $("#inspect-modal")?.addEventListener("close", () => {
 player.addEventListener("target-next", () => {
   renderLibrary();
   renderTransport();
+});
+
+player.addEventListener("plan-failed", (e) => {
+  showModal({
+    title: "Không thể chuyển bài",
+    message: e.detail?.error || "Không thể tải bài hát tiếp theo.",
+  });
 });
 
 async function refresh() {

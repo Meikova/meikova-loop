@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v66" in sw_js
-    assert "app.css?v=66" in index_html
-    assert "main.js?v=66" in index_html
-    assert "sw.js?v=66" in index_html
+    assert "mashloop-v67" in sw_js
+    assert "app.css?v=67" in index_html
+    assert "main.js?v=67" in index_html
+    assert "sw.js?v=67" in index_html
 
     # Segmented tabs SVG icons
     assert '<button type="button" data-tab="library"' in index_html or 'data-tab="library"' in index_html
@@ -385,6 +385,19 @@ def test_track_cancellation_on_delete():
         server.MULTIUSER = orig_multi
         library.clear_cancelled(test_id)
 
+def test_max_duration_guard_and_frontend_limits():
+    """Verify backend max duration is 15 minutes and frontend guards protect against Web Audio OOM."""
+    from loopbox import config
+    assert config.MAX_DURATION_S == 15 * 60, f"Expected 900s, got {config.MAX_DURATION_S}"
+
+    api_js = (Path(__file__).parent.parent / "web" / "js" / "api.js").read_text(encoding="utf-8")
+    assert "MAX_SAFE_DURATION_S" in api_js
+    assert "isOversized" in api_js
+
+    player_js = (Path(__file__).parent.parent / "web" / "js" / "player.js").read_text(encoding="utf-8")
+    assert "isOversized" in player_js
+    assert "plan-failed" in player_js
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -402,5 +415,7 @@ if __name__ == "__main__":
     test_download_error_handling_and_ui_cleanup()
     test_cookies_api_and_playlist_scroll_navigation()
     test_track_cancellation_on_delete()
+    test_max_duration_guard_and_frontend_limits()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
+
 

@@ -437,6 +437,16 @@ export class Player extends EventTarget {
   }
 
   setTargetNext(id) {
+    if (id) {
+      const meta = this.loader.metas?.get(id);
+      if (meta && this.loader.isOversized?.(meta)) {
+        const mins = Math.round(meta.duration / 60);
+        this.dispatchEvent(new CustomEvent("plan-failed", {
+          detail: { error: `Bài quá dài (${mins} phút) vượt giới hạn bộ nhớ di động`, to: id }
+        }));
+        return null;
+      }
+    }
     this.targetNextId = (this.targetNextId === id) ? null : id;
     if (this.targetNextId) {
       this.urgent = true;
@@ -1319,7 +1329,8 @@ export class Player extends EventTarget {
       const u = tr.q + this._appeal(T, tr);
       if (!best.has(tr.to) || u > best.get(tr.to)) best.set(tr.to, u);
     }
-    this.prefetchIds = [...best.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]);
+    const maxPrefetch = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "") ? 1 : 3;
+    this.prefetchIds = [...best.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxPrefetch).map((e) => e[0]);
     if (this.targetNextId && !this.prefetchIds.includes(this.targetNextId)) {
       this.prefetchIds.unshift(this.targetNextId);
     }
@@ -1431,8 +1442,12 @@ export class Player extends EventTarget {
         plan.target = track;
         this._prepare(plan, T);
       },
-      () => {
+      (err) => {
+        best.tr.failed = true;
         if (this.plan === plan) this._dropPlan();
+        if (best.picked && err?.message) {
+          this.dispatchEvent(new CustomEvent("plan-failed", { detail: { error: err.message, to: best.tr.to } }));
+        }
       },
     );
     this.dispatchEvent(new Event("plan"));
@@ -1502,6 +1517,8 @@ export class Player extends EventTarget {
   // (both need the key-locked voice).
   _usable(T, tr) {
     if (tr.failed) return false;
+    const metaB = this.loader.metas?.get(tr.to);
+    if (metaB && this.loader.isOversized?.(metaB)) return false;
     if (tr.type === "blend" && this.settings.blendStyles?.[blendStyle(tr, T.analysis.meter || 4)] === false) return false;
     if (tr.stems && !(this.loader.metas?.get(T.id)?.stems && this.loader.metas?.get(tr.to)?.stems)) return false;
     if (tr.semis && !(this.settings.keyShift !== false && this.engine.canStretch)) return false;

@@ -156,17 +156,27 @@ export const api = {
   },
 };
 
+export const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
+// Web Audio Float32 stereo PCM: ~21MB RAM per minute.
+// iOS WebKit tab Jetsam kills processes > 500-800MB. Limit to 12 mins (250MB) on mobile, 20 mins on desktop.
+export const MAX_SAFE_DURATION_S = isMobile ? 720 : 1200;
+
 // Fetches and decodes tracks, keeping a few decoded buffers in memory
 // (a 4-minute song is ~85 MB of float samples).
 export class Loader extends EventTarget {
   constructor(engine, keep = 5) {
     super();
     this.engine = engine;
-    const mem = typeof navigator !== "undefined" && navigator.deviceMemory ? navigator.deviceMemory : 4;
-    this.keep = mem <= 4 ? 2 : keep;
+    const mem = typeof navigator !== "undefined" && navigator.deviceMemory ? navigator.deviceMemory : (isMobile ? 2 : 4);
+    this.keep = isMobile ? 2 : (mem <= 4 ? 2 : keep);
     this.cache = new Map(); // id -> {promise, track, used}
     this.metas = new Map();
     this.protect = () => [];
+  }
+
+  isOversized(meta) {
+    if (!meta || !meta.duration) return false;
+    return meta.duration > MAX_SAFE_DURATION_S;
   }
 
   setMetas(list) {
@@ -192,6 +202,11 @@ export class Loader extends EventTarget {
     const entry = { track: null, used: performance.now() };
     entry.promise = (async () => {
       const meta = this.metas.get(id) || { id, title: id };
+      if (this.isOversized(meta)) {
+        const mins = Math.round(meta.duration / 60);
+        const limitMins = Math.round(MAX_SAFE_DURATION_S / 60);
+        throw new Error(`Bài quá dài (${mins} phút, giới hạn ${limitMins} phút) không thể nạp vào bộ nhớ trình duyệt`);
+      }
       const [analysis, audio, trans] = await Promise.all([api.analysis(id), api.audio(id), api.transitions(id)]);
       const buffer = await this.engine.ctx.decodeAudioData(audio);
       const track = new Track(meta, analysis, buffer);
@@ -225,7 +240,8 @@ export class Loader extends EventTarget {
   // The vocal stem of a loaded song, decoded (null when it has none), kept as
   // long as the song: fetched only for a transition that hands over by layers.
   vocals(id) {
-    if (!this.metas.get(id)?.stems) return Promise.resolve(null);
+    const meta = this.metas.get(id);
+    if (!meta?.stems || this.isOversized(meta)) return Promise.resolve(null);
     const hit = this.cache.get(id);
     if (hit?.vocals) return hit.vocals;
     const p = (async () => {

@@ -6,11 +6,34 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 11:25:00
-- Exit Code: 0 (All 16 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`, commit `8d6ac1c`), Hugging Face Space (`m3ik18dp/MashLoop`, commit `efda80b`).
+- Timestamp: 2026-10-19 12:30:00
+- Exit Code: 0 (All 17 test suites passed: tests/test_server_and_features.py)
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`, commit pending), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi WebKit Crash và tự động tải lại trang khi bấm chuyển bài trên di động (Mobile iOS Jetsam OOM Crash)**:
+  - **Nguyên nhân gốc rễ**:
+    1. **Định dạng PCM Float32 trong Web Audio API tốn rất nhiều RAM**: Mỗi phút âm thanh Stereo 44.1kHz khi giải mã bằng `ctx.decodeAudioData(audio)` cần: `60s * 44100 * 2 channels * 4 bytes = 21.16 MB` RAM.
+    2. Một bài hát thông thường 3-4 phút chỉ tốn ~60-80 MB RAM. Tuy nhiên, thư viện của người dùng có chứa các video mixtape/tổng hợp dài từ 35 đến 52 phút (ví dụ track `9A_yIFtmAEc` dài 3120 giây ~ 52 phút).
+    3. Khi giải mã track 52 phút này, Web Audio cần cấp phát **hơn 1.1 GB RAM bộ đệm uncompressed PCM** (nếu cộng thêm vocal stem thì lên tới 2.2 GB).
+    4. Trên thiết bị di động (đặc biệt là iOS Safari / WebKit), hệ điều hành có tiến trình giám sát bộ nhớ Jetsam. Bất kỳ tiến trình tab web nào vượt ngưỡng ~500MB - 800MB đều bị Jetsam lập tức buộc dừng (OOM terminate), khiến trình duyệt xuất hiện thông báo tải lại trang web hoặc quay về trạng thái ban đầu ("Hai vòng đang chờ").
+    5. Cấu hình backend `MAX_DURATION_S` trước đó đặt mặc định là 60 phút (`60 * 60`), cho phép nạp nguyên các video mixtape tổng hợp dài hàng giờ vào trình phát nhạc vốn thiết kế cho bài hát.
+  - **Khắc phục**:
+    1. **Giới hạn thời lượng Backend (`loopbox/config.py`)**: Đặt `MAX_DURATION_S = 15 * 60` (15 phút). Bất kỳ video mixtape dài hơn 15 phút sẽ bị từ chối ngay khi tải với thông báo rõ ràng: "dài hơn 15 phút (xx phút), không thể phân tích phách nhịp".
+    2. **Chốt chặn bộ nhớ Frontend (`web/js/api.js`)**:
+       - Thêm `isMobile` và ngưỡng an toàn `MAX_SAFE_DURATION_S` (12 phút trên mobile, 20 phút trên desktop).
+       - Trong `Loader.get(id)` và `Loader.vocals(id)`: Nếu thời lượng bài vượt quá giới hạn an toàn, từ chối giải mã trước khi gọi `ctx.decodeAudioData` và bắn lỗi cảnh báo `Bài quá dài (xx phút) không thể nạp vào bộ nhớ thiết bị`.
+       - Giới hạn bộ đệm giữ trong RAM trên mobile `this.keep = 2`.
+    3. **Bộ lập lịch chuyển bài an toàn (`web/js/player.js`)**:
+       - Trên di động, giảm số bài prefetch từ 3 xuống 1 bài để tiết kiệm RAM.
+       - Trong `_usable(T, tr)`: Tự động loại bỏ các bài quá dài khỏi danh sách ứng viên chuyển bài, ngăn chain planner tự ý chọn các bài gây tràn RAM.
+       - Trong `_setPlan`: Nếu tải bài thất bại, đánh dấu `best.tr.failed = true` và phát sự kiện `plan-failed` thay vì thử lại vô tận.
+       - Trong `setTargetNext(id)`: Chặn ghim bài kế tiếp nếu bài đó vượt quá thời lượng an toàn cho phép.
+    4. **Giao diện & Cảnh báo người dùng (`web/js/main.js`)**:
+       - Đánh dấu icon cảnh báo `⚠️` màu vàng cam trên danh sách bài hát đối với các bài quá dài.
+       - Đón sự kiện `plan-failed` để hiển thị modal giải thích lý do không thể chuyển bài.
+    5. **Nâng cấp Cache**: `mashloop-v67` trong `web/sw.js` và `?v=67` trong `web/index.html`.
+    6. **Kiểm thử tự động**: Bổ sung `test_max_duration_guard_and_frontend_limits()` vào `tests/test_server_and_features.py` (Toàn bộ 17 test suites passed, Exit Code 0).
 - **Khắc phục lỗi nạp nhạc YouTube (`Requested format is not available` / 403) và lỗi crash 500 khi hủy/xóa bài (`TypeError: in_use()`)**:
   - **Nguyên nhân gốc rễ**:
     1. **Crash khi hủy/xóa bài (`TypeError`)**: Trong `loopbox/server.py` (lines 406 & 419), code gọi `sessions.in_use(tid)`. Tuy nhiên, định nghĩa `def in_use()` trong `loopbox/sessions.py` không nhận đối số vị trí (`takes 0 positional arguments but 1 was given`). Khi chạy trên Hugging Face Space (`MULTIUSER = True`), thao tác xóa bài gây lỗi HTTP 500 Unhandled Exception khiến lệnh xóa và hủy ngầm `worker.cancel(tid)` không được thực thi; các luồng tải tiếp tục chạy ngầm trong background và sinh log lỗi liên tục.
