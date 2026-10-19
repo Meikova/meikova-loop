@@ -18,46 +18,22 @@ REPO_ID = "m3ik18dp/MashLoop"
 
 api = HfApi()
 
-ignore_patterns = [
-    ".git/**",
-    ".venv/**",
-    "venv/**",
-    "data/**",
-    "videos/**",
-    "build/**",
-    "dist/**",
-    "node_modules/**",
-    "android/**",
-    "ios/**",
-    ".agents/**",
-    "AGENTS.md",
-    "docs/agent-handoff.md",
-    "*.log",
-    "*.pyc",
-    "__pycache__/**",
-    ".idea/**",
-    ".vscode/**",
-    "*.lnk",
-    ".env*",
-    ".qa/**",
-    ".scratch/**",
-    "tools/**",
-    "build-exe.bat",
-    "run-desktop.*",
-    "installer.iss",
-    "capacitor.config.json"
+ALLOW_PATTERNS = [
+    "app.py",
+    "requirements.txt",
+    ".gitignore",
 ]
 
 if __name__ == "__main__":
-    print(f"Uploading clean files to Hugging Face Space: {REPO_ID}...")
+    print(f"Uploading clean loader files to Hugging Face Space: {REPO_ID}...")
     try:
         commit_info = api.upload_folder(
             folder_path=".",
             repo_id=REPO_ID,
             repo_type="space",
             token=TOKEN,
-            commit_message="feat: deploy MashLoop web app to Hugging Face Spaces",
-            ignore_patterns=ignore_patterns
+            commit_message="feat: update loader files on Hugging Face Spaces",
+            allow_patterns=ALLOW_PATTERNS
         )
         print("SUCCESS")
         print(commit_info)
