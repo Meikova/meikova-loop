@@ -6,11 +6,18 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 12:30:00
+- Timestamp: 2026-10-19 13:25:00
 - Exit Code: 0 (All 17 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`, commit pending), Hugging Face Space (`m3ik18dp/MashLoop`).
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`, commit `9c14ceb`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi worker bị dừng xử lý hàng đợi (ProcessPoolExecutor Deadlock on Windows)**:
+  - **Nguyên nhân gốc rễ**: Khi thêm `max_tasks_per_child = 3` vào `ProcessPoolExecutor`, trên môi trường Windows (`mp_context="spawn"`), tiến trình con sau khi hoàn thành 3 tác vụ sẽ tự thoát để hệ thống spawn tiến trình mới. Tuy nhiên trên Windows, luồng quản lý hàng đợi `_queue_management_worker` của Python gặp tình trạng deadlock với pipe IPC sau 3 chu kỳ tái sinh (đúng 9 tác vụ) khiến hàng đợi dừng lại hoàn toàn, các bài còn lại bị kẹt ở trạng thái `đang chờ · 0%`.
+  - **Khắc phục**:
+    1. Gỡ bỏ `max_tasks_per_child` khỏi `_pool()` trong `loopbox/worker.py`. Sử dụng cơ chế dọn dẹp bộ nhớ an toàn đã có sẵn: `gc.collect()` và `torch.cuda.empty_cache()` sau mỗi bài hát trong `loopbox/ingest.py`.
+    2. Sửa lỗi thiếu `import { isMobile }` trong `web/js/main.js` gây `ReferenceError` làm gián đoạn render danh sách bài hát.
+    3. Khôi phục `TARGET_LUFS = -14.0` trong `loopbox/config.py`.
+    4. Nâng cấp cache lên `mashloop-v69`. Toàn bộ hàng đợi 31 bài tiếp tục được xử lý mượt mà liên tục (Exit Code 0).
 - **Khắc phục lỗi WebKit Crash và tự động tải lại trang khi bấm chuyển bài trên di động (Mobile iOS Jetsam OOM Crash)**:
   - **Nguyên nhân gốc rễ**:
     1. **Định dạng PCM Float32 trong Web Audio API tốn rất nhiều RAM**: Mỗi phút âm thanh Stereo 44.1kHz khi giải mã bằng `ctx.decodeAudioData(audio)` cần: `60s * 44100 * 2 channels * 4 bytes = 21.16 MB` RAM.
