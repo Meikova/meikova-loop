@@ -37,6 +37,9 @@ if __name__ == "__main__":
         )
         print("SUCCESS")
         print(commit_info)
+        print("Restarting Space container...")
+        res = api.restart_space(REPO_ID, token=TOKEN)
+        print(f"Space status: {res.stage}")
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
