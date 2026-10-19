@@ -6,14 +6,24 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 08:36:00
+- Timestamp: 2026-10-19 09:55:00
 - Exit Code: 0 (All 15 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main` commit `585ba42`), Hugging Face Space (`m3ik18dp/MashLoop` commit `4b5dfba`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi xác minh bot YouTube & mất cookie khi Space container khởi động lại**:
+  - **Nguyên nhân gốc rễ**:
+    1. Cấu hình `BASE_OPTS` trong `loopbox/download.py` trước đó bị gán cứng `player_client: ["web_embedded", "android", "web"]`. Khi gọi YouTube trên IP datacenter (như Hugging Face Spaces), client này bị YouTube kích hoạt cơ chế chống bot và thử nghiệm SABR, khiến số format tụt từ 43 format xuống 5 format (không có stream audio) -> báo lỗi `Sign in to confirm you're not a bot`.
+    2. Hugging Face Space là container vô trạng thái (ephemeral container). Khi container khởi động lại hoặc build mới, thư mục `data/` bị xóa sạch khiến file `data/cookies.txt` biến mất, dẫn đến việc yt-dlp không còn cookie xác thực.
+    3. Trong `app.py`, điều kiện đồng bộ code từ GitHub chỉ kiểm tra `if (ROOT / "loopbox" / "server.py").exists()`, dẫn đến việc khi container restart mà không rebuild, code mới nhất từ GitHub không được kéo về.
+  - **Khắc phục**:
+    1. **Tối ưu hóa Client yt-dlp**: Xóa bỏ hoàn toàn cấu hình ép client cứng trong `BASE_OPTS`. Trong `resolve()` và `download()`, ưu tiên `None` (cơ chế nhận diện mặc định của yt-dlp với visionos + web — đã kiểm chứng thực tế cho 43 format đầy đủ), sau đó mới fallback sang `android`, `web`, `tv_downgraded`, `mweb`.
+    2. **Hỗ trợ nạp Cookie vĩnh viễn qua Space Secret**: Bổ sung hỗ trợ biến môi trường `YOUTUBE_COOKIES` / `COOKIES_TXT` trong cả `loopbox/cookies.py` và `app.py`. Người dùng chỉ cần thêm Secret trên Space Settings là cookie được tự động nạp mỗi khi container khởi động, không bao giờ bị mất.
+    3. **Sửa cơ chế đồng bộ code trên Space**: `app.py` luôn đồng bộ phiên bản mới nhất từ GitHub private repository khi chạy trên Hugging Face (`SPACE_ID` present).
+    4. **Nâng cấp Cache hệ thống**: `mashloop-v65` trong `web/sw.js` và `?v=65` trong `web/index.html`.
 - **Khắc phục lỗi không chuyển được playlist khi click vào chip playlist**:
   - **Nguyên nhân gốc rễ**: Khi sửa lỗi cuộn nhảy giật ở turn trước, dòng lệnh gán `activePlaylistId = chip.dataset.plId;` trong sự kiện click `#pl-chips` vô tình bị thiếu, khiến trạng thái playlist luôn giữ ở `"all"` và không đổi danh sách bài hát.
-  - **Khắc phục**: Khôi phục `activePlaylistId = chip.dataset.plId;` đồng thời giữ nguyên cơ chế cuộn ngang `scrollChipIntoView()`. Nâng cấp Cache lên `mashloop-v64`.
+  - **Khắc phục**: Khôi phục `activePlaylistId = chip.dataset.plId;` đồng thời giữ nguyên cơ chế cuộn ngang `scrollChipIntoView()`. Nâng cấp Cache lên `mashloop-v65`.
 - **Khắc phục lỗi thanh cuộn tự động nhảy giật lên đầu trang khi đang cuộn**:
   - **Nguyên nhân gốc rễ**:
     - Trong hàm `renderPlaylistChips()` tại `web/js/main.js`, tồn tại lệnh `onChip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" })`.
