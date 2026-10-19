@@ -1757,6 +1757,7 @@ window.addEventListener("resize", updatePlNavArrows, { passive: true });
 $("#pl-chips")?.addEventListener("click", (e) => {
   const chip = e.target.closest(".pl-chip[data-pl-id]");
   if (!chip) return;
+  activePlaylistId = chip.dataset.plId;
   const container = $("#pl-chips");
   if (container) scrollChipIntoView(container, chip);
   renderLibrary();

@@ -11,6 +11,9 @@
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi không chuyển được playlist khi click vào chip playlist**:
+  - **Nguyên nhân gốc rễ**: Khi sửa lỗi cuộn nhảy giật ở turn trước, dòng lệnh gán `activePlaylistId = chip.dataset.plId;` trong sự kiện click `#pl-chips` vô tình bị thiếu, khiến trạng thái playlist luôn giữ ở `"all"` và không đổi danh sách bài hát.
+  - **Khắc phục**: Khôi phục `activePlaylistId = chip.dataset.plId;` đồng thời giữ nguyên cơ chế cuộn ngang `scrollChipIntoView()`. Nâng cấp Cache lên `mashloop-v64`.
 - **Khắc phục lỗi thanh cuộn tự động nhảy giật lên đầu trang khi đang cuộn**:
   - **Nguyên nhân gốc rễ**:
     - Trong hàm `renderPlaylistChips()` tại `web/js/main.js`, tồn tại lệnh `onChip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" })`.
