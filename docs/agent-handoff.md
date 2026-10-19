@@ -6,11 +6,27 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 10:25:00
+- Timestamp: 2026-10-19 11:25:00
 - Exit Code: 0 (All 16 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
+- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`, commit `8d6ac1c`), Hugging Face Space (`m3ik18dp/MashLoop`, commit `efda80b`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi nạp nhạc YouTube (`Requested format is not available` / 403) và lỗi crash 500 khi hủy/xóa bài (`TypeError: in_use()`)**:
+  - **Nguyên nhân gốc rễ**:
+    1. **Crash khi hủy/xóa bài (`TypeError`)**: Trong `loopbox/server.py` (lines 406 & 419), code gọi `sessions.in_use(tid)`. Tuy nhiên, định nghĩa `def in_use()` trong `loopbox/sessions.py` không nhận đối số vị trí (`takes 0 positional arguments but 1 was given`). Khi chạy trên Hugging Face Space (`MULTIUSER = True`), thao tác xóa bài gây lỗi HTTP 500 Unhandled Exception khiến lệnh xóa và hủy ngầm `worker.cancel(tid)` không được thực thi; các luồng tải tiếp tục chạy ngầm trong background và sinh log lỗi liên tục.
+    2. **Lỗi `Requested format is not available` trên YouTube**:
+       - Trên YouTube hiện nay, các client `web`, `mweb`, `web_embedded` bắt buộc phải có Proof-of-Origin (PO) Token. Thiếu token này, `yt-dlp` tự động bỏ qua toàn bộ luồng stream âm thanh/video và chỉ giữ lại ảnh thumbnail/storyboard. Khi `yt-dlp` áp dụng bộ lọc `format="bestaudio/best"`, nó không tìm thấy format nào phù hợp và báo lỗi `Requested format is not available`.
+       - Format 251 (Opus) trực tiếp từ visionos bị chặn 403 Forbidden nếu không có cờ `missing_pot` hoặc cấu hình format dự phòng. Trong khi đó, luồng HLS (`format 233`, `234`) và `android_vr` hoạt động ổn định 100%.
+       - Thiếu `ffmpeg` trên container Hugging Face do `packages.txt` trước đó chưa được đưa vào `ALLOW_PATTERNS`.
+  - **Khắc phục**:
+    1. Cập nhật `sessions.in_use(tid: str | None = None)`: Trả về `bool` (`tid in all_used`) nếu truyền `tid`, hoặc `set[str]` nếu gọi không đối số. Thao tác xóa và hủy bài hoạt động trơn tru trong cả single-user và multi-user mode.
+    2. Trong `loopbox/download.py`:
+       - Bổ sung cờ `'formats': ['missing_pot']` vào `extractor_args['youtube']` để ngăn `yt-dlp` loại bỏ các luồng thiếu PO-token.
+       - Cập nhật format selector thành `"bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best/all"`, tự động fallback sang các format âm thanh khả dụng (như HLS mp4 233/234 hoặc format 18) khi direct DASH format 251 bị 403.
+       - Chuẩn hóa thứ tự ưu tiên `YOUTUBE_CLIENT_CONFIGS`: `visionos` -> `visionos + android_vr` -> `android_vr` -> `web_music + web` -> `web` -> `None`.
+       - Dọn dẹp `_find_js_runtimes()`: Chỉ đăng ký các runtime JS thực sự tồn tại trên máy (tránh tạo ghost entry `{}`).
+    3. Bổ sung `_ensure_ffmpeg()` trong `app.py`, thêm `imageio-ffmpeg` vào `requirements.txt` và đưa `packages.txt` vào `tools/upload_to_space.py` để container Space luôn có `ffmpeg`.
+    4. Cập nhật bộ unit test `tests/test_server_and_features.py` bao quát cả trường hợp `MULTIUSER = True` khi xóa và batch xóa (Exit Code 0). Đã commit, push GitHub (`8d6ac1c`) và deploy Space container reboot (`efda80b`).
 - **Khắc phục lỗi tác vụ tải ngầm tiếp tục chạy và sinh lỗi khi người dùng đã chủ động xóa bài**:
   - **Nguyên nhân gốc rễ**: Khi người dùng nhấn nút "Xóa" hoặc "Xóa theo lô" (chọn tất cả và xóa), endpoint `DELETE /api/tracks/{tid}` và `POST /api/tracks/batch` (`action="delete"`) trước đó chỉ xóa id bài hát khỏi danh sách session trong SQLite/RAM. Trong khi đó, worker ngầm `ProcessPoolExecutor` vẫn tiếp tục download và phân tích các bài hát cũ từ phiên nạp trước; các tiến trình con không hề nhận được tín hiệu hủy, dẫn đến việc tiếp tục download, gặp lỗi mạng/cookie cũ và sinh log lỗi liên tục. Hơn nữa khi người dùng nạp lại playlist, `register()` thấy bài hát cũ vẫn đang ở trạng thái `queued`/`downloading` nên không tạo mới.
   - **Khắc phục**:
