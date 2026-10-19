@@ -90,7 +90,54 @@ def _ensure_deno():
     except Exception as e:
         print("Deno auto-install skipped:", e)
 
+def _ensure_ffmpeg():
+    import shutil
+    if shutil.which("ffmpeg"):
+        return
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if exe and Path(exe).exists():
+            bin_dir = Path.home() / ".local" / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            link = bin_dir / ("ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg")
+            if not link.exists():
+                shutil.copy2(exe, link)
+                link.chmod(0o755)
+            os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+            print("ffmpeg enabled via imageio_ffmpeg at", link)
+            return
+    except Exception:
+        pass
+    if not sys.platform.startswith("win"):
+        bin_dir = Path.home() / ".local" / "bin"
+        ffmpeg_bin = bin_dir / "ffmpeg"
+        if ffmpeg_bin.exists():
+            os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+            return
+        try:
+            import urllib.request, tarfile, io
+            print("Auto-installing static ffmpeg...")
+            url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                with tarfile.open(fileobj=io.BytesIO(resp.read())) as tar:
+                    for member in tar.getmembers():
+                        if member.name.endswith("/ffmpeg"):
+                            f = tar.extractfile(member)
+                            if f:
+                                bin_dir.mkdir(parents=True, exist_ok=True)
+                                with open(ffmpeg_bin, "wb") as out:
+                                    out.write(f.read())
+                                ffmpeg_bin.chmod(0o755)
+                                os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+                                print("Static ffmpeg installed at", ffmpeg_bin)
+                                return
+        except Exception as e:
+            print("Static ffmpeg download skipped:", e)
+
 _ensure_deno()
+_ensure_ffmpeg()
 _sync_private_code()
 _sync_cookies()
 

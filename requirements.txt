@@ -30,5 +30,6 @@ beat-this
 onnxruntime
 gradio
 qrcode
+imageio-ffmpeg
 pywebview
 pythonnet; sys_platform == 'win32'

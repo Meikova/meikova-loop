@@ -351,7 +351,7 @@ def test_cookies_api_and_playlist_scroll_navigation():
     assert "initCookieManagement" in main_js
 
 def test_track_cancellation_on_delete():
-    from loopbox import library, worker
+    from loopbox import library, worker, sessions, server
     client = TestClient(app)
     test_id = "testcanc001"
     library.create(test_id, source="test", url="http://example.com", title="Test Cancel", status="queued", stage="queued")
@@ -359,11 +359,31 @@ def test_track_cancellation_on_delete():
     worker.enqueue_ingest(test_id)
     assert test_id in worker._ingesting
 
-    res = client.delete(f"/api/tracks/{test_id}")
-    assert res.status_code == 200
-    assert library.is_cancelled(test_id) is True
-    assert test_id not in worker._ingesting
-    library.clear_cancelled(test_id)
+    # Test sessions.in_use signatures
+    assert isinstance(sessions.in_use(), set)
+    assert isinstance(sessions.in_use(test_id), bool)
+
+    # Test delete under MULTIUSER = True (Space environment)
+    orig_multi = server.MULTIUSER
+    try:
+        server.MULTIUSER = True
+        res = client.delete(f"/api/tracks/{test_id}")
+        assert res.status_code == 200
+        assert library.is_cancelled(test_id) is True
+        assert test_id not in worker._ingesting
+
+        # Test batch delete under MULTIUSER = True
+        test_id2 = "testcanc002"
+        library.create(test_id2, source="test", url="http://example.com", title="Test Cancel 2", status="queued", stage="queued")
+        worker.enqueue_ingest(test_id2)
+        res_batch = client.post("/api/tracks/batch", json={"action": "delete", "ids": [test_id2]})
+        assert res_batch.status_code == 200
+        assert library.is_cancelled(test_id2) is True
+        assert test_id2 not in worker._ingesting
+        library.clear_cancelled(test_id2)
+    finally:
+        server.MULTIUSER = orig_multi
+        library.clear_cancelled(test_id)
 
 if __name__ == "__main__":
     test_ip_extraction()

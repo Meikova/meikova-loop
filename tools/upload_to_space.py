@@ -21,6 +21,7 @@ api = HfApi()
 ALLOW_PATTERNS = [
     "app.py",
     "requirements.txt",
+    "packages.txt",
     ".gitignore",
 ]
 

@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import re
+import sys
 import urllib.request
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -41,14 +42,20 @@ def _get_impersonate():
 
 def _find_js_runtimes():
     runtimes = {}
+    deno_dir = Path.home() / ".local" / "bin"
+    deno_bin = deno_dir / ("deno.exe" if sys.platform.startswith("win") else "deno")
+    if deno_bin.exists():
+        runtimes["deno"] = {"path": str(deno_bin)}
     for rt in ("deno", "node", "bun", "quickjs"):
+        if rt in runtimes:
+            continue
         p = shutil.which(rt)
         if p:
             runtimes[rt] = {"path": p}
-        else:
-            runtimes[rt] = {}
     if JS_RUNTIME and JS_RUNTIME not in runtimes:
-        runtimes[JS_RUNTIME] = {}
+        p = shutil.which(JS_RUNTIME)
+        if p:
+            runtimes[JS_RUNTIME] = {"path": p}
     return runtimes
 
 
@@ -207,15 +214,29 @@ def is_playlist_url(url: str) -> bool:
     return False
 
 
+YOUTUBE_CLIENT_CONFIGS = (
+    ["visionos"],
+    ["visionos", "android_vr"],
+    ["android_vr"],
+    ["web_music", "web"],
+    ["web"],
+    None,
+)
+
+
 def _opts(site: str, use_cookies: bool = True, **extra) -> dict:
     extractors = SOURCES.get(site, (set(), []))[1]
     opts = {**BASE_OPTS, **extra}
+    opts["js_runtimes"] = _find_js_runtimes()
     if extractors:
         opts["allowed_extractors"] = extractors
     if site == "youtube":
         imp = _get_impersonate()
         if imp:
             opts["impersonate"] = imp
+        ext_args = opts.setdefault("extractor_args", {})
+        yt_args = ext_args.setdefault("youtube", {})
+        yt_args.setdefault("formats", ["missing_pot"])
     if use_cookies:
         from . import cookies as cookie_mgr
         cookie_file = cookie_mgr.get_cookie_file_path()
@@ -360,15 +381,7 @@ def resolve(text: str) -> list[dict]:
     has_cookies = bool(cookie_mgr.get_cookie_file_path()) if site == "youtube" else False
     cookie_passes = [True, False] if has_cookies else [False]
 
-    clients = (
-        ["visionos", "tv_downgraded", "android", "web"],
-        None,
-        ["android"],
-        ["web"],
-        ["tv_downgraded", "web"],
-        ["mweb"],
-        ["web_embedded", "web"],
-    ) if site == "youtube" else (None,)
+    clients = YOUTUBE_CLIENT_CONFIGS if site == "youtube" else (None,)
     info = None
     last_e = None
 
@@ -520,27 +533,21 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
-    clients = (
-        ["visionos", "tv_downgraded", "android", "web"],
-        None,
-        ["android"],
-        ["web"],
-        ["tv_downgraded", "web"],
-        ["mweb"],
-        ["web_embedded", "web"],
-    ) if site == "youtube" else (None,)
+    clients = YOUTUBE_CLIENT_CONFIGS if site == "youtube" else (None,)
+    format_spec = "bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best/all"
     for use_cookies in cookie_passes:
         for client in clients:
             if tid and library.is_cancelled(tid):
                 raise RuntimeError("Đã huỷ nạp bài theo yêu cầu")
             for stale in dest_dir.glob("source.*"):
                 stale.unlink(missing_ok=True)
-            opts = _opts(site, use_cookies=use_cookies, format="bestaudio/best", noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),
+            opts = _opts(site, use_cookies=use_cookies, format=format_spec, noplaylist=True, outtmpl=str(dest_dir / "source.%(ext)s"),
                          progress_hooks=[hook], retries=3)
             if client:
-                opts["extractor_args"] = {"youtube": {"player_client": client}}
+                opts.setdefault("extractor_args", {}).setdefault("youtube", {})["player_client"] = client
             else:
-                opts.pop("extractor_args", None)
+                if "extractor_args" in opts and "youtube" in opts["extractor_args"]:
+                    opts["extractor_args"]["youtube"].pop("player_client", None)
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=False)

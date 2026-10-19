@@ -282,12 +282,13 @@ def views() -> list[View]:
         return list(_sessions.values())
 
 
-def in_use() -> set[str]:
+def in_use(tid: str | None = None) -> set[str] | bool:
     """Songs some live library holds, and the sample library: never evicted,
-    and their sound never deleted for going unused."""
+    and their sound never deleted for going unused. If tid is given, returns bool."""
     keep = set(library.samples()["ids"])
     if not MULTIUSER:
-        return keep | set(library.ready_ids())
+        all_used = keep | set(library.ready_ids())
+        return (tid in all_used) if tid is not None else all_used
     _sweep()
     with _lock:
         s_ids = {t for v in _sessions.values() for t in v.ids}
@@ -296,12 +297,13 @@ def in_use() -> set[str]:
             cur = conn.cursor()
             cur.execute("SELECT ids FROM sessions")
             for (row,) in cur.fetchall():
-                for tid in json.loads(row or "[]"):
-                    s_ids.add(tid)
+                for track_id_entry in json.loads(row or "[]"):
+                    s_ids.add(track_id_entry)
             conn.close()
         except Exception:
             pass
-        return keep | s_ids
+        all_used = keep | s_ids
+        return (tid in all_used) if tid is not None else all_used
 
 
 def _sweep() -> None:
