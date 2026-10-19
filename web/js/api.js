@@ -158,8 +158,9 @@ export const api = {
 
 export const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
 // Web Audio Float32 stereo PCM: ~21MB RAM per minute.
-// iOS WebKit tab Jetsam kills processes > 500-800MB. Limit to 12 mins (250MB) on mobile, 20 mins on desktop.
-export const MAX_SAFE_DURATION_S = isMobile ? 720 : 1200;
+// iOS WebKit tab Jetsam kills processes > 500-800MB: limit to 12 mins (250MB) on mobile.
+// Desktop PC 64-bit browsers have multi-gigabyte heap: allow up to 60 mins (3600s).
+export const MAX_SAFE_DURATION_S = isMobile ? 720 : 3600;
 
 // Fetches and decodes tracks, keeping a few decoded buffers in memory
 // (a 4-minute song is ~85 MB of float samples).

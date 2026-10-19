@@ -216,6 +216,7 @@ const ICON = {
   inspect: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
   inf: '<svg viewBox="0 0 48 24" aria-hidden="true"><path d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px;display:inline-block"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
 };
 
 setupMediaSession(player, engine, (id) => byId().get(id) || known.get(id));
@@ -1272,8 +1273,11 @@ function trackRow(m, idx = 0, total = 0) {
     ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
     : "";
   const isTooLong = m.status === "ready" && loader.isOversized(m);
+  const warnTitle = isMobile
+    ? `Bài dài ${Math.round((m.duration || 0) / 60)} phút - có thể quá tải RAM trên thiết bị di động`
+    : `Bài dài ${Math.round((m.duration || 0) / 60)} phút - vượt giới hạn trình phát`;
   const durHtml = (m.status === "ready" && m.duration)
-    ? `<span class="track__dur" ${isTooLong ? 'style="color:var(--c-warn,#f59e0b)" title="Bài quá dài cho bộ nhớ thiết bị di động"' : ""}>${fmt(m.duration)}${isTooLong ? " ⚠️" : ""}</span>`
+    ? `<span class="track__dur" ${isTooLong ? `style="color:var(--c-warn,#f59e0b)" title="${warnTitle}"` : ""}>${fmt(m.duration)}${isTooLong ? ` ${ICON.warn}` : ""}</span>`
     : "";
   return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""}" data-id="${esc(m.id)}">
     ${cb}${lead}

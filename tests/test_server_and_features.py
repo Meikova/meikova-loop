@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v67" in sw_js
-    assert "app.css?v=67" in index_html
-    assert "main.js?v=67" in index_html
-    assert "sw.js?v=67" in index_html
+    assert "mashloop-v68" in sw_js
+    assert "app.css?v=68" in index_html
+    assert "main.js?v=68" in index_html
+    assert "sw.js?v=68" in index_html
 
     # Segmented tabs SVG icons
     assert '<button type="button" data-tab="library"' in index_html or 'data-tab="library"' in index_html
