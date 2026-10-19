@@ -154,3 +154,12 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
         logger.warning(f"Nạp bài thất bại ({tid}): {err_msg}")
         stage("error", 0.0, status="error", error=err_msg)
         return "error"
+    finally:
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass

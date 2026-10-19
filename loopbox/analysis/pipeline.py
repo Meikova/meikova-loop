@@ -85,6 +85,7 @@ def analyze(tid: str, on_stage: Callable[[str, float], None] = lambda s, p: None
     sung = float(feat["vocal"].mean()) >= STEM_MIN_VOCAL
     _save_vocals(tid, stereo["vocals"] if sung else None)
     del stereo
+    del y, y22
     scales = similarity.own_scales(feat)
 
     on_stage("structure", 0.75)
@@ -145,6 +146,8 @@ def analyze(tid: str, on_stage: Callable[[str, float], None] = lambda s, p: None
         "mood": analysis["mood"],
     }
     on_stage("analyzed", 0.95)
+    import gc
+    gc.collect()
     return stats
 
 

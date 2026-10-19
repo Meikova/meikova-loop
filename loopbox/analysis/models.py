@@ -54,6 +54,7 @@ def separate(y: np.ndarray, keep_stereo: tuple[str, ...] = ()) -> tuple[np.ndarr
     """y: (frames, 2) float32 at SAMPLE_RATE. Returns stems (4, frames) mono,
     their names, and the stems named in keep_stereo as (frames, 2) arrays,
     sample-aligned with y (the player mixes them against the full track)."""
+    import gc
     from demucs.apply import apply_model
     model = separator()
     assert model.samplerate == SAMPLE_RATE
@@ -62,6 +63,7 @@ def separate(y: np.ndarray, keep_stereo: tuple[str, ...] = ()) -> tuple[np.ndarr
     mean, std = ref.mean(), ref.std() + 1e-8
     dev = device()
     norm_wav = ((wav - mean) / std)[None]  # Keep on CPU; Demucs chunking transfers each window to device
+    del wav, ref
     try:
         with torch.no_grad():
             out = apply_model(model, norm_wav, device=dev,
@@ -79,9 +81,15 @@ def separate(y: np.ndarray, keep_stereo: tuple[str, ...] = ()) -> tuple[np.ndarr
             model.to(dev)
         except Exception:
             pass
+    finally:
+        del norm_wav
     full = (out * std + mean).cpu().numpy()  # (sources, channels, frames)
+    del out
     names = list(model.sources)
     stereo = {s: np.ascontiguousarray(full[names.index(s)].T.astype(np.float32)) for s in keep_stereo}
+    res = full.mean(1)
+    del full
     if dev == "cuda":
         torch.cuda.empty_cache()
-    return full.mean(1), names, stereo
+    gc.collect()
+    return res, names, stereo
