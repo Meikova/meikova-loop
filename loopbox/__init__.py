@@ -5,6 +5,10 @@ import sys
 # Silence known Windows asyncio bug where closing client connections abruptly (e.g. aborting audio range streams)
 # causes ProactorEventLoop._call_connection_lost to raise ConnectionResetError: [WinError 10054].
 if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     try:
         from asyncio.proactor_events import _ProactorBasePipeTransport
 
