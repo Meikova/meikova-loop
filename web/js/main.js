@@ -2930,7 +2930,7 @@ function updateMobileModal() {
     window.location.hostname === "127.0.0.1";
 
   const ipSpan = $("#mobile-modal-ip");
-  const subText = $("#mobile-modal-sub");
+  const tagSpan = $("#mobile-modal-sub-tag");
   const qrImg = $("#mobile-modal-qr");
   const modalLink = $("#mobile-modal-link");
   const scanDesc = $("#mobile-modal-scan-desc");
@@ -2938,20 +2938,15 @@ function updateMobileModal() {
   const displayUrl = currentOrigin;
 
   if (ipSpan) ipSpan.textContent = displayUrl;
+  if (tagSpan) {
+    if (isHfSpace) tagSpan.textContent = "Hugging Face Space";
+    else if (isTailscale) tagSpan.textContent = "Tailscale Mesh";
+    else if (isLocal) tagSpan.textContent = "Local Host";
+    else tagSpan.textContent = "Máy chủ Web";
+  }
   if (modalLink) {
     modalLink.href = displayUrl;
     modalLink.textContent = `${displayUrl} ↗`;
-  }
-  if (subText) {
-    if (isHfSpace) {
-      subText.innerHTML = `Đang chạy trên Hugging Face Spaces: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
-    } else if (isTailscale) {
-      subText.innerHTML = `Đã kết nối máy chủ Tailscale: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
-    } else if (isLocal) {
-      subText.innerHTML = `Máy chủ cục bộ: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
-    } else {
-      subText.innerHTML = `Địa chỉ máy chủ: <span class="mono mobile-modal__ip">${displayUrl}</span>`;
-    }
   }
   if (scanDesc) {
     scanDesc.textContent = isHfSpace
@@ -2965,6 +2960,20 @@ function updateMobileModal() {
     };
   }
 }
+
+$("#btn-copy-server-url")?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(window.location.origin);
+    const btn = $("#btn-copy-server-url");
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = "Đã chép ✓";
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }
+  } catch {
+    // Fallback if clipboard API blocked
+  }
+});
 
 $("#btn-mobile-modal")?.addEventListener("click", () => {
   updateMobileModal();

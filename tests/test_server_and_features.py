@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v75" in sw_js
-    assert "app.css?v=75" in index_html
-    assert "main.js?v=75" in index_html
-    assert "sw.js?v=75" in index_html
+    assert "mashloop-v76" in sw_js
+    assert "app.css?v=76" in index_html
+    assert "main.js?v=76" in index_html
+    assert "sw.js?v=76" in index_html
 
     # Proportions & sizing resizer and sliders
     assert 'id="panel-resizer"' in index_html
@@ -531,7 +531,54 @@ def test_volume_150_themes_skip_and_shortcuts():
     assert 'Chế độ Chuỗi / Đơn / Tự do' in index_html
 
     # 5. Service worker bump
-    assert "mashloop-v75" in sw_js
+    assert "mashloop-v76" in sw_js
+
+
+def test_downloads_and_expanded_modals():
+    client = TestClient(app)
+
+    # 1. Download desktop endpoint (using HEAD to verify headers without loading large zip into memory)
+    resp_desk = client.head("/api/download/desktop", follow_redirects=False)
+    assert resp_desk.status_code in (200, 307)
+    if resp_desk.status_code == 307:
+        assert "github.com/m3iK18dp/mashloop/releases" in resp_desk.headers["location"]
+    else:
+        assert "zip" in resp_desk.headers.get("content-type", "") or "octet-stream" in resp_desk.headers.get("content-type", "")
+
+    # 2. Download APK endpoint (using HEAD)
+    resp_apk = client.head("/api/download/apk", follow_redirects=False)
+    assert resp_apk.status_code in (200, 307)
+    if resp_apk.status_code == 307:
+        assert "MashLoop.apk" in resp_apk.headers["location"]
+
+    # 3. Download IPA endpoint
+    resp_ipa = client.get("/api/download/ipa", follow_redirects=False)
+    assert resp_ipa.status_code == 307
+    assert "MashLoop.ipa" in resp_ipa.headers["location"]
+
+    # 4. Modal widths and downloads UI check
+    root = Path(__file__).resolve().parent.parent
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    workflow_yml = (root / ".github" / "workflows" / "build-release.yml").read_text(encoding="utf-8")
+
+    # Modals expanded to 720px
+    assert "width: min(720px, calc(100vw - 28px)) !important;" in app_css
+    assert "mobile-modal__sub-box" in app_css
+    assert "mobile-downloads" in app_css
+    assert "dl-card" in app_css
+
+    # Index HTML download buttons and elements
+    assert 'id="btn-dl-apk"' in index_html
+    assert 'id="btn-dl-desktop"' in index_html
+    assert 'id="btn-dl-ipa"' in index_html
+    assert 'id="btn-copy-server-url"' in index_html
+
+    # CI/CD Workflow checks
+    assert "build-android:" in workflow_yml
+    assert "build-ios:" in workflow_yml
+    assert "build-windows:" in workflow_yml
+    assert "softprops/action-gh-release" in workflow_yml
 
 
 if __name__ == "__main__":
@@ -556,6 +603,7 @@ if __name__ == "__main__":
     test_viz_scaling_and_glow_stability()
     test_dynamic_dwell_and_server_duration_limits()
     test_volume_150_themes_skip_and_shortcuts()
+    test_downloads_and_expanded_modals()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

@@ -19,7 +19,7 @@ import base64
 import numpy as np
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -674,6 +674,51 @@ async def upload_cookies(request: Request):
 def delete_cookies():
     from . import cookies as cookie_mgr
     return cookie_mgr.delete_cookies()
+
+
+@app.api_route("/api/download/{target}", methods=["GET", "HEAD"])
+def download_app(target: str, request: Request):
+    """Phục vụ file tải ứng dụng: desktop (.exe/.zip), android (.apk), ios (.ipa).
+    Nếu server local có sẵn file thì trả về FileResponse trực tiếp (hoặc headers nếu HEAD).
+    Nếu chạy trên Space/cloud, tự động redirect sang GitHub Releases mới nhất."""
+    target_lower = target.lower().strip()
+    root = Path(__file__).resolve().parent.parent
+    dl_dir = root / "web" / "downloads"
+    release_base = "https://github.com/m3iK18dp/mashloop/releases/latest/download"
+
+    def _serve(path: Path, media_type: str, filename: str):
+        if request.method == "HEAD":
+            return Response(status_code=200, media_type=media_type, headers={
+                "Content-Length": str(path.stat().st_size),
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            })
+        return FileResponse(path, media_type=media_type, filename=filename)
+
+    if target_lower in ("desktop", "windows", "exe", "win"):
+        zip_file = dl_dir / "MashLoop-Windows.zip"
+        if zip_file.exists() and zip_file.stat().st_size > 0:
+            return _serve(zip_file, "application/zip", "MashLoop-Windows.zip")
+        exe_file = root / "dist" / "MashLoop" / "MashLoop.exe"
+        if exe_file.exists() and exe_file.stat().st_size > 0:
+            return _serve(exe_file, "application/octet-stream", "MashLoop.exe")
+        return RedirectResponse(f"{release_base}/MashLoop-Windows.zip", status_code=307)
+
+    elif target_lower in ("apk", "android"):
+        apk_file = dl_dir / "MashLoop.apk"
+        if apk_file.exists() and apk_file.stat().st_size > 0:
+            return _serve(apk_file, "application/vnd.android.package-archive", "MashLoop.apk")
+        debug_apk = root / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+        if debug_apk.exists() and debug_apk.stat().st_size > 0:
+            return _serve(debug_apk, "application/vnd.android.package-archive", "MashLoop.apk")
+        return RedirectResponse(f"{release_base}/MashLoop.apk", status_code=307)
+
+    elif target_lower in ("ipa", "ios", "iphone"):
+        ipa_file = dl_dir / "MashLoop.ipa"
+        if ipa_file.exists() and ipa_file.stat().st_size > 0:
+            return _serve(ipa_file, "application/octet-stream", "MashLoop.ipa")
+        return RedirectResponse(f"{release_base}/MashLoop.ipa", status_code=307)
+
+    raise HTTPException(404, f"Không hỗ trợ tải mục tiêu: {target}")
 
 
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")

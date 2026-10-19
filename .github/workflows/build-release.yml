@@ -1,0 +1,194 @@
+name: Build & Release Apps (Android APK, iOS IPA, Desktop EXE)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ===============================================================
+  # 1. BUILD ANDROID APK
+  # ===============================================================
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync Capacitor Android
+        run: |
+          npx cap sync android
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Locate and Rename APK
+        run: |
+          mkdir -p build-artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk build-artifacts/MashLoop.apk
+          ls -lh build-artifacts/MashLoop.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MashLoop-Android-APK
+          path: build-artifacts/MashLoop.apk
+
+  # ===============================================================
+  # 2. BUILD IOS IPA (Payload / Unsigned Archive)
+  # ===============================================================
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Add and Sync iOS
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Build iOS Archive & Package IPA
+        run: |
+          cd ios/App
+          # Build Xcode Archive without code signing (for AltStore, Sideloadly, TrollStore)
+          xcodebuild archive \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath ./build/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+          # Package Payload into .ipa
+          mkdir -p ./build/Payload
+          cp -r ./build/App.xcarchive/Products/Applications/App.app ./build/Payload/
+          cd ./build
+          zip -qr ../../../MashLoop.ipa Payload
+          cd ../../..
+          ls -lh MashLoop.ipa
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MashLoop-iOS-IPA
+          path: MashLoop.ipa
+
+  # ===============================================================
+  # 3. BUILD WINDOWS DESKTOP (.exe / .zip)
+  # ===============================================================
+  build-windows:
+    name: Build Windows Desktop
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          pip install pyinstaller pywebview uvicorn fastapi soundfile onnxruntime
+
+      - name: Build MashLoop Desktop Executable
+        run: |
+          pyinstaller --noconfirm mashloop.spec
+
+      - name: Compress Desktop Release
+        run: |
+          Compress-Archive -Path "dist\MashLoop\*" -DestinationPath "MashLoop-Windows.zip" -Force
+          Get-Item MashLoop-Windows.zip | Select-Object Name, Length
+
+      - name: Upload Windows Desktop Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MashLoop-Windows-Desktop
+          path: MashLoop-Windows.zip
+
+  # ===============================================================
+  # 4. PUBLISH GITHUB RELEASE
+  # ===============================================================
+  release:
+    name: Create GitHub Release
+    needs: [build-android, build-ios, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MashLoop-Android-APK
+          path: release-files
+
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MashLoop-iOS-IPA
+          path: release-files
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MashLoop-Windows-Desktop
+          path: release-files
+
+      - name: Display Release Files
+        run: ls -lh release-files/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || 'latest' }}
+          name: "MashLoop Release ${{ github.ref_name || 'Latest' }}"
+          draft: false
+          prerelease: false
+          files: |
+            release-files/MashLoop.apk
+            release-files/MashLoop.ipa
+            release-files/MashLoop-Windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

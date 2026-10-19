@@ -22,6 +22,10 @@ videos/
 build/
 dist/
 *.spec.bak
+web/downloads/
+*.apk
+*.ipa
+*.zip
 
 # Node & Frontend
 node_modules/
