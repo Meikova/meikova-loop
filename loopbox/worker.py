@@ -75,11 +75,8 @@ def _pool(kind: str) -> ProcessPoolExecutor:
         if pool is None:
             n = ANALYSIS_WORKERS if kind == "ingest" else LINK_WORKERS
             # spawn, not fork: CUDA cannot be shared with a forked child.
-            extra = {}
-            if hasattr(ProcessPoolExecutor, "__init__") and "max_tasks_per_child" in ProcessPoolExecutor.__init__.__code__.co_varnames:
-                extra["max_tasks_per_child"] = 3 if kind == "ingest" else 20
             pool = ProcessPoolExecutor(max_workers=max(1, n), mp_context=mp.get_context("spawn"),
-                                       initializer=_init_child, initargs=(kind == "ingest",), **extra)
+                                       initializer=_init_child, initargs=(kind == "ingest",))
             _pools[kind] = pool
         return pool
 
