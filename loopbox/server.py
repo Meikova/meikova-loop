@@ -10,6 +10,7 @@ import tempfile
 import threading
 import webbrowser
 import zipfile
+import json
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -64,6 +65,29 @@ def view_of(x_session: str | None = Header(default=None)) -> sessions.View:
 @app.get("/api/health")
 def health():
     return {"status": "ok", "multiuser": MULTIUSER}
+
+
+SETTINGS_FILE = DATA_DIR / "settings.json"
+
+
+@app.get("/api/settings")
+def get_settings():
+    if SETTINGS_FILE.exists():
+        try:
+            return json.loads(SETTINGS_FILE.read_text("utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+@app.post("/api/settings")
+async def save_settings(request: Request):
+    try:
+        data = await request.json()
+        SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 def _public(m: dict) -> dict:

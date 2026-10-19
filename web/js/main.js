@@ -238,12 +238,25 @@ document.fonts?.ready.then(placeIndicators);
 // ------------------------------------------------------------------ settings
 
 const STORE = "loopbox.settings.v1";
+const SETTINGS_VERSION = 2;
 const BLEND_STYLES = ["long", "eq", "short", "filter", "swap", "stem", "acapella", "loop", "mashup", "double"];
 // Every kind of transition, each with its switch (#s-<kind>).
 const KINDS = ["cut", "drop", "blend", "fade", "echo", "wash", "riser", "flanger", "gap", "brake", "roll", "spin", "gate", "tape", "sweeper"];
 // 2: the abrupt effects (brake, roll) became opt-in; older saved settings that
 // had them on from the first release of effects are switched off once.
-const ui = { freq: 0.45, strict: 0.5, volume: 0.85, theme: "mood", crossKho: true, khoMinutes: 0, glow: 1.0 };
+const ui = {
+  freq: 0.45,
+  strict: 0.5,
+  volume: 0.85,
+  theme: "mood",
+  crossKho: true,
+  khoMinutes: 0,
+  glow: 1.0,
+  activePlaylistId: "all",
+  lockToPlaylist: false,
+  libSortMode: "default",
+  activeTab: "library",
+};
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
   if (saved) {
@@ -256,16 +269,54 @@ try {
       player.settings.allow.roll = false;
     }
   }
-} catch (_) {
-  /* storage unavailable */
+} catch (e) {
+  console.warn("Could not load local settings:", e);
 }
 
+// Fetch server settings and merge if available
+fetch("/api/settings")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((serverData) => {
+    if (serverData && (serverData.ui || serverData.player)) {
+      const localEmpty = !localStorage.getItem(STORE);
+      if (localEmpty) {
+        if (serverData.ui) Object.assign(ui, serverData.ui);
+        if (serverData.player) {
+          Object.assign(player.settings, serverData.player);
+          player.settings.allow = { ...DEFAULTS.allow, ...(serverData.player.allow || {}) };
+          player.settings.blendStyles = { ...DEFAULTS.blendStyles, ...(serverData.player.blendStyles || {}) };
+        }
+        applySettings();
+      }
+    }
+  })
+  .catch(() => {});
+
+let saveTimer = null;
 function save() {
+  const data = {
+    v: SETTINGS_VERSION,
+    ui: {
+      ...ui,
+      activePlaylistId: typeof activePlaylistId !== "undefined" ? activePlaylistId : ui.activePlaylistId,
+      lockToPlaylist: typeof lockToPlaylist !== "undefined" ? lockToPlaylist : ui.lockToPlaylist,
+      libSortMode: typeof libSortMode !== "undefined" ? libSortMode : ui.libSortMode,
+    },
+    player: player.settings,
+  };
   try {
-    localStorage.setItem(STORE, JSON.stringify({ v: SETTINGS_VERSION, ui, player: player.settings }));
-  } catch (_) {
-    /* storage unavailable */
+    localStorage.setItem(STORE, JSON.stringify(data));
+  } catch (err) {
+    console.warn("Could not save settings to localStorage:", err);
   }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(() => {});
+  }, 400);
 }
 
 // Range fill: the amber part of the track follows the value.
@@ -352,6 +403,7 @@ for (const k of BLEND_STYLES) {
   $(`#s-bl-${k}`).addEventListener("change", (e) => ((player.settings.blendStyles[k] = e.target.checked), replanBlend()));
 }
 $("#s-keyshift").addEventListener("change", (e) => ((player.settings.keyShift = e.target.checked), replanBlend()));
+$("#s-tempo")?.addEventListener("change", (e) => ((player.settings.tempoRamp = e.target.checked), replanBlend()));
 let isMuted = false;
 let prevVol = ui.volume || 0.8;
 
@@ -449,12 +501,14 @@ for (const b of document.querySelectorAll(".mode button")) {
 }
 for (const b of document.querySelectorAll(".tabs button")) {
   b.addEventListener("click", () => {
+    ui.activeTab = b.dataset.tab;
     for (const x of document.querySelectorAll(".tabs button")) {
       x.classList.toggle("on", x === b);
       x.setAttribute("aria-selected", x === b);
     }
     for (const t of document.querySelectorAll(".tab")) t.classList.toggle("on", t.id === `tab-${b.dataset.tab}`);
     placeIndicator($(".tabs"));
+    save();
   });
 }
 $("#btn-relink").addEventListener("click", async (e) => {
@@ -935,14 +989,14 @@ function libCards(libs) {
 // ------------------------------------------------------------- playlists & albums
 const PL_STORE_KEY = "mashloop.playlists.v1";
 let playlists = [];
-let activePlaylistId = "all";
-let lockToPlaylist = false;
+let activePlaylistId = ui.activePlaylistId || "all";
+let lockToPlaylist = Boolean(ui.lockToPlaylist);
 let modalTrackIds = [];
 let plModalMode = "copy"; // "copy" or "move"
 let batchMode = false;
 const selectedTrackIds = new Set();
 let libSearchQuery = "";
-let libSortMode = "default";
+let libSortMode = ui.libSortMode || "default";
 
 function cleanVi(s) {
   return (s || "")
@@ -993,6 +1047,7 @@ function deletePlaylist(id) {
   if (activePlaylistId === id) {
     activePlaylistId = "all";
     lockToPlaylist = false;
+    save();
   }
   savePlaylists();
   renderLibrary();
@@ -1763,6 +1818,8 @@ $("#pl-chips")?.addEventListener("click", (e) => {
   const chip = e.target.closest(".pl-chip[data-pl-id]");
   if (!chip) return;
   activePlaylistId = chip.dataset.plId;
+  ui.activePlaylistId = activePlaylistId;
+  save();
   const container = $("#pl-chips");
   if (container) scrollChipIntoView(container, chip);
   renderLibrary();
@@ -1782,6 +1839,8 @@ $("#pl-play-btn")?.addEventListener("click", async () => {
     return;
   }
   lockToPlaylist = true;
+  ui.lockToPlaylist = true;
+  save();
   const lockCb = $("#pl-lock-toggle");
   if (lockCb) lockCb.checked = true;
   engine.ctx.resume();
@@ -1790,6 +1849,8 @@ $("#pl-play-btn")?.addEventListener("click", async () => {
 
 $("#pl-lock-toggle")?.addEventListener("change", (e) => {
   lockToPlaylist = e.target.checked;
+  ui.lockToPlaylist = lockToPlaylist;
+  save();
   prepareNext();
 });
 
@@ -2152,6 +2213,8 @@ sortPopover?.addEventListener("click", (e) => {
   if (!opt) return;
   const val = opt.getAttribute("data-val") || "default";
   libSortMode = val;
+  ui.libSortMode = libSortMode;
+  save();
   if (sortSelect) sortSelect.value = val;
   if (sortLabel) sortLabel.textContent = opt.querySelector("span")?.textContent || "Mới nhất";
   sortPopover.querySelectorAll(".lib-sort-opt").forEach((el) => {
@@ -2163,6 +2226,8 @@ sortPopover?.addEventListener("click", (e) => {
 
 sortSelect?.addEventListener("change", (e) => {
   libSortMode = e.target.value;
+  ui.libSortMode = libSortMode;
+  save();
   const matchingOpt = sortPopover?.querySelector(`[data-val="${libSortMode}"]`);
   if (matchingOpt && sortLabel) {
     sortLabel.textContent = matchingOpt.querySelector("span")?.textContent || "Mới nhất";
@@ -2172,6 +2237,18 @@ sortSelect?.addEventListener("change", (e) => {
   }
   renderLibrary();
 });
+
+function syncSortUI() {
+  if (sortSelect) sortSelect.value = libSortMode;
+  const matchingOpt = sortPopover?.querySelector(`[data-val="${libSortMode}"]`);
+  if (matchingOpt && sortLabel) {
+    sortLabel.textContent = matchingOpt.querySelector("span")?.textContent || "Mới nhất";
+    sortPopover?.querySelectorAll(".lib-sort-opt").forEach((el) => {
+      el.classList.toggle("on", el === matchingOpt);
+    });
+  }
+}
+syncSortUI();
 
 $("#inspect-close")?.addEventListener("click", () => {
   $("#inspect-modal")?.close();
@@ -3050,6 +3127,16 @@ function initCookieManagement() {
 loadPlaylists();
 checkUrlPlaylistImport();
 applySettings();
+if (ui.activeTab && ui.activeTab !== "library") {
+  for (const x of document.querySelectorAll(".tabs button")) {
+    const isTarget = x.dataset.tab === ui.activeTab;
+    x.classList.toggle("on", isTarget);
+    x.setAttribute("aria-selected", isTarget);
+  }
+  for (const t of document.querySelectorAll(".tab")) {
+    t.classList.toggle("on", t.id === `tab-${ui.activeTab}`);
+  }
+}
 initCookieManagement();
 renderLooks();
 renderTransport();

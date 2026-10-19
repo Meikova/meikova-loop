@@ -123,6 +123,8 @@ export const api = {
   cookieStatus: () => json("/api/cookies"),
   uploadCookies: (content) => json("/api/cookies", send("POST", { content })),
   deleteCookies: () => json("/api/cookies", { method: "DELETE" }),
+  settings: () => json("/api/settings"),
+  saveSettings: (data) => json("/api/settings", send("POST", data)),
   async audio(id, retry = true) {
     return sound(id, "audio", id, retry);
   },

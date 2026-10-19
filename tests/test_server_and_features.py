@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v69" in sw_js
-    assert "app.css?v=69" in index_html
-    assert "main.js?v=69" in index_html
-    assert "sw.js?v=69" in index_html
+    assert "mashloop-v70" in sw_js
+    assert "app.css?v=70" in index_html
+    assert "main.js?v=70" in index_html
+    assert "sw.js?v=70" in index_html
 
     # Segmented tabs SVG icons
     assert '<button type="button" data-tab="library"' in index_html or 'data-tab="library"' in index_html
@@ -399,6 +399,45 @@ def test_max_duration_guard_and_frontend_limits():
     assert "isOversized" in player_js
     assert "plan-failed" in player_js
 
+def test_settings_api_and_client_persistence():
+    """Verify backend settings persistence API and frontend main.js settings variables."""
+    from loopbox.server import SETTINGS_FILE
+    client = TestClient(app)
+
+    orig_data = None
+    if SETTINGS_FILE.exists():
+        orig_data = SETTINGS_FILE.read_text("utf-8")
+
+    try:
+        # GET returns dict
+        res = client.get("/api/settings")
+        assert res.status_code == 200
+        assert isinstance(res.json(), dict)
+
+        # POST saves settings
+        payload = {"v": 2, "ui": {"volume": 0.72, "theme": "amber"}, "player": {"mode": "chain"}}
+        res_post = client.post("/api/settings", json=payload)
+        assert res_post.status_code == 200
+        assert res_post.json()["status"] == "ok"
+
+        # GET returns saved payload
+        res_get = client.get("/api/settings")
+        assert res_get.status_code == 200
+        assert res_get.json()["ui"]["volume"] == 0.72
+
+        # Verify frontend main.js defines SETTINGS_VERSION and handles settings without errors
+        main_js = (Path(__file__).parent.parent / "web" / "js" / "main.js").read_text(encoding="utf-8")
+        assert "const SETTINGS_VERSION = 2;" in main_js
+        assert "activePlaylistId: typeof activePlaylistId" in main_js
+        assert "lockToPlaylist: typeof lockToPlaylist" in main_js
+        assert "libSortMode: typeof libSortMode" in main_js
+    finally:
+        if orig_data is not None:
+            SETTINGS_FILE.write_text(orig_data, "utf-8")
+        elif SETTINGS_FILE.exists():
+            SETTINGS_FILE.unlink()
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -417,6 +456,7 @@ if __name__ == "__main__":
     test_cookies_api_and_playlist_scroll_navigation()
     test_track_cancellation_on_delete()
     test_max_duration_guard_and_frontend_limits()
+    test_settings_api_and_client_persistence()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 
