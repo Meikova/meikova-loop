@@ -1035,6 +1035,18 @@ function updatePlNavArrows() {
   rightBtn.hidden = container.scrollLeft >= maxScroll - 4;
 }
 
+function scrollChipIntoView(container, chip) {
+  if (!container || !chip) return;
+  const cRect = container.getBoundingClientRect();
+  const chipRect = chip.getBoundingClientRect();
+  if (chipRect.left < cRect.left) {
+    container.scrollLeft -= (cRect.left - chipRect.left) + 8;
+  } else if (chipRect.right > cRect.right) {
+    container.scrollLeft += (chipRect.right - cRect.right) + 8;
+  }
+}
+
+let lastChipsHtml = "";
 function renderPlaylistChips() {
   const nav = $("#pl-nav");
   const container = $("#pl-chips");
@@ -1042,6 +1054,7 @@ function renderPlaylistChips() {
   if (!playlists.length) {
     nav.hidden = true;
     container.innerHTML = "";
+    lastChipsHtml = "";
     return;
   }
   nav.hidden = false;
@@ -1050,14 +1063,11 @@ function renderPlaylistChips() {
     const count = pl.trackIds.filter((tid) => metas.some((m) => m.id === tid)).length;
     html += `<button type="button" class="pl-chip ${activePlaylistId === pl.id ? "on" : ""}" data-pl-id="${esc(pl.id)}" title="${esc(pl.name)} (${count} bài)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span>${esc(pl.name)}</span> (${count})</button>`;
   }
-  container.innerHTML = html;
-  requestAnimationFrame(() => {
+  if (html !== lastChipsHtml) {
+    lastChipsHtml = html;
+    container.innerHTML = html;
     updatePlNavArrows();
-    const onChip = container.querySelector(".pl-chip.on");
-    if (onChip) {
-      onChip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
-    }
-  });
+  }
 }
 
 function renderActivePlaylistHeader() {
@@ -1747,8 +1757,8 @@ window.addEventListener("resize", updatePlNavArrows, { passive: true });
 $("#pl-chips")?.addEventListener("click", (e) => {
   const chip = e.target.closest(".pl-chip[data-pl-id]");
   if (!chip) return;
-  activePlaylistId = chip.dataset.plId;
-  chip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  const container = $("#pl-chips");
+  if (container) scrollChipIntoView(container, chip);
   renderLibrary();
 });
 

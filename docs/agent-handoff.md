@@ -11,6 +11,15 @@
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), Mobile Capacitor Sync (Android & iOS), GitHub (`origin/main`), Hugging Face Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi thanh cuộn tự động nhảy giật lên đầu trang khi đang cuộn**:
+  - **Nguyên nhân gốc rễ**:
+    - Trong hàm `renderPlaylistChips()` tại `web/js/main.js`, tồn tại lệnh `onChip.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" })`.
+    - Khi có bài hát đang nạp/tải hoặc polling mỗi 1.2s, hàm `renderLibrary()` được gọi liên tục. Mỗi lần chạy, `onChip.scrollIntoView()` lại ép toàn bộ container cha (`.panel`, `window`) cuộn ngược lên đầu trang để hiển thị chip playlist đang chọn.
+  - **Khắc phục**:
+    - Xóa bỏ hoàn toàn lệnh `scrollIntoView()` toàn cục trên chip playlist.
+    - Xây dựng hàm `scrollChipIntoView(container, chip)` tính toán tọa độ tương đối và chỉ điều khiển thuộc tính cuộn ngang cục bộ `container.scrollLeft`, tuyệt đối không làm ảnh hưởng đến vị trí cuộn dọc của trang.
+    - Thêm bộ nhớ đệm `lastChipsHtml` để không bao giờ ghi đè DOM `#pl-chips` nếu danh sách playlist không thay đổi.
+    - Nâng cấp Cache hệ thống lên `mashloop-v63` trong `web/sw.js` và `?v=63` trong `web/index.html`.
 - **Khắc phục lỗi "Requested format is not available" & Xác minh bot YouTube trên Cloud/Local**:
   - **Nguyên nhân gốc rễ**:
     1. Danh sách `clients` trong `resolve()` và `download()` trước đó chỉ xoay vòng quanh `web_embedded` và `mweb`, không bao giờ thử client chuẩn mặc định (`None`) hay `["android", "web"]`. Khi người dùng nạp cookie, YouTube áp dụng SABR trên `web_embedded`, khiến yt-dlp chỉ nhận diện ảnh storyboard (0 format âm thanh/video) -> `Requested format is not available`.
