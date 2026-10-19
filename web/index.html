@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=71" />
+    <link rel="stylesheet" href="css/app.css?v=72" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -439,6 +439,14 @@
       </section>
 
       <aside class="panel" id="panel" aria-label="Thư viện và tinh chỉnh">
+        <div
+          class="panel__resizer"
+          id="panel-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Kéo mép để chỉnh độ rộng thư viện"
+          title="Kéo mép sang hai bên để chỉnh độ rộng (Nhấp đúp để đặt lại mặc định)"
+        ></div>
         <div class="panel__head">
           <div class="seg tabs" role="tablist" aria-label="Bảng điều khiển">
             <span class="seg__ind" aria-hidden="true"></span>
@@ -739,19 +747,11 @@
             <h2 class="label" id="g-size">Kích thước & Tỷ lệ thành phần</h2>
             <label class="row">
               <span class="row__head">
-                <span>Độ rộng thư viện & tinh chỉnh</span>
-                <em id="v-panel-w" class="mono">420 px</em>
-              </span>
-              <input id="s-panel-w" type="range" min="300" max="700" step="10" value="420" />
-              <small>Chỉnh độ rộng cột thư viện (hoặc kéo thả viền giữa 2 cột)</small>
-            </label>
-            <label class="row">
-              <span class="row__head">
                 <span>Kích thước vòng vô cực</span>
                 <em id="v-viz-scale" class="mono">100%</em>
               </span>
               <input id="s-viz-scale" type="range" min="70" max="130" step="5" value="100" />
-              <small>Thu nhỏ hoặc phóng to 2 vòng tròn sân khấu</small>
+              <small>Thu nhỏ hoặc phóng to 2 vòng tròn sân khấu (Độ rộng cột: rê chuột vào mép chia để kéo)</small>
             </label>
             <label class="row">
               <span class="row__head">
@@ -1526,14 +1526,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=71"></script>
+    <script type="module" src="js/main.js?v=72"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=71")
+          .register("sw.js?v=72")
           .then((reg) => {
             reg.update();
           })

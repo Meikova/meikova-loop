@@ -371,10 +371,6 @@ function applySettings() {
   if (glowVal) glowVal.textContent = `${Math.round(ui.glow * 100)}%`;
   if (ui.panelWidth) {
     document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);
-    const sPanelW = $("#s-panel-w");
-    if (sPanelW) sPanelW.value = ui.panelWidth;
-    const vPanelW = $("#v-panel-w");
-    if (vPanelW) vPanelW.textContent = `${ui.panelWidth} px`;
   }
   if (ui.vizScale !== undefined) {
     viz.setScale?.(ui.vizScale);
@@ -498,10 +494,59 @@ $("#s-glow")?.addEventListener("input", (e) => {
   applySettings();
 });
 
-$("#s-panel-w")?.addEventListener("input", (e) => {
-  ui.panelWidth = +e.target.value;
-  applySettings();
-});
+function initPanelResizer() {
+  const resizer = $("#panel-resizer");
+  if (!resizer) return;
+  let dragging = false;
+  let startX = 0;
+  let startW = 0;
+
+  const onPointerDown = (e) => {
+    dragging = true;
+    resizer.classList.add("is-dragging");
+    startX = e.touches ? e.touches[0].clientX : e.clientX;
+    startW = ui.panelWidth || 420;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const delta = startX - clientX;
+    const newW = Math.max(280, Math.min(window.innerWidth - 300, startW + delta));
+    ui.panelWidth = Math.round(newW);
+    document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);
+  };
+
+  const onPointerUp = () => {
+    if (dragging) {
+      dragging = false;
+      resizer.classList.remove("is-dragging");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      viz.invalidate();
+      save();
+    }
+  };
+
+  resizer.addEventListener("mousedown", onPointerDown);
+  resizer.addEventListener("touchstart", onPointerDown, { passive: false });
+  window.addEventListener("mousemove", onPointerMove);
+  window.addEventListener("touchmove", onPointerMove, { passive: true });
+  window.addEventListener("mouseup", onPointerUp);
+  window.addEventListener("touchend", onPointerUp);
+
+  resizer.addEventListener("dblclick", () => {
+    ui.panelWidth = 420;
+    document.documentElement.style.setProperty("--panel-w", "420px");
+    viz.invalidate();
+    save();
+  });
+}
+initPanelResizer();
+
 $("#s-viz-scale")?.addEventListener("input", (e) => {
   ui.vizScale = +e.target.value / 100;
   applySettings();

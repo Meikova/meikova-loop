@@ -209,13 +209,13 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v71" in sw_js
-    assert "app.css?v=71" in index_html
-    assert "main.js?v=71" in index_html
-    assert "sw.js?v=71" in index_html
+    assert "mashloop-v72" in sw_js
+    assert "app.css?v=72" in index_html
+    assert "main.js?v=72" in index_html
+    assert "sw.js?v=72" in index_html
 
-    # Proportions & sizing sliders
-    assert 'id="s-panel-w"' in index_html
+    # Proportions & sizing resizer and sliders
+    assert 'id="panel-resizer"' in index_html
     assert 'id="s-viz-scale"' in index_html
     assert 'id="s-ui-scale"' in index_html
 
