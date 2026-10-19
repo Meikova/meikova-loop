@@ -49,8 +49,33 @@ def _sync_private_code():
             with z.open(m) as s, open(target, "wb") as d:
                 d.write(s.read())
             count += 1
-    print(f"Sync complete: {count} private files loaded.")
+def _ensure_deno():
+    if sys.platform.startswith("win"):
+        return
+    import shutil
+    if shutil.which("deno"):
+        return
+    deno_dir = Path.home() / ".local" / "bin"
+    deno_bin = deno_dir / "deno"
+    if deno_bin.exists():
+        os.environ["PATH"] = f"{deno_dir}:{os.environ.get('PATH', '')}"
+        return
+    try:
+        import urllib.request, zipfile, io
+        print("Auto-installing Deno JS engine for yt-dlp...")
+        deno_dir.mkdir(parents=True, exist_ok=True)
+        url = "https://github.com/denoland/deno/releases/download/v2.1.4/deno-x86_64-unknown-linux-gnu.zip"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            z = zipfile.ZipFile(io.BytesIO(resp.read()))
+            z.extract("deno", str(deno_dir))
+        deno_bin.chmod(0o755)
+        os.environ["PATH"] = f"{deno_dir}:{os.environ.get('PATH', '')}"
+        print("Deno installed successfully at", deno_bin)
+    except Exception as e:
+        print("Deno auto-install skipped:", e)
 
+_ensure_deno()
 _sync_private_code()
 
 os.environ.setdefault("MASHLOOP_HOST", "0.0.0.0")

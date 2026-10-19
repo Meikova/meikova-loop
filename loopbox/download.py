@@ -367,10 +367,10 @@ def resolve(text: str) -> list[dict]:
 
     clients = (
         ["web_embedded", "android", "web"],
-        ["web_embedded"],
+        ["android", "web"],
         ["mweb"],
-        ["tv_embedded", "tv"],
-        ["android"],
+        ["web"],
+        None,
     ) if site == "youtube" else (None,)
     info = None
     last_e = None
@@ -386,6 +386,8 @@ def resolve(text: str) -> list[dict]:
             cur_opts = dict(opts)
             if client:
                 cur_opts["extractor_args"] = {"youtube": {"player_client": client}}
+            else:
+                cur_opts.pop("extractor_args", None)
             try:
                 with yt_dlp.YoutubeDL(cur_opts) as ydl:
                     info = ydl.extract_info(text, download=False)
@@ -515,10 +517,10 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     # cycling client configs ensures datacenter/cloud connectivity.
     clients = (
         ["web_embedded", "android", "web"],
-        ["web_embedded"],
+        ["android", "web"],
         ["mweb"],
-        ["tv_embedded", "tv"],
-        ["android"],
+        ["web"],
+        None,
     ) if site == "youtube" else (None,)
     for use_cookies in cookie_passes:
         for client in clients:
@@ -528,6 +530,8 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
                          progress_hooks=[hook], retries=3)
             if client:
                 opts["extractor_args"] = {"youtube": {"player_client": client}}
+            else:
+                opts.pop("extractor_args", None)
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=False)
