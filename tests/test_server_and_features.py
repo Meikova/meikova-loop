@@ -581,6 +581,21 @@ def test_downloads_and_expanded_modals():
     assert "softprops/action-gh-release" in workflow_yml
 
 
+def test_deck_infinity_loading_path():
+    """Verify that deck play button loading animation has full lemniscate infinity path and calibration."""
+    index_html = Path("web/index.html").read_text(encoding="utf-8")
+    app_css = Path("web/css/app.css").read_text(encoding="utf-8")
+
+    # Complete infinity path with both lobes (right lobe x: 24..42 and left lobe x: 6..24)
+    expected_path = 'd="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"'
+    assert expected_path in index_html, "Loading SVG must contain the full infinity lemniscate path"
+    assert 'pathLength="120"' in index_html, "Loading path must specify pathLength=120 for 1:1 stroke-dasharray sync"
+
+    # CSS trace animation parameters
+    assert 'stroke-dasharray: 26 94' in app_css, "Dasharray must sum to 120"
+    assert '@keyframes trace { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -120; } }' in app_css
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -604,6 +619,7 @@ if __name__ == "__main__":
     test_dynamic_dwell_and_server_duration_limits()
     test_volume_150_themes_skip_and_shortcuts()
     test_downloads_and_expanded_modals()
+    test_deck_infinity_loading_path()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

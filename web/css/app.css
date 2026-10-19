@@ -607,7 +607,7 @@ kbd {
 
 .deck__play[data-state="load"] .i-play { display: none; }
 
-.deck__play[data-state="load"] .i-load { display: block; width: 30px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 26 94; }
+.deck__play[data-state="load"] .i-load { display: block; width: 30px; height: 15px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 26 94; }
 
 @media (prefers-reduced-motion: no-preference) {
   .deck__play[data-state="load"] .i-load { animation: trace 1.1s linear infinite; }

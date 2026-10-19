@@ -6,11 +6,47 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 16:22:00
-- Exit Code: 0 (All 21 test suites passed: tests/test_server_and_features.py)
-- Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
+- Timestamp: 2026-10-19 20:53:00
+- Exit Code: 0 (All 23 test suites passed: tests/test_server_and_features.py)
+- Platforms Built: GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`dist/MashLoop/_internal/web`, `web/downloads/MashLoop-Windows.zip`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi chuyển động vô cực chỉ chạy nửa hình trên nút Play của Deck**:
+  - **Nguyên nhân**: Trong commit `e1f5d61`, khi canh chỉnh format HTML, thẻ `<path>` của SVG `.i-load` trên nút `#btn-play` vô tình bị xoá mất nửa vòng lemniscate bên trái (` C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z`), chỉ còn vòng bên phải (`d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z"`). Khi animation `@keyframes trace` chạy với `stroke-dashoffset: 0 -> -120` và `stroke-dasharray: 26 94`, nét vẽ chỉ chạy trên vòng bên phải rồi biến mất ở nửa chu kỳ còn lại vì không còn đường dẫn SVG.
+  - **Khắc phục**:
+    1. Khôi phục hoàn chỉnh đường cong lemniscate 2 cánh trong `web/index.html`: `d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"`.
+    2. Bổ sung thuộc tính chuẩn SVG `pathLength="120"` trên `<path>` để đồng bộ tuyệt đối 1:1 với `stroke-dasharray: 26 94` (26 + 94 = 120) và `@keyframes trace { to { stroke-dashoffset: -120; } }`, chuyển động mượt mà không khựng không giật.
+    3. Cố định `height: 15px` tại `.deck__play[data-state="load"] .i-load` trong `web/css/app.css` khớp tỷ lệ 2:1 của `viewBox="0 0 48 24"`.
+    4. Bổ sung bài kiểm thử tự động `test_deck_infinity_loading_path` trong `tests/test_server_and_features.py` (23/23 tests Pass).
+    5. Đồng bộ sang `dist/MashLoop/_internal/web/`.
+
+- **Nâng Cấp & Chuẩn Hóa Skill `ambient-instrument-ui` (Zero-Icon, 100% Inline SVG & Less Text)**:
+  - **Mục tiêu**: Loại bỏ triệt để việc dùng icon mơ hồ / icon font / emoji. Chuẩn hóa 100% Inline Vector `<svg>` căn thẳng hàng tuyệt đối với chữ, giảm thiểu tối đa văn bản ("Less Text, More Signal"), thay thế chữ bằng SVG tự giải thích và micro-copy ngắn gọn (tối đa 1–2 từ).
+  - **Thay đổi chính**:
+    1. **Zero-Icon Mandate**: Cấm icon fonts và emoji. Mọi glyph đều là Inline `<svg viewBox="0 0 24 24" stroke="currentColor">` kế thừa màu phát quang OKLCH (`--accent`).
+    2. **Pixel-Perfect Optical Baseline Alignment**: Loại bỏ lỗi nhảy 1-2px baseline giữa SVG và chữ bằng `.btn-pill { display: inline-flex; align-items: center; vertical-align: middle; gap: 6px; }`, `.btn-pill svg { display: block; flex-shrink: 0; }`, `.btn-pill span { line-height: 1; transform: translateY(-0.5px); }`, và text-inline `vertical-align: -0.125em`.
+    3. **Tối Giản Văn Bản (Visual Telemetry over Text)**: Bổ sung bảng đối chiếu thay thế các câu dài thành SVG trực quan + nhãn micro-copy 1 từ (`Phát`, `Nhảy`, `Tiếp`, `Lặp`, `Zen`, `Tải`, `Chọn`) kèm đầy đủ `aria-label` / `title` cho Accessibility.
+    4. **Tài liệu tham khảo mới**: Bổ sung [`references/svg-craft-and-minimal-text.md`](file:///d:/JOB/DEV/MashLoop/.agents/skills/ambient-instrument-ui/references/svg-craft-and-minimal-text.md) và cập nhật [`examples/tokens.css`](file:///d:/JOB/DEV/MashLoop/.agents/skills/ambient-instrument-ui/examples/tokens.css) với các lớp tiện ích `.btn-pill`, `.chip`, `.btn-icon-pure`.
+
+- **CI/CD GitHub Actions & Tự động Build Apps (Android APK, iOS IPA, Desktop EXE)**:
+  - **Khảo sát**: Space (Hugging Face) chạy Linux Docker container, không có macOS để chạy Xcode build IPA cho iOS và không phù hợp phần cứng để build Android. GitHub Actions là giải pháp chuẩn nhất.
+  - **Triển khai CI/CD Workflow (`.github/workflows/build-release.yml`)**:
+    1. **Android APK**: Runner `ubuntu-latest`, setup Java 21 & Android SDK, `npx cap sync android`, chạy `./gradlew assembleDebug`, xuất file `MashLoop.apk`.
+    2. **iOS IPA**: Runner `macos-14`, setup Node & CocoaPods, `npx cap sync ios`, chạy `xcodebuild archive` và đóng gói unsigned Payload `MashLoop.ipa` (sẵn sàng cho AltStore / Sideloadly / TestFlight).
+    3. **Windows Desktop**: Runner `windows-latest`, setup Python 3.11, build PyInstaller onedir và nén thành `MashLoop-Windows.zip`.
+    4. **GitHub Releases Automation**: Tự động phát hành và upload toàn bộ artifact khi tạo Release tag `v*` hoặc trigger thủ công `workflow_dispatch`.
+  - **Backend Download Endpoints (`loopbox/server.py`)**:
+    - Bổ sung `@app.api_route("/api/download/{target}", methods=["GET", "HEAD"])`.
+    - Phục vụ trực tiếp file local nếu có (`MashLoop-Windows.zip`, `MashLoop.apk`, `MashLoop.ipa`).
+    - Tự động 307 Redirect tới link GitHub Release mới nhất `https://github.com/m3iK18dp/mashloop/releases/latest/download/...` khi chạy trên Space hoặc cloud.
+    - Hỗ trợ phương thức `HEAD` trả headers nhanh không tốn tài nguyên tải file dung lượng lớn.
+  - **Mở rộng Width Modal & Giao diện Tải Ứng Dụng (`web/index.html` & `web/css/app.css`)**:
+    - Tăng chiều rộng `.mobile-modal` và `.shortcuts-modal` từ `580px` lên `min(720px, calc(100vw - 28px)) !important;`.
+    - Tách hộp URL máy chủ `.mobile-modal__sub-box` với Tag nền tảng (`Hugging Face Space`, `Tailscale Mesh`, `Local Host`), font monospace chống ngắt dòng và nút "Sao chép" một chạm.
+    - Bổ sung cụm thẻ tải trực tiếp `.mobile-downloads`: nút tải **Android APK**, **Windows Desktop**, và **iOS IPA** kèm badge định dạng rõ ràng.
+    - Cố định lề cột phím tắt `.shortcut-row dt` (min-width `90px`) và `.shortcut-row dd` (white-space `nowrap`), giải quyết triệt để lỗi rớt dòng ở phím `1 / 2 / 3` ("Chế độ Chuỗi / Đơn / Tự do").
+    - Nâng cấp Cache phiên bản lên `mashloop-v76`.
+
 - **Khắc phục lỗi Visualizer Crash (`ReferenceError: two is not defined`) & Báo lỗi Script sai khi mạng ngắt quãng**:
   - **Nguyên nhân**: Khi tối ưu swap animation trong `web/js/viz.js`, dòng khai báo `const two = !!(second || placeholder);` bị vô tình ghi đè, khiến vòng lặp `_update` ném `ReferenceError: two is not defined` mỗi frame làm visualizer tối đen. Đồng thời `web/js/main.js` bắt nhầm `TypeError: Failed to fetch` (vốn là lỗi mạng khi server restart) thành `Lỗi script: Failed to fetch`.
   - **Khắc phục**: Khôi phục biến `two` trong `viz.js`; xử lý lỗi `Failed to fetch` / `NetworkError` thành trạng thái "Đang kết nối lại server…", chỉ báo "Lỗi script" cho `ReferenceError` thực tế.
