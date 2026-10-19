@@ -7,8 +7,9 @@ ROOT = Path.cwd()
 
 datas = [
     (str(ROOT / "web"), "web"),
-    (str(ROOT / "data" / "models"), "data/models"),
 ]
+if (ROOT / "data" / "models").exists():
+    datas.append((str(ROOT / "data" / "models"), "data/models"))
 if (ROOT / "data" / "samples").exists():
     datas.append((str(ROOT / "data" / "samples"), "data/samples"))
 

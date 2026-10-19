@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   # ===============================================================
-  # 1. BUILD ANDROID APK
+  # 1. BUILD & RELEASE ANDROID APK
   # ===============================================================
   build-android:
     name: Build Android APK
@@ -37,33 +37,33 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Sync Capacitor Android
         run: |
           npx cap sync android
 
-      - name: Build Android Debug APK
+      - name: Build Android APK
         run: |
           cd android
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon
+          cd ..
+          cp android/app/build/outputs/apk/debug/app-debug.apk MashLoop.apk
+          ls -lh MashLoop.apk
 
-      - name: Locate and Rename APK
-        run: |
-          mkdir -p build-artifacts
-          cp android/app/build/outputs/apk/debug/app-debug.apk build-artifacts/MashLoop.apk
-          ls -lh build-artifacts/MashLoop.apk
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: MashLoop-Android-APK
-          path: build-artifacts/MashLoop.apk
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          name: "MashLoop Release ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}"
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: MashLoop.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===============================================================
-  # 2. BUILD IOS IPA (Payload / Unsigned Archive)
+  # 2. BUILD & RELEASE IOS IPA
   # ===============================================================
   build-ios:
     name: Build iOS IPA
@@ -108,14 +108,20 @@ jobs:
           cd ../../..
           ls -lh MashLoop.ipa
 
-      - name: Upload iOS IPA Artifact
-        uses: actions/upload-artifact@v4
+      - name: Publish IPA to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: MashLoop-iOS-IPA
-          path: MashLoop.ipa
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
+          name: "MashLoop Release ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}"
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: MashLoop.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===============================================================
-  # 3. BUILD WINDOWS DESKTOP (.exe / .zip)
+  # 3. BUILD & RELEASE WINDOWS DESKTOP
   # ===============================================================
   build-windows:
     name: Build Windows Desktop
@@ -130,14 +136,15 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Python Dependencies & PyInstaller
+      - name: Install Dependencies & PyInstaller
         run: |
           python -m pip install --upgrade pip
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
           pip install pyinstaller pywebview uvicorn fastapi soundfile onnxruntime
 
-      - name: Build MashLoop Desktop Executable
+      - name: Prepare Directories and Build Desktop Executable
         run: |
+          if (-not (Test-Path "data\models")) { New-Item -ItemType Directory -Path "data\models" -Force }
           pyinstaller --noconfirm mashloop.spec
 
       - name: Compress Desktop Release
@@ -145,49 +152,7 @@ jobs:
           Compress-Archive -Path "dist\MashLoop\*" -DestinationPath "MashLoop-Windows.zip" -Force
           Get-Item MashLoop-Windows.zip | Select-Object Name, Length
 
-      - name: Upload Windows Desktop Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MashLoop-Windows-Desktop
-          path: MashLoop-Windows.zip
-
-  # ===============================================================
-  # 4. PUBLISH GITHUB RELEASE
-  # ===============================================================
-  release:
-    name: Create GitHub Release
-    needs: [build-android, build-ios, build-windows]
-    runs-on: ubuntu-latest
-    if: always() && !cancelled() && (needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-windows.result == 'success')
-    steps:
-      - name: Create Release Directory
-        run: mkdir -p release-files
-
-      - name: Download Android Artifact
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: MashLoop-Android-APK
-          path: release-files
-
-      - name: Download iOS Artifact
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: MashLoop-iOS-IPA
-          path: release-files
-
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: MashLoop-Windows-Desktop
-          path: release-files
-
-      - name: Display Release Files
-        run: ls -lh release-files/
-
-      - name: Publish GitHub Release
+      - name: Publish Windows Desktop to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
@@ -195,6 +160,6 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
-          files: release-files/*
+          files: MashLoop-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
