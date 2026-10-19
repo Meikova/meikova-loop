@@ -209,10 +209,10 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v74" in sw_js
-    assert "app.css?v=74" in index_html
-    assert "main.js?v=74" in index_html
-    assert "sw.js?v=74" in index_html
+    assert "mashloop-v75" in sw_js
+    assert "app.css?v=75" in index_html
+    assert "main.js?v=75" in index_html
+    assert "sw.js?v=75" in index_html
 
     # Proportions & sizing resizer and sliders
     assert 'id="panel-resizer"' in index_html
@@ -486,6 +486,54 @@ def test_dynamic_dwell_and_server_duration_limits():
     assert "if (r.max_duration_s) updateDurationLimits(r.max_duration_s);" in main_js
 
 
+def test_volume_150_themes_skip_and_shortcuts():
+    root = Path(__file__).resolve().parent.parent
+    index_html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    theme_js = (root / "web" / "js" / "theme.js").read_text(encoding="utf-8")
+    player_js = (root / "web" / "js" / "player.js").read_text(encoding="utf-8")
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
+
+    # 1. Volume 150%
+    assert 'id="s-vol" type="range" min="0" max="1.5"' in index_html
+    assert "Math.min(1.5, +val.toFixed(3))" in main_js
+    assert "syncVolumeRange" in main_js
+    assert "--vol-color" in main_js
+    assert "#s-vol::-webkit-slider-runnable-track" in app_css
+    assert "linear-gradient" in app_css
+
+    # 2. 14 Themes in theme.js and index.html
+    expected_themes = [
+        "mood", "synthwave", "neon", "cyberpunk", "aurora", "emerald",
+        "ocean", "sunset", "magma", "solar", "arctic", "midnight", "tokyo", "amber"
+    ]
+    for th in expected_themes:
+        assert f'{th}:' in theme_js or f'"{th}":' in theme_js
+        assert f'value="{th}"' in index_html
+        assert f'current === "{th}"' in theme_js or th in ("mood", "amber")
+
+    # 3. Next / skip button and immediate transition
+    assert "skipToNext()" in player_js
+    assert "_startImmediateCrossfade(" in player_js
+    assert "this.planTransition(candidates[0])" in player_js
+    assert 'this.pick(candidates[0])' not in player_js
+    assert "player.skipToNext()" in main_js
+    assert '$("#btn-next").disabled = !player.cur;' in main_js
+
+    # 4. Key K and shortcuts
+    assert "switchKho()" in main_js
+    assert "showHudToast" in main_js
+    assert '.hud-toast' in app_css
+    assert 'e.key === "1"' in main_js
+    assert 'e.key === "2"' in main_js
+    assert 'e.key === "3"' in main_js
+    assert 'Chế độ Chuỗi / Đơn / Tự do' in index_html
+
+    # 5. Service worker bump
+    assert "mashloop-v75" in sw_js
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -507,6 +555,8 @@ if __name__ == "__main__":
     test_settings_api_and_client_persistence()
     test_viz_scaling_and_glow_stability()
     test_dynamic_dwell_and_server_duration_limits()
+    test_volume_150_themes_skip_and_shortcuts()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
+
 
 

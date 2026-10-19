@@ -513,7 +513,7 @@ export class Player extends EventTarget {
       );
       if (candidates.length) {
         candidates.sort((a, b) => (b.q || 0) - (a.q || 0));
-        const ok = this.pick(candidates[0]);
+        const ok = this.planTransition(candidates[0]);
         if (ok) return true;
       }
     }
@@ -522,6 +522,104 @@ export class Player extends EventTarget {
     this._prefetch(true);
     this._planExit(this.engine.audibleTime());
     return true;
+  }
+
+  // Skip to next track immediately with smooth DJ crossfade transition
+  async skipToNext() {
+    if (!this.cur) return false;
+    if (this.blend || this.fx) return false;
+    const T = this.cur.track;
+
+    // 1. If a plan is already active, fast-forward into it immediately if ready
+    if (this.plan && this.plan.tr) {
+      const targetId = this.plan.tr.to;
+      try {
+        const targetTrack = await this.loader.get(targetId);
+        if (targetTrack && this.cur && this.cur.track.id === T.id) {
+          this._startImmediateCrossfade(targetTrack, this.plan.tr);
+          return true;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Find best transition to an enabled track
+    let targetId = this.targetNextId;
+    let chosenTr = null;
+    if (!targetId) {
+      const items = T.transitions.filter((tr) => tr.to !== T.id && this.enabled(tr.to) && this._usable(T, tr));
+      if (items.length) {
+        items.sort((a, b) => (b.q || 0) - (a.q || 0));
+        targetId = items[0].to;
+        chosenTr = items[0];
+      }
+    }
+
+    // 3. Fallback to any enabled track in library
+    if (!targetId && this.loader.metas) {
+      const enabledIds = [...this.loader.metas.keys()].filter((id) => id !== T.id && this.enabled(id));
+      if (enabledIds.length) {
+        targetId = enabledIds[Math.floor(Math.random() * enabledIds.length)];
+      }
+    }
+
+    if (!targetId) {
+      // Only one song: seek to start
+      this.seekTo(0);
+      return true;
+    }
+
+    try {
+      const targetTrack = await this.loader.get(targetId);
+      if (!this.cur || this.cur.track.id !== T.id) return false;
+      const tr = chosenTr || {
+        type: "fade",
+        to: targetId,
+        i: this.cur.beat,
+        j: 0,
+        seconds: 2.5,
+        rate: 1,
+        shift_ms: 0,
+        q: 0.8,
+        synthetic: true,
+      };
+      this._startImmediateCrossfade(targetTrack, tr);
+      return true;
+    } catch (e) {
+      console.warn("Could not skip to next track:", e);
+      return false;
+    }
+  }
+
+  _startImmediateCrossfade(targetTrack, tr) {
+    if (!this.cur) return;
+    const t = this.engine.now + 0.05;
+    const secs = tr.seconds || 2.5;
+    const prev = this.cur;
+    const v = this.engine.voice(targetTrack);
+
+    v.setBand("low", t, -14);
+    v.start(t, targetTrack.beats[0], 1, secs * 0.7);
+    v.sweep(t, 420, 18000, secs * 0.75);
+    v.rampBand("low", t + secs * 0.45, 0, secs * 0.3);
+
+    if (prev.voice) {
+      prev.voice.rampBand("low", t, -16, secs * 0.35);
+      prev.voice.sweep(t + secs * 0.2, 16000, 700, secs * 0.8);
+      prev.voice.gainCurve(FADE_A, t, secs);
+      prev.voice.stopAt(t + secs + 0.05);
+    }
+
+    this.cur = { track: targetTrack, beat: 0, rate: 1, voice: v };
+    this.plan = null;
+    this.urgent = false;
+    this.ramp = null;
+    this.hold = 1;
+    this.nextTime = t + targetTrack.dur[0];
+    this.cooldown = Math.max(this.cooldown, Math.ceil(secs / targetTrack.dur[0]) + 2);
+    this._log(t, "fade", { from: prev.beat, fromTrack: prev.track.id, tr });
+    this._enterTrack(targetTrack, t, "fade", tr);
+    this.dispatchEvent(new Event("track"));
+    this.dispatchEvent(new Event("state"));
   }
 
   // ---------------------------------------------------------------- scheduling

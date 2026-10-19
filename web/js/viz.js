@@ -497,7 +497,10 @@ export class Viz {
   _update(view, dt) {
     const { primary, second, secondTr, placeholder } = this._roles(view);
     const two = !!(second || placeholder);
-    const L = this._layout(two, second && this.mixNow?.blend ? this._mixProgress(view) : 0);
+    const swapProg = (second && (this.mixNow || (this.player.cur && primary && this.player.cur.track.id !== primary.id)))
+      ? this._mixProgress(view)
+      : 0;
+    const L = this._layout(two, swapProg);
     const k = this.reduced ? 1 : 1 - Math.exp(-dt / 0.22);
     const kRot = this.reduced ? 1 : 1 - Math.exp(-dt / 0.3);
 
@@ -987,6 +990,50 @@ export class Viz {
       ctx.lineCap = "butt";
     }
 
+    // Specialized visual transitions by mix type
+    const secondTr = this._roles(view).secondTr;
+    const trType = secondTr?.type || (this.mixNow?.blend ? "blend" : "fade");
+
+    if (trType === "riser" || trType === "sweeper") {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate((now / 180) * (1 + 2 * k));
+      for (let s = 0; s < 6; s++) {
+        const ang = (s * TAU) / 6;
+        const dist = (8 + 22 * k) * (1 + 0.15 * Math.sin(now / 120 + s));
+        ctx.fillStyle = theme.css(theme.lift(cb, 0.25), 0.85 * (0.3 + 0.7 * k));
+        ctx.beginPath();
+        ctx.arc(Math.cos(ang) * dist, Math.sin(ang) * dist, 1.8 + k, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    } else if (trType === "echo" || trType === "wash") {
+      for (let w = 1; w <= 3; w++) {
+        const pulse = ((now / 600 + w * 0.33) % 1);
+        ctx.strokeStyle = theme.css(theme.lift(mid, 0.18), (1 - pulse) * 0.45 * (0.3 + 0.7 * k));
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, (12 + 38 * pulse) * (1 + 0.15 * this.bass), 0, TAU);
+        ctx.stroke();
+      }
+    } else if (trType === "drop" || trType === "cut") {
+      const shock = (0.5 + 0.5 * Math.sin(now / 100)) * this.bass;
+      ctx.strokeStyle = theme.css(theme.lift(ca, 0.35), (0.4 + 0.6 * shock) * (0.4 + 0.6 * k));
+      ctx.lineWidth = 2 + shock * 2.5;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R * 1.35, 0, TAU);
+      ctx.stroke();
+    } else {
+      // Ethereal glowing aura for fade / blend
+      const auraG = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, R * 1.8);
+      auraG.addColorStop(0, theme.css(theme.lift(mid, 0.2), 0.45 * (1 + breathe * 0.3)));
+      auraG.addColorStop(1, theme.css(mid, 0));
+      ctx.fillStyle = auraG;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R * 1.8, 0, TAU);
+      ctx.fill();
+    }
+
     // Harmonic Camelot Badge at crossing point
     const second = [...this.rings.values()].find((r) => r.role === "second");
     if (primary && second && second.alpha > 0.25) {
@@ -1121,14 +1168,21 @@ export class Viz {
   }
 
   _drawRipples(ctx, now) {
-    this.ripples = this.ripples.filter((r) => now - r.t0 < 900);
+    this.ripples = this.ripples.filter((r) => now - r.t0 < 1100);
     for (const r of this.ripples) {
-      const u = (now - r.t0) / 900;
+      const u = (now - r.t0) / 1100;
       const e = easeOut(u);
-      ctx.strokeStyle = theme.css(theme.lift(r.col, 0.15), 0.85 * (1 - u));
-      ctx.lineWidth = 2 * (1 - u) + 0.6;
+      ctx.strokeStyle = theme.css(theme.lift(r.col, 0.2), 0.85 * (1 - u));
+      ctx.lineWidth = 2.5 * (1 - u) + 0.5;
       ctx.beginPath();
-      ctx.arc(r.x, r.y, 8 + 52 * e, 0, TAU);
+      ctx.arc(r.x, r.y, 8 + 62 * e, 0, TAU);
+      ctx.stroke();
+
+      // Second harmonic ripple wave
+      ctx.strokeStyle = theme.css(theme.lift(r.col, 0.35), 0.45 * (1 - u * u));
+      ctx.lineWidth = 1.4 * (1 - u);
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 4 + 38 * e, 0, TAU);
       ctx.stroke();
     }
   }

@@ -52,7 +52,7 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=74" />
+    <link rel="stylesheet" href="css/app.css?v=75" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -257,7 +257,7 @@
             type="button"
             class="deck__btn"
             id="btn-next"
-            title="Chuyển sang bài khác ở điểm nối gần nhất (N)"
+            title="Chuyển ngay sang bài khác (N)"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="8" cy="12" r="5" />
@@ -269,16 +269,15 @@
             type="button"
             class="deck__btn"
             id="btn-kho"
-            title="Sang kho khác ở điểm nối gần nhất (K)"
+            title="Sang kho / playlist khác (K)"
             aria-pressed="false"
-            hidden
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3.5 9 12 4.5 20.5 9 12 13.5z" />
               <path d="M3.5 13 12 17.5 20.5 13" />
               <path d="M3.5 17 12 21.5 20.5 17" opacity=".55" />
             </svg>
-            <span>Kho khác</span>
+            <span>Kho / PL</span>
           </button>
           <div class="deck__timer-wrap">
             <button
@@ -426,7 +425,7 @@
               </svg>
             </button>
             <span class="sr">Âm lượng</span>
-            <input id="s-vol" type="range" min="0" max="1" step="0.01" />
+            <input id="s-vol" type="range" min="0" max="1.5" step="0.01" />
             <em id="v-vol" class="mono"></em>
           </div>
         </div>
@@ -699,6 +698,13 @@
                 <span><b>Theo mood</b>mỗi bài một màu, đổi dần khi mix</span>
               </label>
               <label class="kind look">
+                <input type="radio" name="look" value="synthwave" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Synthwave</b>retro 80s hồng & lam neon</span>
+              </label>
+              <label class="kind look">
                 <input type="radio" name="look" value="neon" />
                 <span class="swatch" aria-hidden="true"
                   ><i></i><i></i><i></i
@@ -720,11 +726,60 @@
                 <span><b>Cực quang</b>lục bảo & ngọc phương bắc</span>
               </label>
               <label class="kind look">
+                <input type="radio" name="look" value="emerald" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Rừng ngọc</b>ngọc bích thẳm & rêu cổ thụ</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="ocean" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Biển sâu</b>sapphire thẳm & ngọc biển</span>
+              </label>
+              <label class="kind look">
                 <input type="radio" name="look" value="sunset" />
                 <span class="swatch" aria-hidden="true"
                   ><i></i><i></i><i></i
                 ></span>
                 <span><b>Hoàng hôn</b>cam san hô & tím hoàng hôn</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="magma" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Nham thạch</b>đỏ dung nham & than hồng</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="solar" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Bão mặt trời</b>vàng hoàng kim & lửa thái dương</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="arctic" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Băng tuyết</b>băng hà bắc cực & tuyết trắng</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="midnight" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Đêm vô tận</b>tím than & lam chàm thăm thẳm</span>
+              </label>
+              <label class="kind look">
+                <input type="radio" name="look" value="tokyo" />
+                <span class="swatch" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span><b>Tokyo đêm</b>hồng Shibuya & điện tử Akiba</span>
               </label>
               <label class="kind look">
                 <input type="radio" name="look" value="amber" />
@@ -1403,7 +1458,7 @@
 
       <div class="shortcuts-grid">
         <div class="shortcuts-group">
-          <h3 class="shortcuts-group__title">Phát nhạc</h3>
+          <h3 class="shortcuts-group__title">Phát nhạc & Điều hướng</h3>
           <dl class="shortcuts-list">
             <div class="shortcut-row">
               <dt><kbd>Space</kbd></dt>
@@ -1415,15 +1470,19 @@
             </div>
             <div class="shortcut-row">
               <dt><kbd>N</kbd></dt>
-              <dd>Chuyển bài (Next)</dd>
+              <dd>Chuyển bài ngay (Next)</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>K</kbd></dt>
-              <dd>Đổi kho bài (Switch Kho)</dd>
+              <dd>Đổi kho bài / Playlist (Switch)</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>L</kbd></dt>
               <dd>Khóa lặp bài (Loop Lock)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></dt>
+              <dd>Chế độ Chuỗi / Đơn / Tự do</dd>
             </div>
           </dl>
         </div>
@@ -1433,7 +1492,7 @@
           <dl class="shortcuts-list">
             <div class="shortcut-row">
               <dt><kbd>[</kbd> / <kbd>]</kbd></dt>
-              <dd>Giảm / Tăng âm lượng</dd>
+              <dd>Giảm / Tăng âm (tới 150%)</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>M</kbd></dt>
@@ -1445,11 +1504,15 @@
             </div>
             <div class="shortcut-row">
               <dt><kbd>E</kbd></dt>
-              <dd>Bộ lọc EQ</dd>
+              <dd>Đổi bộ lọc EQ</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>F</kbd></dt>
-              <dd>Toàn màn hình Visualizer (Zen Mode)</dd>
+              <dd>Toàn màn hình Visualizer (Zen)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>Esc</kbd></dt>
+              <dd>Thoát Zen / Đóng cửa sổ</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>?</kbd></dt>
@@ -1526,14 +1589,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=74"></script>
+    <script type="module" src="js/main.js?v=75"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=74")
+          .register("sw.js?v=75")
           .then((reg) => {
             reg.update();
           })

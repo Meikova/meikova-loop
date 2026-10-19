@@ -360,10 +360,47 @@ function save() {
   }, 400);
 }
 
+function syncVolumeRange(input) {
+  if (!input) return;
+  const val = +input.value;
+  const pct = Math.max(0, Math.min(100, (val / 1.5) * 100));
+  input.style.setProperty("--v", `${pct.toFixed(1)}%`);
+  const vVol = $("#v-vol");
+  if (vVol) vVol.textContent = `${Math.round(val * 100)}%`;
+  if (val > 1.0) {
+    const k = Math.min(1, (val - 1.0) / 0.5);
+    const crimson = `oklch(${0.72 - 0.27 * k} ${0.15 + 0.1 * k} ${65 - 41 * k})`;
+    input.style.setProperty("--vol-color", crimson);
+    input.style.setProperty(
+      "--vol-track",
+      `linear-gradient(90deg, var(--accent) 0%, var(--accent) 66.7%, ${crimson} ${pct.toFixed(1)}%, var(--ink-3) ${pct.toFixed(1)}%)`
+    );
+    if (vVol) {
+      vVol.style.color = crimson;
+      vVol.style.fontWeight = "700";
+    }
+  } else {
+    input.style.removeProperty("--vol-color");
+    input.style.setProperty(
+      "--vol-track",
+      `linear-gradient(90deg, var(--accent) 0%, var(--accent) ${pct.toFixed(1)}%, var(--ink-3) ${pct.toFixed(1)}%)`
+    );
+    if (vVol) {
+      vVol.style.color = "";
+      vVol.style.fontWeight = "";
+    }
+  }
+}
+
 // Range fill: the amber part of the track follows the value.
 function syncRange(input) {
+  if (!input) return;
   const min = +input.min || 0, max = +input.max || 1;
-  input.style.setProperty("--v", `${((+input.value - min) / (max - min)) * 100}%`);
+  const val = +input.value;
+  input.style.setProperty("--v", `${((val - min) / (max - min)) * 100}%`);
+  if (input.id === "s-vol") {
+    syncVolumeRange(input);
+  }
 }
 
 function applySettings() {
@@ -372,7 +409,7 @@ function applySettings() {
   s.jumpEvery = 60 * Math.pow(0.1, ui.freq);
   s.keep = 0.15 + 0.85 * ui.strict;
   if (s.dwellMax < s.dwellMin) s.dwellMax = s.dwellMin;
-  engine.setVolume(window.pywebview ? (isMuted ? 0 : 1.0) : (isMuted ? 0 : ui.volume));
+  engine.setVolume(window.pywebview ? (isMuted ? 0 : (ui.volume > 1.0 ? ui.volume : 1.0)) : (isMuted ? 0 : ui.volume));
   $("#s-freq").value = ui.freq;
   $("#v-freq").textContent = `~${Math.round(s.jumpEvery)} giây một lần`;
   $("#s-strict").value = ui.strict;
@@ -393,7 +430,7 @@ function applySettings() {
   $("#blend-styles").disabled = !s.allow.blend;
   $("#blend-match").disabled = !s.allow.blend;
   $("#s-vol").value = ui.volume;
-  $("#v-vol").textContent = `${Math.round(ui.volume * 100)}`;
+  syncVolumeRange($("#s-vol"));
   updateVolumeIcon(ui.volume, isMuted);
   $("#s-cross").checked = ui.crossKho;
   $("#s-kmin").value = ui.khoMinutes;
@@ -481,7 +518,7 @@ function updateVolumeIcon(vol, muted) {
 
 export function setAppVolume(val, syncSystem = true) {
   if (typeof val !== "number" || isNaN(val)) return;
-  const clamped = Math.max(0, Math.min(1, +val.toFixed(3)));
+  const clamped = Math.max(0, Math.min(1.5, +val.toFixed(3)));
   ui.volume = clamped;
   isMuted = ui.volume === 0;
   updateVolumeIcon(ui.volume, isMuted);
@@ -489,12 +526,13 @@ export function setAppVolume(val, syncSystem = true) {
   if (sVol && Math.abs(+sVol.value - ui.volume) >= 0.005) {
     sVol.value = ui.volume;
   }
+  syncRange(sVol);
   applySettings();
   save();
   if (syncSystem) {
-    window.pywebview?.api?.set_system_volume?.(ui.volume);
+    window.pywebview?.api?.set_system_volume?.(Math.min(1.0, ui.volume));
     try {
-      window.AndroidAudio?.setVolume?.(ui.volume);
+      window.AndroidAudio?.setVolume?.(Math.min(1.0, ui.volume));
     } catch (_) {}
   }
 }
@@ -502,7 +540,7 @@ export function setAppVolume(val, syncSystem = true) {
 // Global receiver for OS system volume changes (Desktop, Android, iOS)
 window.__onSystemVolume = (vol) => {
   if (typeof vol !== "number" || isNaN(vol)) return;
-  const clamped = Math.max(0, Math.min(1, +vol.toFixed(3)));
+  const clamped = Math.max(0, Math.min(1.5, +vol.toFixed(3)));
   if (Math.abs(ui.volume - clamped) >= 0.005) {
     setAppVolume(clamped, false);
   }
@@ -687,8 +725,63 @@ $("#btn-play").addEventListener("click", async () => {
   }
   renderTransport();
 });
-$("#btn-jump").addEventListener("click", () => player.requestJump());
-$("#btn-next").addEventListener("click", () => player.forceTransition());
+let hudToastTimer = null;
+export function showHudToast(msg) {
+  if (!msg) return;
+  let wrap = $("#hud-toast-wrap");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = "hud-toast-wrap";
+    wrap.className = "hud-toast-wrap";
+    document.body.appendChild(wrap);
+  }
+  let toast = wrap.querySelector(".hud-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "hud-toast";
+    wrap.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(hudToastTimer);
+  hudToastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1800);
+}
+
+$("#btn-jump").addEventListener("click", () => {
+  if (!player.cur) {
+    showHudToast("Chưa có bài đang phát");
+    return;
+  }
+  const btn = $("#btn-jump");
+  btn.classList.add("is-active");
+  setTimeout(() => btn.classList.remove("is-active"), 250);
+  player.requestJump();
+  showHudToast("Nhảy phách trong bài (J)");
+});
+
+$("#btn-next").addEventListener("click", async () => {
+  if (!player.cur) {
+    showHudToast("Chưa có bài đang phát");
+    return;
+  }
+  const btn = $("#btn-next");
+  btn.classList.add("is-active");
+  setTimeout(() => btn.classList.remove("is-active"), 300);
+
+  if (player.blend || player.fx) {
+    showHudToast("Đang hòa âm chuyển bài...");
+    return;
+  }
+
+  showHudToast("Đang chuyển sang bài tiếp theo (N)...");
+  const ok = await player.skipToNext();
+  if (!ok) {
+    player.forceTransition();
+  }
+});
+
 $("#btn-kho").addEventListener("click", () => switchKho());
 
 // --- Deck controls: Lock, Timer, Night EQ, Quick Mute ---
@@ -879,27 +972,61 @@ document.addEventListener("keydown", (e) => {
     if (e.target.closest("button")) return; // a focused button handles Space itself
     e.preventDefault();
     $("#btn-play").click();
-  } else if (e.key === "j" || e.key === "J") player.requestJump();
-  else if (e.key === "n" || e.key === "N") player.forceTransition();
-  else if (e.key === "k" || e.key === "K") switchKho();
-  else if (e.key === "l" || e.key === "L") { player.toggleLoopLock(); applySettings(); }
-  else if (e.key === "t" || e.key === "T") { if (timerBtn) timerBtn.click(); }
-  else if (e.key === "m" || e.key === "M") { toggleMute(); }
-  else if (e.key === "]") {
+    showHudToast(player.playing ? "Tiếp tục phát (Space)" : "Tạm dừng (Space)");
+  } else if (e.key === "j" || e.key === "J") {
+    $("#btn-jump")?.click();
+  } else if (e.key === "n" || e.key === "N") {
+    $("#btn-next")?.click();
+  } else if (e.key === "k" || e.key === "K") {
+    switchKho();
+  } else if (e.key === "l" || e.key === "L") {
+    player.toggleLoopLock();
+    applySettings();
+    showHudToast(player.settings.mode === "single" ? "Đã khóa lặp bài (L)" : "Đã mở khóa chuỗi (L)");
+  } else if (e.key === "1") {
+    player.settings.mode = "chain";
+    applySettings();
+    showHudToast("Chế độ: Chuỗi (1)");
+  } else if (e.key === "2") {
+    player.settings.mode = "single";
+    applySettings();
+    showHudToast("Chế độ: Đơn lặp (2)");
+  } else if (e.key === "3") {
+    player.settings.mode = "free";
+    applySettings();
+    showHudToast("Chế độ: Tự do (3)");
+  } else if (e.key === "t" || e.key === "T") {
+    if (timerBtn) timerBtn.click();
+  } else if (e.key === "m" || e.key === "M") {
+    toggleMute();
+    showHudToast(isMuted ? "Đã tắt tiếng (M)" : `Bật tiếng ${Math.round(ui.volume * 100)}% (M)`);
+  } else if (e.key === "]") {
     e.preventDefault();
-    setAppVolume(Math.min(1, +(ui.volume + 0.02).toFixed(2)), true);
+    setAppVolume(Math.min(1.5, +(ui.volume + 0.05).toFixed(2)), true);
+    showHudToast(`Âm lượng: ${Math.round(ui.volume * 100)}%`);
   } else if (e.key === "[") {
     e.preventDefault();
-    setAppVolume(Math.max(0, +(ui.volume - 0.02).toFixed(2)), true);
+    setAppVolume(Math.max(0, +(ui.volume - 0.05).toFixed(2)), true);
+    showHudToast(`Âm lượng: ${Math.round(ui.volume * 100)}%`);
   } else if (e.key === "e" || e.key === "E") {
     const nextIdx = (EQ_LIST.indexOf(engine.eqMode || "flat") + 1) % EQ_LIST.length;
-    setEq(EQ_LIST[nextIdx]);
+    const mode = EQ_LIST[nextIdx];
+    setEq(mode);
+    showHudToast(`Bộ lọc EQ: ${EQ_NAMES[mode] || mode} (E)`);
   } else if (e.key === "f" || e.key === "F") {
     toggleZen();
-  } else if (e.key === "Escape" && document.body.classList.contains("is-zen")) {
-    toggleZen();
+  } else if (e.key === "Escape") {
+    if (document.body.classList.contains("is-zen")) {
+      toggleZen();
+    } else {
+      const openDialog = document.querySelector("dialog[open]");
+      if (openDialog && typeof openDialog.close === "function") {
+        openDialog.close();
+      }
+    }
+  } else if (e.key === "?") {
+    $("#btn-shortcuts-modal")?.click();
   }
-  else if (e.key === "?") { $("#btn-shortcuts-modal")?.click(); }
 });
 player.addEventListener("state", renderTransport);
 player.addEventListener("track", () => {
@@ -965,18 +1092,69 @@ function dropLib(key) {
   refresh();
 }
 
-// "Kho khác": the next exit goes into the next library, at the nearest good
-// point, the way "Bài khác" finds one for any song.
+// "Kho khác" / "Playlist khác": the next exit goes into the next library or playlist.
 async function switchKho() {
-  if (!kho.cur || !player.cur || player.settings.mode !== "chain" || kho.force) return;
-  await prepareNext();
-  if (!kho.next) return;
-  kho.force = true;
-  kho.forceAt = performance.now();
-  player.requestNextSong();
-  viz.invalidate();
-  renderExits();
-  renderTransport();
+  const kBtn = $("#btn-kho");
+  if (kBtn) {
+    kBtn.classList.add("is-active");
+    setTimeout(() => kBtn.classList.remove("is-active"), 300);
+  }
+
+  // 1. If sample libraries are active
+  if (kho.cur && samples.libraries && samples.libraries.length > 1) {
+    if (kho.force) {
+      showHudToast("Đang tìm điểm nối sang kho khác...");
+      return;
+    }
+    await prepareNext();
+    if (kho.next) {
+      kho.force = true;
+      kho.forceAt = performance.now();
+      player.requestNextSong();
+      viz.invalidate();
+      renderExits();
+      renderTransport();
+      const nLib = libByKey(kho.next);
+      showHudToast(`Đổi sang kho: ${nLib?.name || "Kho mới"} (K)`);
+      return;
+    }
+  }
+
+  // 2. If playlists exist, cycle active playlist
+  if (playlists && playlists.length > 0) {
+    const plOrder = ["all", ...playlists.map((p) => p.id)];
+    const curIdx = plOrder.indexOf(activePlaylistId);
+    const nextIdx = (curIdx + 1) % plOrder.length;
+    activePlaylistId = plOrder[nextIdx];
+    ui.activePlaylistId = activePlaylistId;
+    renderPlaylists();
+    renderLibrary();
+    save();
+    const plName = activePlaylistId === "all" ? "Tất cả bài hát" : getPlaylist(activePlaylistId)?.name || "Playlist";
+    showHudToast(`Playlist: ${plName} (K)`);
+    if (player.cur && player.settings.mode === "chain") {
+      player.skipToNext();
+    }
+    return;
+  }
+
+  // 3. Fallback: single library or only sample libraries available
+  if (samples.libraries && samples.libraries.length > 1) {
+    await prepareNext();
+    if (kho.next) {
+      kho.force = true;
+      kho.forceAt = performance.now();
+      player.requestNextSong();
+      viz.invalidate();
+      renderExits();
+      renderTransport();
+      const nLib = libByKey(kho.next);
+      showHudToast(`Đổi sang kho: ${nLib?.name || "Kho mới"} (K)`);
+      return;
+    }
+  }
+
+  showHudToast("Chỉ có 1 kho/playlist hiện tại (K)");
 }
 
 // The timer counts listening time in the library being heard; a switch that
@@ -999,14 +1177,15 @@ function renderTransport() {
   btn.setAttribute("aria-label", state === "load" ? "Đang tải bài" : state === "pause" ? "Tạm dừng" : player.cur ? "Tiếp tục" : "Phát");
   btn.disabled = busy || (!player.cur && !metas.some((m) => m.status === "ready"));
   $("#btn-jump").disabled = !player.cur;
-  $("#btn-next").disabled = !player.cur || player.settings.mode !== "chain";
+  $("#btn-next").disabled = !player.cur;
   const k = $("#btn-kho");
-  k.hidden = !kho.cur;
-  k.disabled = !player.cur || player.settings.mode !== "chain" || kho.force;
+  const hasMultiple = (kho.cur && samples.libraries && samples.libraries.length > 1) || (playlists && playlists.length > 0);
+  k.hidden = !hasMultiple;
+  k.disabled = !player.cur && !hasMultiple;
   k.setAttribute("aria-pressed", kho.force);
   const next = libByKey(kho.next);
   k.title = kho.force ? `Đang tìm điểm nối sang ${next?.name || "kho khác"}`
-    : `Sang kho khác${next ? ` (${next.name})` : ""} ở điểm nối gần nhất (K)`;
+    : `Sang kho / playlist khác${next ? ` (${next.name})` : ""} (K)`;
 
   const isLocked = player.settings.mode === "single";
   const lb = $("#btn-lock");
@@ -2424,18 +2603,20 @@ async function refresh() {
     return true;
   } catch (err) {
     console.error("Refresh error:", err);
-    if (err instanceof ReferenceError || err instanceof TypeError) {
-      $("#worker").textContent = `Lỗi script: ${err.message}`;
-      return false;
-    }
     const msg = err?.message || "";
-    if (msg.includes("quá nhiều") || msg.includes("429")) {
-      $("#worker").textContent = msg;
-    } else if (msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("Failed to fetch") || msg.includes("session expired") || msg.includes("410")) {
+    if (msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("session expired") || msg.includes("410")) {
       $("#worker").textContent = "Đang kết nối lại server…";
       if (msg.includes("session expired") || msg.includes("410")) {
         session.id = null;
       }
+      return false;
+    }
+    if (err instanceof ReferenceError) {
+      $("#worker").textContent = `Lỗi script: ${err.message}`;
+      return false;
+    }
+    if (msg.includes("quá nhiều") || msg.includes("429")) {
+      $("#worker").textContent = msg;
     } else {
       $("#worker").textContent = "Mất kết nối tới server";
     }

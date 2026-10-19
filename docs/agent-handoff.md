@@ -6,11 +6,51 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 15:50:00
-- Exit Code: 0 (All 20 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-19 16:22:00
+- Exit Code: 0 (All 21 test suites passed: tests/test_server_and_features.py)
 - Platforms Built: Desktop Native Shell (`dist/MashLoop/_internal/web`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi Visualizer Crash (`ReferenceError: two is not defined`) & Báo lỗi Script sai khi mạng ngắt quãng**:
+  - **Nguyên nhân**: Khi tối ưu swap animation trong `web/js/viz.js`, dòng khai báo `const two = !!(second || placeholder);` bị vô tình ghi đè, khiến vòng lặp `_update` ném `ReferenceError: two is not defined` mỗi frame làm visualizer tối đen. Đồng thời `web/js/main.js` bắt nhầm `TypeError: Failed to fetch` (vốn là lỗi mạng khi server restart) thành `Lỗi script: Failed to fetch`.
+  - **Khắc phục**: Khôi phục biến `two` trong `viz.js`; xử lý lỗi `Failed to fetch` / `NetworkError` thành trạng thái "Đang kết nối lại server…", chỉ báo "Lỗi script" cho `ReferenceError` thực tế.
+
+- **Nút "Chuyển ngay lập tức" (Skip / Immediate Transition) & Khắc phục lỗi bấm không phản hồi**:
+  - **Nguyên nhân**: Nút `#btn-next` trước đây bị vô hiệu hóa khi không ở chế độ "chain" (`$("#btn-next").disabled = !player.cur || player.settings.mode !== "chain"`). Trong `web/js/player.js`, hàm `forceTransition` gọi hàm không tồn tại `this.pick(candidates[0])` thay vì `this.planTransition(candidates[0])`. Ngoài ra nếu bài đích chưa tải hoặc chưa có đường nối phân tích, người dùng không nhận được bất kỳ phản hồi nào.
+  - **Khắc phục**:
+    1. Sửa hàm `this.pick(...)` thành `this.planTransition(...)`.
+    2. Thêm phương thức `player.skipToNext()`: tự động kích hoạt chuyển bài tức thì (immediate DJ crossfade 2.5s) sang bài kế tiếp trong playlist hoặc thư viện nếu chưa có plan, hoặc tua nhanh transition plan đang chờ mà không phải đợi tới điểm ra xa.
+    3. Cho phép nút `#btn-next` hoạt động ở mọi chế độ (chỉ cần có bài đang phát).
+    4. Thêm hiệu ứng xúc giác (tactile pulse) khi bấm và thông báo HUD Toast: "Đang chuyển sang bài tiếp theo (N)...".
+
+- **Âm lượng Overdrive 150% & Dải màu đỏ đậm bầm (100% → 150%)**:
+  - **Bối cảnh**: Người dùng yêu cầu cho phép chỉnh âm thanh vượt ngưỡng 100% lên tới 150%, đoạn từ 100% đến 150% chuyển mượt từ màu chủ đạo sang màu đỏ đậm bầm (`oklch(0.48 0.25 24)` / deep crimson).
+  - **Triển khai**:
+    1. Thuộc tính thanh trượt `#s-vol`: `min="0" max="1.5" step="0.01"`.
+    2. Trong `web/js/main.js`: `setAppVolume(val)` mở rộng từ 0.0 đến 1.5. Cập nhật nhãn `#v-vol` hiển thị tới `150%`.
+    3. Hàm `syncVolumeRange(input)` tính toán gradient dải màu động `--vol-track`: đoạn 0% - 100% dùng màu chủ đạo `var(--accent)`, đoạn 100% - 150% nội suy mượt sang màu đỏ đậm bầm.
+    4. Thẻ số `#v-vol` chuyển sang màu đỏ bầm và in đậm khi vượt 100%.
+    5. Âm lượng hệ thống pywebview được giới hạn trần 1.0 trong khi Web Audio `Engine` xử lý phần gain boost qua compressor/limiter chống vỡ tiếng.
+    6. Phím tắt `[` và `]` tăng/giảm bước 0.05 lên tới 150% kèm HUD Toast.
+
+- **Bảng phím tắt & Khắc phục phím K (Đổi kho / Đổi Playlist)**:
+  - **Bối cảnh**: Phím `K` trước đây gắn với `switchKho()` nhưng chỉ hoạt động khi dùng kho nhạc mẫu (`kho.cur`), nếu người dùng dùng bài tự upload hoặc playlist thì bấm `K` không phản hồi gì.
+  - **Triển khai**:
+    1. Nâng cấp `switchKho()`: Tự động tuần hoàn danh sách Playlist (`all` -> `playlist 1` -> `playlist 2` -> `all`) nếu có playlist, hoặc tuần hoàn kho mẫu nếu có nhiều kho, hoặc thông báo nếu chỉ có 1 kho duy nhất.
+    2. Bổ sung phím tắt `1`, `2`, `3` đổi nhanh chế độ Chuỗi / Đơn / Tự do.
+    3. Bổ sung phím `Escape` đóng nhanh các modal và thoát Zen mode.
+    4. Cập nhật đầy đủ bảng phím tắt trong modal `Shortcuts Modal`.
+    5. Thêm hệ thống `showHudToast` hiển thị thông báo góc nhìn nổi (ambient HUD toast) cho mọi phím tắt.
+
+- **Mở rộng bảng màu theo Mood lên 14 Themes phong phú**:
+  - Bổ sung 8 theme mới với bảng màu OKLCH cân chỉnh tỉ mỉ: `synthwave`, `emerald` (Rừng ngọc), `ocean` (Biển sâu), `magma` (Nham thạch), `solar` (Bão mặt trời), `arctic` (Băng tuyết), `midnight` (Đêm vô tận), `tokyo` (Tokyo đêm).
+  - Thêm thẻ swatch tương ứng trong tab Tinh chỉnh và hỗ trợ xem trước màu (preview swatch).
+
+- **Nâng cấp Animation chuyển tiếp mượt mà & đa dạng**:
+  - Hỗ trợ animation chuyển đổi kích thước 2 vòng vô cực (`swap progress`) cho toàn bộ các kiểu mix (`fade`, `cut`, `drop`, `echo`, `wash`, `riser`, `flanger`, `tape`, `sweeper`), không chỉ riêng kiểu `blend`.
+  - Hiệu ứng thị giác đa dạng tại điểm giao nhau `_drawCross`: sóng xung kích kép (drop/cut), vòng xoáy hạt năng lượng (riser/sweeper), sóng phản hồi đồng tâm (echo/wash), hào quang sương khói (fade/blend).
+  - Nâng cấp `_drawRipples` thành sóng lan tỏa kép hai lớp.
+  - Nâng cấp Cache phiên bản `mashloop-v75`.
 - **Tính năng thanh trượt "Chuyển bài muộn nhất sau" (Dwell Max) động theo giới hạn nền tảng Server (Dynamic Dwell Duration Limits)**:
   - **Bối cảnh & Yêu cầu**:
     1. Mỗi nền tảng có giới hạn độ dài video khác nhau: Desktop / Local app cho phép xử lý video dài tới 60 phút (`3600s`), trong khi HF Space / Multiuser giới hạn 15 phút (`900s`).

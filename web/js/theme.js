@@ -18,6 +18,12 @@ export const THEMES = {
     beatSpread: 80, beatL: [0.58, 0.84], beatC: [0.55, 1.25],
     glow: 1,
   },
+  synthwave: {
+    label: "Synthwave",
+    ground: () => ({ h: 310, c: 0.034 }),
+    beatSpread: 100, beatL: [0.58, 0.82], beatC: [1.1, 1.55],
+    glow: 1.4,
+  },
   neon: {
     label: "Neon",
     ground: () => ({ h: 278, c: 0.03 }),
@@ -36,11 +42,53 @@ export const THEMES = {
     beatSpread: 85, beatL: [0.62, 0.86], beatC: [0.8, 1.35],
     glow: 1.25,
   },
+  emerald: {
+    label: "Rừng ngọc",
+    ground: () => ({ h: 145, c: 0.032 }),
+    beatSpread: 80, beatL: [0.58, 0.82], beatC: [0.9, 1.4],
+    glow: 1.2,
+  },
+  ocean: {
+    label: "Biển sâu",
+    ground: () => ({ h: 225, c: 0.03 }),
+    beatSpread: 85, beatL: [0.56, 0.8], beatC: [0.95, 1.45],
+    glow: 1.3,
+  },
   sunset: {
     label: "Hoàng hôn",
     ground: () => ({ h: 330, c: 0.028 }),
     beatSpread: 95, beatL: [0.62, 0.84], beatC: [1.1, 1.5],
     glow: 1.3,
+  },
+  magma: {
+    label: "Nham thạch",
+    ground: () => ({ h: 28, c: 0.038 }),
+    beatSpread: 85, beatL: [0.58, 0.82], beatC: [1.15, 1.6],
+    glow: 1.4,
+  },
+  solar: {
+    label: "Bão mặt trời",
+    ground: () => ({ h: 65, c: 0.032 }),
+    beatSpread: 80, beatL: [0.64, 0.88], beatC: [1.1, 1.5],
+    glow: 1.35,
+  },
+  arctic: {
+    label: "Băng tuyết",
+    ground: () => ({ h: 200, c: 0.022 }),
+    beatSpread: 75, beatL: [0.66, 0.9], beatC: [0.75, 1.25],
+    glow: 1.2,
+  },
+  midnight: {
+    label: "Đêm vô tận",
+    ground: () => ({ h: 265, c: 0.018 }),
+    beatSpread: 70, beatL: [0.52, 0.76], beatC: [0.7, 1.15],
+    glow: 1.1,
+  },
+  tokyo: {
+    label: "Tokyo đêm",
+    ground: () => ({ h: 345, c: 0.036 }),
+    beatSpread: 105, beatL: [0.6, 0.84], beatC: [1.15, 1.55],
+    glow: 1.45,
   },
   amber: {
     label: "Hổ phách",
@@ -138,12 +186,36 @@ export function songColor(id) {
   else if (current === "cyberpunk") {
     const base = moodColor(id);
     col = { l: 0.76, c: 0.22, h: base.h < 180 ? 195 : 320 };
+  } else if (current === "synthwave") {
+    const base = moodColor(id);
+    col = { l: 0.75, c: 0.23, h: base.h < 180 ? 305 : 185 };
   } else if (current === "aurora") {
     const base = moodColor(id);
     col = { l: 0.78, c: 0.17, h: 135 + ((base.h % 120)) };
+  } else if (current === "emerald") {
+    const base = moodColor(id);
+    col = { l: 0.75, c: 0.18, h: 130 + ((base.h % 55)) };
+  } else if (current === "ocean") {
+    const base = moodColor(id);
+    col = { l: 0.72, c: 0.19, h: 210 + ((base.h % 50)) };
   } else if (current === "sunset") {
     const base = moodColor(id);
     col = { l: 0.76, c: 0.21, h: base.h < 180 ? 30 : 335 };
+  } else if (current === "magma") {
+    const base = moodColor(id);
+    col = { l: 0.70, c: 0.23, h: 18 + ((base.h % 35)) };
+  } else if (current === "solar") {
+    const base = moodColor(id);
+    col = { l: 0.82, c: 0.19, h: 55 + ((base.h % 35)) };
+  } else if (current === "arctic") {
+    const base = moodColor(id);
+    col = { l: 0.82, c: 0.13, h: 190 + ((base.h % 45)) };
+  } else if (current === "midnight") {
+    const base = moodColor(id);
+    col = { l: 0.65, c: 0.14, h: 255 + ((base.h % 40)) };
+  } else if (current === "tokyo") {
+    const base = moodColor(id);
+    col = { l: 0.76, c: 0.24, h: base.h < 180 ? 340 : 190 };
   } else col = moodColor(id);
   col = fit(col);
   cache.set(k, col);
@@ -159,8 +231,16 @@ export function accentOf(id) {
 export function idleAccent() {
   if (current === "neon") return fit({ l: 0.74, c: 0.24, h: 350 });
   if (current === "cyberpunk") return fit({ l: 0.82, c: 0.22, h: 195 });
+  if (current === "synthwave") return fit({ l: 0.76, c: 0.23, h: 310 });
   if (current === "aurora") return fit({ l: 0.82, c: 0.17, h: 155 });
+  if (current === "emerald") return fit({ l: 0.78, c: 0.18, h: 145 });
+  if (current === "ocean") return fit({ l: 0.74, c: 0.19, h: 225 });
   if (current === "sunset") return fit({ l: 0.78, c: 0.21, h: 25 });
+  if (current === "magma") return fit({ l: 0.72, c: 0.23, h: 25 });
+  if (current === "solar") return fit({ l: 0.84, c: 0.19, h: 70 });
+  if (current === "arctic") return fit({ l: 0.84, c: 0.14, h: 205 });
+  if (current === "midnight") return fit({ l: 0.68, c: 0.14, h: 265 });
+  if (current === "tokyo") return fit({ l: 0.78, c: 0.24, h: 345 });
   return current === "mood" ? { l: 0.8, c: 0.1, h: 40 } : AMBER;
 }
 
@@ -200,15 +280,55 @@ export function preview(name, ids) {
     fit({ l: 0.74, c: 0.24, h: 280 }),
     fit({ l: 0.78, c: 0.25, h: 335 }),
   ];
+  if (name === "synthwave") return [
+    fit({ l: 0.78, c: 0.24, h: 315 }),
+    fit({ l: 0.72, c: 0.22, h: 265 }),
+    fit({ l: 0.80, c: 0.20, h: 190 }),
+  ];
   if (name === "aurora") return [
     fit({ l: 0.84, c: 0.17, h: 155 }),
     fit({ l: 0.78, c: 0.16, h: 190 }),
     fit({ l: 0.72, c: 0.15, h: 270 }),
   ];
+  if (name === "emerald") return [
+    fit({ l: 0.80, c: 0.18, h: 140 }),
+    fit({ l: 0.75, c: 0.17, h: 160 }),
+    fit({ l: 0.70, c: 0.15, h: 120 }),
+  ];
+  if (name === "ocean") return [
+    fit({ l: 0.78, c: 0.19, h: 215 }),
+    fit({ l: 0.72, c: 0.20, h: 240 }),
+    fit({ l: 0.68, c: 0.18, h: 195 }),
+  ];
   if (name === "sunset") return [
     fit({ l: 0.82, c: 0.19, h: 45 }),
     fit({ l: 0.76, c: 0.22, h: 18 }),
     fit({ l: 0.70, c: 0.24, h: 330 }),
+  ];
+  if (name === "magma") return [
+    fit({ l: 0.75, c: 0.24, h: 20 }),
+    fit({ l: 0.70, c: 0.23, h: 35 }),
+    fit({ l: 0.62, c: 0.25, h: 10 }),
+  ];
+  if (name === "solar") return [
+    fit({ l: 0.86, c: 0.20, h: 65 }),
+    fit({ l: 0.80, c: 0.19, h: 50 }),
+    fit({ l: 0.74, c: 0.18, h: 35 }),
+  ];
+  if (name === "arctic") return [
+    fit({ l: 0.86, c: 0.14, h: 195 }),
+    fit({ l: 0.82, c: 0.13, h: 215 }),
+    fit({ l: 0.76, c: 0.12, h: 175 }),
+  ];
+  if (name === "midnight") return [
+    fit({ l: 0.70, c: 0.15, h: 260 }),
+    fit({ l: 0.64, c: 0.14, h: 285 }),
+    fit({ l: 0.58, c: 0.13, h: 240 }),
+  ];
+  if (name === "tokyo") return [
+    fit({ l: 0.80, c: 0.25, h: 345 }),
+    fit({ l: 0.74, c: 0.23, h: 290 }),
+    fit({ l: 0.82, c: 0.22, h: 195 }),
   ];
   const hues = moods.size ? null : [20, 170, 290];
   return [0, 1, 2].map((k) => {
