@@ -11,6 +11,7 @@ import logging
 import os
 import secrets
 import sqlite3
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -25,6 +26,58 @@ _ENC_ID = "NTE1NjY4NzIzODY5LTA2Nmc3NGRidDhjM2I2MW9kZmlndjZnbDM1NTJjb2ozLmFwcHMuZ
 _ENC_SEC = "R09DU1BYLXNjWXJsdVNKQ3Y5MjBqbjZYSHNBc3NvTmZMeTM="
 SESSION_LIFETIME_DAYS = 30
 _db_path = DATA_DIR / "auth.db"
+
+_pending_auth_events: dict[str, threading.Event] = {}
+_pending_auth_results: dict[str, dict] = {}
+_pending_auth_timestamps: dict[str, float] = {}
+_pending_auth_lock = threading.Lock()
+
+
+def create_auth_request(prefix: str = "desktop") -> str:
+    """Generates unique state token for Desktop or Mobile OAuth request."""
+    state = f"{prefix}_" + secrets.token_urlsafe(16)
+    with _pending_auth_lock:
+        _pending_auth_events[state] = threading.Event()
+        _pending_auth_timestamps[state] = time.time()
+    return state
+
+
+def fulfill_auth_request(state: str, result: dict):
+    """Fulfills pending auth event with tokens or errors."""
+    with _pending_auth_lock:
+        _pending_auth_results[state] = result
+        event = _pending_auth_events.get(state)
+        if event:
+            event.set()
+
+
+def peek_or_pop_auth_result(state: str, pop: bool = True) -> dict | None:
+    """Checks or pops auth result for polling clients (Mobile/PWA)."""
+    with _pending_auth_lock:
+        if pop:
+            _pending_auth_events.pop(state, None)
+            _pending_auth_timestamps.pop(state, None)
+            return _pending_auth_results.pop(state, None)
+        return _pending_auth_results.get(state)
+
+
+def wait_for_auth_request(state: str, timeout: float = 120.0) -> dict | None:
+    """Blocks until Google callback completes or timeout elapses."""
+    with _pending_auth_lock:
+        event = _pending_auth_events.get(state)
+    if not event:
+        return None
+    success = event.wait(timeout)
+    with _pending_auth_lock:
+        _pending_auth_events.pop(state, None)
+        _pending_auth_timestamps.pop(state, None)
+        return _pending_auth_results.pop(state, None) if success else None
+
+
+# Backward-compatible aliases for Desktop bridge
+create_desktop_auth_request = lambda: create_auth_request("desktop")
+fulfill_desktop_auth = fulfill_auth_request
+wait_for_desktop_auth = wait_for_auth_request
 
 
 def _decode_b64(val: str) -> str:

@@ -335,19 +335,45 @@ def auth_google(req: GoogleAuthRequest):
 
 
 @app.get("/api/auth/google/start")
-def auth_google_start(request: Request):
+def auth_google_start(request: Request, mode: str = "web"):
     host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
     proto = "https" if "hf.space" in host_header else "http"
     redirect_uri = f"{proto}://{host_header}/api/auth/google/callback"
-    auth_url = auth.get_google_auth_url(redirect_uri)
-    return {"auth_url": auth_url, "redirect_uri": redirect_uri}
+    state = ""
+    if mode in ("mobile", "desktop"):
+        state = auth.create_auth_request(mode)
+    auth_url = auth.get_google_auth_url(redirect_uri, state=state)
+    return {"auth_url": auth_url, "redirect_uri": redirect_uri, "state": state}
+
+
+@app.get("/api/auth/google/poll")
+def auth_google_poll(state: str):
+    if not state:
+        raise HTTPException(400, "Thiếu tham số state")
+    res = auth.peek_or_pop_auth_result(state, pop=True)
+    if not res:
+        return {"status": "pending"}
+    if "error" in res:
+        return {"status": "error", "error": res["error"]}
+    return {"status": "ok", "token": res.get("token"), "user": res.get("user")}
 
 
 @app.get("/api/auth/google/callback")
-def auth_google_callback(request: Request, code: str | None = None, error: str | None = None):
+def auth_google_callback(
+    request: Request,
+    code: str | None = None,
+    error: str | None = None,
+    state: str | None = None,
+):
+    is_desktop = bool(state and state.startswith("desktop_"))
+    is_mobile = bool(state and state.startswith("mobile_"))
     if error:
+        if (is_desktop or is_mobile) and state:
+            auth.fulfill_auth_request(state, {"error": error})
         return HTMLResponse(f"<h3 style='color:#ef4444;background:#181b22;padding:20px;font-family:sans-serif;'>Lỗi đăng nhập Google: {error}</h3>", status_code=400)
     if not code:
+        if (is_desktop or is_mobile) and state:
+            auth.fulfill_auth_request(state, {"error": "Thiếu mã xác thực từ Google"})
         return HTMLResponse("<h3 style='color:#ef4444;background:#181b22;padding:20px;font-family:sans-serif;'>Thiếu mã xác thực từ Google</h3>", status_code=400)
     host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
     proto = "https" if "hf.space" in host_header else "http"
@@ -357,6 +383,58 @@ def auth_google_callback(request: Request, code: str | None = None, error: str |
         token = res["token"]
         user = res["user"]
         user_name = user.get("display_name") or user.get("username")
+
+        if (is_desktop or is_mobile) and state:
+            auth.fulfill_auth_request(state, {"token": token, "user": user})
+            target_name = "Desktop App" if is_desktop else "Mobile App"
+            msg = (
+                "Đã gửi phiên đăng nhập vào ứng dụng MashLoop trên máy tính.<br>Tab này sẽ tự đóng..."
+                if is_desktop
+                else "Đã gửi phiên đăng nhập vào ứng dụng MashLoop trên điện thoại.<br>Bấm nút bên dưới để mở lại app nếu tab không tự đóng."
+            )
+            app_link_html = (
+                '<div class="actions"><a href="com.m3ik18dp.mashloop://" class="btn">Mở lại MashLoop App</a><button class="btn btn-ghost" onclick="window.close()">Đóng tab</button></div>'
+                if is_mobile
+                else '<button class="btn" onclick="window.close()">Đóng tab</button>'
+            )
+            redirect_js = (
+                "setTimeout(() => { window.location.href = 'com.m3ik18dp.mashloop://'; }, 400); setTimeout(() => window.close(), 1500);"
+                if is_mobile
+                else "setTimeout(() => window.close(), 1200);"
+            )
+            html = f"""<!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1"/>
+          <title>MashLoop // Đã xác thực cho {target_name}</title>
+          <style>
+            body {{ background: #0e1015; color: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }}
+            .card {{ background: #181b22; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 32px 24px; text-align: center; max-width: 380px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }}
+            h2 {{ color: #f59e0b; margin: 0 0 10px; font-size: 20px; }}
+            p {{ color: #a1a1aa; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }}
+            .actions {{ display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }}
+            .btn {{ display: inline-flex; align-items: center; justify-content: center; background: #f59e0b; color: #0e1015; font-weight: 600; padding: 10px 20px; border-radius: 999px; text-decoration: none; cursor: pointer; border: none; font-size: 13px; }}
+            .btn-ghost {{ background: rgba(255,255,255,0.08); color: #f0eee9; }}
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Đã xác thực cho {target_name}!</h2>
+            <p>Chào mừng <b>{user_name}</b>.<br>{msg}</p>
+            {app_link_html}
+          </div>
+          <script>
+            try {{
+              localStorage.removeItem('mashloop:token');
+              localStorage.removeItem('mashloop:login_event');
+            }} catch(e) {{}}
+            {redirect_js}
+          </script>
+        </body>
+        </html>"""
+            return HTMLResponse(html)
+
         html = f"""<!doctype html>
         <html>
         <head>
@@ -402,6 +480,8 @@ def auth_google_callback(request: Request, code: str | None = None, error: str |
         </html>"""
         return HTMLResponse(html)
     except Exception as e:
+        if is_desktop and state:
+            auth.fulfill_desktop_auth(state, {"error": str(e)})
         return HTMLResponse(f"<h3 style='color:#ef4444;background:#181b22;padding:20px;font-family:sans-serif;'>Xác thực Google thất bại: {e}</h3>", status_code=500)
 
 

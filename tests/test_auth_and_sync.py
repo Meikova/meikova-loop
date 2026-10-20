@@ -178,6 +178,57 @@ class TestAuthAndMultiDeviceSync(unittest.TestCase):
         self.assertEqual(data["user"]["username"], "tester@example.com")
         self.assertIn("token", data)
 
+    def test_06_desktop_and_mobile_auth_isolation(self):
+        from unittest.mock import patch
+
+        mock_token = "mock_isolated_token_123"
+        mock_user = {"id": 999, "username": "isolated@gmail.com", "display_name": "Isolated User"}
+
+        with patch("loopbox.auth.exchange_google_code", return_value={"token": mock_token, "user": mock_user}):
+            # 1. Desktop Flow
+            desk_state = auth.create_auth_request("desktop")
+            desk_resp = self.client.get(f"/api/auth/google/callback?code=fake_code&state={desk_state}")
+            self.assertEqual(desk_resp.status_code, 200)
+            desk_html = desk_resp.text
+            self.assertIn("Đã xác thực cho Desktop App!", desk_html)
+            self.assertNotIn("localStorage.setItem('mashloop:token'", desk_html)
+            self.assertNotIn("window.location.href = '/'", desk_html)
+
+            # Check that desktop thread received the result
+            desk_result = auth.wait_for_auth_request(desk_state, timeout=1.0)
+            self.assertIsNotNone(desk_result)
+            self.assertEqual(desk_result["token"], mock_token)
+            self.assertEqual(desk_result["user"]["username"], "isolated@gmail.com")
+
+            # 2. Mobile Native Flow
+            mob_state = auth.create_auth_request("mobile")
+            mob_resp = self.client.get(f"/api/auth/google/callback?code=fake_code&state={mob_state}")
+            self.assertEqual(mob_resp.status_code, 200)
+            mob_html = mob_resp.text
+            self.assertIn("Đã xác thực cho Mobile App!", mob_html)
+            self.assertIn("com.m3ik18dp.mashloop://", mob_html)
+            self.assertNotIn("localStorage.setItem('mashloop:token'", mob_html)
+            self.assertNotIn("window.location.href = '/'", mob_html)
+
+            # Check that mobile polling endpoint retrieves the result
+            poll_resp = self.client.get(f"/api/auth/google/poll?state={mob_state}")
+            self.assertEqual(poll_resp.status_code, 200)
+            poll_data = poll_resp.json()
+            self.assertEqual(poll_data["status"], "ok")
+            self.assertEqual(poll_data["token"], mock_token)
+            self.assertEqual(poll_data["user"]["display_name"], "Isolated User")
+
+            # Subsequent poll should show pending/cleared
+            poll2_resp = self.client.get(f"/api/auth/google/poll?state={mob_state}")
+            self.assertEqual(poll2_resp.json()["status"], "pending")
+
+            # 3. Standard Web Flow (no desktop/mobile state)
+            web_resp = self.client.get("/api/auth/google/callback?code=fake_code")
+            self.assertEqual(web_resp.status_code, 200)
+            web_html = web_resp.text
+            self.assertIn("localStorage.setItem('mashloop:token'", web_html)
+            self.assertIn("window.location.href = '/'", web_html)
+
 
 
 if __name__ == "__main__":

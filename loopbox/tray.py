@@ -346,15 +346,15 @@ class DesktopTray:
 
             if not self._balloon_shown and self._tray:
                 self.show_balloon(
-                    "MashLoop",
-                    "MashLoop vẫn đang chạy ngầm trong khay hệ thống. Nhấp vào biểu tượng để mở lại.",
+                    "Mash ∞ Loop",
+                    "Đang chạy ngầm · Nhấp vào biểu tượng để mở lại.",
                 )
                 self._balloon_shown = True
         except Exception as e:
             logger.debug("Error hiding window to tray: %s", e)
 
     def show_balloon(self, title: str, message: str):
-        """Displays a system tray balloon notification."""
+        """Displays a clean, iconless system tray balloon notification."""
         if not self._tray or not hasattr(self._tray, "ShowBalloonTip"):
             return
         try:
@@ -364,7 +364,8 @@ class DesktopTray:
             def _do_balloon():
                 try:
                     if self._tray:
-                        self._tray.ShowBalloonTip(3000, title, message, ToolTipIcon.Info)
+                        icon_none = getattr(ToolTipIcon, "None", ToolTipIcon.Info)
+                        self._tray.ShowBalloonTip(3000, title, message, icon_none)
                 except Exception:
                     pass
 

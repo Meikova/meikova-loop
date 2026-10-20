@@ -3834,19 +3834,76 @@ function initAuthAndSync() {
     }
   });
 
+  const isCapacitorNative = !!(
+    window.Capacitor &&
+    window.Capacitor.isNativePlatform &&
+    window.Capacitor.isNativePlatform()
+  );
+
   const btnGoogle = $("#btn-ambient-google");
   btnGoogle?.addEventListener("click", async () => {
     if (window.pywebview?.api?.open_google_login) {
       showHudToast("Đang mở trình duyệt ngoài để đăng nhập Google...");
       try {
-        await window.pywebview.api.open_google_login();
+        const res = await window.pywebview.api.open_google_login();
+        if (res?.token) {
+          await onAuthSuccess(res);
+          showHudToast("Đăng nhập Google thành công!");
+        } else if (res?.error) {
+          showHudToast(res.error);
+        }
       } catch (err) {
         showHudToast("Lỗi mở trình duyệt: " + err.message);
       }
       return;
     }
+
+    if (isCapacitorNative) {
+      showHudToast("Đang mở trình duyệt để đăng nhập Google...");
+      try {
+        const start = await fetch("/api/auth/google/start?mode=mobile").then((r) => r.json());
+        if (start?.auth_url && start?.state) {
+          window.open(start.auth_url, "_system");
+
+          let pollInterval = setInterval(async () => {
+            try {
+              const check = await fetch(`/api/auth/google/poll?state=${encodeURIComponent(start.state)}`).then((r) => r.json());
+              if (check?.status === "ok" && check?.token) {
+                clearInterval(pollInterval);
+                await onAuthSuccess(check);
+                showHudToast("Đăng nhập Google thành công!");
+              } else if (check?.status === "error") {
+                clearInterval(pollInterval);
+                showHudToast("Lỗi đăng nhập: " + check.error);
+              }
+            } catch (_) {}
+          }, 1500);
+
+          setTimeout(() => clearInterval(pollInterval), 180000);
+
+          const onResume = async () => {
+            try {
+              const check = await fetch(`/api/auth/google/poll?state=${encodeURIComponent(start.state)}`).then((r) => r.json());
+              if (check?.status === "ok" && check?.token) {
+                clearInterval(pollInterval);
+                window.removeEventListener("focus", onResume);
+                document.removeEventListener("visibilitychange", onResume);
+                await onAuthSuccess(check);
+                showHudToast("Đăng nhập Google thành công!");
+              }
+            } catch (_) {}
+          };
+          window.addEventListener("focus", onResume);
+          document.addEventListener("visibilitychange", onResume);
+        }
+      } catch (err) {
+        showHudToast("Không thể mở trình duyệt: " + err.message);
+      }
+      return;
+    }
+
     try {
-      const res = await fetch("/api/auth/google/start").then((r) => r.json());
+      const res = await fetch("/api/auth/google/start?mode=web").then((r) => r.json());
       if (res?.auth_url) {
         showHudToast("Đang mở đăng nhập Google...");
         const isMobileOrStandalone =

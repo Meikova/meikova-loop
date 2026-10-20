@@ -78,3 +78,11 @@
   - Tích hợp 1-Click Native PWA Install (`beforeinstallprompt` & `appinstalled`) trên desktop PC và điện thoại Android/iOS.
   - Tối ưu callback Google OAuth cho Mobile & Standalone PWA: tự động chuyển hướng mượt mà về trang chính `/` và bổ sung nút điều hướng quay lại app.
   - Test suites: `test_server_and_features.py` (28/28 tests PASS), `unittest discover` (7/7 tests PASS).
+- **Tùy biến thông báo khay hệ thống (System Tray Notification)**:
+  - Loại bỏ icon tròn màu xanh `(i)` cồng kềnh bằng `ToolTipIcon.None` (qua `getattr(ToolTipIcon, "None")`).
+  - Chuẩn hóa tiêu đề `"Mash ∞ Loop"` và nội dung `"Đang chạy ngầm · Nhấp vào biểu tượng để mở lại."` theo phong cách Ambient phẳng tối giản.
+  - Tests: `test_tray.py` (7/7 PASS), `test_server_and_features.py` (28/28 PASS).
+- **Cô lập luồng đăng nhập Google OAuth cho Desktop & Mobile App**:
+  - Khắc phục triệt để lỗi đăng nhập chéo: Đăng nhập trên Desktop hoặc Mobile app KHÔNG lưu cookie/localStorage vào trình duyệt web và KHÔNG chuyển hướng web về `/`.
+  - Hỗ trợ Mobile Native App (Capacitor APK/IPA): Mở trình duyệt hệ thống ngoài (tránh 403 `disallowed_useragent`), cơ chế polling `GET /api/auth/google/poll` và resume listener tự động nạp token vào app, hỗ trợ deep-link `com.m3ik18dp.mashloop://`.
+  - Toàn bộ test suite xanh 100%: `tests/test_auth_and_sync.py` (8/8 PASS, bao gồm test cô lập luồng desktop & mobile), `tests/test_server_and_features.py` (28/28 PASS).
