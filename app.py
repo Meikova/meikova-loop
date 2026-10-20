@@ -24,6 +24,12 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+is_space = bool(os.environ.get("SPACE_ID"))
+os.environ.setdefault("MASHLOOP_HOST", "0.0.0.0")
+os.environ.setdefault("MASHLOOP_PORT", os.environ.get("PORT", "7860" if is_space else "8765"))
+os.environ.setdefault("MASHLOOP_MULTIUSER", "1")
+os.environ.setdefault("MASHLOOP_DATA", str(ROOT / "data"))
+
 def _sync_private_code():
     is_space = bool(os.environ.get("SPACE_ID"))
     if not is_space and (ROOT / "loopbox" / "server.py").exists() and (ROOT / "web" / "index.html").exists():
@@ -141,10 +147,7 @@ _ensure_ffmpeg()
 _sync_private_code()
 _sync_cookies()
 
-os.environ.setdefault("MASHLOOP_HOST", "0.0.0.0")
-os.environ.setdefault("MASHLOOP_PORT", os.environ.get("PORT", "7860"))
-os.environ.setdefault("MASHLOOP_MULTIUSER", "1")
-os.environ.setdefault("MASHLOOP_DATA", str(ROOT / "data"))
+# (env vars configured at top)
 
 import gradio as gr
 from fastapi.staticfiles import StaticFiles
@@ -239,7 +242,8 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
 
-    port = int(os.environ.get("PORT", PORT))
+    target_port = 7860 if bool(os.environ.get("SPACE_ID")) else 8765
+    port = int(os.environ.get("PORT") or os.environ.get("MASHLOOP_PORT") or target_port)
     demo.launch(
         server_name="0.0.0.0",
         server_port=port,
