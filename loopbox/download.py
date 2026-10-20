@@ -364,6 +364,33 @@ def resolve_spotify(url: str, max_tracks: int = 50) -> list[dict]:
         return results
 
 
+def resolve_youtube_oembed(video_id: str) -> dict | None:
+    """Extracts public YouTube video metadata via Google's official oEmbed API.
+    Bypasses datacenter bot verification / CAPTCHA completely."""
+    try:
+        req = urllib.request.Request(
+            f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            title = data.get("title") or video_id
+            author = data.get("author_name") or ""
+            thumb = data.get("thumbnail_url") or f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+            return {
+                "id": video_id,
+                "source": "youtube",
+                "title": title,
+                "channel": author,
+                "duration": None,
+                "thumbnail": thumb,
+                "url": f"https://www.youtube.com/watch?v={video_id}",
+            }
+    except Exception as e:
+        logger.debug(f"oEmbed resolution failed for {video_id}: {e}")
+        return None
+
+
 def resolve(text: str) -> list[dict]:
     """A song link gives one entry, a playlist (set, album) link gives its songs,
     and anything else is a YouTube search for the best match."""
@@ -458,8 +485,15 @@ def resolve(text: str) -> list[dict]:
                         last_e = e
                         if site != "youtube":
                             break
-        if info is None and last_e:
-            raise last_e
+        if info is None:
+            if site == "youtube":
+                m_vid = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", text)
+                if m_vid:
+                    oembed_res = resolve_youtube_oembed(m_vid.group(1))
+                    if oembed_res:
+                        return [oembed_res]
+            if last_e:
+                raise last_e
 
     if info.get("_type") == "playlist" or "entries" in info:
         entries = info.get("entries") or []

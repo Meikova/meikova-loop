@@ -6,11 +6,21 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 11:15:00
+- Timestamp: 2026-10-20 11:47:00
 - Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi đè khuất 4 góc box báo lỗi (`.msg--err`) và bổ sung cơ chế oEmbed Fallback cho YouTube**:
+  - **Lỗi CSS đè khuất 4 góc**:
+    - `.results:not(:empty)` trước đây khai báo `border: 1px solid var(--line-soft)`, `border-radius: var(--radius)` (14px), `overflow: hidden` và `background: var(--ink-1)`.
+    - Khi có lỗi, thẻ con `.msg.msg--err` có `border-radius: 8px` và border màu đỏ riêng bị nhét khít vào khung cha, tạo ra 2 đường viền đè lên nhau, 4 góc bị méo và ăn lẹm vào nền tối.
+    - Đã sửa: Chuyển border/background của `.results` chỉ kích hoạt khi chứa danh sách kết quả (`.results:has(.result)`). Đặt `.msg.msg--err` làm thẻ thông báo độc lập với `border-radius: var(--radius)` (14px) và glow đỏ nhẹ, 4 góc bo tròn sắc nét, không bị cấn hay đè viền.
+  - **Bổ sung Google oEmbed Fallback cho YouTube**:
+    - Khi yt-dlp gặp kiểm tra bot trên IP đám mây datacenter của Space trong giai đoạn quét link (`download.resolve`), hàm `resolve_youtube_oembed()` sẽ tự động truy vấn API oEmbed chính thức của Google (`https://www.youtube.com/oembed?url=...`).
+    - API oEmbed không bao giờ bị chặn bot trên IP datacenter, lập tức lấy được tiêu đề, tác giả, ảnh bìa và đưa bài hát vào hàng đợi thư viện để worker nền tải âm thanh qua `visionos`/`android_vr`.
+  - **Kiểm thử tự động**: 26/26 test suites passed (Exit Code 0).
+
 - **Khắc phục lỗi nạp file trực tiếp (`boolean index did not match indexed array along axis 0`) và lỗi nạp link YouTube (`Requested format is not available` / `Sign in to confirm you're not a bot`)**:
   - **Nguyên nhân lỗi nạp file trực tiếp**:
     1. Trong `loopbox/analysis/beats.py:22`, dòng `keep = np.concatenate([[True], np.diff(beats) > 0.15])` giả định mảng `beats` luôn có ít nhất 1 phần tử. Khi file âm thanh đưa vào là đoạn im lặng, ambient hoặc mô hình `beat_this` chưa kịp tìm ra phách trên CPU, `len(beats) == 0`.

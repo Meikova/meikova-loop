@@ -1345,12 +1345,16 @@ body.dragging::after {
 
 .results:not(:empty) {
   margin-top: var(--space-3);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.results:has(.result),
+.results > .result:first-child {
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--ink-1);
-  max-width: 100%;
-  box-sizing: border-box;
 }
 
 .result {
@@ -1379,13 +1383,20 @@ body.dragging::after {
   max-width: 100%;
   box-sizing: border-box;
   line-height: 1.5;
+  border-radius: var(--radius);
+}
+
+.results .msg:not(.msg--err) {
+  background: var(--ink-1);
+  border: 1px solid var(--line-soft);
 }
 
 .msg.msg--err {
   color: #fca5a5;
-  background: oklch(0.22 0.06 20 / 0.5);
-  border: 1px solid oklch(0.55 0.16 20 / 0.4);
-  border-radius: 8px;
+  background: oklch(0.22 0.06 20 / 0.55);
+  border: 1px solid oklch(0.55 0.16 20 / 0.5);
+  border-radius: var(--radius);
+  box-shadow: 0 0 16px -4px oklch(0.55 0.16 20 / 0.3);
 }
 
 .worker { min-height: 1.5em; margin: 8px 0 4px; font-size: var(--step--2); color: var(--accent); }
