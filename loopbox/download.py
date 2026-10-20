@@ -412,16 +412,26 @@ def resolve(text: str) -> list[dict]:
         return resolve_spotify(text, MAX_PLAYLIST)
 
     is_playlist = is_playlist_url(text)
+
+    # ponytail: fast-path single YouTube video via Google oEmbed (<0.3s, zero bot detection); yt-dlp only if oEmbed fails or playlist
+    if site == "youtube" and not is_playlist:
+        m_vid = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", text)
+        if m_vid:
+            fast_res = resolve_youtube_oembed(m_vid.group(1))
+            if fast_res:
+                return [fast_res]
+
     from . import cookies as cookie_mgr
     has_cookies = bool(cookie_mgr.get_cookie_file_path()) if site == "youtube" else False
     cookie_passes = [True, False] if has_cookies else [False]
 
-    clients = YOUTUBE_CLIENT_CONFIGS if site == "youtube" else (None,)
+    # Use lightweight clients for resolving playlists/search metadata to avoid multi-minute hangs
+    clients = (None, ["mweb"]) if site == "youtube" else (None,)
     info = None
     last_e = None
 
     for use_cookies in cookie_passes:
-        opts = _opts(site, use_cookies=use_cookies, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST)
+        opts = _opts(site, use_cookies=use_cookies, extract_flat="in_playlist", skip_download=True, playlistend=MAX_PLAYLIST, socket_timeout=10)
         if is_playlist:
             opts["noplaylist"] = False
         elif site == "youtube":
