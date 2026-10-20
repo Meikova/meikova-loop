@@ -6,11 +6,23 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 13:56:00
+- Timestamp: 2026-10-20 14:05:00
 - Exit Code: 0 (All 27 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi Deno lỗi thời khiến yt-dlp quăng lỗi "Requested format is not available" trên Hugging Face Space**:
+  - **Nguyên nhân cốt lõi**:
+    1. Phiên bản `yt-dlp` mới nhất quy định rõ `DenoJsRuntime.MIN_SUPPORTED_VERSION = (2, 3, 0)`.
+    2. Trong `app.py`, hàm `_ensure_deno()` trước đây tải bản `v2.1.4` (cũ hơn 2.3.0). Do đó `yt-dlp` từ chối Deno và không có JS engine nào hợp lệ để giải mã chữ ký JavaScript (`n-challenge`) của YouTube web player.
+    3. Không giải được JS challenge khiến `yt-dlp` loại bỏ toàn bộ định dạng audio/video (chỉ còn lại ảnh thumbnail storyboard mhtml), dẫn tới lỗi `Requested format is not available` trên toàn bộ web clients.
+  - **Khắc phục triệt để**:
+    1. Nâng cấp Deno tự động trong `app.py` lên phiên bản mới nhất `v2.9.7` ($> 2.3.0$).
+    2. Bổ sung kiểm tra phiên bản thực tế `deno --version >= 2.3`, tự động cập nhật đè nếu phát hiện bản cũ.
+    3. Thêm fallback đa nền tảng (`android`, `visionos`) vào danh sách client có cookie trong `loopbox/download.py`.
+    4. Kiểm thử 27/27 test suites đạt Exit Code 0.
+    5. Đẩy cập nhật lên GitHub và Hugging Face Space.
+
 - **Khắc phục lỗi cổng lắng nghe Hugging Face Space khiến Space bị kẹt ở bản cũ (Port 7860)**:
   - **Nguyên nhân cốt lõi**:
     1. Trong `app.py`, hàm `_sync_cookies()` import `loopbox.cookies`, hàm này kéo theo `loopbox.config` nạp trước khi `os.environ.setdefault("MASHLOOP_PORT", "7860")` kịp chạy.

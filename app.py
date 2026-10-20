@@ -73,26 +73,41 @@ def _sync_cookies():
 def _ensure_deno():
     if sys.platform.startswith("win"):
         return
-    import shutil
-    if shutil.which("deno"):
-        return
+    import shutil, subprocess, re
     deno_dir = Path.home() / ".local" / "bin"
     deno_bin = deno_dir / "deno"
-    if deno_bin.exists():
-        os.environ["PATH"] = f"{deno_dir}:{os.environ.get('PATH', '')}"
+
+    needs_install = True
+    p = shutil.which("deno") or (str(deno_bin) if deno_bin.exists() else None)
+    if p:
+        try:
+            out = subprocess.check_output([p, "--version"], stderr=subprocess.STDOUT, text=True)
+            v_match = re.search(r"deno\s+(\d+)\.(\d+)", out)
+            if v_match:
+                major, minor = int(v_match.group(1)), int(v_match.group(2))
+                if (major, minor) >= (2, 3):
+                    needs_install = False
+                    if str(deno_dir) not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = f"{deno_dir}:{os.environ.get('PATH', '')}"
+                    print(f"Deno runtime verified: {v_match.group(0)} at {p}")
+        except Exception:
+            pass
+
+    if not needs_install:
         return
+
     try:
         import urllib.request, zipfile, io
-        print("Auto-installing Deno JS engine for yt-dlp...")
+        print("Auto-installing Deno JS engine (v2.9.7 >= 2.3.0 required by yt-dlp)...")
         deno_dir.mkdir(parents=True, exist_ok=True)
-        url = "https://github.com/denoland/deno/releases/download/v2.1.4/deno-x86_64-unknown-linux-gnu.zip"
+        url = "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-unknown-linux-gnu.zip"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             z = zipfile.ZipFile(io.BytesIO(resp.read()))
             z.extract("deno", str(deno_dir))
         deno_bin.chmod(0o755)
         os.environ["PATH"] = f"{deno_dir}:{os.environ.get('PATH', '')}"
-        print("Deno installed successfully at", deno_bin)
+        print("Deno v2.9.7 installed successfully at", deno_bin)
     except Exception as e:
         print("Deno auto-install skipped:", e)
 

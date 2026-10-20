@@ -595,9 +595,9 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     format_spec = "bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best"
     for use_cookies in cookie_passes:
         if site == "youtube":
-            # With cookies: prioritize default client & web clients that consume session cookies.
+            # With cookies: prioritize default client & web clients that consume session cookies, followed by mobile fallback
             # Without cookies: prioritize lightweight clients (visionos, android_vr).
-            clients = (None, ["web"], ["mweb"], ["tv"]) if use_cookies else YOUTUBE_CLIENT_CONFIGS
+            clients = (None, ["web"], ["mweb"], ["tv"], ["android"], ["visionos"]) if use_cookies else YOUTUBE_CLIENT_CONFIGS
         else:
             clients = (None,)
         for client in clients:
