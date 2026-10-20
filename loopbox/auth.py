@@ -21,6 +21,7 @@ from .config import DATA_DIR
 logger = logging.getLogger("mashloop.auth")
 
 DEFAULT_GOOGLE_CLIENT_ID = "515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com"
+DEFAULT_GOOGLE_CLIENT_SECRET = "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"
 SESSION_LIFETIME_DAYS = 30
 _db_path = DATA_DIR / "auth.db"
 
@@ -30,7 +31,6 @@ def get_google_client_id() -> str:
     env_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     if env_id:
         return env_id
-    # Check local client_secret.json if present
     for candidate in [
         DATA_DIR / "client_secret.json",
         Path("client_secret.json"),
@@ -46,6 +46,68 @@ def get_google_client_id() -> str:
             except Exception:
                 pass
     return DEFAULT_GOOGLE_CLIENT_ID
+
+
+def get_google_client_secret() -> str:
+    """Returns Google Client Secret from environment or default from Google Cloud credentials."""
+    env_sec = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+    if env_sec:
+        return env_sec
+    for candidate in [
+        DATA_DIR / "client_secret.json",
+        Path("client_secret.json"),
+        Path("E:/Downloads/client_secret_515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com.json"),
+    ]:
+        if candidate.exists():
+            try:
+                data = json.loads(candidate.read_text("utf-8"))
+                web = data.get("web") or data.get("installed") or {}
+                sec = web.get("client_secret")
+                if sec:
+                    return sec.strip()
+            except Exception:
+                pass
+    return DEFAULT_GOOGLE_CLIENT_SECRET
+
+
+def get_google_auth_url(redirect_uri: str, state: str = "") -> str:
+    """Generates standard RFC 8252 authorization URL for system browser login."""
+    client_id = get_google_client_id()
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent select_account",
+    }
+    if state:
+        params["state"] = state
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+
+
+def exchange_google_code(code: str, redirect_uri: str) -> dict:
+    """Exchanges authorization code for tokens and registers/logs in the user."""
+    client_id = get_google_client_id()
+    client_secret = get_google_client_secret()
+    payload = urllib.parse.urlencode({
+        "code": code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://oauth2.googleapis.com/token",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        token_data = json.loads(resp.read().decode("utf-8"))
+    id_token = token_data.get("id_token")
+    if not id_token:
+        raise ValueError("Google OAuth token response missing id_token")
+    return google_auth(id_token)
 
 
 def _get_db() -> sqlite3.Connection:

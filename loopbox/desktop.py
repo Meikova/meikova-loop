@@ -208,6 +208,17 @@ class DesktopBridge:
         )
         return list(res or [])
 
+    def open_google_login(self) -> bool:
+        import webbrowser
+        try:
+            from . import auth
+        except Exception:
+            from loopbox import auth
+        redirect_uri = f"http://127.0.0.1:{self.port}/api/auth/google/callback"
+        auth_url = auth.get_google_auth_url(redirect_uri)
+        webbrowser.open(auth_url)
+        return True
+
     def select_folder(self) -> list[str]:
         if not self._window:
             return []

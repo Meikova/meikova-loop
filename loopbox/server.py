@@ -19,7 +19,7 @@ import base64
 import numpy as np
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -332,6 +332,66 @@ def auth_google(req: GoogleAuthRequest):
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, f"Google authentication failed: {e}")
+
+
+@app.get("/api/auth/google/start")
+def auth_google_start(request: Request):
+    host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
+    proto = "https" if "hf.space" in host_header else "http"
+    redirect_uri = f"{proto}://{host_header}/api/auth/google/callback"
+    auth_url = auth.get_google_auth_url(redirect_uri)
+    return {"auth_url": auth_url, "redirect_uri": redirect_uri}
+
+
+@app.get("/api/auth/google/callback")
+def auth_google_callback(request: Request, code: str | None = None, error: str | None = None):
+    if error:
+        return HTMLResponse(f"<h3 style='color:#ef4444;background:#181b22;padding:20px;font-family:sans-serif;'>Lỗi đăng nhập Google: {error}</h3>", status_code=400)
+    if not code:
+        return HTMLResponse("<h3 style='color:#ef4444;background:#181b22;padding:20px;font-family:sans-serif;'>Thiếu mã xác thực từ Google</h3>", status_code=400)
+    host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
+    proto = "https" if "hf.space" in host_header else "http"
+    redirect_uri = f"{proto}://{host_header}/api/auth/google/callback"
+    try:
+        res = auth.exchange_google_code(code, redirect_uri)
+        token = res["token"]
+        user = res["user"]
+        user_name = user.get("display_name") or user.get("username")
+        html = f"""<!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8"/>
+          <title>MashLoop // Đăng nhập thành công</title>
+          <style>
+            body {{ background: #0e1015; color: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+            .card {{ background: #181b22; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 36px 32px; text-align: center; max-width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }}
+            h2 {{ color: #f59e0b; margin: 0 0 10px; font-size: 22px; }}
+            p {{ color: #a1a1aa; font-size: 14px; line-height: 1.5; margin: 0 0 24px; }}
+            .btn {{ display: inline-block; background: #f59e0b; color: #0e1015; font-weight: 600; padding: 10px 24px; border-radius: 999px; text-decoration: none; cursor: pointer; border: none; }}
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>Đăng nhập thành công!</h2>
+            <p>Chào mừng <b>{user_name}</b>.<br>Bạn có thể đóng tab này và quay lại ứng dụng MashLoop.</p>
+            <button class="btn" onclick="window.close()">Đóng cửa sổ</button>
+          </div>
+          <script>
+            try {{
+              localStorage.setItem('mashloop:token', '{token}');
+              localStorage.setItem('mashloop:login_event', JSON.stringify({{ token: '{token}', user: {json.dumps(user)}, time: Date.now() }}));
+              if (window.opener) {{
+                window.opener.postMessage({{ type: 'MASHLOOP_AUTH_SUCCESS', token: '{token}', user: {json.dumps(user)} }}, '*');
+              }}
+            }} catch(e) {{}}
+            setTimeout(() => window.close(), 2500);
+          </script>
+        </body>
+        </html>"""
+        return HTMLResponse(html)
+    except Exception as e:
+        return HTMLResponse(f"<h3 style='color:#ef4444;background:#181b22;padding:20px;font-family:sans-serif;'>Xác thực Google thất bại: {e}</h3>", status_code=500)
+
 
 
 @app.get("/api/auth/me")

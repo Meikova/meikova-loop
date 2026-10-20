@@ -4644,19 +4644,99 @@ body.is-zen.zen-idle .zen-hud-top:hover {
   box-shadow: 0 0 12px oklch(var(--acc) / 0.45);
 }
 
-/* ------------------------------------------------------------ auth modal */
+/* ------------------------------------------------------------ auth modal (Ambient Instrument UI) */
 .consent.auth-modal,
 dialog.auth-modal,
 .auth-modal {
-  width: min(440px, calc(100vw - 28px)) !important;
-  max-width: min(440px, calc(100vw - 28px)) !important;
+  width: min(420px, calc(100vw - 28px)) !important;
+  max-width: min(420px, calc(100vw - 28px)) !important;
+  background: oklch(0.14 0.012 var(--gh) / 0.96) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 16px !important;
+  padding: 20px 22px 24px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 1px 1px oklch(var(--acc) / 0.2) !important;
+}
+
+.auth-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.auth-modal__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+}
+
+.auth-modal__title-wrap svg {
+  display: block;
+  flex-shrink: 0;
+  stroke: var(--accent);
+}
+
+.auth-modal__title-wrap h2 {
+  font-family: var(--font-display);
+  font-size: var(--step-0);
+  font-weight: 600;
+  color: var(--text-bright);
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.auth-modal__close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line-soft);
+  background: var(--ink-2);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.auth-modal__close:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.05);
+}
+
+.auth-telemetry {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--accent);
+  background: oklch(var(--acc) / 0.08);
+  border: 1px solid oklch(var(--acc) / 0.25);
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+}
+
+.auth-telemetry__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
 }
 
 .auth-subtitle {
   font-size: var(--step--1);
   color: var(--text-muted);
   line-height: 1.45;
-  margin: 0 0 16px;
+  margin: 0 0 14px;
 }
 
 .auth-google-box {
@@ -4664,84 +4744,103 @@ dialog.auth-modal,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin: 4px 0 14px;
+  margin: 4px 0 12px;
+  width: 100%;
 }
 
 #g-signin-btn-container {
   display: flex;
   justify-content: center;
-  min-height: 40px;
+  width: 100%;
+  min-height: 42px;
 }
 
-.btn-google-fallback {
-  display: none;
+.btn-ambient-google {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: 100%;
   height: 40px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
   background: var(--ink-2);
-  color: var(--text);
+  color: var(--text-bright);
   font: 500 var(--step--1) / 1 var(--font-text);
   cursor: pointer;
   transition: all var(--dur-fast) var(--ease-out);
+  margin-top: 4px;
 }
 
-.btn-google-fallback:hover {
+.btn-ambient-google:hover {
   background: var(--ink-3);
-  border-color: var(--line-bright);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.btn-ambient-google:active {
+  transform: scale(0.98);
 }
 
 .auth-divider {
   display: flex;
   align-items: center;
-  text-align: center;
-  margin: 12px 0 16px;
+  gap: 12px;
+  margin: 14px 0;
   color: var(--text-dim);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .auth-divider::before,
 .auth-divider::after {
   content: "";
   flex: 1;
-  border-bottom: 1px solid var(--line-soft);
+  height: 1px;
+  background: var(--line-soft);
 }
 
 .auth-divider span {
-  padding: 0 10px;
+  padding: 0 4px;
 }
 
-.auth-tabs.seg {
+/* Tactile Segmented Pill Switch */
+.auth-seg {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  background: var(--ink-2);
+  gap: 3px;
+  background: oklch(0.11 0.015 var(--gh));
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
+  border-radius: 999px;
   padding: 3px;
   margin-bottom: 16px;
 }
 
-.auth-tab-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
+.auth-seg__btn {
+  height: 32px;
+  border-radius: 999px;
   border: none;
-  background: none;
+  background: transparent;
   color: var(--text-muted);
   font: 500 var(--step--1) / 1 var(--font-text);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: all var(--dur-fast) var(--ease-out);
 }
 
-.auth-tab-btn.on {
-  background: var(--ink-4);
+.auth-seg__btn:hover {
   color: var(--text-bright);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.auth-seg__btn.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .auth-form {
@@ -4750,15 +4849,23 @@ dialog.auth-modal,
   gap: 12px;
 }
 
+.auth-form[hidden],
+.auth-view[hidden] {
+  display: none !important;
+}
+
 .auth-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .auth-field label {
-  font-size: var(--step--2);
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   font-weight: 500;
 }
 
@@ -4766,18 +4873,24 @@ dialog.auth-modal,
   height: 38px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--ink-2);
-  color: var(--text);
-  font-family: inherit;
+  border: 1px solid var(--line-soft);
+  background: oklch(0.11 0.01 var(--gh));
+  color: var(--text-bright);
+  font-family: var(--font-text);
   font-size: var(--step--1);
-  transition: all var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.auth-field input::placeholder {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
 }
 
 .auth-field input:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 12px -2px var(--accent-glow);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 14px -2px var(--accent-glow);
 }
 
 .auth-error {
@@ -4790,13 +4903,32 @@ dialog.auth-modal,
   line-height: 1.4;
 }
 
-.auth-submit-btn {
+.auth-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 38px;
+  border-radius: 999px;
+  border: 1px solid oklch(var(--acc) / 0.6);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 var(--step--1) / 1 var(--font-text);
+  cursor: pointer;
   margin-top: 4px;
-  font-weight: 600;
+  transition: transform var(--dur-instant) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
 }
 
+.auth-btn-primary:hover {
+  box-shadow: 0 0 16px var(--accent-glow);
+  filter: brightness(1.06);
+}
+
+.auth-btn-primary:active {
+  transform: scale(0.97);
+}
+
+/* User Logged-in Profile State */
 .auth-user-badge {
   display: flex;
   align-items: center;
@@ -4818,7 +4950,7 @@ dialog.auth-modal,
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: "Unbounded", sans-serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 18px;
   flex-shrink: 0;
@@ -4851,7 +4983,7 @@ dialog.auth-modal,
 .auth-user-sub {
   font-size: var(--step--2);
   color: var(--text-dim);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4859,7 +4991,7 @@ dialog.auth-modal,
 
 .auth-sync-status {
   padding: 12px;
-  background: var(--ink-1);
+  background: oklch(0.11 0.01 var(--gh));
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   font-size: var(--step--1);
@@ -4874,6 +5006,9 @@ dialog.auth-modal,
 
 .auth-sync-label {
   color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .auth-sync-val.badge-ok {
@@ -4884,6 +5019,18 @@ dialog.auth-modal,
   border-radius: 999px;
   font-size: var(--step--2);
   font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.auth-sync-val.badge-pending {
+  color: oklch(0.8 0.16 75);
+  background: oklch(0.2 0.08 75 / 0.5);
+  border: 1px solid oklch(0.6 0.16 75 / 0.6);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--step--2);
+  font-weight: 500;
+  font-family: var(--font-mono);
 }
 
 .auth-sync-note {
@@ -4893,13 +5040,49 @@ dialog.auth-modal,
   line-height: 1.4;
 }
 
-.auth-logout-btn {
-  color: oklch(0.7 0.12 25) !important;
+.auth-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.auth-logout-btn:hover {
-  border-color: oklch(0.6 0.16 25) !important;
-  color: oklch(0.85 0.12 25) !important;
+.auth-btn-sync,
+.auth-btn-logout {
+  flex: 1;
+  height: 36px;
+  border-radius: 999px;
+  font: 500 var(--step--1) / 1 var(--font-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.auth-btn-sync {
+  background: var(--ink-2);
+  border: 1px solid var(--line-soft);
+  color: var(--text-bright);
+}
+
+.auth-btn-sync:hover {
+  background: var(--ink-3);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  color: var(--accent);
+}
+
+.auth-btn-logout {
+  background: transparent;
+  border: 1px solid oklch(0.3 0.06 25);
+  color: oklch(0.75 0.12 25);
+}
+
+.auth-btn-logout:hover {
+  background: oklch(0.2 0.08 25 / 0.5);
+  border-color: oklch(0.55 0.18 25);
+  color: oklch(0.9 0.12 25);
 }
 
 

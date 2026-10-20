@@ -3784,6 +3784,49 @@ function initAuthAndSync() {
     }
   }).catch(() => {});
 
+  // Listen to cross-window auth message or storage change
+  window.addEventListener("message", async (e) => {
+    if (e.data?.type === "MASHLOOP_AUTH_SUCCESS" && e.data?.token) {
+      await onAuthSuccess({ token: e.data.token, user: e.data.user });
+    }
+  });
+
+  window.addEventListener("storage", async (e) => {
+    if (e.key === "mashloop:login_event" && e.newValue) {
+      try {
+        const payload = JSON.parse(e.newValue);
+        if (payload?.token && payload?.user) {
+          await onAuthSuccess(payload);
+        }
+      } catch (_) {}
+    }
+  });
+
+  const btnGoogle = $("#btn-ambient-google");
+  btnGoogle?.addEventListener("click", async () => {
+    if (window.pywebview?.api?.open_google_login) {
+      showHudToast("Đang mở trình duyệt ngoài để đăng nhập Google...");
+      try {
+        await window.pywebview.api.open_google_login();
+      } catch (err) {
+        showHudToast("Lỗi mở trình duyệt: " + err.message);
+      }
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth/google/start").then((r) => r.json());
+      if (res?.auth_url) {
+        showHudToast("Đang mở cửa sổ đăng nhập Google...");
+        window.open(res.auth_url, "MashLoopGoogleAuth", "width=520,height=640");
+      }
+    } catch (err) {
+      if (loginErr) {
+        loginErr.textContent = "Không khởi tạo được đăng nhập Google: " + err.message;
+        loginErr.hidden = false;
+      }
+    }
+  });
+
   // Offline / Online sync triggers
   window.addEventListener("online", () => {
     showHudToast("Đã kết nối lại - Đang đồng bộ...");
