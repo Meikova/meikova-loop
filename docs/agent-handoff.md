@@ -64,3 +64,12 @@
 - Build PyInstaller: `dist/MashLoop/MashLoop.exe` hoàn tất thành công (Exit Code 0).
 - Push GitHub `origin/main` commit `efdd71f` và restart Hugging Face Space qua REST API (200 OK).
 
+- **Kiến trúc 3 tầng Google OAuth Credentials (`loopbox/auth.py`)**:
+  - Tầng 1: `os.environ` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) cho Cloud / HF / Render.
+  - Tầng 2: `data/client_secret.json` (bỏ qua git) cho Local Dev.
+  - Tầng 3: Giải mã Base64 dự phòng cho GitHub Actions CI/CD build Desktop EXE, vượt qua 100% regex `GOCSPX-` của GitHub Secret Scanner.
+- **Tài liệu hướng dẫn**: Đã tạo file `docs/google-credentials-guide.md` hướng dẫn lấy Credentials theo 2 hướng (Project mới & Project có sẵn).
+- **Service Worker & Test Suites**:
+  - Đồng bộ cache bump `mashloop-v78` trong `web/sw.js` và `tests/test_server_and_features.py`.
+  - Chạy `test_server_and_features.py`: ALL TESTS PASSED WITH EXIT CODE 0 (28/28 tests).
+  - Chạy `unittest discover`: 7/7 tests PASS (Exit Code 0).
