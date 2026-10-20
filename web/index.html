@@ -1301,7 +1301,7 @@
       </form>
     </dialog>
 
-    <!-- Modal hướng dẫn cài đặt & tải app Mobile qua Tailscale IP -->
+    <!-- Modal hướng dẫn cài đặt & tải app Đa nền tảng -->
     <dialog
       class="consent mobile-modal"
       id="mobile-modal"
@@ -1309,23 +1309,19 @@
     >
       <div class="mobile-modal__head">
         <div class="mobile-modal__title-wrap">
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            width="22"
-            height="22"
-            class="mobile-modal__icon"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          <h2 id="mobile-modal-title">Cài đặt & Tải MashLoop</h2>
+          <div class="mobile-modal__icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="12" height="9" rx="1.5"/>
+              <rect x="15" y="8" width="7" height="13" rx="1.5"/>
+              <line x1="6" y1="12" x2="6" y2="15"/>
+              <line x1="4" y1="15" x2="8" y2="15"/>
+              <circle cx="18.5" cy="18" r="0.5" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="mobile-modal__headings">
+            <h2 id="mobile-modal-title">Cài đặt & Thiết bị</h2>
+            <span class="mobile-modal__subtitle mono">CROSS-PLATFORM // CLIENTS & CONTROLS</span>
+          </div>
         </div>
         <button
           type="button"
@@ -1335,185 +1331,205 @@
         ><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
-      <!-- Địa chỉ truy cập với Tag & Nút Copy -->
+      <!-- Dải Telemetry Địa chỉ Máy chủ với LED & Nút Chép -->
       <div class="mobile-modal__sub-box" id="mobile-modal-sub-box">
         <div class="mobile-modal__sub-meta">
+          <span class="mobile-modal__led" aria-hidden="true"></span>
           <span class="mobile-modal__sub-tag" id="mobile-modal-sub-tag">Máy chủ</span>
           <span class="mobile-modal__ip mono" id="mobile-modal-ip">http://100.118.230.52:8765</span>
         </div>
-        <button type="button" class="mobile-modal__sub-btn" id="btn-copy-server-url" title="Sao chép địa chỉ">Sao chép</button>
+        <button type="button" class="mobile-modal__sub-btn btn-pill" id="btn-copy-server-url" title="Sao chép địa chỉ">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span>Sao chép</span>
+        </button>
       </div>
 
-      <!-- Tải ứng dụng trực tiếp (Android APK, Windows EXE/ZIP, iOS IPA) -->
+      <!-- Tải ứng dụng trực tiếp (Desktop: Windows, macOS, Linux // Mobile: Android, iOS) -->
       <div class="mobile-downloads">
-        <h3 class="mobile-downloads__title">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span>Tải gói cài đặt trực tiếp</span>
-        </h3>
+        <div class="mobile-downloads__header">
+          <h3 class="mobile-downloads__title">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Gói cài đặt trực tiếp</span>
+          </h3>
+          <span class="mobile-downloads__tag mono">NATIVE BUILDS</span>
+        </div>
         <div class="mobile-downloads__grid">
           <a href="/api/download/desktop" target="_blank" class="dl-card" id="btn-dl-desktop" title="Tải ứng dụng MashLoop Desktop cho Windows (.exe)">
             <div class="dl-card__head">
-              <span class="dl-card__icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.901-1.8"/></svg>
+              <span class="dl-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.901-1.8"/></svg>
               </span>
-              <span class="dl-card__badge">.EXE</span>
+              <span class="dl-card__badge mono">.EXE</span>
             </div>
             <span class="dl-card__name">Windows</span>
-            <span class="dl-card__desc">SMTC, Native PC</span>
+            <span class="dl-card__desc mono">SMTC Native</span>
           </a>
 
           <a href="/api/download/macos" target="_blank" class="dl-card" id="btn-dl-macos" title="Tải ứng dụng MashLoop Desktop cho macOS (.zip / .app)">
             <div class="dl-card__head">
-              <span class="dl-card__icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
+              <span class="dl-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
               </span>
-              <span class="dl-card__badge">.APP</span>
+              <span class="dl-card__badge mono">.APP</span>
             </div>
             <span class="dl-card__name">macOS</span>
-            <span class="dl-card__desc">Now Playing, Cocoa</span>
+            <span class="dl-card__desc mono">Now Playing</span>
           </a>
 
           <a href="/api/download/linux" target="_blank" class="dl-card" id="btn-dl-linux" title="Tải ứng dụng MashLoop Desktop cho Linux (.tar.gz)">
             <div class="dl-card__head">
-              <span class="dl-card__icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12.001 2c-2.42 0-3.999 1.83-3.999 4.08 0 .68.15 1.47.38 2.2-.67.43-1.42 1.1-1.85 1.9-.81 1.5-.7 3.2-.28 4.88-1.05.67-1.75 1.74-1.75 3.02 0 1.94 1.66 3.42 3.84 3.42 1.13 0 2.18-.45 2.97-1.22.88.38 1.83.62 2.82.62 1.05 0 2.05-.26 2.98-.67.79.77 1.83 1.22 2.96 1.22 2.18 0 3.84-1.48 3.84-3.42 0-1.28-.7-2.35-1.75-3.02.42-1.68.53-3.38-.28-4.88-.43-.8-1.18-1.47-1.85-1.9.23-.73.38-1.52.38-2.2 0-2.25-1.58-4.08-3.999-4.08h-.862z"/></svg>
+              <span class="dl-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12.001 2c-2.42 0-3.999 1.83-3.999 4.08 0 .68.15 1.47.38 2.2-.67.43-1.42 1.1-1.85 1.9-.81 1.5-.7 3.2-.28 4.88-1.05.67-1.75 1.74-1.75 3.02 0 1.94 1.66 3.42 3.84 3.42 1.13 0 2.18-.45 2.97-1.22.88.38 1.83.62 2.82.62 1.05 0 2.05-.26 2.98-.67.79.77 1.83 1.22 2.96 1.22 2.18 0 3.84-1.48 3.84-3.42 0-1.28-.7-2.35-1.75-3.02.42-1.68.53-3.38-.28-4.88-.43-.8-1.18-1.47-1.85-1.9.23-.73.38-1.52.38-2.2 0-2.25-1.58-4.08-3.999-4.08h-.862z"/></svg>
               </span>
-              <span class="dl-card__badge">.TAR.GZ</span>
+              <span class="dl-card__badge mono">.TAR.GZ</span>
             </div>
             <span class="dl-card__name">Linux</span>
-            <span class="dl-card__desc">MPRIS2, GTK WebKit</span>
+            <span class="dl-card__desc mono">MPRIS2 D-Bus</span>
           </a>
 
           <a href="/api/download/apk" target="_blank" class="dl-card" id="btn-dl-apk" title="Tải file APK cho thiết bị Android">
             <div class="dl-card__head">
-              <span class="dl-card__icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+              <span class="dl-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
               </span>
-              <span class="dl-card__badge">.APK</span>
+              <span class="dl-card__badge mono">.APK</span>
             </div>
             <span class="dl-card__name">Android</span>
-            <span class="dl-card__desc">Lock Screen Tile</span>
+            <span class="dl-card__desc mono">Lock Screen Tile</span>
           </a>
 
           <a href="/api/download/ipa" target="_blank" class="dl-card" id="btn-dl-ipa" title="Tải file IPA cho iOS (AltStore / Sideloadly / TestFlight)">
             <div class="dl-card__head">
-              <span class="dl-card__icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
+              <span class="dl-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
               </span>
-              <span class="dl-card__badge">.IPA</span>
+              <span class="dl-card__badge mono">.IPA</span>
             </div>
             <span class="dl-card__name">iOS</span>
-            <span class="dl-card__desc">Dynamic Island</span>
+            <span class="dl-card__desc mono">Dynamic Island</span>
           </a>
         </div>
       </div>
 
+      <!-- Khối QR Code kết nối nhanh -->
       <div class="mobile-modal__qr-card">
         <div class="mobile-modal__qr-frame">
           <img
             id="mobile-modal-qr"
             src="img/qr-tailscale.svg"
-            alt="QR Code"
-            width="130"
-            height="130"
+            alt="Mã QR kết nối nhanh"
+            width="112"
+            height="112"
           />
         </div>
         <div class="mobile-modal__qr-info">
-          <p>
-            <b>Quét Camera iPhone / Android</b><span id="mobile-modal-scan-desc">để mở ứng dụng tức thì trên điện thoại.</span>
+          <div class="mobile-modal__qr-heading">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            <strong>Quét mở ngay trên điện thoại</strong>
+          </div>
+          <p class="mobile-modal__qr-desc">
+            Dùng Camera iPhone / Android quét mã QR <span id="mobile-modal-scan-desc">để mở ứng dụng tức thì trên điện thoại.</span>
           </p>
           <a
             id="mobile-modal-link"
             href="http://100.118.230.52:8765"
             target="_blank"
             class="mobile-modal__link mono"
+            title="Mở trong tab mới"
             >http://100.118.230.52:8765 ↗</a
           >
         </div>
       </div>
 
-      <div class="mobile-modal__platforms">
-        <!-- Desktop Card (Windows / macOS / Linux) -->
-        <div class="mobile-card">
-          <div class="mobile-card__head">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            <h3>Desktop (PC / Mac / Linux)</h3>
-          </div>
-          <ol class="mobile-steps">
-            <li>
-              Tải file tương ứng OS từ thanh tải ở trên và mở ứng dụng.
-            </li>
-            <li>
-              <b>Windows:</b> Hỗ trợ phím Media, SMTC Control overlay góc màn hình.
-            </li>
-            <li>
-              <b>macOS:</b> Hỗ trợ Now Playing widget, Control Center, phím F7/F8/F9.
-            </li>
-            <li>
-              <b>Linux:</b> Tích hợp giao diện D-Bus MPRIS2 hiển thị trên panel.
-            </li>
-          </ol>
-          <p class="mobile-card__note">
-            Bản native desktop không giới hạn thời lượng bài và phân tích tức thì.
-          </p>
+      <!-- Segmented Platform Tabs & High-Signal Micro Steps -->
+      <div class="mobile-modal__guide">
+        <div class="platform-tabs" role="tablist" aria-label="Hướng dẫn cài đặt theo nền tảng">
+          <button type="button" class="platform-tab is-active" data-platform-tab="desktop" role="tab" aria-selected="true">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Máy tính (Desktop)</span>
+          </button>
+          <button type="button" class="platform-tab" data-platform-tab="ios" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
+            <span>iOS (iPhone / iPad)</span>
+          </button>
+          <button type="button" class="platform-tab" data-platform-tab="android" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+            <span>Android</span>
+          </button>
         </div>
 
-        <!-- iOS Card -->
-        <div class="mobile-card">
-          <div class="mobile-card__head">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path
-                d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"
-              />
-            </svg>
-            <h3>iOS (iPhone / iPad)</h3>
+        <div class="platform-panes">
+          <!-- Desktop Pane -->
+          <div class="platform-pane is-active" data-platform-pane="desktop">
+            <div class="platform-steps">
+              <div class="platform-step">
+                <span class="step-num mono">01</span>
+                <div class="step-content">
+                  <strong>Tải gói cài đặt tương ứng với hệ điều hành</strong>
+                  <p>Chọn .EXE (Windows), .APP (macOS) hoặc .TAR.GZ (Linux) ở thanh tải bên trên.</p>
+                </div>
+              </div>
+              <div class="platform-step">
+                <span class="step-num mono">02</span>
+                <div class="step-content">
+                  <strong>Tự động tích hợp Media Control của OS</strong>
+                  <p>Hỗ trợ Windows SMTC overlay, macOS Control Center widget & Linux MPRIS2 D-Bus.</p>
+                </div>
+              </div>
+            </div>
+            <div class="platform-note mono">
+              <span class="note-led" aria-hidden="true"></span>
+              <span>Native 64-bit · Audio Engine độc lập · Không giới hạn thời lượng bài</span>
+            </div>
           </div>
-          <ol class="mobile-steps">
-            <li>
-              Mở <b>Safari</b> trên iPhone, truy cập link máy chủ hoặc quét mã QR.
-            </li>
-            <li>
-              Bấm nút <b>Chia sẻ</b> (biểu tượng mũi tên hướng lên) ở thanh dưới Safari.
-            </li>
-            <li>
-              Chọn <b>Thêm vào MH chính</b> (Add to Home Screen) để dùng như app gốc.
-            </li>
-            <li>
-              Hoặc bấm nút <b>Tải .IPA</b> ở trên để cài đặt trực tiếp qua AltStore / Sideloadly / TrollStore.
-            </li>
-          </ol>
-          <p class="mobile-card__note">
-            Hỗ trợ phát nền khi khoá màn hình, Dynamic Island & Control Center.
-          </p>
-        </div>
 
-        <!-- Android Card -->
-        <div class="mobile-card">
-          <div class="mobile-card__head">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path
-                d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"
-              />
-            </svg>
-            <h3>Android</h3>
+          <!-- iOS Pane -->
+          <div class="platform-pane" data-platform-pane="ios">
+            <div class="platform-steps">
+              <div class="platform-step">
+                <span class="step-num mono">01</span>
+                <div class="step-content">
+                  <strong>Mở Safari hoặc quét mã QR</strong>
+                  <p>Bấm nút <b>Chia sẻ</b> (mũi tên hướng lên) ở thanh dưới cùng của Safari.</p>
+                </div>
+              </div>
+              <div class="platform-step">
+                <span class="step-num mono">02</span>
+                <div class="step-content">
+                  <strong>Thêm vào MH chính (PWA) hoặc cài đặt .IPA</strong>
+                  <p>Chọn <b>Thêm vào MH chính</b> để dùng như app gốc, hoặc nạp file .IPA qua AltStore / Sideloadly.</p>
+                </div>
+              </div>
+            </div>
+            <div class="platform-note mono">
+              <span class="note-led" aria-hidden="true"></span>
+              <span>Phát nền khi khóa màn hình · Dynamic Island · Control Center</span>
+            </div>
           </div>
-          <ol class="mobile-steps">
-            <li>
-              Bấm nút <b>Tải .APK</b> ở trên để tải gói cài đặt ứng dụng độc lập trực tiếp.
-            </li>
-            <li>
-              Mở file APK đã tải và chọn Cài đặt (cho phép cài từ nguồn này nếu có thông báo).
-            </li>
-            <li>
-              Hoặc mở <b>Chrome</b>, bấm menu <b>⋮</b> → chọn <b>Cài đặt ứng dụng</b> (PWA).
-            </li>
-            <li>
-              Ứng dụng hoạt động toàn màn hình không có thanh URL trình duyệt.
-            </li>
-          </ol>
-          <p class="mobile-card__note">
-            Tích hợp dịch vụ phát nền liên tục, Lock Screen Notification & Quick Settings tile.
-          </p>
+
+          <!-- Android Pane -->
+          <div class="platform-pane" data-platform-pane="android">
+            <div class="platform-steps">
+              <div class="platform-step">
+                <span class="step-num mono">01</span>
+                <div class="step-content">
+                  <strong>Tải file APK trực tiếp hoặc cài đặt PWA</strong>
+                  <p>Bấm tải <b>.APK</b> ở trên và mở file để Cài đặt, hoặc mở Chrome bấm menu <b>⋮</b> → <b>Cài đặt ứng dụng</b>.</p>
+                </div>
+              </div>
+              <div class="platform-step">
+                <span class="step-num mono">02</span>
+                <div class="step-content">
+                  <strong>Chạy ứng dụng toàn màn hình độc lập</strong>
+                  <p>Không có thanh URL, hỗ trợ điều khiển trên Lock Screen và Quick Settings Tile.</p>
+                </div>
+              </div>
+            </div>
+            <div class="platform-note mono">
+              <span class="note-led" aria-hidden="true"></span>
+              <span>Chạy ngầm liên tục · Lock Screen Notification · Quick Settings Tile</span>
+            </div>
+          </div>
         </div>
       </div>
     </dialog>

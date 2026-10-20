@@ -562,17 +562,26 @@ def test_downloads_and_expanded_modals():
     app_css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
     workflow_yml = (root / ".github" / "workflows" / "build-release.yml").read_text(encoding="utf-8")
 
-    # Modals expanded to 720px
+    # Modals expanded to 720px and Ambient Instrument UI Segmented Tabs
     assert "width: min(720px, calc(100vw - 28px)) !important;" in app_css
     assert "mobile-modal__sub-box" in app_css
     assert "mobile-downloads" in app_css
     assert "dl-card" in app_css
+    assert "platform-tabs" in app_css
+    assert "platform-panes" in app_css
 
     # Index HTML download buttons and elements
     assert 'id="btn-dl-apk"' in index_html
     assert 'id="btn-dl-desktop"' in index_html
     assert 'id="btn-dl-ipa"' in index_html
     assert 'id="btn-copy-server-url"' in index_html
+    assert 'data-platform-tab="desktop"' in index_html
+    assert 'data-platform-tab="ios"' in index_html
+    assert 'data-platform-tab="android"' in index_html
+
+    # JS Tab switching and auto-platform detection
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    assert "setMobilePlatformTab" in main_js
 
     # CI/CD Workflow checks
     assert "build-android:" in workflow_yml

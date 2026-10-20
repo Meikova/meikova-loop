@@ -6,11 +6,29 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 10:35:00
+- Timestamp: 2026-10-20 10:58:00
 - Exit Code: 0 (All 25 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục Lệch Tâm Quang học (Optical Alignment) Nút `Tải App` (`.btn-mobile-pill`) & `.btn-shortcuts`**:
+  - **Nguyên nhân**: Trong `web/css/app.css`, SVG bị đặt `transform: translateY(-1.5px)` (bị đẩy vọt lên trên 1.5px) trong khi text `span` lại bị đặt `transform: translateY(0.5px)` (bị kéo thụt xuống 0.5px), tạo ra độ lệch quang học 2.0px khiến icon và chữ bị cập kiễng rõ rệt. Khi trên màn hình nhỏ co thành nút tròn 30px, icon cũng bị lệch tâm lên trên. Ngoài ra thiếu hiệu ứng viền hairline sáng và ambient glow khi hover.
+  - **Khắc phục**:
+    1. Bỏ `translateY(-1.5px)` trên SVG, khóa `flex-shrink: 0` để SVG luôn định vị đúng tâm hình học.
+    2. Căn chuẩn vi sai quang học tiếng Việt trên `span`: `display: inline-block; line-height: 1; transform: translateY(-0.5px)`.
+    3. Bổ sung viền hairline dynamic accent & ambient glow khi hover: `border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow)`.
+    4. Kiểm thử 25/25 suites đạt Exit Code 0.
+
+- **Cải tổ Toàn diện Giao diện Modal Cài đặt & Tải App (`#mobile-modal`) theo Chuẩn `/ambient-instrument-ui`**:
+  - **Mục tiêu**: Loại bỏ giao diện thô cứng, trùng lặp icon, thẻ Android bị mồ côi rớt hàng đơn độc, các đoạn văn bản dài lê thê; nâng cấp toàn bộ modal thành giao diện nhạc cụ phòng thu ambient dark sang trọng, sắc nét, phản hồi mượt mà trên tất cả thiết bị (320px - 1920px).
+  - **Thay đổi chi tiết**:
+    1. **Zero-Icon Mandate (100% Inline Vector SVG)**: Loại bỏ các icon tải xuống trùng lặp ở tiêu đề; bổ sung icon hệ sinh thái đa thiết bị vector toán học (`viewBox="0 0 24 24"`), căn chỉnh tâm quang học (optical baseline alignment) với `transform: translateY(-0.5px)` cho phụ đề và nút bấm.
+    2. **Dải Telemetry Địa chỉ Máy chủ (`.mobile-modal__sub-box`)**: Tích hợp đèn LED phát sáng xung nhịp (`led-pulse`), tag định danh pill bo tròn, dải địa chỉ monospace `JetBrains Mono`, và nút copy tactile `btn-pill` có icon copy và hiệu ứng phản hồi `Đã chép ✓`.
+    3. **Lưới 5 Gói Cài đặt Native (`.mobile-downloads` & `.dl-card`)**: Bố cục lưới co giãn thông minh (5 cột trên Desktop, 3 cột trên Tablet, 2 cột trên Mobile), thẻ tải có badge đuôi file monospace (`.EXE`, `.APP`, `.TAR.GZ`, `.APK`, `.IPA`), tên OS đậm rõ ràng và mô tả micro-telemetry 1 dòng không bị ngắt dòng (`SMTC Native`, `Now Playing`, `MPRIS2 D-Bus`, `Lock Screen Tile`, `Dynamic Island`).
+    4. **Khung QR Code Kết nối Nhanh (`.mobile-modal__qr-card`)**: Viền bezel dark chamber `var(--ink-2)`, khung QR trắng bo góc 8px đổ bóng nhẹ, liên kết URL rút gọn dạng thanh tactile pill hiển thị sắc nét.
+    5. **Segmented Sliding Pills Tab cho Hướng dẫn Nền tảng (`.platform-tabs` & `.platform-panes`)**: Thay thế triệt để 3 khối danh sách hướng dẫn dài dòng (loại bỏ hoàn toàn lỗi thẻ Android bị mồ côi ở hàng thứ hai) bằng thanh tab phân đoạn dạng viên thuốc trượt (`[Máy tính (Desktop)] [iOS (iPhone / iPad)] [Android]`). Mỗi tab hiển thị 2 bước số hóa micro-step (`01`, `02`) súc tích và dải telemetry note 1 dòng.
+    6. **Tự Động Nhận Diện Nền Tảng Client (`web/js/main.js`)**: Khi người dùng mở modal trên iPhone/iPad, tự động kích hoạt tab `iOS`; trên Android tự kích hoạt tab `Android`; trên máy tính tự kích hoạt tab `Desktop`.
+    7. **Kiểm thử tự động (`tests/test_server_and_features.py`)**: Bổ sung kiểm tra cấu trúc `platform-tabs`, `platform-panes`, các thuộc tính `data-platform-tab` và hàm `setMobilePlatformTab` trong `main.js`. 25/25 test suites passed (Exit Code 0).
 - **Khắc phục lỗi nạp bài YouTube trên Space: `không đọc được file âm thanh này`**:
   - **Nguyên nhân**:
     1. Trong `loopbox/download.py`, khi tải bài từ YouTube, nếu một player client (như `visionos`) bị YouTube chặn trên IP datacenter đám mây (AWS/HF), yt-dlp trả về dict nhưng file `requested_downloads` không được tải xuống hoặc file rỗng (0 bytes). Mã nguồn cũ lấy trực tiếp đường dẫn mà không kiểm tra `exists()` và `st_size > 1024`, dẫn đến việc không kích hoạt fallback sang các client tiếp theo (`android`, `ios`, `mweb`, `web_music`).

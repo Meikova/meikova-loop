@@ -2916,8 +2916,28 @@ if (window.AndroidAudio?.getVolume) {
   } catch (_) {}
 }
 
-// Mobile Install Modal
+// Mobile & Cross-platform Install Modal
 const mobileModal = $("#mobile-modal");
+
+function setMobilePlatformTab(tabName) {
+  document.querySelectorAll(".platform-tab").forEach((b) => {
+    const isActive = b.dataset.platformTab === tabName;
+    b.classList.toggle("is-active", isActive);
+    b.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  document.querySelectorAll(".platform-pane").forEach((p) => {
+    p.classList.toggle("is-active", p.dataset.platformPane === tabName);
+  });
+}
+
+// Bind platform tab switching
+document.querySelectorAll(".platform-tab").forEach((tabBtn) => {
+  tabBtn.addEventListener("click", () => {
+    if (tabBtn.dataset.platformTab) {
+      setMobilePlatformTab(tabBtn.dataset.platformTab);
+    }
+  });
+});
 
 function updateMobileModal() {
   const currentOrigin = window.location.origin;
@@ -2959,6 +2979,16 @@ function updateMobileModal() {
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(displayUrl)}`;
     };
   }
+
+  // Auto-detect client platform and activate corresponding tab
+  const ua = navigator.userAgent || "";
+  let targetTab = "desktop";
+  if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+    targetTab = "ios";
+  } else if (/Android/.test(ua)) {
+    targetTab = "android";
+  }
+  setMobilePlatformTab(targetTab);
 }
 
 $("#btn-copy-server-url")?.addEventListener("click", async () => {
@@ -2966,9 +2996,9 @@ $("#btn-copy-server-url")?.addEventListener("click", async () => {
     await navigator.clipboard.writeText(window.location.origin);
     const btn = $("#btn-copy-server-url");
     if (btn) {
-      const orig = btn.textContent;
-      btn.textContent = "Đã chép ✓";
-      setTimeout(() => { btn.textContent = orig; }, 2000);
+      const orig = btn.innerHTML;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Đã chép ✓</span>`;
+      setTimeout(() => { btn.innerHTML = orig; }, 2000);
     }
   } catch {
     // Fallback if clipboard API blocked
