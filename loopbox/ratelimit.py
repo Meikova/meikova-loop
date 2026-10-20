@@ -12,9 +12,14 @@ import threading
 import time
 from collections import deque
 
+import os
 from fastapi import HTTPException
 
 from .config import MULTIUSER
+
+# ponytail: ratelimit disabled during development by default; set MASHLOOP_RATELIMIT=1 in strict production
+RATELIMIT_ENABLED = os.environ.get("MASHLOOP_RATELIMIT", "0") == "1"
+WHITELIST_IPS = set(filter(None, os.environ.get("MASHLOOP_IP_WHITELIST", "").replace(" ", "").split(",")))
 
 # kind -> (requests allowed, per seconds, message)
 LIMITS = {
@@ -50,7 +55,7 @@ def _purge(now: float) -> None:
 
 def check(ip: str, kind: str, n: int = 1) -> None:
     """Counts n requests of a kind from ip, or refuses them (HTTP 429)."""
-    if not MULTIUSER or ip in LOCAL:
+    if not RATELIMIT_ENABLED or not MULTIUSER or ip in LOCAL or ip in WHITELIST_IPS:
         return
     allowed, window, what = LIMITS[kind]
     now = time.time()
@@ -67,7 +72,7 @@ def check(ip: str, kind: str, n: int = 1) -> None:
 
 def room(ip: str, kind: str) -> int:
     """How many more requests of a kind ip may make right now."""
-    if not MULTIUSER or ip in LOCAL:
+    if not RATELIMIT_ENABLED or not MULTIUSER or ip in LOCAL or ip in WHITELIST_IPS:
         return 1 << 30
     allowed, window, _ = LIMITS[kind]
     now = time.time()

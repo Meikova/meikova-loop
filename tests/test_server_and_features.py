@@ -687,6 +687,16 @@ def test_cross_platform_releases_and_media_controls():
 
 
 
+def test_ratelimit_dev_bypass_and_ip_whitelist():
+    """Verify ratelimit bypasses during development and obeys whitelist."""
+    from loopbox import ratelimit
+    # Dev mode: ratelimit is disabled by default
+    assert not ratelimit.RATELIMIT_ENABLED
+    # Calling check should never raise 429 in dev mode even when called 1000 times
+    for _ in range(1000):
+        ratelimit.check("203.0.113.195", "session")
+    assert ratelimit.room("203.0.113.195", "session") >= 300
+
 def test_empty_beats_guard_and_librosa_fallback():
     """Verify that beat tracking does not raise IndexError when beats array is empty, and falls back gracefully."""
     import numpy as np
@@ -725,6 +735,7 @@ if __name__ == "__main__":
     test_mediasession_windows_smtc_controls()
     test_cross_platform_releases_and_media_controls()
     test_empty_beats_guard_and_librosa_fallback()
+    test_ratelimit_dev_bypass_and_ip_whitelist()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

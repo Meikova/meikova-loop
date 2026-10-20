@@ -6,11 +6,17 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 13:35:00
-- Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-20 13:48:00
+- Exit Code: 0 (All 27 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Vô hiệu hóa Rate Limit trong giai đoạn Dev & Hỗ trợ IP Whitelist (`loopbox/ratelimit.py`)**:
+  - Tắt mặc định cơ chế Rate Limit (`MASHLOOP_RATELIMIT=1` mới kích hoạt khi lên production).
+  - Thêm hỗ trợ biến môi trường `MASHLOOP_IP_WHITELIST` để bỏ qua giới hạn theo danh sách IP.
+  - Ngăn chặn hoàn toàn lỗi HTTP 429 *"Bạn mở trang quá nhiều lần, thử lại sau 33 phút"* khi dev hoặc refresh/test liên tục.
+  - Thêm test case `test_ratelimit_dev_bypass_and_ip_whitelist` vào `tests/test_server_and_features.py` (27/27 tests Pass).
+
 - **Khắc phục triệt để lỗi treo ở bước quét link YouTube ("Đang quét link và nạp danh sách bài...")**:
   - **Nguyên nhân gốc rễ**:
     1. Trong `loopbox/download.py` hàm `resolve()`, khi xử lý link YouTube, hàm lặp qua danh sách `clients = YOUTUBE_CLIENT_CONFIGS` gồm **12 client configurations** kết hợp với 2 lượt cookies (`cookie_passes`).
