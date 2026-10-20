@@ -6,11 +6,22 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 13:48:00
+- Timestamp: 2026-10-20 13:56:00
 - Exit Code: 0 (All 27 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi cổng lắng nghe Hugging Face Space khiến Space bị kẹt ở bản cũ (Port 7860)**:
+  - **Nguyên nhân cốt lõi**:
+    1. Trong `app.py`, hàm `_sync_cookies()` import `loopbox.cookies`, hàm này kéo theo `loopbox.config` nạp trước khi `os.environ.setdefault("MASHLOOP_PORT", "7860")` kịp chạy.
+    2. Do đó biến `PORT` nhận giá trị mặc định `8765`, khiến Gradio lắng nghe cổng 8765 thay vì 7860 của Hugging Face.
+    3. Hugging Face Space không kiểm tra được healthcheck ở cổng 7860, bị kẹt ở trạng thái `RUNNING_APP_STARTING`, dẫn tới gateway vẫn route traffic về container cũ có giới hạn rate limit.
+  - **Khắc phục triệt để**:
+    1. Khởi tạo biến môi trường `MASHLOOP_PORT` và `SPACE_ID` ngay đầu `app.py` trước mọi import.
+    2. Cập nhật `demo.launch(server_port=...)` luôn ép cổng 7860 khi chạy trên Space.
+    3. Đẩy file `app.py` trực tiếp lên repository Space (`commit 9f011c7`).
+    4. Trạng thái Space chuyển sang **`RUNNING`** và xác thực 10/10 request session liên tiếp trả về HTTP 200, xóa bỏ hoàn toàn thông báo 429.
+
 - **Vô hiệu hóa Rate Limit trong giai đoạn Dev & Hỗ trợ IP Whitelist (`loopbox/ratelimit.py`)**:
   - Tắt mặc định cơ chế Rate Limit (`MASHLOOP_RATELIMIT=1` mới kích hoạt khi lên production).
   - Thêm hỗ trợ biến môi trường `MASHLOOP_IP_WHITELIST` để bỏ qua giới hạn theo danh sách IP.
