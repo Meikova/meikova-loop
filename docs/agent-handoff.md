@@ -6,9 +6,10 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 15:36:00
-- Exit Code: 0 (All 28 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-20 15:48:00
+- Exit Code: 0 (All 28 test suites passed: tests/test_server_and_features.py | PyInstaller Build Success)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
+- Output Binary: `dist\MashLoop\MashLoop.exe` (62.9MB, tích hợp sẵn System Tray, Minimize to Tray, Autostart).
 
 ## Cải tiến & Khắc phục Mới Nhất
 - **Phát triển System Tray Icon & Chạy ngầm khi đóng cửa sổ (Minimize to Tray) cho Desktop App**:
