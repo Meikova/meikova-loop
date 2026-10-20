@@ -95,5 +95,7 @@
   - Giao diện Ambient Dark: `#desktop-titlebar` với icon vô cực, tên app, hiển thị bài hát đang phát `#dt-nowplaying`, vùng kéo thả `.pywebview-drag-region`.
   - Nút điều khiển cửa sổ: Thu nhỏ (min), Phóng to/Khôi phục (max/restore), Đóng app (thu nhỏ vào khay hệ thống, hover màu đỏ `#e81123`). Hỗ trợ double-click để phóng to/thu nhỏ.
   - Tự động ẩn trên Web, Mobile và chế độ toàn màn hình Zen mode.
-  - Cache bump `v81` (`index.html`, `main.js`, `sw.js`, `test_server_and_features.py`).
+  - Cache bump `v82` (`index.html`, `main.js`, `sw.js`, `test_server_and_features.py`).
+  - Sửa lỗi logo vô cực MashLoop bị thiếu một nửa bên trái: Phục hồi path SVG đầy đủ 2 cánh vô cực kèm điểm sáng trung tâm `circle.brand__dot`.
+  - Khắc phục lệch màu nền titlebar: Chuyển background `.desktop-titlebar` sang `transparent` để ánh sáng gradient ambient của `.field` tỏa đều liền mạch từ đỉnh xuống đáy cửa sổ.
   - Build PyInstaller: [`dist/MashLoop/MashLoop.exe`](file:///d:/JOB/DEV/MashLoop/dist/MashLoop/MashLoop.exe) thành công (Exit Code 0).
