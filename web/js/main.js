@@ -3024,6 +3024,49 @@ mobileModal?.addEventListener("click", (e) => {
   if (!inside) mobileModal.close();
 });
 
+// Native PWA deferred prompt & installation handling
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const pwaBadge = $("#pwa-install-badge");
+  if (pwaBadge) pwaBadge.textContent = "1-CLICK";
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  const pwaBadge = $("#pwa-install-badge");
+  const pwaDesc = $("#pwa-install-desc");
+  if (pwaBadge) pwaBadge.textContent = "INSTALLED";
+  if (pwaDesc) pwaDesc.textContent = "Đã cài đặt ✓";
+  showHudToast("Đã cài đặt MashLoop Web App thành công!");
+});
+
+if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) {
+  const pwaBadge = $("#pwa-install-badge");
+  const pwaDesc = $("#pwa-install-desc");
+  if (pwaBadge) pwaBadge.textContent = "ACTIVE";
+  if (pwaDesc) pwaDesc.textContent = "Standalone App";
+}
+
+$("#btn-pwa-install")?.addEventListener("click", async () => {
+  if (deferredInstallPrompt) {
+    try {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice.outcome === "accepted") {
+        showHudToast("Đang cài đặt Web App...");
+        deferredInstallPrompt = null;
+      }
+    } catch (_) {}
+  } else if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) {
+    showHudToast("Ứng dụng đang chạy ở chế độ Web App độc lập.");
+  } else {
+    showHudToast("Làm theo hướng dẫn bên dưới để thêm vào màn hình chính.");
+    updateMobileModal();
+  }
+});
+
 // Shortcuts & Help Modal
 const shortcutsModal = $("#shortcuts-modal");
 export const openShortcuts = () => shortcutsModal?.showModal();
@@ -3805,8 +3848,19 @@ function initAuthAndSync() {
     try {
       const res = await fetch("/api/auth/google/start").then((r) => r.json());
       if (res?.auth_url) {
-        showHudToast("Đang mở cửa sổ đăng nhập Google...");
-        window.open(res.auth_url, "MashLoopGoogleAuth", "width=520,height=640");
+        showHudToast("Đang mở đăng nhập Google...");
+        const isMobileOrStandalone =
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone;
+        if (isMobileOrStandalone) {
+          window.location.href = res.auth_url;
+        } else {
+          const popup = window.open(res.auth_url, "MashLoopGoogleAuth", "width=520,height=640");
+          if (!popup || popup.closed || typeof popup.closed === "undefined") {
+            window.location.href = res.auth_url;
+          }
+        }
       }
     } catch (err) {
       if (loginErr) {

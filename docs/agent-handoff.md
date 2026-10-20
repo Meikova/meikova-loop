@@ -73,3 +73,8 @@
   - Đồng bộ cache bump `mashloop-v78` trong `web/sw.js` và `tests/test_server_and_features.py`.
   - Chạy `test_server_and_features.py`: ALL TESTS PASSED WITH EXIT CODE 0 (28/28 tests).
   - Chạy `unittest discover`: 7/7 tests PASS (Exit Code 0).
+- **Tối ưu Đa nền tảng PWA & Mobile OAuth**:
+  - Gỡ bỏ nút iframe mặc định Google GIS, chuẩn hóa duy nhất nút Ambient Dark `.btn-ambient-google`.
+  - Tích hợp 1-Click Native PWA Install (`beforeinstallprompt` & `appinstalled`) trên desktop PC và điện thoại Android/iOS.
+  - Tối ưu callback Google OAuth cho Mobile & Standalone PWA: tự động chuyển hướng mượt mà về trang chính `/` và bổ sung nút điều hướng quay lại app.
+  - Test suites: `test_server_and_features.py` (28/28 tests PASS), `unittest discover` (7/7 tests PASS).

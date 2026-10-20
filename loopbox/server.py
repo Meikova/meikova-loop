@@ -361,20 +361,26 @@ def auth_google_callback(request: Request, code: str | None = None, error: str |
         <html>
         <head>
           <meta charset="utf-8"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1"/>
           <title>MashLoop // Đăng nhập thành công</title>
           <style>
-            body {{ background: #0e1015; color: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
-            .card {{ background: #181b22; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 36px 32px; text-align: center; max-width: 380px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }}
-            h2 {{ color: #f59e0b; margin: 0 0 10px; font-size: 22px; }}
-            p {{ color: #a1a1aa; font-size: 14px; line-height: 1.5; margin: 0 0 24px; }}
-            .btn {{ display: inline-block; background: #f59e0b; color: #0e1015; font-weight: 600; padding: 10px 24px; border-radius: 999px; text-decoration: none; cursor: pointer; border: none; }}
+            body {{ background: #0e1015; color: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }}
+            .card {{ background: #181b22; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 32px 24px; text-align: center; max-width: 380px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }}
+            h2 {{ color: #f59e0b; margin: 0 0 10px; font-size: 20px; }}
+            p {{ color: #a1a1aa; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }}
+            .actions {{ display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }}
+            .btn {{ display: inline-flex; align-items: center; justify-content: center; background: #f59e0b; color: #0e1015; font-weight: 600; padding: 10px 20px; border-radius: 999px; text-decoration: none; cursor: pointer; border: none; font-size: 13px; }}
+            .btn-ghost {{ background: rgba(255,255,255,0.08); color: #f0eee9; }}
           </style>
         </head>
         <body>
           <div class="card">
             <h2>Đăng nhập thành công!</h2>
-            <p>Chào mừng <b>{user_name}</b>.<br>Bạn có thể đóng tab này và quay lại ứng dụng MashLoop.</p>
-            <button class="btn" onclick="window.close()">Đóng cửa sổ</button>
+            <p>Chào mừng <b>{user_name}</b>.<br>Đang đồng bộ dữ liệu vào ứng dụng...</p>
+            <div class="actions">
+              <a href="/" class="btn" id="btn-return">Mở MashLoop ngay</a>
+              <button class="btn btn-ghost" id="btn-close" onclick="window.close()">Đóng tab</button>
+            </div>
           </div>
           <script>
             try {{
@@ -384,7 +390,13 @@ def auth_google_callback(request: Request, code: str | None = None, error: str |
                 window.opener.postMessage({{ type: 'MASHLOOP_AUTH_SUCCESS', token: '{token}', user: {json.dumps(user)} }}, '*');
               }}
             }} catch(e) {{}}
-            setTimeout(() => window.close(), 2500);
+            setTimeout(() => {{
+              if (window.opener) {{
+                window.close();
+              }} else {{
+                window.location.href = '/';
+              }}
+            }}, 1200);
           </script>
         </body>
         </html>"""

@@ -3664,7 +3664,7 @@ dialog.mobile-modal,
 
 .mobile-downloads__grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -3678,6 +3678,13 @@ dialog.mobile-modal,
   .mobile-downloads__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+button.dl-card {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--line);
 }
 
 .dl-card {

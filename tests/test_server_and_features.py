@@ -574,6 +574,7 @@ def test_downloads_and_expanded_modals():
     assert 'id="btn-dl-apk"' in index_html
     assert 'id="btn-dl-desktop"' in index_html
     assert 'id="btn-dl-ipa"' in index_html
+    assert 'id="btn-pwa-install"' in index_html
     assert 'id="btn-copy-server-url"' in index_html
     assert 'data-platform-tab="desktop"' in index_html
     assert 'data-platform-tab="ios"' in index_html
