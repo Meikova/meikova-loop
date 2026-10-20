@@ -3372,8 +3372,14 @@ async function refreshCookieStatus() {
     if (res.has_cookies) {
       badge.classList.add("active");
       const doms = (res.domains || []).join(", ");
-      statusText.textContent = `Sẵn sàng (${res.count})`;
-      if (desc) desc.textContent = doms || "Đã nạp";
+      if (res.authenticated) {
+        statusText.textContent = `Sẵn sàng (${res.count})`;
+        if (desc) desc.textContent = "Đã đăng nhập YouTube";
+      } else {
+        statusText.textContent = `Chưa đăng nhập (${res.count})`;
+        if (desc) desc.textContent = "Cần đăng nhập Google/YT";
+        badge.title = "Cookie này là của khách vãng lai, chưa đăng nhập YouTube. Vui lòng đăng nhập tài khoản Google trên YouTube trước khi xuất cookie để vượt qua xác minh bot.";
+      }
       if (delBtn) delBtn.hidden = false;
     } else {
       badge.classList.remove("active");

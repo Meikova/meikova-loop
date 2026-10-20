@@ -6,11 +6,21 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 12:07:00
+- Timestamp: 2026-10-20 12:54:00
 - Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Nâng cấp nhận diện Cookie Authenticated vs Guest & Tối ưu Client Extraction YouTube**:
+  - **Phân tích vấn đề 23 cookie**:
+    - Khi người dùng xuất cookie từ trình duyệt khi chưa đăng nhập YouTube (hoặc ở chế độ khách vãng lai), chỉ có 18-25 cookie tracking thông thường (`VISITOR_INFO1_LIVE`, `PREF`, `YSC`, `SOCS`), thiếu hoàn toàn token đăng nhập tài khoản Google (`LOGIN_INFO`, `SAPISID`, `SID`, `__Secure-1PSID`, `__Secure-3PSID`).
+    - Khi máy chủ Datacenter (Hugging Face) gửi 23 cookie khách này lên YouTube, YouTube vẫn coi là bot ẩn danh và áp dụng bộ lọc chặn bot (`Sign in to confirm you're not a bot`).
+  - **Cải tiến triển khai**:
+    - **`loopbox/cookies.py`**: Thêm hàm `check_auth_status()` kiểm tra sự tồn tại của `LOGIN_INFO`/`SAPISID`/`SID` và trả về cờ `authenticated: True/False`.
+    - **`web/js/main.js`**: Cập nhật badge Cookie: nếu cookie chỉ là guest (chưa đăng nhập), hiển thị rõ `Chưa đăng nhập (count)` và cảnh báo người dùng cần đăng nhập YouTube trước khi xuất cookie để vượt qua xác minh bot của YouTube trên Datacenter.
+    - **`loopbox/download.py`**: Bổ sung các client dự phòng đã kiểm thử thành công (`android_music`, `android_embedded`, `tv_embedded`, `ios_music`) vào `YOUTUBE_CLIENT_CONFIGS`.
+    - **Kiểm thử**: 26/26 test suites passed (Exit Code 0).
+
 - **Khắc phục lỗi căn chỉnh Stage khi trang mới tải / canvas chưa render (`#ring-center` bị trôi dạt góc trên trái đè lên `.readout--tl`)**:
   - **Nguyên nhân gốc rễ**:
     - Trong `web/css/app.css:366`, `.ring-center` ban đầu được đặt `left: 0; top: 0;` và `transform: translate(var(--rc-x, 50%), var(--rc-y, 40%)) translate(-50%, -50%);`.

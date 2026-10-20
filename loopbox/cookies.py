@@ -157,21 +157,38 @@ def detect_domains(cookies_dict: dict) -> list[str]:
     return sorted(domains)
 
 
+def check_auth_status(cookies_dict: dict) -> dict:
+    has_yt = False
+    has_yt_login = False
+    for (domain, _, name) in cookies_dict.keys():
+        d = domain.lower()
+        if "youtube.com" in d or "google.com" in d:
+            has_yt = True
+            if name in ("LOGIN_INFO", "SAPISID", "SID", "SSID", "HSID", "__Secure-1PSID", "__Secure-3PSID"):
+                has_yt_login = True
+    return {
+        "youtube": has_yt,
+        "authenticated": has_yt_login,
+    }
+
+
 def cookie_status() -> dict:
     fpath = get_cookie_file_path()
     if not fpath or not fpath.exists():
-        return {"has_cookies": False, "count": 0, "domains": []}
+        return {"has_cookies": False, "count": 0, "domains": [], "authenticated": False}
     try:
         content = fpath.read_text(encoding="utf-8", errors="ignore")
         parsed = parse_cookies_to_dict(content)
+        auth = check_auth_status(parsed)
         return {
             "has_cookies": len(parsed) > 0,
             "count": len(parsed),
             "domains": detect_domains(parsed),
+            "authenticated": auth.get("authenticated", False),
         }
     except Exception as e:
         logger.warning(f"Error reading cookie status: {e}")
-        return {"has_cookies": False, "count": 0, "domains": [], "error": str(e)}
+        return {"has_cookies": False, "count": 0, "domains": [], "error": str(e), "authenticated": False}
 
 
 def save_cookies(content: str) -> dict:
