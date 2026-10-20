@@ -6,11 +6,15 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 13:08:00
+- Timestamp: 2026-10-20 13:23:00
 - Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Tự động đồng bộ Cookie J2TEAM vào Hugging Face Space Secret**:
+  - Tạo công cụ `tools/sync_cookie_to_space.py` chuyển đổi trực tiếp file JSON từ J2TEAM Cookies thành Netscape cookies và đẩy lên Space Secret `YOUTUBE_COOKIES`.
+  - Khắc phục triệt để vấn đề mất cookie mỗi khi Space khởi động lại. Từ nay, Space tự động nạp cookie xịn ngay từ khi boot container.
+
 - **Khắc phục triệt để lỗi nạp cookie YouTube (Hỗ trợ toàn diện J2TEAM Cookies, Cookie-Editor & Netscape)**:
   - **Nguyên nhân cốt lõi**:
     1. Khi truyền cookie vào `yt-dlp`, `yt-dlp` tự động bỏ qua các client di động như `visionos` và `android` (`Skipping client since it does not support cookies`), chuyển sang dùng `web`/`mweb`.
