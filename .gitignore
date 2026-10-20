@@ -1,6 +1,8 @@
 # Python & Environments
 .env
 .env.*
+client_secret*.json
+credentials*.json
 .venv/
 venv/
 ENV/
