@@ -6,11 +6,19 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 10:07:00
+- Timestamp: 2026-10-20 10:17:00
 - Exit Code: 0 (All 25 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi CI/CD Build Linux: `No space left on device` khi cài PyTorch CUDA trên runner GitHub**:
+  - **Nguyên nhân**: Mặc định runner `ubuntu-latest` chỉ còn khoảng 14GB trống vì chứa sẵn Android SDK, .NET, Haskell,... Khi pip cài `requirements.txt`, PyTorch trên Linux mặc định kéo theo hơn 10GB các gói NVIDIA CUDA runtime (`nvidia-cublas-cu12`, `nvidia-cudnn-cu12`, `nvidia-cusolver-cu12`,...), làm đầy 100% dung lượng ổ đĩa của runner gây lỗi `OSError: [Errno 28] No space left on device`.
+  - **Khắc phục**:
+    1. Bổ sung bước dọn dẹp ổ đĩa `Free Disk Space on Runner`: xoá `/usr/share/dotnet`, `/usr/local/lib/android`, `/opt/ghc`, `/usr/local/share/boost`, giải phóng ngay hơn 35GB dung lượng trống.
+    2. Cài đặt bản PyTorch CPU (`pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu`) trước khi chạy `requirements.txt`. Gói CPU chỉ nặng ~180MB, ngăn pip tải 10GB package NVIDIA CUDA không cần thiết trên runner CI headless.
+    3. `loopbox/desktop.py`: bọc `import torch` trong `get_sys_info()` bằng `try...except` an toàn.
+    4. Kiểm tra toàn bộ 25 bài test tự động đạt Exit Code 0.
+
 - **Khắc phục lỗi CI/CD Build Linux: thiếu `girepository-2.0` khi build PyGObject**:
   - **Nguyên nhân**: Runner `ubuntu-latest` chạy Ubuntu 24.04 (noble). PyGObject 3.50+ yêu cầu thư viện GObject-Introspection bản 2.0 (`girepository-2.0`). Trước đây workflow chỉ cài `libgirepository1.0-dev`, không có `libgirepository-2.0-dev` và `libcairo2-dev`, khiến `meson` báo lỗi `Dependency 'girepository-2.0' is required but not found`.
   - **Khắc phục**:

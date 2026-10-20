@@ -158,10 +158,14 @@ class DesktopBridge:
 
     def get_sys_info(self) -> dict:
         import platform
-        import torch
-
-        has_cuda = torch.cuda.is_available()
-        gpu_name = torch.cuda.get_device_name(0) if has_cuda else "CPU"
+        has_cuda = False
+        gpu_name = "CPU"
+        try:
+            import torch
+            has_cuda = torch.cuda.is_available()
+            gpu_name = torch.cuda.get_device_name(0) if has_cuda else "CPU"
+        except Exception:
+            pass
         return {
             "os": platform.platform(),
             "python": platform.python_version(),
