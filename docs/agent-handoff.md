@@ -57,4 +57,10 @@
 - `tests/test_server_and_features.py`: 28/28 tests PASS (Exit Code 0).
 - Toàn bộ JS cú pháp hợp lệ (`node -c web/js/api.js web/js/main.js` Exit Code 0).
 - Cập nhật `mashloop.spec` bổ sung hiddenimport `loopbox.auth`.
+- Sửa lỗi hiển thị trùng 2 form (`.auth-form[hidden] { display: none !important; }`), chuẩn hóa giao diện theo `/ambient-instrument-ui`:
+  - Nút chuyển tab Segmented Pill nền vàng hổ phách phát sáng `var(--accent)`.
+  - Nút Google native Ambient Dark pill `.btn-ambient-google`.
+  - Cơ chế RFC 8252 Loopback OAuth cho Desktop đa nền tảng (`GET /api/auth/google/start` & `GET /api/auth/google/callback`).
+- Build PyInstaller: `dist/MashLoop/MashLoop.exe` hoàn tất thành công (Exit Code 0).
+- Push GitHub `origin/main` commit `efdd71f` và restart Hugging Face Space qua REST API (200 OK).
 
