@@ -29,6 +29,7 @@ hiddenimports = [
     "engineio.async_drivers.asgi",
     "loopbox.server",
     "loopbox.desktop",
+    "loopbox.tray",
     "loopbox.sessions",
     "loopbox.config",
     "loopbox.analysis.models",

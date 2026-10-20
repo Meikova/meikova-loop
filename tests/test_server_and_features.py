@@ -708,6 +708,56 @@ def test_empty_beats_guard_and_librosa_fallback():
     assert isinstance(b, np.ndarray) and isinstance(db, np.ndarray)
     assert len(b) == 0 or len(b) >= 2, "Beats array must be valid and not fail boolean indexing"
 
+def test_desktop_tray_and_background_minimize():
+    """Verify DesktopTray lifecycle, minimize-to-tray cancellation, autostart detection, and quit handling."""
+    from loopbox.tray import DesktopTray, is_autostart_enabled
+    from loopbox.desktop import DesktopBridge
+
+    class MockWindow:
+        def __init__(self):
+            self.hidden = False
+            self.destroyed = False
+            self.native = None
+        def hide(self):
+            self.hidden = True
+        def show(self):
+            self.hidden = False
+        def restore(self):
+            pass
+        def destroy(self):
+            self.destroyed = True
+
+    w = MockWindow()
+    quit_calls = []
+    tray = DesktopTray(w, 8765, None, None, on_quit=lambda: quit_calls.append(True))
+
+    # 1. Closing when not quitting must cancel close (return False) and hide the window
+    assert tray.handle_closing() is False
+    assert w.hidden is True
+    assert not tray.is_quitting
+
+    # 2. Restoring must show window
+    tray.show_window()
+    assert w.hidden is False
+
+    # 3. DesktopBridge integration
+    bridge = DesktopBridge(8765)
+    bridge.set_window(w)
+    bridge.set_tray(tray)
+    bridge.hide_to_tray()
+    assert w.hidden is True
+
+    # 4. Quitting must mark is_quitting, call on_quit, destroy window, and allow close
+    tray.quit()
+    assert tray.is_quitting is True
+    assert quit_calls == [True]
+    assert w.destroyed is True
+    assert tray.handle_closing() is True
+
+    # 5. Autostart query must not crash
+    assert isinstance(is_autostart_enabled(), bool)
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -736,6 +786,7 @@ if __name__ == "__main__":
     test_cross_platform_releases_and_media_controls()
     test_empty_beats_guard_and_librosa_fallback()
     test_ratelimit_dev_bypass_and_ip_whitelist()
+    test_desktop_tray_and_background_minimize()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

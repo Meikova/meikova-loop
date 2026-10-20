@@ -6,11 +6,30 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 14:05:00
-- Exit Code: 0 (All 27 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-20 15:36:00
+- Exit Code: 0 (All 28 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Phát triển System Tray Icon & Chạy ngầm khi đóng cửa sổ (Minimize to Tray) cho Desktop App**:
+  - **Kiến trúc & Tham chiếu EverythingDownloader**:
+    1. Tích hợp `DesktopTray` (`loopbox/tray.py`) sử dụng native .NET WinForms `NotifyIcon` & `ContextMenuStrip` qua `clr` (chia sẻ trực tiếp UI message loop với `pywebview`, zero overhead, zero thư viện bên ngoài).
+    2. Menu khay hệ thống chuẩn EverythingDownloader:
+       - Header trạng thái: `MashLoop // v2.0`
+       - `Mở MashLoop`: Phục hồi cửa sổ, đưa lên foreground (`Normal`, `Show`, `Activate`, `BringToFront`).
+       - `Mở trên trình duyệt Web`: Truy cập thẳng URL máy chủ nội bộ `http://127.0.0.1:{port}/`.
+       - `Mở thư mục lưu trữ (Data)`: Khám phá trực tiếp thư mục `data/` trên Windows Explorer.
+       - `Khởi động cùng Windows`: Bật/Tắt tự động khởi động thông qua registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+       - `Tải lại giao diện`: Tự động reload lại trang webview.
+       - `Thoát hoàn toàn`: Hủy tray icon và đóng sạch toàn bộ tiến trình ứng dụng cùng uvicorn backend server.
+    3. **Chạy ngầm khi bấm đóng cửa sổ**:
+       - Bắt sự kiện `window.events.closing`.
+       - Khi người dùng bấm nút "X" ở góc trên cửa sổ, ứng dụng huỷ thao tác đóng (`args.Cancel = True`), ẩn cửa sổ vào khay hệ thống (`window.hide()`), đồng thời hiển thị thông báo Balloon Tip: *"MashLoop vẫn đang chạy ngầm trong khay hệ thống. Nhấp vào biểu tượng để mở lại."*.
+       - Nhấp đơn (Left-click) hoặc nhấp đúp (Double-click) vào icon khay sẽ tự động mở lại cửa sổ tức thì.
+       - Nhạc và tiến trình server uvicorn vẫn tiếp tục phát và phân tích liên tục không bị gián đoạn.
+    4. Cập nhật `mashloop.spec` thêm `"loopbox.tray"` vào `hiddenimports`.
+    5. Kiểm thử: 28/28 test suites passed (Exit Code 0).
+
 - **Khắc phục lỗi Deno lỗi thời khiến yt-dlp quăng lỗi "Requested format is not available" trên Hugging Face Space**:
   - **Nguyên nhân cốt lõi**:
     1. Phiên bản `yt-dlp` mới nhất quy định rõ `DenoJsRuntime.MIN_SUPPORTED_VERSION = (2, 3, 0)`.

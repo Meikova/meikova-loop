@@ -57,71 +57,71 @@ if sys.platform == "win32":
     class WindowsVolume:
         """Zero-dependency Windows Core Audio Master Volume controller using ctypes."""
         def __init__(self):
-        self._vol_endpoint = None
-        self._get_scalar = None
-        self._set_scalar = None
-        self._init_endpoint()
+            self._vol_endpoint = None
+            self._get_scalar = None
+            self._set_scalar = None
+            self._init_endpoint()
 
-    def _init_endpoint(self):
-        try:
-            ole32 = ctypes.oledll.ole32
-            ole32.CoInitialize(None)
-            clsid_enum = _guid('{BCDE0395-E52F-467C-8E3D-C4579291692E}')
-            iid_enum = _guid('{A95664D2-9614-4F35-A746-DE8DB63617E6}')
-            iid_vol = _guid('{5CDF2C82-841E-4546-9722-0CF74078229A}')
+        def _init_endpoint(self):
+            try:
+                ole32 = ctypes.oledll.ole32
+                ole32.CoInitialize(None)
+                clsid_enum = _guid('{BCDE0395-E52F-467C-8E3D-C4579291692E}')
+                iid_enum = _guid('{A95664D2-9614-4F35-A746-DE8DB63617E6}')
+                iid_vol = _guid('{5CDF2C82-841E-4546-9722-0CF74078229A}')
 
-            p_enum = c_void_p()
-            if ole32.CoCreateInstance(byref(clsid_enum), None, 1, byref(iid_enum), byref(p_enum)) != 0:
-                return
+                p_enum = c_void_p()
+                if ole32.CoCreateInstance(byref(clsid_enum), None, 1, byref(iid_enum), byref(p_enum)) != 0:
+                    return
 
-            vtable_enum = ctypes.cast(p_enum, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
-            fn_get_def = WINFUNCTYPE(HRESULT, c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(c_void_p))(vtable_enum[4])
-            p_device = c_void_p()
-            if fn_get_def(p_enum, 0, 1, byref(p_device)) != 0:
-                return
+                vtable_enum = ctypes.cast(p_enum, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
+                fn_get_def = WINFUNCTYPE(HRESULT, c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(c_void_p))(vtable_enum[4])
+                p_device = c_void_p()
+                if fn_get_def(p_enum, 0, 1, byref(p_device)) != 0:
+                    return
 
-            vtable_dev = ctypes.cast(p_device, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
-            fn_act = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(_GUID), wintypes.DWORD, c_void_p, ctypes.POINTER(c_void_p))(vtable_dev[3])
-            p_vol = c_void_p()
-            if fn_act(p_device, byref(iid_vol), 1, None, byref(p_vol)) != 0:
-                return
+                vtable_dev = ctypes.cast(p_device, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
+                fn_act = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(_GUID), wintypes.DWORD, c_void_p, ctypes.POINTER(c_void_p))(vtable_dev[3])
+                p_vol = c_void_p()
+                if fn_act(p_device, byref(iid_vol), 1, None, byref(p_vol)) != 0:
+                    return
 
-            vtable_vol = ctypes.cast(p_vol, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
-            self._set_scalar = WINFUNCTYPE(HRESULT, c_void_p, c_float, c_void_p)(vtable_vol[7])
-            self._get_scalar = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(c_float))(vtable_vol[9])
-            self._set_mute = WINFUNCTYPE(HRESULT, c_void_p, wintypes.BOOL, c_void_p)(vtable_vol[14])
-            self._get_mute = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(wintypes.BOOL))(vtable_vol[15])
-            self._vol_endpoint = p_vol
-        except Exception as e:
-            logger.debug("Windows volume init error: %s", e)
+                vtable_vol = ctypes.cast(p_vol, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
+                self._set_scalar = WINFUNCTYPE(HRESULT, c_void_p, c_float, c_void_p)(vtable_vol[7])
+                self._get_scalar = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(c_float))(vtable_vol[9])
+                self._set_mute = WINFUNCTYPE(HRESULT, c_void_p, wintypes.BOOL, c_void_p)(vtable_vol[14])
+                self._get_mute = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(wintypes.BOOL))(vtable_vol[15])
+                self._vol_endpoint = p_vol
+            except Exception as e:
+                logger.debug("Windows volume init error: %s", e)
 
-    def get_volume(self) -> float:
-        if not self._vol_endpoint or not self._get_scalar:
+        def get_volume(self) -> float:
+            if not self._vol_endpoint or not self._get_scalar:
+                return 1.0
+            try:
+                m = wintypes.BOOL()
+                if self._get_mute and self._get_mute(self._vol_endpoint, byref(m)) == 0 and m.value:
+                    return 0.0
+                val = c_float()
+                if self._get_scalar(self._vol_endpoint, byref(val)) == 0:
+                    return float(val.value)
+            except Exception:
+                self._init_endpoint()
             return 1.0
-        try:
-            m = wintypes.BOOL()
-            if self._get_mute and self._get_mute(self._vol_endpoint, byref(m)) == 0 and m.value:
-                return 0.0
-            val = c_float()
-            if self._get_scalar(self._vol_endpoint, byref(val)) == 0:
-                return float(val.value)
-        except Exception:
-            self._init_endpoint()
-        return 1.0
 
-    def set_volume(self, val: float):
-        if not self._vol_endpoint or not self._set_scalar:
-            return
-        try:
-            clamped = max(0.0, min(1.0, float(val)))
-            self._set_scalar(self._vol_endpoint, c_float(clamped), None)
-            if self._set_mute:
-                if clamped <= 0.001:
-                    self._set_mute(self._vol_endpoint, 1, None)
-                else:
-                    self._set_mute(self._vol_endpoint, 0, None)
-        except Exception:
-            self._init_endpoint()
+        def set_volume(self, val: float):
+            if not self._vol_endpoint or not self._set_scalar:
+                return
+            try:
+                clamped = max(0.0, min(1.0, float(val)))
+                self._set_scalar(self._vol_endpoint, c_float(clamped), None)
+                if self._set_mute:
+                    if clamped <= 0.001:
+                        self._set_mute(self._vol_endpoint, 1, None)
+                    else:
+                        self._set_mute(self._vol_endpoint, 0, None)
+            except Exception:
+                self._init_endpoint()
 else:
     class WindowsVolume:
         """Fallback volume controller for non-Windows platforms (macOS / Linux)."""
@@ -142,10 +142,20 @@ class DesktopBridge:
     def __init__(self, port: int):
         self.port = port
         self._window = None
+        self._tray = None
         self._win_vol = WindowsVolume()
 
     def set_window(self, window):
         self._window = window
+
+    def set_tray(self, tray):
+        self._tray = tray
+
+    def hide_to_tray(self):
+        if self._tray:
+            self._tray.hide_window()
+        elif self._window:
+            self._window.hide()
 
     def is_desktop(self) -> bool:
         return True
@@ -327,6 +337,33 @@ def main(argv=None):
     icon_path = WEB_DIR / "img" / "icon.ico"
     icon_str = str(icon_path) if icon_path.is_file() else None
 
+    # ponytail: native system tray runner inspired by EverythingDownloader; minimize to tray on window close
+    desktop_tray = None
+    try:
+        from .tray import DesktopTray
+    except (ImportError, ValueError):
+        from loopbox.tray import DesktopTray
+
+    def _on_tray_quit():
+        if server_obj:
+            server_obj.should_exit = True
+
+    desktop_tray = DesktopTray(
+        window=window,
+        port=port,
+        icon_path=icon_path,
+        data_dir=DATA_DIR,
+        on_quit=_on_tray_quit,
+    )
+    bridge.set_tray(desktop_tray)
+
+    def on_closing():
+        if desktop_tray:
+            return desktop_tray.handle_closing()
+        return True
+
+    window.events.closing += on_closing
+
     def _volume_sync_loop():
         try:
             ctypes.oledll.ole32.CoInitialize(None)
@@ -358,6 +395,8 @@ def main(argv=None):
                     window.native.Icon = Icon(icon_str)
                 except Exception:
                     pass
+            if desktop_tray:
+                desktop_tray.setup()
             threading.Thread(target=_volume_sync_loop, name="volume-sync", daemon=True).start()
             init_v = bridge.get_system_volume()
             window.evaluate_js(f"window.__onSystemVolume && window.__onSystemVolume({init_v:.3f});")
@@ -377,6 +416,8 @@ def main(argv=None):
     )
 
     print("MashLoop Desktop closed.")
+    if desktop_tray:
+        desktop_tray.quit()
     if server_obj:
         server_obj.should_exit = True
 
