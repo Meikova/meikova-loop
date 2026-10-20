@@ -686,6 +686,18 @@ def test_cross_platform_releases_and_media_controls():
     assert 'class WindowsVolume:' in desktop_py, "desktop.py must provide WindowsVolume class"
 
 
+
+def test_empty_beats_guard_and_librosa_fallback():
+    """Verify that beat tracking does not raise IndexError when beats array is empty, and falls back gracefully."""
+    import numpy as np
+    from loopbox.analysis import beats
+
+    # Zero silence must return empty arrays without IndexError
+    y_silence = np.zeros((44100 * 20, 2), dtype=np.float32)
+    b, db = beats.track(y_silence)
+    assert isinstance(b, np.ndarray) and isinstance(db, np.ndarray)
+    assert len(b) == 0 or len(b) >= 2, "Beats array must be valid and not fail boolean indexing"
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -712,6 +724,7 @@ if __name__ == "__main__":
     test_deck_infinity_loading_path()
     test_mediasession_windows_smtc_controls()
     test_cross_platform_releases_and_media_controls()
+    test_empty_beats_guard_and_librosa_fallback()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

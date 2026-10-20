@@ -7,6 +7,7 @@ solves YouTube's player challenges.
 Ids: a YouTube video keeps its own 11-character id; a song from any other
 site is "x" and 16 hex digits of a hash of the site and its id there, so the
 same song is the same track whoever adds it and however it was linked."""
+import copy
 import hashlib
 import json
 import logging
@@ -215,12 +216,13 @@ def is_playlist_url(url: str) -> bool:
 
 
 YOUTUBE_CLIENT_CONFIGS = (
-    ["ios"],
-    ["android"],
-    ["mweb"],
     ["visionos"],
-    ["visionos", "android_vr"],
     ["android_vr"],
+    ["visionos", "android_vr"],
+    ["android"],
+    ["tv_embedded"],
+    ["ios"],
+    ["mweb"],
     ["web_music", "web"],
     ["web"],
     None,
@@ -396,11 +398,12 @@ def resolve(text: str) -> list[dict]:
             opts["noplaylist"] = True
 
         for client in clients:
-            cur_opts = dict(opts)
+            cur_opts = copy.deepcopy(opts)
             if client:
-                cur_opts["extractor_args"] = {"youtube": {"player_client": client}}
+                cur_opts.setdefault("extractor_args", {}).setdefault("youtube", {})["player_client"] = client
             else:
-                cur_opts.pop("extractor_args", None)
+                if "extractor_args" in cur_opts and "youtube" in cur_opts["extractor_args"]:
+                    cur_opts["extractor_args"]["youtube"].pop("player_client", None)
             try:
                 with yt_dlp.YoutubeDL(cur_opts) as ydl:
                     info = ydl.extract_info(text, download=False)
@@ -419,10 +422,13 @@ def resolve(text: str) -> list[dict]:
             full_list, seed_vid = m_mix.group(1), m_mix.group(2)
             watch_url = f"https://www.youtube.com/watch?v={seed_vid}&list={full_list}"
             for client in clients:
-                mix_opts = dict(opts)
+                mix_opts = copy.deepcopy(opts)
                 mix_opts["noplaylist"] = False
                 if client:
-                    mix_opts["extractor_args"] = {"youtube": {"player_client": client}}
+                    mix_opts.setdefault("extractor_args", {}).setdefault("youtube", {})["player_client"] = client
+                else:
+                    if "extractor_args" in mix_opts and "youtube" in mix_opts["extractor_args"]:
+                        mix_opts["extractor_args"]["youtube"].pop("player_client", None)
                 try:
                     with yt_dlp.YoutubeDL(mix_opts) as ydl:
                         info = ydl.extract_info(watch_url, download=False)
@@ -437,10 +443,13 @@ def resolve(text: str) -> list[dict]:
             if m:
                 single_url = f"https://www.youtube.com/watch?v={m.group(1)}"
                 for client in clients:
-                    single_opts = dict(opts)
+                    single_opts = copy.deepcopy(opts)
                     single_opts["noplaylist"] = True
                     if client:
-                        single_opts["extractor_args"] = {"youtube": {"player_client": client}}
+                        single_opts.setdefault("extractor_args", {}).setdefault("youtube", {})["player_client"] = client
+                    else:
+                        if "extractor_args" in single_opts and "youtube" in single_opts["extractor_args"]:
+                            single_opts["extractor_args"]["youtube"].pop("player_client", None)
                     try:
                         with yt_dlp.YoutubeDL(single_opts) as ydl:
                             info = ydl.extract_info(single_url, download=False)
@@ -537,7 +546,7 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
     clients = YOUTUBE_CLIENT_CONFIGS if site == "youtube" else (None,)
-    format_spec = "bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best/all"
+    format_spec = "bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best"
     for use_cookies in cookie_passes:
         for client in clients:
             if tid and library.is_cancelled(tid):

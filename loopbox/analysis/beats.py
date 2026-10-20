@@ -16,9 +16,28 @@ HR_HOP = 64  # onset envelope hop at 22050 Hz: 2.9 ms
 
 
 def track(y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    beats, downbeats = models.beat_tracker()(y, SAMPLE_RATE)
-    beats = np.asarray(beats, dtype=np.float64)
-    downbeats = np.asarray(downbeats, dtype=np.float64)
+    try:
+        beats, downbeats = models.beat_tracker()(y, SAMPLE_RATE)
+        beats = np.asarray(beats, dtype=np.float64)
+        downbeats = np.asarray(downbeats, dtype=np.float64)
+    except Exception:
+        beats, downbeats = np.empty(0, dtype=np.float64), np.empty(0, dtype=np.float64)
+
+    # Fallback to librosa if beat tracker detected too few beats or failed
+    if len(beats) < 32:
+        try:
+            import librosa
+            y_mono = y.mean(1) if y.ndim == 2 else y
+            tempo, beat_frames = librosa.beat.beat_track(y=y_mono, sr=SAMPLE_RATE, hop_length=512)
+            lib_beats = librosa.frames_to_time(beat_frames, sr=SAMPLE_RATE, hop_length=512)
+            if len(lib_beats) > len(beats):
+                beats = np.asarray(lib_beats, dtype=np.float64)
+                downbeats = beats[::4] if len(beats) >= 4 else beats
+        except Exception:
+            pass
+
+    if len(beats) < 2:
+        return beats, downbeats
     keep = np.concatenate([[True], np.diff(beats) > 0.15])
     return beats[keep], downbeats
 

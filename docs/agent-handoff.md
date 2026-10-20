@@ -6,11 +6,30 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 10:58:00
-- Exit Code: 0 (All 25 test suites passed: tests/test_server_and_features.py)
+- Timestamp: 2026-10-20 11:15:00
+- Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi nạp file trực tiếp (`boolean index did not match indexed array along axis 0`) và lỗi nạp link YouTube (`Requested format is not available` / `Sign in to confirm you're not a bot`)**:
+  - **Nguyên nhân lỗi nạp file trực tiếp**:
+    1. Trong `loopbox/analysis/beats.py:22`, dòng `keep = np.concatenate([[True], np.diff(beats) > 0.15])` giả định mảng `beats` luôn có ít nhất 1 phần tử. Khi file âm thanh đưa vào là đoạn im lặng, ambient hoặc mô hình `beat_this` chưa kịp tìm ra phách trên CPU, `len(beats) == 0`.
+    2. Lúc này `np.diff(beats)` có độ dài 0, nhưng `keep` có độ dài 1 (`[True]`). Khi thực hiện `beats[keep]`, NumPy quăng lỗi `IndexError: boolean index did not match indexed array along axis 0; size of axis is 0 but size of corresponding boolean axis is 1`. Lỗi này xảy ra trước khi đến đoạn kiểm tra `len(raw_beats) < 32` trong `pipeline.py`.
+  - **Khắc phục lỗi nạp file trực tiếp**:
+    1. Bổ sung `if len(beats) < 2: return beats, downbeats` trong `loopbox/analysis/beats.py` để ngăn hoàn toàn lỗi `IndexError` khi mảng rỗng.
+    2. Tích hợp thuật toán dự phòng tự động bằng `librosa.beat.beat_track` khi `beat_this` tìm thấy ít hơn 32 phách hoặc gặp lỗi, đảm bảo các file tải lên có thể nhận diện phách ngay cả khi mạng thần kinh chưa phát hiện được.
+    3. Thêm bài test `test_empty_beats_guard_and_librosa_fallback` vào `tests/test_server_and_features.py` (26/26 tests Pass).
+  - **Nguyên nhân lỗi YouTube**:
+    1. Trong `loopbox/download.py` hàm `resolve()`, các vòng lặp gán `cur_opts["extractor_args"] = {"youtube": {"player_client": client}}` đã vô tình ghi đè và xóa mất cấu hình gốc `formats: ["missing_pot"]`.
+    2. Khi thiếu `formats: ["missing_pot"]`, `yt-dlp` tự động loại bỏ tất cả các format âm thanh/video do thiếu Proof-of-Origin (PO) Token, chỉ giữ lại ảnh thumbnail/storyboard dạng `sb0/sb1/sb2`.
+    3. Bộ lọc định dạng `format_spec` trước đó có đuôi `/all`, dẫn đến việc `yt-dlp` chọn trúng định dạng ảnh storyboard `sb2` thay vì âm thanh, hoặc báo lỗi `Requested format is not available`. Khi fallback sang web client trên IP datacenter đám mây (HF Space), YouTube chặn bot (`Sign in to confirm you're not a bot`).
+    4. Thứ tự ưu tiên client trước đó xếp `ios` lên đầu, trong khi `ios` đang bị YouTube thử nghiệm SABR streaming nên thiếu URL stream.
+  - **Khắc phục lỗi YouTube**:
+    1. Sử dụng `copy.deepcopy(opts)` và `setdefault` trong `resolve()` để bảo toàn cấu hình `formats: ["missing_pot"]`.
+    2. Cập nhật thứ tự ưu tiên `YOUTUBE_CLIENT_CONFIGS`: đưa `visionos`, `android_vr` và `android` lên đầu (đây là các client không yêu cầu PO token và tải trực tiếp được Opus 251 hoặc MP4 18).
+    3. Xóa `/all` khỏi `format_spec` (`bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best`), tuyệt đối không để yt-dlp tải nhầm ảnh storyboard mhtml.
+    4. Cập nhật thông báo hướng dẫn người dùng dán cookies vào phần Tinh chỉnh khi IP đám mây bị YouTube chặn diện rộng.
+
 - **Khắc phục Lệch Tâm Quang học (Optical Alignment) Nút `Tải App` (`.btn-mobile-pill`) & `.btn-shortcuts`**:
   - **Nguyên nhân**: Trong `web/css/app.css`, SVG bị đặt `transform: translateY(-1.5px)` (bị đẩy vọt lên trên 1.5px) trong khi text `span` lại bị đặt `transform: translateY(0.5px)` (bị kéo thụt xuống 0.5px), tạo ra độ lệch quang học 2.0px khiến icon và chữ bị cập kiễng rõ rệt. Khi trên màn hình nhỏ co thành nút tròn 30px, icon cũng bị lệch tâm lên trên. Ngoài ra thiếu hiệu ứng viền hairline sáng và ambient glow khi hover.
   - **Khắc phục**:
