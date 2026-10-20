@@ -3764,17 +3764,6 @@ function initAuthAndSync() {
               },
               auto_select: false,
             });
-            const container = document.getElementById("g-signin-btn-container");
-            if (container) {
-              container.innerHTML = "";
-              google.accounts.id.renderButton(container, {
-                theme: "filled_black",
-                size: "large",
-                shape: "pill",
-                text: "continue_with",
-                width: 280,
-              });
-            }
           } catch (ex) {
             console.warn("GSI init warning:", ex);
           }

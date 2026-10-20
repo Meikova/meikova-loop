@@ -4748,13 +4748,6 @@ dialog.auth-modal,
   width: 100%;
 }
 
-#g-signin-btn-container {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  min-height: 42px;
-}
-
 .btn-ambient-google {
   display: inline-flex;
   align-items: center;
