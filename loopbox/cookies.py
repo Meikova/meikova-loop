@@ -109,6 +109,45 @@ def parse_cookies_to_dict(content: str) -> dict:
                 "name": name,
                 "value": value,
             }
+
+    # Raw header string support (e.g., from browser DevTools: Cookie: SID=...; HSID=...)
+    if not cookies and "=" in stripped and not stripped.startswith("{") and not stripped.startswith("["):
+        header_val = stripped
+        if header_val.lower().startswith("cookie:"):
+            header_val = header_val[7:].strip()
+        for part in header_val.split(";"):
+            part = part.strip()
+            if "=" in part:
+                k, v = part.split("=", 1)
+                k = k.strip()
+                v = v.strip()
+                if k:
+                    for d in (".youtube.com", ".google.com"):
+                        cookies[(d, "/", k)] = {
+                            "domain": d,
+                            "flag": "TRUE",
+                            "path": "/",
+                            "secure": "TRUE",
+                            "expiration": default_exp,
+                            "name": k,
+                            "value": v,
+                        }
+
+    # Duplicate SSO cookies for both .youtube.com and .google.com so yt-dlp authenticated requests never fail
+    sso_names = {
+        "SID", "HSID", "SSID", "APISID", "SAPISID",
+        "__Secure-1PSID", "__Secure-3PSID", "__Secure-1PAPISID", "__Secure-3PAPISID",
+        "LOGIN_INFO"
+    }
+    duplicates = {}
+    for (domain, path, name), c in cookies.items():
+        if name in sso_names:
+            if "youtube.com" in domain and ".google.com" not in [d for (d, _, n) in cookies.keys() if n == name]:
+                duplicates[(".google.com", path, name)] = {**c, "domain": ".google.com", "flag": "TRUE"}
+            elif "google.com" in domain and ".youtube.com" not in [d for (d, _, n) in cookies.keys() if n == name]:
+                duplicates[(".youtube.com", path, name)] = {**c, "domain": ".youtube.com", "flag": "TRUE"}
+    cookies.update(duplicates)
+
     return cookies
 
 

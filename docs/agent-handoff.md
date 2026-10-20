@@ -6,11 +6,25 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 12:54:00
+- Timestamp: 2026-10-20 13:08:00
 - Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục triệt để lỗi nạp cookie YouTube (Hỗ trợ toàn diện J2TEAM Cookies, Cookie-Editor & Netscape)**:
+  - **Nguyên nhân cốt lõi**:
+    1. Khi truyền cookie vào `yt-dlp`, `yt-dlp` tự động bỏ qua các client di động như `visionos` và `android` (`Skipping client since it does not support cookies`), chuyển sang dùng `web`/`mweb`.
+    2. Trên `web`/`mweb`, YouTube yêu cầu giải `n-challenge` (thử thách JavaScript) bằng JS runtime (`deno`/`node`). Do thiếu cờ `remote_components: ["ejs:github"]`, `yt-dlp` bỏ qua việc tải thư viện solver `yt.solver.lib.min.js`, dẫn tới `n challenge solving failed` và chỉ lấy được storyboard images (`sb0/sb1/sb2`), quăng lỗi `Requested format is not available`.
+    3. Định dạng J2TEAM Cookies chỉ xuất cookie cho domain `.youtube.com`, thiếu domain `.google.com` cho các request xác thực SSO (`SID`, `SAPISID`, `__Secure-3PSID`).
+  - **Đã khắc phục & xác minh thành công**:
+    1. Thêm `"remote_components": ["ejs:github"]` vào `BASE_OPTS` trong `loopbox/download.py`, tự động tải và kích hoạt JS challenge solver cho `deno` và `node`.
+    2. Cập nhật `loopbox/cookies.py`:
+       - Tự động nhân bản các token SSO (`LOGIN_INFO`, `SID`, `SAPISID`, `__Secure-1PSID`, `__Secure-3PSID`...) sang cả `.google.com` và `.youtube.com`.
+       - Hỗ trợ thêm dạng Raw Header string (`Cookie: key=val; ...`).
+    3. Định tuyến thông minh client YouTube: khi có cookie, ưu tiên default yt-dlp client và web clients (`web`, `mweb`, `tv`).
+    4. **Xác thực thực tế**: Tải trực tiếp bài hát `7qXn-U0oSa8` ([Dalat Noir]) thành công 100% (3.5MB webm format 251) từ file cookie `E:\Downloads\www.youtube.com_20-10-2026.json` của người dùng.
+    5. Kiểm thử: 26/26 test suites passed với Exit Code 0.
+
 - **Nâng cấp nhận diện Cookie Authenticated vs Guest & Tối ưu Client Extraction YouTube**:
   - **Phân tích vấn đề 23 cookie**:
     - Khi người dùng xuất cookie từ trình duyệt khi chưa đăng nhập YouTube (hoặc ở chế độ khách vãng lai), chỉ có 18-25 cookie tracking thông thường (`VISITOR_INFO1_LIVE`, `PREF`, `YSC`, `SOCS`), thiếu hoàn toàn token đăng nhập tài khoản Google (`LOGIN_INFO`, `SAPISID`, `SID`, `__Secure-1PSID`, `__Secure-3PSID`).

@@ -66,6 +66,7 @@ BASE_OPTS = {
     "noprogress": True,
     "nocheckcertificate": True,
     "js_runtimes": _find_js_runtimes(),
+    "remote_components": ["ejs:github"],
     "socket_timeout": 30,
 }
 
@@ -581,9 +582,14 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
 
     # YouTube intermittently answers 403 or blocks player response for some clients;
     # cycling client configs ensures datacenter/cloud connectivity.
-    clients = YOUTUBE_CLIENT_CONFIGS if site == "youtube" else (None,)
     format_spec = "bestaudio/b[acodec!=none]/ba/best[acodec!=none]/best"
     for use_cookies in cookie_passes:
+        if site == "youtube":
+            # With cookies: prioritize default client & web clients that consume session cookies.
+            # Without cookies: prioritize lightweight clients (visionos, android_vr).
+            clients = (None, ["web"], ["mweb"], ["tv"]) if use_cookies else YOUTUBE_CLIENT_CONFIGS
+        else:
+            clients = (None,)
         for client in clients:
             if tid and library.is_cancelled(tid):
                 raise RuntimeError("Đã huỷ nạp bài theo yêu cầu")
