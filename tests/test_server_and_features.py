@@ -209,10 +209,17 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v79" in sw_js
-    assert "app.css?v=79" in index_html
-    assert "main.js?v=79" in index_html
-    assert "sw.js?v=79" in index_html
+    assert "mashloop-v80" in sw_js
+    assert "app.css?v=80" in index_html
+    assert "main.js?v=80" in index_html
+    assert "sw.js?v=80" in index_html
+
+    # Desktop Frameless Titlebar
+    assert 'id="desktop-titlebar"' in index_html
+    assert 'id="dt-btn-min"' in index_html
+    assert 'id="dt-btn-max"' in index_html
+    assert 'id="dt-btn-close"' in index_html
+    assert 'desktop-titlebar' in app_css
 
     # Proportions & sizing resizer and sliders
     assert 'id="panel-resizer"' in index_html
@@ -531,7 +538,7 @@ def test_volume_150_themes_skip_and_shortcuts():
     assert 'Chế độ Chuỗi / Đơn / Tự do' in index_html
 
     # 5. Service worker bump
-    assert "mashloop-v79" in sw_js
+    assert "mashloop-v80" in sw_js
 
 
 def test_downloads_and_expanded_modals():

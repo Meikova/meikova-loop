@@ -86,3 +86,10 @@
   - Khắc phục triệt để lỗi đăng nhập chéo: Đăng nhập trên Desktop hoặc Mobile app KHÔNG lưu cookie/localStorage vào trình duyệt web và KHÔNG chuyển hướng web về `/`.
   - Hỗ trợ Mobile Native App (Capacitor APK/IPA): Mở trình duyệt hệ thống ngoài (tránh 403 `disallowed_useragent`), cơ chế polling `GET /api/auth/google/poll` và resume listener tự động nạp token vào app, hỗ trợ deep-link `com.m3ik18dp.mashloop://`.
   - Toàn bộ test suite xanh 100%: `tests/test_auth_and_sync.py` (8/8 PASS, bao gồm test cô lập luồng desktop & mobile), `tests/test_server_and_features.py` (28/28 PASS).
+- **Thanh tiêu đề tùy chỉnh Frameless (Custom Titlebar)**:
+  - Tham khảo kiến trúc `EverythingDownloader`: Ẩn thanh titlebar gốc của OS (`frameless=True` trong `loopbox/desktop.py`), giữ drop shadow và khả năng resize cạnh (`WS_THICKFRAME`).
+  - Giao diện Ambient Dark: `#desktop-titlebar` với icon vô cực, tên app, hiển thị bài hát đang phát `#dt-nowplaying`, vùng kéo thả `.pywebview-drag-region`.
+  - Nút điều khiển cửa sổ: Thu nhỏ (min), Phóng to/Khôi phục (max/restore), Đóng app (thu nhỏ vào khay hệ thống, hover màu đỏ `#e81123`). Hỗ trợ double-click để phóng to/thu nhỏ.
+  - Tự động ẩn trên Web, Mobile và chế độ toàn màn hình Zen mode.
+  - Cache bump `v80` (`index.html`, `sw.js`, `test_server_and_features.py`).
+  - Build PyInstaller: [`dist/MashLoop/MashLoop.exe`](file:///d:/JOB/DEV/MashLoop/dist/MashLoop/MashLoop.exe) thành công (Exit Code 0).

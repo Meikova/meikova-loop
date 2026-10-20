@@ -248,6 +248,33 @@ class DesktopBridge:
         if self._window:
             self._window.restore()
 
+    def toggle_maximize(self) -> bool:
+        if not self._window:
+            return False
+        try:
+            form = getattr(self._window, "native", None)
+            if form and hasattr(form, "WindowState"):
+                from System.Windows.Forms import FormWindowState
+                if form.WindowState == FormWindowState.Maximized:
+                    form.WindowState = FormWindowState.Normal
+                    return False
+                else:
+                    form.WindowState = FormWindowState.Maximized
+                    return True
+        except Exception:
+            pass
+        try:
+            self._window.maximize()
+            return True
+        except Exception:
+            return False
+
+    def close(self):
+        if self._tray:
+            self._tray.handle_closing()
+        elif self._window:
+            self._window.destroy()
+
 
 def _is_server_alive(port: int) -> bool:
     try:
@@ -382,16 +409,19 @@ def main(argv=None):
 
     bridge = DesktopBridge(port)
 
-    # Window creation
+    # Window creation (Frameless with custom titlebar controls inspired by EverythingDownloader)
     window = webview.create_window(
         title="MashLoop - Nhạc nhảy nhịp vô tận",
         url=f"http://127.0.0.1:{port}/",
         width=1340,
         height=880,
         min_size=(960, 620),
-        background_color="#0a0c10",
+        background_color="#080a0e",
         text_select=False,
         js_api=bridge,
+        frameless=True,
+        easy_drag=False,
+        shadow=True,
     )
     bridge.set_window(window)
 
@@ -451,7 +481,17 @@ def main(argv=None):
     def on_shown():
         try:
             hwnd = window.native.Handle.ToInt64()
-            apply_dark_titlebar(hwnd)
+            if sys.platform == "win32":
+                apply_dark_titlebar(hwnd)
+                try:
+                    GWL_STYLE = -16
+                    WS_THICKFRAME = 0x00040000
+                    WS_MINIMIZEBOX = 0x00020000
+                    WS_MAXIMIZEBOX = 0x00010000
+                    style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
+                    ctypes.windll.user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)
+                except Exception:
+                    pass
             if icon_path.is_file():
                 set_window_icon(hwnd, icon_path)
                 try:

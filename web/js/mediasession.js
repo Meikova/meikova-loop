@@ -33,6 +33,9 @@ export function setupMediaSession(player, engine, getSongMeta) {
       album: "Mash ∞ Loop",
       artwork,
     });
+
+    const dtNow = document.getElementById("dt-nowplaying");
+    if (dtNow) dtNow.textContent = track ? `// ${title}` : "";
   }
 
   function updatePlaybackState() {

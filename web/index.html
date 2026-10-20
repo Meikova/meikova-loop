@@ -53,10 +53,33 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=79" />
+    <link rel="stylesheet" href="css/app.css?v=80" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
+
+    <!-- Desktop Frameless Custom Titlebar (Hidden on Web & Mobile) -->
+    <div id="desktop-titlebar" class="desktop-titlebar pywebview-drag-region" style="display: none;">
+      <div class="desktop-titlebar__lead pywebview-drag-region">
+        <svg class="desktop-titlebar__logo" viewBox="0 0 48 24" width="20" height="10" aria-hidden="true">
+          <path fill="none" stroke="var(--accent, #f59e0b)" stroke-width="3" d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z"/>
+        </svg>
+        <span class="desktop-titlebar__title">MashLoop</span>
+        <span class="desktop-titlebar__nowplaying mono" id="dt-nowplaying"></span>
+      </div>
+      <div class="desktop-titlebar__drag pywebview-drag-region"></div>
+      <div class="desktop-titlebar__controls">
+        <button type="button" class="dt-btn dt-btn--min" id="dt-btn-min" title="Thu nhỏ (Minimize)">
+          <svg viewBox="0 0 11 11" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg>
+        </button>
+        <button type="button" class="dt-btn dt-btn--max" id="dt-btn-max" title="Phóng to / Khôi phục">
+          <svg viewBox="0 0 11 11" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2" id="dt-max-icon"><rect x="1.5" y="1.5" width="8" height="8" rx="0.8"/></svg>
+        </button>
+        <button type="button" class="dt-btn dt-btn--close" id="dt-btn-close" title="Đóng (Thu nhỏ vào khay hệ thống)">
+          <svg viewBox="0 0 11 11" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="1.5" y1="1.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="1.5" x2="1.5" y2="9.5"/></svg>
+        </button>
+      </div>
+    </div>
 
     <header class="topbar">
       <a class="brand" href="/" aria-label="Mash ∞ Loop, tải lại trang">
@@ -1846,14 +1869,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=79"></script>
+    <script type="module" src="js/main.js?v=80"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=79")
+          .register("sw.js?v=80")
           .then((reg) => {
             reg.update();
           })

@@ -3951,8 +3951,52 @@ if (ui.activeTab && ui.activeTab !== "library") {
     t.classList.toggle("on", t.id === `tab-${ui.activeTab}`);
   }
 }
+function initDesktopTitlebar() {
+  const checkDesktop = () => {
+    if (window.pywebview?.api) {
+      document.body.classList.add("is-desktop-app");
+      const titlebar = $("#desktop-titlebar");
+      if (titlebar) titlebar.style.display = "flex";
+
+      $("#dt-btn-min")?.addEventListener("click", () => {
+        window.pywebview.api.minimize?.();
+      });
+
+      $("#dt-btn-max")?.addEventListener("click", async () => {
+        try {
+          const isMax = await window.pywebview.api.toggle_maximize?.();
+          const icon = $("#dt-max-icon");
+          if (icon) {
+            icon.innerHTML = isMax
+              ? `<rect x="3" y="1" width="7" height="7" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="1" y="3" width="7" height="7" rx="0.5" fill="var(--bg-main, #080a0e)" stroke="currentColor" stroke-width="1.1"/>`
+              : `<rect x="1.5" y="1.5" width="8" height="8" rx="0.8"/>`;
+          }
+        } catch (_) {}
+      });
+
+      $("#dt-btn-close")?.addEventListener("click", () => {
+        window.pywebview.api.close?.();
+      });
+
+      titlebar?.addEventListener("dblclick", (e) => {
+        if (e.target.closest(".desktop-titlebar__controls")) return;
+        $("#dt-btn-max")?.click();
+      });
+      return true;
+    }
+    return false;
+  };
+
+  if (!checkDesktop()) {
+    window.addEventListener("pywebviewready", checkDesktop);
+    setTimeout(checkDesktop, 300);
+    setTimeout(checkDesktop, 1000);
+  }
+}
+
 initCookieManagement();
 initAuthAndSync();
+initDesktopTitlebar();
 renderLooks();
 renderTransport();
 renderStage();
