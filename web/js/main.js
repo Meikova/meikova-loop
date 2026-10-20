@@ -1194,6 +1194,12 @@ function renderTransport() {
     lb.disabled = !player.cur;
     lb.title = isLocked ? "Đang khoá bài này lặp mãi (L)" : "Khoá lặp bài này mãi (L)";
   }
+
+  const dtNow = $("#dt-nowplaying");
+  if (dtNow) {
+    const curMeta = player.cur ? metas.find((m) => m.id === player.cur.id) : null;
+    dtNow.textContent = curMeta ? `• ${curMeta.title || curMeta.name || "Đang phát"}` : "";
+  }
 }
 
 // ------------------------------------------------------------------ library
@@ -3952,6 +3958,19 @@ if (ui.activeTab && ui.activeTab !== "library") {
   }
 }
 function initDesktopTitlebar() {
+  const updateMaxIcon = (isMax) => {
+    const icon = $("#dt-max-icon");
+    if (icon) {
+      icon.innerHTML = isMax
+        ? `<rect x="3" y="1" width="7" height="7" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="1" y="3" width="7" height="7" rx="0.5" fill="var(--bg-main, #080a0e)" stroke="currentColor" stroke-width="1.1"/>`
+        : `<rect x="1.5" y="1.5" width="8" height="8" rx="0.8"/>`;
+    }
+  };
+
+  window.__onWindowState = (isMax) => {
+    updateMaxIcon(isMax);
+  };
+
   const checkDesktop = () => {
     if (window.pywebview?.api) {
       document.body.classList.add("is-desktop-app");
@@ -3965,12 +3984,7 @@ function initDesktopTitlebar() {
       $("#dt-btn-max")?.addEventListener("click", async () => {
         try {
           const isMax = await window.pywebview.api.toggle_maximize?.();
-          const icon = $("#dt-max-icon");
-          if (icon) {
-            icon.innerHTML = isMax
-              ? `<rect x="3" y="1" width="7" height="7" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="1" y="3" width="7" height="7" rx="0.5" fill="var(--bg-main, #080a0e)" stroke="currentColor" stroke-width="1.1"/>`
-              : `<rect x="1.5" y="1.5" width="8" height="8" rx="0.8"/>`;
-          }
+          updateMaxIcon(isMax);
         } catch (_) {}
       });
 

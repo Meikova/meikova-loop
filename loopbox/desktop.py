@@ -251,23 +251,15 @@ class DesktopBridge:
     def toggle_maximize(self) -> bool:
         if not self._window:
             return False
-        try:
-            form = getattr(self._window, "native", None)
-            if form and hasattr(form, "WindowState"):
-                from System.Windows.Forms import FormWindowState
-                if form.WindowState == FormWindowState.Maximized:
-                    form.WindowState = FormWindowState.Normal
-                    return False
-                else:
-                    form.WindowState = FormWindowState.Maximized
-                    return True
-        except Exception:
-            pass
-        try:
-            self._window.maximize()
-            return True
-        except Exception:
+        # ponytail: safe toggle maximize/restore via pywebview UI-thread invokers to prevent WinForms deadlocks
+        if getattr(self, "_is_maximized", False):
+            self._window.restore()
+            self._is_maximized = False
             return False
+        else:
+            self._window.maximize()
+            self._is_maximized = True
+            return True
 
     def close(self):
         if self._tray:
@@ -425,6 +417,23 @@ def main(argv=None):
     )
     bridge.set_window(window)
 
+    def _on_window_maximized():
+        bridge._is_maximized = True
+        try:
+            window.evaluate_js("window.__onWindowState && window.__onWindowState(true);")
+        except Exception:
+            pass
+
+    def _on_window_restored():
+        bridge._is_maximized = False
+        try:
+            window.evaluate_js("window.__onWindowState && window.__onWindowState(false);")
+        except Exception:
+            pass
+
+    window.events.maximized += _on_window_maximized
+    window.events.restored += _on_window_restored
+
     icon_ico = WEB_DIR / "img" / "icon.ico"
     icon_png = WEB_DIR / "img" / "icon-192.png"
     if sys.platform == "win32":
@@ -482,14 +491,10 @@ def main(argv=None):
         try:
             hwnd = window.native.Handle.ToInt64()
             if sys.platform == "win32":
-                apply_dark_titlebar(hwnd)
+                # ponytail: constrain frameless maximized bounds to working area so taskbar remains visible
                 try:
-                    GWL_STYLE = -16
-                    WS_THICKFRAME = 0x00040000
-                    WS_MINIMIZEBOX = 0x00020000
-                    WS_MAXIMIZEBOX = 0x00010000
-                    style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
-                    ctypes.windll.user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)
+                    from System.Windows.Forms import Screen
+                    window.native.MaximizedBounds = Screen.FromHandle(window.native.Handle).WorkingArea
                 except Exception:
                     pass
             if icon_path.is_file():
