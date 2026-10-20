@@ -20,54 +20,21 @@ from .config import DATA_DIR
 
 logger = logging.getLogger("mashloop.auth")
 
-DEFAULT_GOOGLE_CLIENT_ID = "515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com"
-DEFAULT_GOOGLE_CLIENT_SECRET = "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"
+GOOGLE_CLIENT_ID = "515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+GOOGLE_PROJECT_ID = "titan-remote-512203"
 SESSION_LIFETIME_DAYS = 30
 _db_path = DATA_DIR / "auth.db"
 
 
 def get_google_client_id() -> str:
-    """Returns Google Client ID from environment or default from Google Cloud credentials."""
-    env_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
-    if env_id:
-        return env_id
-    for candidate in [
-        DATA_DIR / "client_secret.json",
-        Path("client_secret.json"),
-        Path("E:/Downloads/client_secret_515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com.json"),
-    ]:
-        if candidate.exists():
-            try:
-                data = json.loads(candidate.read_text("utf-8"))
-                web = data.get("web") or data.get("installed") or {}
-                cid = web.get("client_id")
-                if cid:
-                    return cid.strip()
-            except Exception:
-                pass
-    return DEFAULT_GOOGLE_CLIENT_ID
+    """Returns Google Client ID embedded directly in code."""
+    return os.environ.get("GOOGLE_CLIENT_ID", GOOGLE_CLIENT_ID).strip() or GOOGLE_CLIENT_ID
 
 
 def get_google_client_secret() -> str:
-    """Returns Google Client Secret from environment or default from Google Cloud credentials."""
-    env_sec = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
-    if env_sec:
-        return env_sec
-    for candidate in [
-        DATA_DIR / "client_secret.json",
-        Path("client_secret.json"),
-        Path("E:/Downloads/client_secret_515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com.json"),
-    ]:
-        if candidate.exists():
-            try:
-                data = json.loads(candidate.read_text("utf-8"))
-                web = data.get("web") or data.get("installed") or {}
-                sec = web.get("client_secret")
-                if sec:
-                    return sec.strip()
-            except Exception:
-                pass
-    return DEFAULT_GOOGLE_CLIENT_SECRET
+    """Returns Google Client Secret embedded directly in code."""
+    return os.environ.get("GOOGLE_CLIENT_SECRET", GOOGLE_CLIENT_SECRET).strip() or GOOGLE_CLIENT_SECRET
 
 
 def get_google_auth_url(redirect_uri: str, state: str = "") -> str:
