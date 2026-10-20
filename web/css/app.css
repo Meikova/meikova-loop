@@ -209,8 +209,8 @@ body.is-desktop-app {
 .desktop-titlebar {
   display: none;
   height: 32px;
-  background: #080a0e;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  border-bottom: 1px solid var(--line-soft);
   align-items: center;
   justify-content: space-between;
   user-select: none;
@@ -240,6 +240,11 @@ body.is-zen .desktop-titlebar {
   padding-left: 12px;
   height: 100%;
   pointer-events: none;
+}
+
+.desktop-titlebar__logo {
+  flex-shrink: 0;
+  display: block;
 }
 
 .desktop-titlebar__title {

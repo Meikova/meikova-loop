@@ -53,7 +53,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=81" />
+    <link rel="stylesheet" href="css/app.css?v=82" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -61,8 +61,9 @@
     <!-- Desktop Frameless Custom Titlebar (Hidden on Web & Mobile) -->
     <div id="desktop-titlebar" class="desktop-titlebar pywebview-drag-region" style="display: none;">
       <div class="desktop-titlebar__lead pywebview-drag-region">
-        <svg class="desktop-titlebar__logo" viewBox="0 0 48 24" width="20" height="10" aria-hidden="true">
-          <path fill="none" stroke="var(--accent, #f59e0b)" stroke-width="3" d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 Z"/>
+        <svg class="desktop-titlebar__logo" viewBox="0 0 48 24" width="22" height="11" aria-hidden="true">
+          <path fill="none" stroke="var(--accent, #f59e0b)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/>
+          <circle cx="24" cy="12" r="2.2" fill="var(--accent, #f59e0b)"/>
         </svg>
         <span class="desktop-titlebar__title">MashLoop</span>
         <span class="desktop-titlebar__nowplaying mono" id="dt-nowplaying"></span>
@@ -1869,14 +1870,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=81"></script>
+    <script type="module" src="js/main.js?v=82"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=81")
+          .register("sw.js?v=82")
           .then((reg) => {
             reg.update();
           })
