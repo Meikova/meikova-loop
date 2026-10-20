@@ -23,6 +23,16 @@ except (ImportError, ValueError):
 
 logger = logging.getLogger("mashloop.desktop")
 
+# Enable file logging in data directory for desktop diagnostics
+try:
+    _log_file = DATA_DIR / "desktop.log"
+    _file_handler = logging.FileHandler(str(_log_file), encoding="utf-8", mode="a")
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    logging.getLogger().addHandler(_file_handler)
+    logging.getLogger().setLevel(logging.INFO)
+except Exception:
+    pass
+
 if sys.platform == "win32":
     import ctypes
     from ctypes import wintypes, c_float, c_void_p, byref, HRESULT, WINFUNCTYPE, Structure
@@ -313,6 +323,42 @@ def main(argv=None):
     port = args.port
     server_obj = None
 
+    # Single-instance protection across platforms
+    _h_mutex = None
+    _lock_file = None
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            mutex_name = f"Local\\MashLoop_Desktop_Mutex_{port}"
+            _h_mutex = kernel32.CreateMutexW(None, False, mutex_name)
+            if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+                logger.info("Another MashLoop Desktop instance is already running. Restoring window.")
+                hwnd = ctypes.windll.user32.FindWindowW(None, "MashLoop - Nhạc nhảy nhịp vô tận")
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                else:
+                    import webbrowser
+                    webbrowser.open(f"http://127.0.0.1:{port}/")
+                sys.exit(0)
+        except Exception as e:
+            logger.debug("Mutex check failed: %s", e)
+    else:
+        try:
+            import fcntl
+            lock_path = DATA_DIR / f"desktop_{port}.lock"
+            _lock_file = open(lock_path, "w")
+            fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, OSError):
+            if _is_server_alive(port):
+                logger.info("Another MashLoop instance is already running on port %s. Opening browser.", port)
+                import webbrowser
+                webbrowser.open(f"http://127.0.0.1:{port}/")
+                sys.exit(0)
+        except Exception:
+            pass
+
     # Check if server is already running on the port
     if not _is_server_alive(port):
         server_obj, _ = _start_background_server(port)
@@ -334,8 +380,13 @@ def main(argv=None):
     )
     bridge.set_window(window)
 
-    icon_path = WEB_DIR / "img" / "icon.ico"
-    icon_str = str(icon_path) if icon_path.is_file() else None
+    icon_ico = WEB_DIR / "img" / "icon.ico"
+    icon_png = WEB_DIR / "img" / "icon-192.png"
+    if sys.platform == "win32":
+        icon_path = icon_ico if icon_ico.is_file() else icon_png
+    else:
+        icon_path = icon_png if icon_png.is_file() else icon_ico
+    icon_str = str(icon_path) if icon_path and icon_path.is_file() else None
 
     # ponytail: native system tray runner inspired by EverythingDownloader; minimize to tray on window close
     desktop_tray = None

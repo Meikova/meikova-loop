@@ -13,6 +13,7 @@ from .config import DATA_DIR, MAX_SESSION_TRACKS, MULTIUSER, SESSION_TTL_S
 
 _lock = threading.RLock()
 _sessions: dict[str, "SessionView"] = {}
+_user_sessions: dict[str, "UserSessionView"] = {}
 _local = None
 _db_path = DATA_DIR / "sessions.db"
 
@@ -200,6 +201,71 @@ class SessionView(View):
             _save_session_db(self)
 
 
+class UserSessionView(SessionView):
+    """User-bound session: tracks and state are tied to a persistent user account.
+    Changes automatically sync to auth.save_user_library and persist across devices."""
+
+    def __init__(self, user_id: str, sid: str | None = None):
+        super().__init__(sid or f"u_{user_id}")
+        self.user_id = user_id
+        from . import auth
+        lib = auth.get_user_library(user_id)
+        self.ids = list(lib.get("track_ids", []))
+        self.off = set(lib.get("off_ids", []))
+
+    def _sync_db(self) -> None:
+        from . import auth
+        auth.save_user_library(self.user_id, track_ids=self.ids, off_ids=list(self.off))
+        _save_session_db(self)
+
+    def add(self, tid: str) -> None:
+        with _lock:
+            if tid in self.ids:
+                return
+            if tid not in library.samples()["ids"] and self.room() <= 0:
+                raise LimitError(f"Thư viện đã đủ {MAX_SESSION_TRACKS} bài: bỏ bớt một bài để thêm bài khác")
+            self.ids.append(tid)
+            self._sync_db()
+        library.touch(tid)
+
+    def remove(self, tid: str) -> None:
+        with _lock:
+            if tid in self.ids:
+                self.ids.remove(tid)
+            self.off.discard(tid)
+            self._sync_db()
+
+    def remove_many(self, tids: list[str]) -> None:
+        with _lock:
+            s_set = set(tids)
+            self.ids = [t for t in self.ids if t not in s_set]
+            self.off.difference_update(s_set)
+            self._sync_db()
+
+    def set_enabled(self, tid: str, on: bool) -> None:
+        with _lock:
+            (self.off.discard if on else self.off.add)(tid)
+            self._sync_db()
+
+    def set_enabled_many(self, tids: list[str], on: bool) -> None:
+        with _lock:
+            s_set = set(tids)
+            if on:
+                self.off.difference_update(s_set)
+            else:
+                self.off.update(s_set)
+            self._sync_db()
+
+    def reload_from_db(self) -> None:
+        from . import auth
+        with _lock:
+            lib = auth.get_user_library(self.user_id)
+            self.ids = list(lib.get("track_ids", []))
+            self.off = set(lib.get("off_ids", []))
+            _save_session_db(self)
+
+
+
 class LocalView(View):
     """The personal app: the library is everything on disk."""
 
@@ -251,6 +317,8 @@ def create() -> View:
 def get(sid: str | None) -> View | None:
     if not MULTIUSER:
         return local()
+    if sid and sid.startswith("u_"):
+        return get_for_user(sid[2:])
     with _lock:
         v = _sessions.get(sid or "")
         if v is None and sid:
@@ -265,6 +333,25 @@ def get(sid: str | None) -> View | None:
         v.seen = time.time()
         _save_session_db(v)
         return v
+
+
+def get_for_user(user_id: str) -> View:
+    if not MULTIUSER:
+        return local()
+    with _lock:
+        v = _user_sessions.get(user_id)
+        sid = f"u_{user_id}"
+        if v is None:
+            v = UserSessionView(user_id, sid=sid)
+            existing = _load_session_db(sid)
+            if existing and existing.key:
+                v.key = existing.key
+            _user_sessions[user_id] = v
+            _sessions[sid] = v
+            _save_session_db(v)
+        v.seen = time.time()
+        return v
+
 
 
 def local() -> LocalView:
@@ -293,6 +380,11 @@ def in_use(tid: str | None = None) -> set[str] | bool:
     with _lock:
         s_ids = {t for v in _sessions.values() for t in v.ids}
         try:
+            from . import auth
+            s_ids |= auth.get_all_users_track_ids()
+        except Exception:
+            pass
+        try:
             conn = _get_db()
             cur = conn.cursor()
             cur.execute("SELECT ids FROM sessions")
@@ -310,11 +402,12 @@ def _sweep() -> None:
     now = time.time()
     with _lock:
         for sid in [s for s, v in _sessions.items() if now - v.seen > SESSION_TTL_S]:
-            _sessions.pop(sid, None)
+            if not sid.startswith("u_"):
+                _sessions.pop(sid, None)
         try:
             conn = _get_db()
             with conn:
-                conn.execute("DELETE FROM sessions WHERE ? - seen > ?", (now, SESSION_TTL_S))
+                conn.execute("DELETE FROM sessions WHERE sid NOT LIKE 'u_%' AND ? - seen > ?", (now, SESSION_TTL_S))
             conn.close()
         except Exception:
             pass

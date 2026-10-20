@@ -31,6 +31,7 @@ hiddenimports = [
     "loopbox.desktop",
     "loopbox.tray",
     "loopbox.sessions",
+    "loopbox.auth",
     "loopbox.config",
     "loopbox.analysis.models",
     "loopbox.analysis.onnx_tracker",

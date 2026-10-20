@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response, Streamin
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import download, ingest, library, ratelimit, sessions, worker
+from . import auth, download, ingest, library, ratelimit, sessions, worker
 from .audio import BITRATE as SOUND_KBPS
 from .audio import encode as encode_sound
 from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
@@ -55,7 +55,52 @@ class LocalIngestRequest(BaseModel):
     paths: list[str]
 
 
-def view_of(x_session: str | None = Header(default=None)) -> sessions.View:
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str | None = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+
+class SyncLibraryRequest(BaseModel):
+    track_ids: list[str] | None = None
+    off_ids: list[str] | None = None
+    playlists: list[dict] | None = None
+    favorites: list[str] | None = None
+    settings: dict | None = None
+    merge_tracks: bool = False
+
+
+def get_user_from_headers(
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> dict | None:
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    elif x_user_token:
+        token = x_user_token.strip()
+    if token:
+        return auth.validate_token(token)
+    return None
+
+
+def view_of(
+    x_session: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+) -> sessions.View:
+    user = get_user_from_headers(authorization, x_user_token)
+    if user:
+        return sessions.get_for_user(user["id"])
     v = sessions.get(x_session)
     if v is None:
         raise HTTPException(410, "session expired")
@@ -203,13 +248,153 @@ def _add(v: sessions.View, tid: str, added: list) -> None:
 
 
 @app.post("/api/session")
-def new_session(request: Request):
+def new_session(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+):
     ratelimit.check(_ip(request), "session")
+    user = get_user_from_headers(authorization, x_user_token)
+    if user:
+        v = sessions.get_for_user(user["id"])
+        return {
+            "sid": v.id,
+            "multiuser": MULTIUSER,
+            "k": base64.b64encode(v.key).decode() if v.key else None,
+            "user": user,
+            "limits": {
+                "tracks": MAX_SESSION_TRACKS if MULTIUSER else None,
+                "playlist": MAX_PLAYLIST,
+                "upload_mb": MAX_UPLOAD_MB,
+                "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None,
+                "max_duration_s": MAX_DURATION_S,
+            },
+        }
     v = sessions.create()
-    return {"sid": v.id, "multiuser": MULTIUSER, "k": base64.b64encode(v.key).decode() if v.key else None,
-            "limits": {"tracks": MAX_SESSION_TRACKS if MULTIUSER else None, "playlist": MAX_PLAYLIST,
-                       "upload_mb": MAX_UPLOAD_MB, "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None,
-                       "max_duration_s": MAX_DURATION_S}}
+    return {
+        "sid": v.id,
+        "multiuser": MULTIUSER,
+        "k": base64.b64encode(v.key).decode() if v.key else None,
+        "limits": {
+            "tracks": MAX_SESSION_TRACKS if MULTIUSER else None,
+            "playlist": MAX_PLAYLIST,
+            "upload_mb": MAX_UPLOAD_MB,
+            "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None,
+            "max_duration_s": MAX_DURATION_S,
+        },
+    }
+
+
+@app.get("/api/auth/config")
+def auth_config():
+    return {"google_client_id": auth.get_google_client_id()}
+
+
+@app.post("/api/auth/register")
+def auth_register(req: RegisterRequest):
+    try:
+        res = auth.register_user(req.username, req.password, req.display_name or "")
+        user = res["user"]
+        token = res["token"]
+        library_data = auth.get_user_library(user["id"])
+        return {"status": "ok", "user": user, "token": token, "library": library_data}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Registration failed: {e}")
+
+
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    try:
+        res = auth.authenticate_user(req.username, req.password)
+        if not res:
+            raise HTTPException(401, "Tên đăng nhập hoặc mật khẩu không chính xác")
+        user = res["user"]
+        token = res["token"]
+        library_data = auth.get_user_library(user["id"])
+        return {"status": "ok", "user": user, "token": token, "library": library_data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Login failed: {e}")
+
+
+@app.post("/api/auth/google")
+def auth_google(req: GoogleAuthRequest):
+    try:
+        res = auth.google_auth(req.credential)
+        user = res["user"]
+        token = res["token"]
+        library_data = auth.get_user_library(user["id"])
+        return {"status": "ok", "user": user, "token": token, "library": library_data}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Google authentication failed: {e}")
+
+
+@app.get("/api/auth/me")
+def auth_me(
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+):
+    user = get_user_from_headers(authorization, x_user_token)
+    if not user:
+        raise HTTPException(401, "Chưa đăng nhập")
+    library_data = auth.get_user_library(user["id"])
+    return {"user": user, "library": library_data}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+):
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    elif x_user_token:
+        token = x_user_token.strip()
+    if token:
+        auth.delete_session(token)
+    return {"status": "ok"}
+
+
+@app.get("/api/user/sync")
+def user_sync_get(
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+):
+    user = get_user_from_headers(authorization, x_user_token)
+    if not user:
+        raise HTTPException(401, "Chưa đăng nhập")
+    return {"library": auth.get_user_library(user["id"])}
+
+
+@app.post("/api/user/sync")
+def user_sync_post(
+    req: SyncLibraryRequest,
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+):
+    user = get_user_from_headers(authorization, x_user_token)
+    if not user:
+        raise HTTPException(401, "Chưa đăng nhập")
+    updated = auth.save_user_library(
+        user["id"],
+        track_ids=req.track_ids,
+        off_ids=req.off_ids,
+        playlists=req.playlists,
+        favorites=req.favorites,
+        settings=req.settings,
+        merge_tracks=req.merge_tracks,
+    )
+    v = sessions.get_for_user(user["id"])
+    if hasattr(v, "reload_from_db"):
+        v.reload_from_db()
+    return {"status": "ok", "library": updated}
+
 
 
 @app.get("/api/tracks")

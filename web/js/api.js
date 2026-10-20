@@ -4,21 +4,41 @@ import { Track } from "./graph.js";
 // every visit (nothing is kept in the browser, so a reload starts empty); in
 // the personal app the session is simply "local".
 export const session = { id: null, multiuser: false, limits: {}, key: null };
+export let userToken = localStorage.getItem("mashloop:token") || null;
+export let currentUser = null;
+
+export function setUserToken(token) {
+  userToken = token;
+  if (token) localStorage.setItem("mashloop:token", token);
+  else localStorage.removeItem("mashloop:token");
+}
+
+export function setCurrentUser(user) {
+  currentUser = user;
+}
+
 let opening = null;
 // Called after the server lost the session (it restarted): put the songs back.
 export const hooks = { restore: async () => {} };
 
 async function open() {
   if (!opening) {
-    opening = fetch("/api/session", { method: "POST" })
+    const headers = {};
+    if (userToken) headers["Authorization"] = `Bearer ${userToken}`;
+    opening = fetch("/api/session", { method: "POST", headers })
       .then(async (r) => {
         if (!r.ok) await fail(r);
         return r.json();
       })
-      .then((s) => Object.assign(session, {
-        id: s.sid, multiuser: s.multiuser, limits: s.limits || {},
-        key: s.k ? Uint8Array.from(atob(s.k), (c) => c.charCodeAt(0)) : null,
-      }))
+      .then((s) => {
+        if (s.user) currentUser = s.user;
+        return Object.assign(session, {
+          id: s.sid,
+          multiuser: s.multiuser,
+          limits: s.limits || {},
+          key: s.k ? Uint8Array.from(atob(s.k), (c) => c.charCodeAt(0)) : null,
+        });
+      })
       .finally(() => (opening = null));
   }
   return opening;
@@ -61,7 +81,9 @@ export const ready = () => (session.id ? Promise.resolve(session) : open());
 
 async function sound(id, kind, kid, retry) {
   await ready();
-  const r = await fetch(`/api/tracks/${id}/${kind}`, { headers: { "X-Session": session.id } });
+  const headers = { "X-Session": session.id };
+  if (userToken) headers["Authorization"] = `Bearer ${userToken}`;
+  const r = await fetch(`/api/tracks/${id}/${kind}`, { headers });
   if (r.status === 410 && retry) {
     session.id = null;
     await open();
@@ -91,7 +113,9 @@ async function fail(r) {
 
 async function json(url, opts = {}, retry = true) {
   await ready();
-  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), "X-Session": session.id } });
+  const headers = { ...(opts.headers || {}), "X-Session": session.id };
+  if (userToken) headers["Authorization"] = `Bearer ${userToken}`;
+  const r = await fetch(url, { ...opts, headers });
   if (r.status === 410) {
     session.id = null;
     if (retry) {
@@ -125,6 +149,16 @@ export const api = {
   deleteCookies: () => json("/api/cookies", { method: "DELETE" }),
   settings: () => json("/api/settings"),
   saveSettings: (data) => json("/api/settings", send("POST", data)),
+  auth: {
+    config: () => json("/api/auth/config"),
+    register: (username, password, display_name) => json("/api/auth/register", send("POST", { username, password, display_name })),
+    login: (username, password) => json("/api/auth/login", send("POST", { username, password })),
+    google: (credential) => json("/api/auth/google", send("POST", { credential })),
+    me: () => json("/api/auth/me"),
+    logout: () => json("/api/auth/logout", send("POST", {})),
+    syncGet: () => json("/api/user/sync"),
+    syncPost: (data) => json("/api/user/sync", send("POST", data)),
+  },
   async audio(id, retry = true) {
     return sound(id, "audio", id, retry);
   },

@@ -52,7 +52,8 @@
     <script>
       document.documentElement.classList.add("js");
     </script>
-    <link rel="stylesheet" href="css/app.css?v=76" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link rel="stylesheet" href="css/app.css?v=77" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -152,6 +153,29 @@
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           <span>Phím tắt</span>
+        </button>
+        <button
+          type="button"
+          class="btn-auth-pill"
+          id="btn-auth-modal"
+          aria-label="Tài khoản & Đồng bộ thiết bị"
+          title="Tài khoản & Đồng bộ thiết bị"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span class="auth-btn-label" id="auth-btn-label">Tài khoản</span>
         </button>
         <a class="to-panel" href="#panel">Thư viện</a>
       </div>
@@ -1699,14 +1723,107 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=76"></script>
+    <!-- Modal Tài khoản & Đồng bộ thiết bị -->
+    <dialog class="consent auth-modal" id="auth-modal" aria-labelledby="auth-modal-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" class="mobile-modal__icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <h2 id="auth-modal-title">Tài khoản &amp; Đồng bộ</h2>
+        </div>
+        <button type="button" class="mobile-modal__close" id="auth-modal-close" aria-label="Đóng">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- State 1: Khi chưa đăng nhập (Google GIS + Local auth) -->
+      <div id="auth-view-guest" class="auth-view">
+        <p class="auth-subtitle">Đồng bộ tự động danh sách nhạc, playlist và cài đặt giữa Laptop, PC và điện thoại.</p>
+
+        <!-- Google One-Tap / Button container -->
+        <div class="auth-google-box">
+          <div id="g-signin-btn-container"></div>
+        </div>
+
+        <div class="auth-divider"><span>hoặc tài khoản MashLoop</span></div>
+
+        <!-- Segmented Tab: Đăng nhập / Đăng ký -->
+        <div class="auth-tabs seg" role="tablist">
+          <button type="button" class="auth-tab-btn on" id="tab-login" role="tab">Đăng nhập</button>
+          <button type="button" class="auth-tab-btn" id="tab-register" role="tab">Đăng ký mới</button>
+        </div>
+
+        <!-- Form Đăng nhập -->
+        <form id="form-auth-login" class="auth-form">
+          <div class="auth-field">
+            <label for="login-username">Tên đăng nhập hoặc Email</label>
+            <input type="text" id="login-username" autocomplete="username" required placeholder="nhap_tai_khoan" />
+          </div>
+          <div class="auth-field">
+            <label for="login-password">Mật khẩu</label>
+            <input type="password" id="login-password" autocomplete="current-password" required placeholder="••••••••" />
+          </div>
+          <div class="auth-error" id="login-error" hidden></div>
+          <button type="submit" class="primary auth-submit-btn" id="btn-submit-login">Đăng nhập</button>
+        </form>
+
+        <!-- Form Đăng ký -->
+        <form id="form-auth-register" class="auth-form" hidden>
+          <div class="auth-field">
+            <label for="reg-username">Tên đăng nhập (ít nhất 3 ký tự)</label>
+            <input type="text" id="reg-username" autocomplete="username" required placeholder="audiophile_01" />
+          </div>
+          <div class="auth-field">
+            <label for="reg-display">Tên hiển thị (tùy chọn)</label>
+            <input type="text" id="reg-display" placeholder="Tên của bạn" />
+          </div>
+          <div class="auth-field">
+            <label for="reg-password">Mật khẩu (ít nhất 6 ký tự)</label>
+            <input type="password" id="reg-password" autocomplete="new-password" required placeholder="••••••••" />
+          </div>
+          <div class="auth-error" id="reg-error" hidden></div>
+          <button type="submit" class="primary auth-submit-btn" id="btn-submit-register">Tạo tài khoản</button>
+        </form>
+      </div>
+
+      <!-- State 2: Khi đã đăng nhập (User Profile & Sync) -->
+      <div id="auth-view-user" class="auth-view" hidden>
+        <div class="auth-user-badge">
+          <div class="auth-user-avatar" id="auth-user-avatar">U</div>
+          <div class="auth-user-meta">
+            <h3 class="auth-user-name" id="auth-user-name">Người dùng</h3>
+            <span class="auth-user-sub" id="auth-user-sub">user@example.com</span>
+          </div>
+        </div>
+
+        <div class="auth-sync-status">
+          <div class="auth-sync-row">
+            <span class="auth-sync-label">Đồng bộ đám mây:</span>
+            <span class="auth-sync-val badge-ok" id="auth-sync-state">Đã kết nối</span>
+          </div>
+          <p class="auth-sync-note">Danh sách bài hát, danh sách phát và cài đặt của bạn được lưu trữ an toàn và sẵn sàng trên mọi thiết bị.</p>
+        </div>
+
+        <div class="consent__acts" style="margin-top:16px;">
+          <button type="button" class="ghost" id="btn-manual-sync">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+            <span>Đồng bộ ngay</span>
+          </button>
+          <button type="button" class="ghost auth-logout-btn" id="btn-logout">Đăng xuất</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script type="module" src="js/main.js?v=77"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=76")
+          .register("sw.js?v=77")
           .then((reg) => {
             reg.update();
           })

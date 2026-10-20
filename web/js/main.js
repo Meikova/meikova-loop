@@ -1,4 +1,4 @@
-import { api, hooks, isMobile, Loader, ready, session } from "./api.js";
+import { api, currentUser, hooks, isMobile, Loader, ready, session, setCurrentUser, setUserToken, userToken } from "./api.js";
 import { Engine } from "./engine.js";
 import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
@@ -1332,6 +1332,7 @@ function savePlaylists() {
   } catch (_) {}
   renderPlaylistChips();
   renderActivePlaylistHeader();
+  if (typeof triggerLibrarySync === "function") triggerLibrarySync();
 }
 
 function getPlaylist(id) {
@@ -3481,6 +3482,319 @@ function initCookieManagement() {
   refreshCookieStatus();
 }
 
+// ------------------------------------------------------------- User Authentication & Offline Sync
+const SYNC_QUEUE_KEY = "mashloop.sync_queue.v1";
+
+function getQueuedSync() {
+  try {
+    const raw = localStorage.getItem(SYNC_QUEUE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function queueSync(delta) {
+  const current = getQueuedSync() || {};
+  const merged = {
+    ...current,
+    ...delta,
+    track_ids: delta.track_ids || current.track_ids,
+    playlists: delta.playlists || current.playlists,
+    merge_tracks: true,
+  };
+  try {
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(merged));
+  } catch (_) {}
+  updateSyncStateBadge(false);
+}
+
+function clearQueuedSync() {
+  try {
+    localStorage.removeItem(SYNC_QUEUE_KEY);
+  } catch (_) {}
+  updateSyncStateBadge(true);
+}
+
+function updateSyncStateBadge(isSynced) {
+  const stateEl = $("#auth-sync-state");
+  if (!stateEl) return;
+  if (isSynced) {
+    stateEl.className = "auth-sync-val badge-ok";
+    stateEl.textContent = "Đã đồng bộ";
+  } else {
+    stateEl.className = "auth-sync-val badge-pending";
+    stateEl.textContent = "Chờ đồng bộ (offline)";
+  }
+}
+
+async function flushSyncQueue() {
+  if (!userToken || !navigator.onLine) return;
+  const queued = getQueuedSync();
+  const trackIds = metas ? metas.map((m) => m.id) : [];
+  const payload = queued || {
+    track_ids: trackIds,
+    playlists: playlists,
+    merge_tracks: true,
+  };
+  try {
+    const res = await api.auth.syncPost(payload);
+    clearQueuedSync();
+    if (res.library && res.library.playlists && res.library.playlists.length > 0) {
+      const remoteIds = new Set(res.library.playlists.map((p) => p.id));
+      const localOnly = playlists.filter((p) => !remoteIds.has(p.id));
+      playlists = [...res.library.playlists, ...localOnly];
+      localStorage.setItem(PL_STORE_KEY, JSON.stringify(playlists));
+      renderPlaylistChips();
+      renderActivePlaylistHeader();
+    }
+  } catch (err) {
+    console.warn("Offline sync queue push failed, will retry later:", err);
+    updateSyncStateBadge(false);
+  }
+}
+
+function triggerLibrarySync() {
+  if (!userToken) return;
+  const trackIds = metas ? metas.map((m) => m.id) : [];
+  const payload = { track_ids: trackIds, playlists, merge_tracks: true };
+  if (navigator.onLine) {
+    api.auth.syncPost(payload).then(() => {
+      clearQueuedSync();
+    }).catch(() => {
+      queueSync(payload);
+    });
+  } else {
+    queueSync(payload);
+  }
+}
+
+function updateAuthUI() {
+  const btn = $("#btn-auth-modal");
+  const label = $("#auth-btn-label");
+  const guestView = $("#auth-view-guest");
+  const userView = $("#auth-view-user");
+
+  if (currentUser) {
+    if (btn) btn.classList.add("logged-in");
+    if (label) label.textContent = currentUser.display_name || currentUser.username;
+    if (guestView) guestView.hidden = true;
+    if (userView) userView.hidden = false;
+
+    const nameEl = $("#auth-user-name");
+    const subEl = $("#auth-user-sub");
+    const avatarEl = $("#auth-user-avatar");
+    if (nameEl) nameEl.textContent = currentUser.display_name || currentUser.username;
+    if (subEl) subEl.textContent = currentUser.email || currentUser.username;
+    if (avatarEl) {
+      if (currentUser.picture) {
+        avatarEl.innerHTML = `<img src="${esc(currentUser.picture)}" alt="Avatar" referrerpolicy="no-referrer" />`;
+      } else {
+        avatarEl.textContent = (currentUser.display_name || currentUser.username)[0].toUpperCase();
+      }
+    }
+    updateSyncStateBadge(!getQueuedSync());
+  } else {
+    if (btn) btn.classList.remove("logged-in");
+    if (label) label.textContent = "Tài khoản";
+    if (guestView) guestView.hidden = false;
+    if (userView) userView.hidden = true;
+  }
+}
+
+async function onAuthSuccess(res) {
+  setUserToken(res.token);
+  setCurrentUser(res.user);
+  updateAuthUI();
+  const modal = $("#auth-modal");
+  modal?.close();
+  showHudToast(`Xin chào, ${res.user.display_name || res.user.username}!`);
+
+  // Merge library from server
+  if (res.library) {
+    if (res.library.playlists && res.library.playlists.length > 0) {
+      playlists = res.library.playlists;
+      savePlaylists();
+    }
+    if (res.library.track_ids && res.library.track_ids.length > 0) {
+      await api.restore(res.library.track_ids).catch(() => {});
+      await refresh();
+    }
+  }
+
+  await flushSyncQueue();
+}
+
+function initAuthAndSync() {
+  const modal = $("#auth-modal");
+  const btnAuth = $("#btn-auth-modal");
+  const btnClose = $("#auth-modal-close");
+  const tabLogin = $("#tab-login");
+  const tabRegister = $("#tab-register");
+  const formLogin = $("#form-auth-login");
+  const formRegister = $("#form-auth-register");
+  const loginErr = $("#login-error");
+  const regErr = $("#reg-error");
+  const btnLogout = $("#btn-logout");
+  const btnSync = $("#btn-manual-sync");
+
+  btnAuth?.addEventListener("click", () => {
+    updateAuthUI();
+    modal?.showModal();
+  });
+
+  btnClose?.addEventListener("click", () => modal?.close());
+
+  tabLogin?.addEventListener("click", () => {
+    tabLogin.classList.add("on");
+    tabRegister?.classList.remove("on");
+    if (formLogin) formLogin.hidden = false;
+    if (formRegister) formRegister.hidden = true;
+  });
+
+  tabRegister?.addEventListener("click", () => {
+    tabRegister.classList.add("on");
+    tabLogin?.classList.remove("on");
+    if (formRegister) formRegister.hidden = false;
+    if (formLogin) formLogin.hidden = true;
+  });
+
+  formLogin?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (loginErr) loginErr.hidden = true;
+    const username = $("#login-username")?.value?.trim();
+    const password = $("#login-password")?.value;
+    if (!username || !password) return;
+    const submitBtn = $("#btn-submit-login");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      const res = await api.auth.login(username, password);
+      await onAuthSuccess(res);
+    } catch (err) {
+      if (loginErr) {
+        loginErr.textContent = err.message || "Đăng nhập thất bại";
+        loginErr.hidden = false;
+      }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+
+  formRegister?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (regErr) regErr.hidden = true;
+    const username = $("#reg-username")?.value?.trim();
+    const displayName = $("#reg-display")?.value?.trim();
+    const password = $("#reg-password")?.value;
+    if (!username || !password) return;
+    const submitBtn = $("#btn-submit-register");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      const res = await api.auth.register(username, password, displayName);
+      await onAuthSuccess(res);
+    } catch (err) {
+      if (regErr) {
+        regErr.textContent = err.message || "Đăng ký thất bại";
+        regErr.hidden = false;
+      }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+
+  btnLogout?.addEventListener("click", async () => {
+    await api.auth.logout().catch(() => {});
+    setUserToken(null);
+    setCurrentUser(null);
+    updateAuthUI();
+    modal?.close();
+    showHudToast("Đã đăng xuất tài khoản");
+  });
+
+  btnSync?.addEventListener("click", async () => {
+    if (btnSync) btnSync.disabled = true;
+    try {
+      await flushSyncQueue();
+      showHudToast("Đã đồng bộ xong!");
+    } catch (err) {
+      showHudToast("Đồng bộ thất bại: " + err.message);
+    } finally {
+      if (btnSync) btnSync.disabled = false;
+    }
+  });
+
+  // Check existing session token on startup
+  if (userToken) {
+    api.auth.me().then((res) => {
+      setCurrentUser(res.user);
+      updateAuthUI();
+      if (res.library && res.library.playlists && res.library.playlists.length > 0) {
+        playlists = res.library.playlists;
+        localStorage.setItem(PL_STORE_KEY, JSON.stringify(playlists));
+        renderPlaylistChips();
+        renderActivePlaylistHeader();
+      }
+      flushSyncQueue();
+    }).catch(() => {
+      setUserToken(null);
+      setCurrentUser(null);
+      updateAuthUI();
+    });
+  }
+
+  // Load Google Client ID & init Google Sign-In button
+  api.auth.config().then((cfg) => {
+    if (cfg?.google_client_id) {
+      const checkGsi = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(checkGsi);
+          try {
+            google.accounts.id.initialize({
+              client_id: cfg.google_client_id,
+              callback: async (response) => {
+                try {
+                  const res = await api.auth.google(response.credential);
+                  await onAuthSuccess(res);
+                } catch (err) {
+                  if (loginErr) {
+                    loginErr.textContent = err.message || "Đăng nhập Google thất bại";
+                    loginErr.hidden = false;
+                  }
+                }
+              },
+              auto_select: false,
+            });
+            const container = document.getElementById("g-signin-btn-container");
+            if (container) {
+              container.innerHTML = "";
+              google.accounts.id.renderButton(container, {
+                theme: "filled_black",
+                size: "large",
+                shape: "pill",
+                text: "continue_with",
+                width: 280,
+              });
+            }
+          } catch (ex) {
+            console.warn("GSI init warning:", ex);
+          }
+        }
+      }, 200);
+      setTimeout(() => clearInterval(checkGsi), 10000);
+    }
+  }).catch(() => {});
+
+  // Offline / Online sync triggers
+  window.addEventListener("online", () => {
+    showHudToast("Đã kết nối lại - Đang đồng bộ...");
+    flushSyncQueue();
+  });
+
+  window.addEventListener("focus", () => {
+    if (getQueuedSync()) flushSyncQueue();
+  });
+}
+
 loadPlaylists();
 checkUrlPlaylistImport();
 applySettings();
@@ -3495,6 +3809,7 @@ if (ui.activeTab && ui.activeTab !== "library") {
   }
 }
 initCookieManagement();
+initAuthAndSync();
 renderLooks();
 renderTransport();
 renderStage();
