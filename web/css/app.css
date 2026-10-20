@@ -356,25 +356,45 @@ kbd {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: 280px;
 }
 
 .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+
+/* Ambient halo behind canvas while loading/idle */
+.canvas-wrap::before {
+  content: "";
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: min(440px, 75%);
+  height: min(220px, 38%);
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, oklch(var(--acc) / 0.12) 0%, oklch(var(--acc) / 0.04) 45%, transparent 72%);
+  filter: blur(28px);
+  pointer-events: none;
+  border-radius: 50%;
+  z-index: 0;
+  opacity: 0.85;
+}
 
 /* The caption that sits inside the playing loop; viz.js keeps it centred on
    the ring as the ring moves. */
 .ring-center {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: var(--rc-w, 360px);
+  left: var(--rc-x, 50%);
+  top: var(--rc-y, 50%);
+  width: var(--rc-w, min(92%, 460px));
+  max-width: 92%;
   display: grid;
   justify-items: center;
   text-align: center;
   gap: 6px;
   pointer-events: none;
-  transform: translate(var(--rc-x, 50%), var(--rc-y, 40%)) translate(-50%, -50%);
+  transform: translate(-50%, -50%);
   opacity: var(--rc-o, 1);
+  z-index: 2;
+  transition: opacity 240ms var(--ease-out);
 }
 
 .rc-kicker {
@@ -483,7 +503,10 @@ kbd {
 .ring-center[data-mode="idle"] .rc-title { font-weight: 500; }
 
 /* With no song the caption hangs from under the ∞ instead of sitting in a ring. */
-.ring-center[data-mode="idle"] { transform: translate(var(--rc-x, 50%), var(--rc-y, 70%)) translate(-50%, 0); }
+.ring-center[data-mode="idle"] {
+  top: var(--rc-y, 62%);
+  transform: translate(-50%, 0);
+}
 
 /* The empty stage's one invitation: a sample library to listen to now. */
 .rc-cta {

@@ -6,11 +6,24 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 11:47:00
+- Timestamp: 2026-10-20 12:07:00
 - Exit Code: 0 (All 26 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi căn chỉnh Stage khi trang mới tải / canvas chưa render (`#ring-center` bị trôi dạt góc trên trái đè lên `.readout--tl`)**:
+  - **Nguyên nhân gốc rễ**:
+    - Trong `web/css/app.css:366`, `.ring-center` ban đầu được đặt `left: 0; top: 0;` và `transform: translate(var(--rc-x, 50%), var(--rc-y, 40%)) translate(-50%, -50%);`.
+    - Khi trang mới tải, script chưa thực thi hoặc ResizeObserver chưa kích hoạt, biến `--rc-x` và `--rc-y` chưa được gán giá trị pixel từ `viz.js`. Fallback `50%` và `40%` trong CSS `transform: translate()` được tính theo kích thước của chính phần tử `#ring-center` chứ không phải container cha.
+    - Phép tính `50% - 50% = 0%` khiến trục X bị kéo về `0px` (sát lề trái), và `40% - 50% = -10%` kéo đỉnh phần tử lên sát góc trên bên trái, đè lên dải telemetry `.readout--tl` (`MASH ∞ LOOP // chưa phát`).
+    - Khi script tải xong và `viz.js` gán `--rc-x: ${w/2}px`, phần tử bị giật đột ngột từ góc trái vào giữa (layout shift / FOUC).
+  - **Khắc phục triệt để**:
+    - **CSS `.ring-center`**: Đổi tọa độ gốc sang `left: var(--rc-x, 50%); top: var(--rc-y, 50%); transform: translate(-50%, -50%);`. Khi chưa có biến từ JS, CSS tự động căn tâm hoàn hảo 50%/50% theo kích thước container cha `.canvas-wrap`.
+    - **CSS `.ring-center[data-mode="idle"]`**: Đặt `top: var(--rc-y, 62%); transform: translate(-50%, 0);` để khi chưa có `--rc-y`, khối text mở đầu nằm cân đối ngay dưới vị trí biểu tượng vô cực lemniscate.
+    - **Ambient Placeholder Halo**: Thêm `.canvas-wrap::before` với radial glow elip breathing (`filter: blur(28px)`, `opacity: 0.85`), tạo không gian chiều sâu ambient ngay từ miligiây đầu tiên trước khi canvas vẽ.
+    - **HTML State**: Gán sẵn `data-mode="idle"` vào `<div class="ring-center" id="ring-center" data-mode="idle">` trong `web/index.html`.
+    - **Kiểm thử**: 26/26 test suites passed với Exit Code 0.
+
 - **Khắc phục lỗi đè khuất 4 góc box báo lỗi (`.msg--err`) và bổ sung cơ chế oEmbed Fallback cho YouTube**:
   - **Lỗi CSS đè khuất 4 góc**:
     - `.results:not(:empty)` trước đây khai báo `border: 1px solid var(--line-soft)`, `border-radius: var(--radius)` (14px), `overflow: hidden` và `background: var(--ink-1)`.
