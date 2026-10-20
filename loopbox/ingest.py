@@ -110,11 +110,15 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
                                    # a credit set by hand (the sample libraries) is more exact: kept
                                    **({"credit": info["credit"]} if info.get("credit") and not meta.get("credit") else {}))
             stage("converting", 0.3, status="analyzing")
+            if not src.exists() or src.stat().st_size == 0:
+                raise RuntimeError("file tải về bị trống hoặc không tồn tại")
             try:
                 audio.to_flac(src, library.audio_path(tid))
-            except RuntimeError:
+            except Exception as e:
                 library.audio_path(tid).unlink(missing_ok=True)
-                raise RuntimeError("không đọc được file âm thanh này") from None
+                err_detail = str(e)
+                logger.error(f"to_flac thất bại ({tid}): {err_detail}")
+                raise RuntimeError(f"không đọc được file âm thanh: {download.clean_error(err_detail)}") from None
             src.unlink(missing_ok=True)
             # The MP3 browsers are sent, made now rather than on the first listen.
             try:

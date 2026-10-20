@@ -6,11 +6,23 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-20 10:17:00
+- Timestamp: 2026-10-20 10:35:00
 - Exit Code: 0 (All 25 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi nạp bài YouTube trên Space: `không đọc được file âm thanh này`**:
+  - **Nguyên nhân**:
+    1. Trong `loopbox/download.py`, khi tải bài từ YouTube, nếu một player client (như `visionos`) bị YouTube chặn trên IP datacenter đám mây (AWS/HF), yt-dlp trả về dict nhưng file `requested_downloads` không được tải xuống hoặc file rỗng (0 bytes). Mã nguồn cũ lấy trực tiếp đường dẫn mà không kiểm tra `exists()` và `st_size > 1024`, dẫn đến việc không kích hoạt fallback sang các client tiếp theo (`android`, `ios`, `mweb`, `web_music`).
+    2. File 0 byte hoặc đường dẫn không hợp lệ được chuyển cho `audio.to_flac()`, `ffmpeg` trả về mã lỗi (`r.returncode != 0`).
+    3. `loopbox/ingest.py` bắt `except RuntimeError:` và nuốt thông báo lỗi chi tiết của `ffmpeg`, thay bằng câu thông báo chung `không đọc được file âm thanh này`.
+    4. `loopbox/audio.py` gọi cứng binary `"ffmpeg"`, thiếu hàm fallback tìm kiếm động qua `shutil.which`, `~/.local/bin/ffmpeg` hoặc `imageio_ffmpeg`.
+  - **Khắc phục**:
+    1. `loopbox/download.py`: Bổ sung kiểm tra tính hợp lệ của file tải về (`candidate.exists() and candidate.stat().st_size > 1024`). Nếu file rỗng/thiếu, ghi log cảnh báo và tự động fallback sang client tiếp theo trong danh sách mở rộng `YOUTUBE_CLIENT_CONFIGS` (`ios`, `android`, `mweb`, `visionos`, `android_vr`, `web_music`, `web`).
+    2. `loopbox/audio.py`: Bổ sung `get_ffmpeg_bin()` tự động tìm `ffmpeg` trong PATH, thư mục local hoặc qua `imageio_ffmpeg`; kiểm tra file nguồn tồn tại và kích thước $> 0$ trước khi gọi `ffmpeg`.
+    3. `loopbox/ingest.py`: Giữ nguyên và ghi log chi tiết lỗi chuyển đổi (`to_flac thất bại: ...`), không nuốt lỗi.
+    4. Kiểm tra toàn bộ 25 bài test đạt Exit Code 0.
+
 - **Khắc phục lỗi CI/CD Build Linux: `No space left on device` khi cài PyTorch CUDA trên runner GitHub**:
   - **Nguyên nhân**: Mặc định runner `ubuntu-latest` chỉ còn khoảng 14GB trống vì chứa sẵn Android SDK, .NET, Haskell,... Khi pip cài `requirements.txt`, PyTorch trên Linux mặc định kéo theo hơn 10GB các gói NVIDIA CUDA runtime (`nvidia-cublas-cu12`, `nvidia-cudnn-cu12`, `nvidia-cusolver-cu12`,...), làm đầy 100% dung lượng ổ đĩa của runner gây lỗi `OSError: [Errno 28] No space left on device`.
   - **Khắc phục**:

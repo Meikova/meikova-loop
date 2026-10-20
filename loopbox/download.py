@@ -215,6 +215,9 @@ def is_playlist_url(url: str) -> bool:
 
 
 YOUTUBE_CLIENT_CONFIGS = (
+    ["ios"],
+    ["android"],
+    ["mweb"],
     ["visionos"],
     ["visionos", "android_vr"],
     ["android_vr"],
@@ -558,16 +561,33 @@ def download(meta: dict, dest_dir: Path, on_progress: Callable[[float], None] | 
                 previews = any("preview" in str(f.get("format_id", "")) for f in info.get("requested_downloads") or [])
                 if site == "soundcloud" and (previews or (info.get("duration") or 99) <= 31):
                     raise RuntimeError("SoundCloud chỉ cho nghe thử 30 giây bài này")
+                candidate = None
                 if info.get("requested_downloads"):
-                    path = Path(info["requested_downloads"][0]["filepath"])
-                elif info.get("_filename"):
-                    path = Path(info["_filename"])
-                else:
-                    downloaded = list(dest_dir.glob("source.*"))
-                    if not downloaded:
-                        raise RuntimeError("không tìm thấy file tải về")
-                    path = downloaded[0]
-                return path, _entry(info, site) or {}
+                    p = Path(info["requested_downloads"][0].get("filepath", ""))
+                    if p.exists() and p.stat().st_size > 1024:
+                        candidate = p
+                if not candidate and info.get("_filename"):
+                    p = Path(info["_filename"])
+                    if p.exists() and p.stat().st_size > 1024:
+                        candidate = p
+                if not candidate:
+                    downloaded = [f for f in dest_dir.glob("source.*") if f.is_file() and f.stat().st_size > 1024 and not f.name.endswith(".part")]
+                    if downloaded:
+                        candidate = downloaded[0]
+                if not candidate:
+                    parts = [f for f in dest_dir.glob("source.*.part") if f.is_file() and f.stat().st_size > 1024]
+                    if parts:
+                        recovered = parts[0].with_suffix("")
+                        parts[0].rename(recovered)
+                        candidate = recovered
+
+                if not candidate or not candidate.exists() or candidate.stat().st_size <= 1024:
+                    if site == "youtube":
+                        logger.warning(f"Client {client} không tải được file hợp lệ cho {tid or url}, thử client tiếp theo...")
+                        continue
+                    raise RuntimeError("không tìm thấy file tải về hoặc file rỗng")
+
+                return candidate, _entry(info, site) or {}
             except yt_dlp.utils.DownloadError as e:
                 last_error = e
                 msg = str(e)

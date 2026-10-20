@@ -1,5 +1,7 @@
 import re
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -7,19 +9,53 @@ import soundfile as sf
 
 from .config import SAMPLE_RATE
 
+_FFMPEG_BIN: str | None = None
+
+
+def get_ffmpeg_bin() -> str:
+    global _FFMPEG_BIN
+    if _FFMPEG_BIN and (shutil.which(_FFMPEG_BIN) or Path(_FFMPEG_BIN).exists()):
+        return _FFMPEG_BIN
+    # 1. System PATH
+    p = shutil.which("ffmpeg")
+    if p:
+        _FFMPEG_BIN = p
+        return p
+    # 2. Local user bin (~/.local/bin/ffmpeg)
+    local_bin = Path.home() / ".local" / "bin" / ("ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg")
+    if local_bin.exists():
+        _FFMPEG_BIN = str(local_bin)
+        return str(local_bin)
+    # 3. imageio_ffmpeg
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if exe and Path(exe).exists():
+            _FFMPEG_BIN = str(exe)
+            return str(exe)
+    except Exception:
+        pass
+    _FFMPEG_BIN = "ffmpeg"
+    return "ffmpeg"
+
 
 def _ffmpeg(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", *args],
+    bin_path = get_ffmpeg_bin()
+    return subprocess.run([bin_path, "-hide_banner", "-nostdin", *args],
                           capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def to_flac(src: Path, dst: Path) -> None:
     """Decode any source (webm/opus, m4a, ...) to the one format both the analyser and
     the browser read, so beat times refer to exactly the same samples."""
+    if not src.exists():
+        raise RuntimeError(f"file nguồn không tồn tại: {src}")
+    if src.stat().st_size == 0:
+        raise RuntimeError(f"file nguồn rỗng (0 bytes): {src}")
     r = _ffmpeg("-y", "-i", str(src), "-vn", "-ac", "2", "-ar", str(SAMPLE_RATE),
                 "-c:a", "flac", "-sample_fmt", "s16", str(dst))
     if r.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {r.stderr[-800:]}")
+        raise RuntimeError(f"ffmpeg failed ({r.returncode}): {r.stderr[-800:]}")
 
 
 # What the browser is sent: an MP3 copy of the stored FLAC, ~5x smaller (192
@@ -38,7 +74,7 @@ def encode(src: Path, dst: Path, fmt: str, kbps: int) -> None:
     r = _ffmpeg("-y", "-i", str(src), "-vn", "-ac", "2", *args, str(tmp))
     if r.returncode != 0:
         tmp.unlink(missing_ok=True)
-        raise RuntimeError(f"ffmpeg failed: {r.stderr[-500:]}")
+        raise RuntimeError(f"ffmpeg failed ({r.returncode}): {r.stderr[-500:]}")
     tmp.replace(dst)
 
 
