@@ -6,11 +6,18 @@
 - Initialized with Antigravity Titan Standards.
 
 ## Last Updated
-- Timestamp: 2026-10-19 22:38:00
+- Timestamp: 2026-10-20 10:07:00
 - Exit Code: 0 (All 25 test suites passed: tests/test_server_and_features.py)
 - Platforms Built & Supported: 5 platforms (Windows Desktop, macOS Desktop, Linux Desktop, Android APK, iOS IPA) across GitHub Actions CI/CD (`.github/workflows/build-release.yml`), Desktop Native Shell (`loopbox/desktop.py`, `mashloop.spec`), GitHub (`origin/main`), HF Space (`m3ik18dp/MashLoop`).
 
 ## Cải tiến & Khắc phục Mới Nhất
+- **Khắc phục lỗi CI/CD Build Linux: thiếu `girepository-2.0` khi build PyGObject**:
+  - **Nguyên nhân**: Runner `ubuntu-latest` chạy Ubuntu 24.04 (noble). PyGObject 3.50+ yêu cầu thư viện GObject-Introspection bản 2.0 (`girepository-2.0`). Trước đây workflow chỉ cài `libgirepository1.0-dev`, không có `libgirepository-2.0-dev` và `libcairo2-dev`, khiến `meson` báo lỗi `Dependency 'girepository-2.0' is required but not found`.
+  - **Khắc phục**:
+    1. Cập nhật `.github/workflows/build-release.yml`: bổ sung `libgirepository-2.0-dev`, `libgirepository1.0-dev`, `libcairo2-dev`, `gobject-introspection`, `pkg-config` vào bước `Install System Dependencies`.
+    2. Cài thêm `wheel setuptools` trước khi build `PyGObject` qua pip.
+    3. Kiểm tra test suite đạt Exit Code 0.
+
 - **Mở rộng hỗ trợ Đa Nền tảng Toàn diện (Linux & macOS Desktop) & Universal Media Controls**:
   - **Mục tiêu**: Xây dựng ứng dụng native desktop cho cả Linux (`.tar.gz`) và macOS (`.app` / `.zip`) song song với Windows (`.exe` / `.zip`), Android (`.apk`), iOS (`.ipa`). Đảm bảo hệ thống điều khiển phát nhạc tích hợp sâu với OS:
     1. **Windows**: System Media Transport Controls (SMTC) overlay & phím Media phần cứng.
