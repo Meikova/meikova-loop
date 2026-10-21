@@ -37,14 +37,14 @@ def _sync_private_code():
     if os.environ.get("_MASHLOOP_SYNCED"):
         return
     gh_token = os.environ.get("GH_TOKEN")
-    if not gh_token:
-        print("WARN: GH_TOKEN secret not found on Space.")
-        return
     os.environ["_MASHLOOP_SYNCED"] = "1"
     import urllib.request, zipfile, io
-    print("Syncing private codebase from GitHub...")
-    url = "https://api.github.com/repos/m3iK18dp/mashloop/zipball/main"
-    req = urllib.request.Request(url, headers={"Authorization": f"token {gh_token}", "User-Agent": "MashLoop-Space"})
+    print("Syncing codebase from GitHub Meikova/meikova-loop...")
+    url = "https://api.github.com/repos/Meikova/meikova-loop/zipball/main"
+    req_headers = {"User-Agent": "MeikovaLoop-Space"}
+    if gh_token:
+        req_headers["Authorization"] = f"token {gh_token}"
+    req = urllib.request.Request(url, headers=req_headers)
     with urllib.request.urlopen(req) as resp:
         z = zipfile.ZipFile(io.BytesIO(resp.read()))
     prefix = z.namelist()[0].split("/")[0] + "/"
@@ -229,7 +229,7 @@ footer { display: none !important; }
 }
 """
 
-with gr.Blocks(title="Mash ∞ Loop") as demo:
+with gr.Blocks(title="Meikova Loop") as demo:
     gr.HTML('<iframe id="mashloop-frame" src="/web/" allow="autoplay; accelerometer; gyroscope; screen-wake-lock; clipboard-write"></iframe>')
 
 def _mount_mashloop(target_app):
