@@ -12,11 +12,11 @@ Dù tạo mới hay dùng project có sẵn, khi tạo OAuth Client ID cần đi
 * **Authorized JavaScript origins:**
   * `http://localhost:8765`
   * `http://127.0.0.1:8765`
-  * *(Tùy chọn nếu deploy Cloud/Hugging Face)*: `https://<ten-space>.hf.space`
+  * *(Tùy chọn nếu deploy Cloud/Hugging Face)*: `https://m3ik18dp-meikova-loop.hf.space`
 * **Authorized redirect URIs:**
   * `http://localhost:8765/api/auth/google/callback`
   * `http://127.0.0.1:8765/api/auth/google/callback`
-  * *(Tùy chọn nếu deploy Cloud/Hugging Face)*: `https://<ten-space>.hf.space/api/auth/google/callback`
+  * *(Tùy chọn nếu deploy Cloud/Hugging Face)*: `https://m3ik18dp-meikova-loop.hf.space/api/auth/google/callback`
 
 ---
 
