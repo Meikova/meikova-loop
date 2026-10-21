@@ -1,6 +1,7 @@
 {
   "name": "Meikova Loop",
   "short_name": "Loop",
+  "description": "Meikova Loop: DJ mashup · hòa trộn nhạc · tách stem — nghe một bài mãi không dứt, hoặc nối cả thư viện thành một vòng nhạc vô tận.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -9,25 +10,25 @@
   "theme_color": "#11151B",
   "icons": [
     {
-      "src": "icon-any-192.png",
+      "src": "img/icon-any-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-maskable-192.png",
+      "src": "img/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icon-any-512.png",
+      "src": "img/icon-any-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-maskable-512.png",
+      "src": "img/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

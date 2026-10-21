@@ -432,6 +432,34 @@ def validate_token(token: str) -> dict | None:
     if not token or len(token) < 16:
         return None
 
+    # 0. Fast-path: Check if token is a Universal SSO Ed25519 Token (offline 0.1ms verification)
+    if token.count('.') == 2:
+        try:
+            try:
+                from loopbox.universal_sso import verify_universal_token
+            except (ImportError, ValueError):
+                try:
+                    from .universal_sso import verify_universal_token
+                except (ImportError, ValueError):
+                    import sys
+                    from pathlib import Path
+                    _shared_dir = str(Path(__file__).resolve().parent.parent.parent / 'shared')
+                    if _shared_dir not in sys.path:
+                        sys.path.insert(0, _shared_dir)
+                    from universal_sso import verify_universal_token
+            sso_user = verify_universal_token(token)
+            if sso_user:
+                return {
+                    'id': sso_user.get('sub'),
+                    'username': sso_user.get('username'),
+                    'email': sso_user.get('email'),
+                    'display_name': sso_user.get('display_name') or sso_user.get('username'),
+                    'provider': 'universal_sso',
+                }
+        except Exception:
+            pass
+
+
     now = time.time()
     conn = _get_db()
     cur = conn.cursor()

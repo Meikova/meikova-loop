@@ -14,7 +14,6 @@
     <meta name="theme-color" content="#11151B" />
     <link rel="icon" href="img/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="img/favicon.ico" sizes="any" />
-    <link rel="manifest" href="site.webmanifest" />
     <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
     <link
       rel="apple-touch-icon"
@@ -1590,6 +1589,17 @@
           </div>
         </div>
       </div>
+      <!-- Footer Release link & Winget Command -->
+      <div class="apps-modal-footer-strip">
+        <div class="apps-footer-cmd mono" id="btn-copy-winget-loop" title="Nhấp để sao chép lệnh">
+          <span class="apps-cmd-prompt">$</span>
+          <span>winget install Meikova.Loop</span>
+        </div>
+        <a href="https://github.com/Meikova/meikova-loop/releases/latest" target="_blank" rel="noopener noreferrer" class="apps-footer-link mono">
+          <span>GitHub Releases // Xem tất cả các bản dựng</span>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
     </dialog>
 
     <!-- Modal Phím tắt & Trợ giúp -->
@@ -1780,6 +1790,15 @@
       <!-- State 1: Khi chưa đăng nhập (Google GIS + Local auth) -->
       <div id="auth-view-guest" class="auth-view">
         <p class="auth-subtitle">Nghe tiếp danh sách bài hát và playlist trên mọi máy tính, điện thoại.</p>
+
+        <!-- Meikova Universal SSO Button -->
+        <button type="button" class="btn-sso-gateway" id="btn-loop-sso" title="Đăng nhập tập trung qua Meikova ID">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          <span>ĐĂNG NHẬP MEIKOVA ID (SSO)</span>
+        </button>
 
         <!-- Google OAuth Button -->
         <div class="auth-google-box">

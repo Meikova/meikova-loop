@@ -8,16 +8,22 @@ song from another site (download.track_id); or, for uploaded files, "u" and
 the first 16 hex digits of the file's SHA-1. The same song added twice, by
 anyone, is the same track."""
 import json
+import logging
 import os
 import re
 import shutil
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 from .config import ANALYSIS_VERSION, LIBRARY_DIR, PAIRS_DIR, TRANSITIONS_DIR
 
+logger = logging.getLogger("meikova.loop.library")
+
 _lock = threading.RLock()
+_hydrating_tracks: set[str] = set()
+_hydrating_lock = threading.Lock()
 
 FINAL_STATES = {"ready", "error"}
 _ID = re.compile(r"^(?:[A-Za-z0-9_-]{11}|[ux][0-9a-f]{16})$")
@@ -74,7 +80,131 @@ def transitions_path(tid: str) -> Path:
 
 
 def has_audio(tid: str) -> bool:
-    return audio_path(tid).exists()
+    try:
+        p = audio_path(tid)
+        return p.exists() and p.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def is_hydrating(tid: str) -> bool:
+    with _hydrating_lock:
+        return tid in _hydrating_tracks
+
+
+def get_hydration_status(tid: str, meta: dict | None = None) -> str:
+    """Returns hydration status of a track:
+    - 'DOWNLOADING': Track audio is currently downloading in background.
+    - 'SYNCED_LOCAL': Local audio file is present on disk and non-empty.
+    - 'CORRUPTED': Audio file exists but is 0 bytes or meta marked as error.
+    - 'STREAMABLE': Track marked as streamable from cloud.
+    - 'METADATA_ONLY': Track has remote_url or metadata but no local audio file.
+    """
+    if is_hydrating(tid):
+        return "DOWNLOADING"
+
+    raw_path = audio_path(tid)
+    if raw_path.exists():
+        try:
+            if raw_path.stat().st_size == 0:
+                return "CORRUPTED"
+            return "SYNCED_LOCAL"
+        except OSError:
+            pass
+
+    if meta is None:
+        meta = read_json(track_dir(tid) / "meta.json") or {}
+
+    if meta.get("status") == "error" or meta.get("error"):
+        return "CORRUPTED"
+    if meta.get("streamable") is True or meta.get("hydration_status") == "STREAMABLE":
+        return "STREAMABLE"
+    if meta.get("remote_url"):
+        return "METADATA_ONLY"
+    if meta.get("hydration_status"):
+        return meta["hydration_status"]
+    return "METADATA_ONLY"
+
+
+def hydrate_track(tid: str, remote_url: str | None = None, target_dir: Path | str | None = None) -> bool:
+    """Downloads audio file from remote_url into target_dir / audio.flac and updates hydration status."""
+    if not valid_id(tid):
+        raise ValueError(f"bad track id {tid!r}")
+
+    d = Path(target_dir) if target_dir else track_dir(tid)
+    d.mkdir(parents=True, exist_ok=True)
+
+    if not remote_url:
+        meta = read_json(track_dir(tid) / "meta.json") or {}
+        remote_url = meta.get("remote_url")
+    if not remote_url:
+        try:
+            from . import db
+            with db.get_db() as adapter:
+                row = adapter.fetchone("SELECT remote_url FROM library_items WHERE id = ?", [tid])
+                if row and row["remote_url"]:
+                    remote_url = row["remote_url"]
+        except Exception:
+            pass
+    if not remote_url:
+        raise ValueError(f"no remote_url specified for track {tid}")
+
+    with _hydrating_lock:
+        _hydrating_tracks.add(tid)
+
+    tmp_dest = d / f"hydrate_{tid}.tmp"
+    final_audio = d / "audio.flac"
+
+    try:
+        url_str = str(remote_url)
+        if url_str.startswith("file://") or (Path(url_str).exists() and not url_str.startswith("http")):
+            src_path = Path(url_str.replace("file://", ""))
+            shutil.copy2(src_path, tmp_dest)
+        else:
+            req = urllib.request.Request(
+                url_str,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MeikovaLoop/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp, open(tmp_dest, "wb") as out_f:
+                shutil.copyfileobj(resp, out_f)
+
+        if not tmp_dest.exists() or tmp_dest.stat().st_size == 0:
+            raise RuntimeError(f"Downloaded file for {tid} is empty")
+
+        # Attempt to convert to standard flac, otherwise save raw file as audio.flac
+        try:
+            from . import audio
+            audio.to_flac(tmp_dest, final_audio)
+            tmp_dest.unlink(missing_ok=True)
+        except Exception as conv_err:
+            logger.warning("to_flac conversion failed for %s, saving raw file as audio.flac: %s", tid, conv_err)
+            if tmp_dest.exists():
+                if final_audio.exists():
+                    final_audio.unlink(missing_ok=True)
+                tmp_dest.rename(final_audio)
+
+        update(tid, hydration_status="SYNCED_LOCAL", remote_url=remote_url, status="ready")
+
+        try:
+            from . import db
+            with db.get_db() as adapter:
+                adapter.execute(
+                    "UPDATE library_items SET hydration_status = ?, updated_at = ? WHERE id = ?",
+                    ["SYNCED_LOCAL", time.time(), tid]
+                )
+        except Exception:
+            pass
+
+        return True
+    except Exception as e:
+        logger.error("Failed to hydrate track %s from %s: %s", tid, remote_url, e)
+        if tmp_dest.exists():
+            tmp_dest.unlink(missing_ok=True)
+        update(tid, hydration_status="CORRUPTED", error=str(e))
+        raise
+    finally:
+        with _hydrating_lock:
+            _hydrating_tracks.discard(tid)
 
 
 FORMATS = ("mp3",)
@@ -152,25 +282,31 @@ def read_json(path: Path):
 
 
 def read_meta(tid: str) -> dict | None:
-    return read_json(track_dir(tid) / "meta.json")
+    meta = read_json(track_dir(tid) / "meta.json")
+    if meta and isinstance(meta, dict):
+        meta["hydration_status"] = get_hydration_status(tid, meta)
+    return meta
 
 
 def create(tid: str, **fields) -> dict:
     with _lock:
-        meta = read_meta(tid)
+        meta = read_json(track_dir(tid) / "meta.json")
         if meta is None:
             meta = {"id": tid, "added_at": time.time(), "enabled": True}
         meta.update(fields)
+        if "hydration_status" not in meta:
+            meta["hydration_status"] = get_hydration_status(tid, meta)
         write_json(track_dir(tid) / "meta.json", meta)
         return meta
 
 
 def update(tid: str, **fields) -> dict | None:
     with _lock:
-        meta = read_meta(tid)
+        meta = read_json(track_dir(tid) / "meta.json")
         if meta is None:
             return None
         meta.update(fields)
+        meta["hydration_status"] = fields.get("hydration_status") or get_hydration_status(tid, meta)
         write_json(track_dir(tid) / "meta.json", meta)
         return meta
 
@@ -181,6 +317,7 @@ def list_tracks() -> list[dict]:
         if d.is_dir() and valid_id(d.name):
             meta = read_meta(d.name)
             if meta:
+                meta["hydration_status"] = get_hydration_status(d.name, meta)
                 out.append(meta)
     out.sort(key=lambda m: m.get("added_at", 0))
     return out

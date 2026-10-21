@@ -4131,6 +4131,7 @@ button.dl-card {
   align-items: center;
   gap: 6px;
   font-size: 10px;
+  line-height: 1.2;
   color: var(--text-dim);
   border-top: 1px solid var(--line);
   padding-top: 8px;
@@ -4144,6 +4145,7 @@ button.dl-card {
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent);
   flex-shrink: 0;
+  transform: translateY(-1px);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -4881,6 +4883,41 @@ dialog.auth-modal,
   width: 100%;
 }
 
+.btn-sso-gateway {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(16, 185, 129, 0.08));
+  color: #38bdf8;
+  font: 700 var(--step--1) / 1 var(--font-text);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  margin-bottom: 8px;
+}
+.btn-sso-gateway:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(16, 185, 129, 0.16));
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+.btn-sso-gateway:active {
+  transform: scale(0.98);
+}
+.btn-sso-gateway svg {
+  flex-shrink: 0;
+  color: #38bdf8;
+}
+.btn-sso-gateway:hover svg {
+  color: #ffffff;
+}
+
 .btn-ambient-google {
   display: inline-flex;
   align-items: center;
@@ -5212,3 +5249,61 @@ dialog.auth-modal,
 }
 
 
+
+
+/* Apps Modal Footer Strip & Winget Command */
+.apps-modal-footer-strip {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .apps-modal-footer-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.apps-footer-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #A3E635;
+  font-size: 0.72rem;
+  cursor: pointer;
+  user-select: all;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.apps-footer-cmd:hover {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(163, 230, 53, 0.4);
+}
+
+.apps-cmd-prompt {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.apps-footer-link {
+  color: var(--accent, #FFB38A);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  transition: opacity 0.15s ease;
+}
+
+.apps-footer-link:hover {
+  text-decoration: underline;
+  opacity: 0.9;
+}

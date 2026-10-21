@@ -70,6 +70,10 @@ class GoogleAuthRequest(BaseModel):
     credential: str
 
 
+class SsoCallbackRequest(BaseModel):
+    token: str
+
+
 class SyncLibraryRequest(BaseModel):
     track_ids: list[str] | None = None
     off_ids: list[str] | None = None
@@ -138,9 +142,13 @@ async def save_settings(request: Request):
 
 
 def _public(m: dict) -> dict:
-    keys = ("id", "title", "channel", "duration", "thumbnail", "url", "status", "stage", "progress",
-            "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at", "mood", "source", "credit")
+    keys = ("id", "title", "channel", "duration", "thumbnail", "url", "remote_url", "status", "stage", "progress",
+            "error", "enabled", "bpm", "key", "camelot", "jumps", "beats", "added_at", "mood", "source", "credit",
+            "hydration_status")
     out = {k: m.get(k) for k in keys}
+    if "hydration_status" not in out or not out["hydration_status"]:
+        tid = m.get("id") or ""
+        out["hydration_status"] = library.get_hydration_status(tid, m) if library.valid_id(tid) else "METADATA_ONLY"
     # A vocal stem lets the player hand over one layer at a time.
     out["stems"] = library.valid_id(m.get("id") or "") and library.has_vocals(m["id"])
     return out
@@ -514,6 +522,21 @@ def auth_me(
     return {"user": user, "library": library_data, "session": _user_session_payload(user)}
 
 
+@app.post("/api/auth/sso/callback")
+def auth_sso_callback(req: SsoCallbackRequest):
+    user = auth.validate_token(req.token)
+    if not user:
+        raise HTTPException(401, "SSO token không hợp lệ hoặc đã hết hạn")
+    library_data = auth.get_user_library(user["id"])
+    return {
+        "status": "ok",
+        "token": req.token,
+        "user": user,
+        "library": library_data,
+        "session": _user_session_payload(user)
+    }
+
+
 @app.post("/api/auth/logout")
 def auth_logout(
     authorization: str | None = Header(default=None),
@@ -827,6 +850,54 @@ def reanalyze(tid: str, v: sessions.View = Depends(view_of)):
     return {"queued": tid}
 
 
+@app.post("/api/library/{tid}/hydrate")
+@app.post("/api/tracks/{tid}/hydrate")
+async def hydrate_library_item(tid: str, request: Request, v: sessions.View = Depends(view_of)):
+    """Triggers background audio hydration for a track."""
+    if not library.valid_id(tid):
+        raise HTTPException(400, "invalid track id")
+
+    remote_url = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            remote_url = body.get("remote_url")
+    except Exception:
+        pass
+
+    meta = library.read_meta(tid)
+    if not remote_url and meta:
+        remote_url = meta.get("remote_url")
+    if not remote_url:
+        try:
+            from . import db
+            with db.get_db() as adapter:
+                row = adapter.fetchone("SELECT remote_url FROM library_items WHERE id = ?", [tid])
+                if row and row["remote_url"]:
+                    remote_url = row["remote_url"]
+        except Exception:
+            pass
+
+    if not remote_url:
+        raise HTTPException(400, "no remote_url available for track")
+
+    if not meta:
+        library.create(tid, remote_url=remote_url, hydration_status="DOWNLOADING", status="processing")
+    else:
+        library.update(tid, hydration_status="DOWNLOADING")
+
+    if library.has_audio(tid):
+        return {"status": "ok", "tid": tid, "hydration_status": "SYNCED_LOCAL", "message": "already synced"}
+
+    threading.Thread(
+        target=library.hydrate_track,
+        args=(tid, remote_url),
+        daemon=True
+    ).start()
+
+    return {"status": "ok", "tid": tid, "hydration_status": "DOWNLOADING"}
+
+
 @app.post("/api/relink")
 def relink(v: sessions.View = Depends(view_of)):
     if MULTIUSER:
@@ -870,6 +941,55 @@ def analysis(tid: str, v: sessions.View = Depends(view_of)):
                         headers={"Cache-Control": "no-cache"})
 
 
+def _stream_remote_audio(tid: str, remote_url: str, request: Request, v: sessions.View) -> Response:
+    """Stream audio on-demand directly from remote_url and trigger background hydration."""
+    if not library.is_hydrating(tid):
+        threading.Thread(target=library.hydrate_track, args=(tid, remote_url), daemon=True).start()
+
+    url_str = str(remote_url)
+    if url_str.startswith("file://") or (Path(url_str).exists() and not url_str.startswith("http")):
+        local_p = Path(url_str.replace("file://", ""))
+        return FileResponse(local_p, media_type="audio/mpeg", headers={"Cache-Control": "no-cache"})
+
+    range_header = request.headers.get("range")
+    req_headers = {"User-Agent": "Mozilla/5.0 MeikovaLoop/1.0"}
+    if range_header:
+        req_headers["Range"] = range_header
+
+    try:
+        import httpx
+        client = httpx.Client(timeout=30.0, follow_redirects=True)
+        upstream = client.send(client.build_request("GET", url_str, headers=req_headers), stream=True)
+
+        def iter_stream():
+            try:
+                for chunk in upstream.iter_bytes(chunk_size=65536):
+                    yield chunk
+            finally:
+                upstream.close()
+                client.close()
+
+        res_headers = {
+            "Accept-Ranges": upstream.headers.get("Accept-Ranges", "bytes"),
+            "Content-Type": upstream.headers.get("Content-Type", "audio/mpeg"),
+            "Cache-Control": "no-store",
+            "X-Hydration": "on-demand-stream",
+        }
+        if "Content-Length" in upstream.headers:
+            res_headers["Content-Length"] = upstream.headers["Content-Length"]
+        if "Content-Range" in upstream.headers:
+            res_headers["Content-Range"] = upstream.headers["Content-Range"]
+
+        return StreamingResponse(
+            iter_stream(),
+            status_code=upstream.status_code,
+            headers=res_headers
+        )
+    except Exception as e:
+        logger.warning("Remote audio streaming failed for %s (%s): %s", tid, url_str, e)
+        raise HTTPException(502, f"Failed to stream remote audio: {e}")
+
+
 @app.get("/api/tracks/{tid}/audio")
 def audio(tid: str, request: Request, v: sessions.View = Depends(view_of)):
     """Hosted, the audio is not a file anyone can save: it only goes to the
@@ -877,14 +997,28 @@ def audio(tid: str, request: Request, v: sessions.View = Depends(view_of)):
     page unscrambles it in memory right before decoding. (A browser has to
     receive playable sound, so this stops download tools and casual saving,
     not a determined listener.)"""
-    _ready(tid)
     _held(v, tid)
     library.touch(tid)
-    if not library.has_audio(tid):  # deleted after going unused, just before this listener asked
+    if not library.has_audio(tid):
+        meta = library.read_meta(tid) or {}
+        remote_url = meta.get("remote_url")
+        if not remote_url:
+            try:
+                from . import db
+                with db.get_db() as adapter:
+                    row = adapter.fetchone("SELECT remote_url FROM library_items WHERE id = ?", [tid])
+                    if row and row["remote_url"]:
+                        remote_url = row["remote_url"]
+            except Exception:
+                pass
+        if remote_url:
+            return _stream_remote_audio(tid, remote_url, request, v)
+
         if _restore(tid):
             worker.enqueue_ingest(tid)
             raise HTTPException(409, "bài đang được tải lại")
         raise HTTPException(409, "bài tải lên đã được xoá khỏi server: hãy tải lại file")
+    _ready(tid)
     return _send_sound(_transport(tid, "audio"), tid, request, v)
 
 

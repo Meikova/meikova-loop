@@ -3008,6 +3008,19 @@ function updateMobileModal() {
   setMobilePlatformTab(targetTab);
 }
 
+
+$("#btn-copy-winget-loop")?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText("winget install Meikova.Loop");
+    const el = $("#btn-copy-winget-loop");
+    if (el) {
+      const orig = el.innerHTML;
+      el.innerHTML = '<span class="apps-cmd-prompt">$</span><span style="color:var(--accent,#FFB38A);">Đã sao chép lệnh ✓</span>';
+      setTimeout(() => { el.innerHTML = orig; }, 2000);
+    }
+  } catch {}
+});
+
 $("#btn-copy-server-url")?.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(window.location.origin);
@@ -3866,6 +3879,29 @@ function initAuthAndSync() {
     window.Capacitor.isNativePlatform &&
     window.Capacitor.isNativePlatform()
   );
+
+  // Meikova ID Universal SSO Button
+  const btnLoopSso = $("#btn-loop-sso");
+  btnLoopSso?.addEventListener("click", () => {
+    const authGatewayUrl = window.MEIKOVA_AUTH_URL || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:8990" : "https://meikova-auth.onrender.com");
+    const origin = window.location.origin;
+    const ssoUrl = `${authGatewayUrl}/login?client_id=loop&origin=${encodeURIComponent(origin)}`;
+    const w = 460, h = 640;
+    const left = Math.max(0, (window.screen.width - w) / 2);
+    const top = Math.max(0, (window.screen.height - h) / 2);
+    window.open(ssoUrl, "meikova_sso", `width=${w},height=${h},left=${left},top=${top},status=no,toolbar=no,menubar=no`);
+  });
+
+  // Universal SSO PostMessage listener
+  window.addEventListener("message", async (event) => {
+    if (event.data && event.data.type === "MEIKOVA_SSO_SUCCESS") {
+      const { token, user } = event.data;
+      if (token) {
+        await onAuthSuccess({ token, user });
+        showHudToast("Đăng nhập Meikova ID thành công!");
+      }
+    }
+  });
 
   const btnGoogle = $("#btn-ambient-google");
   btnGoogle?.addEventListener("click", async () => {
