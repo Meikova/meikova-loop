@@ -1,7 +1,7 @@
 {
-  "name": "Mash ∞ Loop",
-  "short_name": "MashLoop",
-  "description": "Nghe một bài mãi không dứt, hoặc mash cả thư viện thành một chuỗi nhạc vô tận.",
+  "name": "Meikova Loop",
+  "short_name": "Meikova Loop",
+  "description": "Meikova Loop: DJ mashup · hòa trộn nhạc · tách stem — nghe một bài mãi không dứt, hoặc nối cả thư viện thành một vòng nhạc vô tận.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#16120e",

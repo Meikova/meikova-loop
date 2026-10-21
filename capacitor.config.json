@@ -1,6 +1,6 @@
 {
-  "appId": "com.m3ik18dp.mashloop",
-  "appName": "MashLoop",
+  "appId": "com.meikova.loop",
+  "appName": "Meikova Loop",
   "webDir": "web",
   "server": {
     "url": "http://100.118.230.52:8765",

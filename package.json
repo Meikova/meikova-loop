@@ -1,7 +1,7 @@
 {
-  "name": "mashloop",
+  "name": "meikova-loop",
   "version": "1.0.0",
-  "description": "Mash ∞ Loop mobile application shell",
+  "description": "Meikova Loop mobile application shell",
   "private": true,
   "scripts": {
     "cap:sync": "cap sync",

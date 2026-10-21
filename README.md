@@ -1,5 +1,5 @@
 ---
-title: MashLoop
+title: Meikova Loop
 emoji: ⚡
 colorFrom: blue
 colorTo: pink
@@ -11,7 +11,7 @@ pinned: false
 license: mit
 ---
 
-# Mash ∞ Loop (Desktop & Mobile Fork)
+# Meikova Loop (Infinite Soundscape)
 
 > [!NOTE]
 > **Thông tin Fork & Bản quyền Tác giả Gốc:**
@@ -22,7 +22,7 @@ license: mit
 > - **Bản web trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space) (hoặc xem tại [Hugging Face Space](https://huggingface.co/spaces/m3ik18dp/MashLoop))
 >
 > **Các tính năng mở rộng trong bản fork này:**
-> 1. 🖥️ **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MashLoop/MashLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
+> 1. 🖥️ **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MeikovaLoop/MeikovaLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
 > 2. ⚡ **ONNX Inference & Tối ưu VRAM GPU:** Chuyển đổi mô hình `Beat This!` sang ONNX Runtime; cơ chế Demucs streaming theo từng chunk 7.8s giúp card đồ họa 4GB VRAM (như GTX 1650 Ti) chạy mượt mà không bị lỗi `CUDA error: out of memory`.
 > 3. 📱 **Mobile Shell & Tailscale Streaming:** Hỗ trợ kết nối mượt qua mạng riêng ảo Tailscale, bộ icon PWA/Retina siêu nét cho iOS/Android, xử lý Safe-Area tai thỏ/Dynamic Island, tích hợp MediaSession API phát nhạc nền.
 > 4. 🎛️ **The Deck & Tiện ích Nghe nhạc:** Hẹn giờ tắt nhạc (Sleep Timer) có làm dịu âm lượng thông minh trong 8s cuối, nút Khóa bài (`L`), Lọc âm đêm dịu tai High-Shelf EQ (`E`), Tắt tiếng nhanh (`M`), Bảng phím tắt & Trợ giúp (`?`).
