@@ -87,7 +87,7 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
         if meta is None or library.is_cancelled(tid):
             return "error"
         if (meta.get("analysis_version") or 0) > ANALYSIS_VERSION:
-            raise RuntimeError("analysed by a newer Mash ∞ Loop version: restart the server")
+            raise RuntimeError("analysed by a newer Meikova Loop version: restart the server")
         if meta.get("duration") and meta["duration"] > MAX_DURATION_S:
             raise RuntimeError(f"dài hơn {MAX_DURATION_S // 60} phút")
         if not library.audio_path(tid).exists():

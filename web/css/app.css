@@ -347,7 +347,7 @@ body.is-zen .desktop-titlebar {
   border-radius: 10px;
 }
 
-.brand__inf { width: 34px; height: 17px; overflow: visible; }
+.brand__inf { width: 24px; height: 24px; flex-shrink: 0; fill: var(--accent, #FFB38A); }
 
 .brand__path {
   fill: none;
@@ -4227,7 +4227,7 @@ button.dl-card {
     padding: 4px 0;
     margin-left: 0;
   }
-  .brand__inf { width: 22px; height: 11px; }
+  .brand__inf { width: 20px; height: 20px; }
   .mode { justify-self: center; }
   .mode button {
     padding: 3px 6px;

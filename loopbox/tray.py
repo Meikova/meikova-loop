@@ -225,6 +225,22 @@ Categories=AudioVideo;Audio;
             return False
 
 
+def _refresh_tray_window():
+    """Forces Windows Explorer system tray toolbar to immediately repaint and prune dead icons."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        for cls_name in ["Shell_TrayWnd", "NotifyIconOverflowWindow"]:
+            hwnd = user32.FindWindowW(cls_name, None)
+            if hwnd:
+                user32.InvalidateRect(hwnd, None, True)
+                user32.UpdateWindow(hwnd)
+    except Exception:
+        pass
+
+
 class DesktopTray:
     """Manages the desktop System Tray icon, menu actions, and minimize-to-tray lifecycle."""
 
@@ -346,7 +362,7 @@ class DesktopTray:
 
             if not self._balloon_shown and self._tray:
                 self.show_balloon(
-                    "Mash ∞ Loop",
+                    "Meikova Loop",
                     "Đang chạy ngầm · Nhấp vào biểu tượng để mở lại.",
                 )
                 self._balloon_shown = True
@@ -385,28 +401,38 @@ class DesktopTray:
         self.hide_window()
         return False
 
-    def quit(self):
+    def quit(self, fast_exit: bool = False):
         """Cleanly destroys the tray icon and exits the desktop application."""
         self.is_quitting = True
         try:
             form = getattr(self.window, "native", None)
-            if sys.platform == "win32" and form is not None:
+            if sys.platform == "win32":
                 import clr
                 clr.AddReference("System.Windows.Forms")
                 from System.Windows.Forms import Application, MethodInvoker
 
                 def _do_cleanup():
                     try:
-                        if self._tray and hasattr(self._tray, "Visible"):
-                            self._tray.Visible = False
-                            self._tray.Dispose()
+                        if self._tray is not None:
+                            if hasattr(self._tray, "Visible"):
+                                self._tray.Visible = False
+                            if hasattr(self._tray, "Icon"):
+                                self._tray.Icon = None
+                            if hasattr(self._tray, "Dispose"):
+                                self._tray.Dispose()
+                            if hasattr(self._tray, "stop"):
+                                self._tray.stop()
                         self._tray = None
                         _GLOBAL_TRAY_REFS.clear()
-                        Application.Exit()
+                        try:
+                            Application.DoEvents()
+                        except Exception:
+                            pass
+                        _refresh_tray_window()
                     except Exception:
                         pass
 
-                if hasattr(form, "InvokeRequired") and form.InvokeRequired:
+                if form is not None and hasattr(form, "InvokeRequired") and form.InvokeRequired:
                     form.Invoke(MethodInvoker(_do_cleanup))
                 else:
                     _do_cleanup()
@@ -445,6 +471,10 @@ class DesktopTray:
             self.window.destroy()
         except Exception:
             pass
+
+        if fast_exit:
+            import os, threading, time
+            threading.Thread(target=lambda: (time.sleep(0.35), os._exit(0)), daemon=True, name="quit-watchdog").start()
 
     def _setup_winforms(self):
         """Native Windows WinForms NotifyIcon with ambient dark styling and custom icons."""
@@ -590,7 +620,7 @@ class DesktopTray:
             bmp_quit = self._get_tray_icon_bitmap("quit")
             if bmp_quit:
                 item_quit.Image = bmp_quit
-            item_quit.Click += EventHandler(lambda s, e: self.quit())
+            item_quit.Click += EventHandler(lambda s, e: self.quit(fast_exit=True))
             menu.Items.Add(item_quit)
 
             tray.ContextMenuStrip = menu
@@ -836,7 +866,7 @@ class DesktopTray:
                     lambda: webbrowser.open(str(self.data_dir)),
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Thoát hoàn toàn", lambda: self.quit()),
+                pystray.MenuItem("Thoát hoàn toàn", lambda: self.quit(fast_exit=True)),
             )
             self._tray = pystray.Icon(
                 "Meikova Loop", img, "Meikova Loop - Nhạc nhảy nhịp vô tận", menu

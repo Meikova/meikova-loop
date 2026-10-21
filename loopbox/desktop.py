@@ -351,6 +351,12 @@ def main(argv=None):
     ap.add_argument("--debug", action="store_true", help="Enable webview DevTools")
     args = ap.parse_args(argv)
 
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("meikova.loop.desktop.2.0")
+        except Exception:
+            pass
     if not args.debug:
         hide_console()
 
@@ -528,9 +534,11 @@ def main(argv=None):
 
     print("Meikova Loop Desktop closed.")
     if desktop_tray:
-        desktop_tray.quit()
+        desktop_tray.quit(fast_exit=False)
     if server_obj:
         server_obj.should_exit = True
+    import os
+    os._exit(0)
 
 
 if __name__ == "__main__":

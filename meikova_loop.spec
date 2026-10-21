@@ -101,7 +101,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="MeikovaLoop.app",
-        icon=str(ROOT / "web" / "img" / "icon.ico") if (ROOT / "web" / "img" / "icon.ico").exists() else None,
+        icon=str(ROOT / "web" / "img" / "icon.icns") if (ROOT / "web" / "img" / "icon.icns").exists() else (str(ROOT / "web" / "img" / "icon.ico") if (ROOT / "web" / "img" / "icon.ico").exists() else None),
         bundle_identifier="com.meikova.loop",
         info_plist={
             "NSPrincipalClass": "NSApplication",

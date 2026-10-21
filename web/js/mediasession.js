@@ -13,7 +13,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
       return;
     }
     const meta = getSongMeta ? getSongMeta(track.id) : track.meta;
-    const title = meta?.title || track.meta?.title || "Mash ∞ Loop";
+    const title = meta?.title || track.meta?.title || "Meikova Loop";
     const artist = meta?.artist || track.meta?.channel || "Meikova Loop";
     const artwork = [];
 
@@ -30,7 +30,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
       artist,
-      album: "Mash ∞ Loop",
+      album: "Meikova Loop",
       artwork,
     });
 

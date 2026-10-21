@@ -3286,7 +3286,7 @@ function renderStage() {
       cta.dataset.key = lib.key;
       cta.querySelector("span").textContent = `Nghe thử kho ${lib.name}`;
     }
-    setHTML($("#ro-tl"), `<b>MASH ∞ LOOP</b> // ${p.settings.mode === "chain" ? "chuỗi" : "một bài"} · chưa phát`);
+    setHTML($("#ro-tl"), `<b>MEIKOVA LOOP</b> // ${p.settings.mode === "chain" ? "chuỗi" : "một bài"} · chưa phát`);
     setHTML($("#ro-tr"), `<span class="mono">∞ 0:00</span><span class="ro-stats"> · chưa có vòng nào</span>`);
     setHTML($("#next-info"), "");
     return;

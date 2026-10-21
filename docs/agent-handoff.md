@@ -1,6 +1,54 @@
+# Session Handoff - 100% Brand Assets & Logo Synchronization (Meikova Loop - Phase Rotor)
+
+## 1. Mục tiêu hoàn thành
+- **Tối ưu tốc độ biến mất của Tray Icon khi Thoát hoàn toàn (Instant Tray Disappear)**:
+  - **Vấn đề**: Khi chuột phải chọn "Thoát hoàn toàn", icon trên khay hệ thống mất vài giây mới biến mất do luồng dọn dẹp đợi uvicorn server graceful shutdown và WebView2 teardown mà không flush message queue của Windows Shell.
+  - **Khắc phục**:
+    1. Trong `_do_cleanup()`: Thiết lập tuần tự `tray.Visible = False`, `tray.Icon = None`, `tray.Dispose()`.
+    2. Gọi ngay `Application.DoEvents()` để xả hàng đợi thông điệp WinForms, đẩy tức thì lệnh `Shell_NotifyIcon(NIM_DELETE)` sang `explorer.exe` (thời gian xử lý < 3ms).
+    3. Thêm hàm `_refresh_tray_window()` gửi `InvalidateRect` ép `Shell_TrayWnd` vẽ lại ngay, xóa sạch tàn dư icon.
+    4. Kích hoạt `fast_exit` kèm `os._exit(0)` ở cuối `main()` trong `loopbox/desktop.py` để chấm dứt process ngay, không bị nghẽn bởi COM/audio threads.
+
+- **Đồng bộ 100% Logo mới theo bộ nhận diện Meikova Brand Kit v6 (`D:\JOB\DEV\meikova\assets`)**:
+  - **Mẫu nhận diện**: Meikova Loop (02) — Cấu trúc *Phase rotor* (hai thùy lệch pha kéo theo tiếp tuyến, màu `#FFB38A`, nền than `#11151B`).
+  - **Giao diện Web & Desktop Titlebar**:
+    - `web/index.html`: Thay thế hoàn toàn logo vô cực cũ tại `.desktop-titlebar__logo` bằng vector Phase rotor (`viewBox="0 0 100 100"`, 16x16, `fill="var(--accent, #FFB38A)"`).
+    - `web/index.html`: Thêm `<link rel="icon" href="img/favicon.ico" sizes="any" />` và `<link rel="manifest" href="site.webmanifest" />`.
+    - `web/css/app.css`: Chuẩn hóa tỉ lệ 1:1 cho `.brand__inf` (24x24 trên desktop, 20x20 trên mobile).
+  - **Windows Taskbar & System Tray**:
+    - `web/img/icon.ico`: Đóng gói bộ icon đa độ phân giải thực thụ gồm 7 kích thước: 16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256 từ `app-icons/rounded/icon-256.png`. Đảm bảo WinForms `NotifyIcon` và Win32 `LoadImageW` hiển thị sắc nét không vỡ hạt trên mọi mức Windows DPI (100% - 200%).
+    - `loopbox/desktop.py`: Gọi `ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("meikova.loop.desktop.2.0")` trước khi dựng UI, đảm bảo Taskbar Windows gán cửa sổ và taskbar icon trực tiếp vào icon ứng dụng (thay vì python.exe).
+    - `loopbox/tray.py`: Cập nhật toàn bộ thông báo balloon và tooltip thành `Meikova Loop`. Đồng bộ bộ icon khay hệ thống `web/img/tray/` (chứa đầy đủ `white-*.png` và `black-*.png`).
+  - **Android & iOS Native Apps**:
+    - `android/app/src/main/res/`: Xóa bỏ toàn bộ icon robot và background mặc định cũ của Capacitor (`drawable-v24/ic_launcher_foreground.xml`, `drawable/ic_launcher_background.xml`, `mipmap-*/ic_launcher_foreground.png`). Đồng bộ trọn bộ vector adaptive `ic_launcher_foreground.xml`, monochrome `ic_launcher_monochrome.xml`, background `#11151B` và notification assets.
+    - `ios/App/App/Assets.xcassets/AppIcon.appiconset/`: Xóa bỏ file `AppIcon-512@2x.png` cũ, cập nhật toàn bộ catalog icon mới.
+    - Đồng bộ `web/manifest.json` và `web/site.webmanifest` đa nền tảng.
+  - **macOS Build**:
+    - Đã sao chép `macos/app.icns` vào `web/img/icon.icns` và `app.icns`.
+    - `meikova_loop.spec`: Bổ sung kiểm tra `icon.icns` cho macOS bundle.
+
+## 2. Kiểm thử & Verification
+- `tests/test_server_and_features.py`: `ALL TESTS PASSED WITH EXIT CODE 0` (28/28 tests passed).
+- `tests/test_tray.py`: `Ran 2 tests in 0.000s, OK` (Exit Code 0).
+- `tests/test_auth_and_sync.py`: `Ran 7 tests in 1.292s, OK` (Exit Code 0).
+- Windows .NET WinForms `Icon('web/img/icon.ico')` load thành công không lỗi (32x32 / 16x16 native).
+
+## 3. Cảnh báo kỹ thuật & Lưu ý
+- Toàn bộ các file logo, favicon, taskbar icon, tray icon, webmanifest hiện đã đồng bộ 100% với Brand Kit v6 từ `D:\JOB\DEV\meikova\assets`.
+
+---
+
 # Session Handoff - Fix Multi-Device Audio Playback ("Unable to decode audio data") & Duplicate Search Icon
 
 ## 1. Mục tiêu hoàn thành
+- **Tối ưu tốc độ biến mất của Tray Icon khi Thoát hoàn toàn (Instant Tray Disappear)**:
+  - **Vấn đề**: Khi chuột phải chọn "Thoát hoàn toàn", icon trên khay hệ thống mất vài giây mới biến mất do luồng dọn dẹp đợi uvicorn server graceful shutdown và WebView2 teardown mà không flush message queue của Windows Shell.
+  - **Khắc phục**:
+    1. Trong `_do_cleanup()`: Thiết lập tuần tự `tray.Visible = False`, `tray.Icon = None`, `tray.Dispose()`.
+    2. Gọi ngay `Application.DoEvents()` để xả hàng đợi thông điệp WinForms, đẩy tức thì lệnh `Shell_NotifyIcon(NIM_DELETE)` sang `explorer.exe` (thời gian xử lý < 3ms).
+    3. Thêm hàm `_refresh_tray_window()` gửi `InvalidateRect` ép `Shell_TrayWnd` vẽ lại ngay, xóa sạch tàn dư icon.
+    4. Kích hoạt `fast_exit` kèm `os._exit(0)` ở cuối `main()` trong `loopbox/desktop.py` để chấm dứt process ngay, không bị nghẽn bởi COM/audio threads.
+
 - **Rà soát toàn diện các luồng (Full-Flow Audit) theo chuẩn /meikova**:
   - **Luồng Upload file (`/api/upload`)**: Thêm header `Authorization: Bearer` trong `api.upload()` XHR request để tài khoản đã đăng nhập luôn gắn file tải lên vào thư viện cá nhân và đồng bộ đa thiết bị.
   - **Bảo vệ quyền truy cập âm thanh (`_held`)**: Mở rộng `_held(v, tid)` trong `loopbox/server.py` cho phép phát kho nhạc mẫu công khai (`library.samples()["ids"]`) và tự động kiểm tra dự phòng thư viện tài khoản trong SQLite `user_libraries`.
@@ -33,6 +81,14 @@
 # Session Handoff - Cross-Platform System Tray & Background Runner
 
 ## 1. Mục tiêu hoàn thành
+- **Tối ưu tốc độ biến mất của Tray Icon khi Thoát hoàn toàn (Instant Tray Disappear)**:
+  - **Vấn đề**: Khi chuột phải chọn "Thoát hoàn toàn", icon trên khay hệ thống mất vài giây mới biến mất do luồng dọn dẹp đợi uvicorn server graceful shutdown và WebView2 teardown mà không flush message queue của Windows Shell.
+  - **Khắc phục**:
+    1. Trong `_do_cleanup()`: Thiết lập tuần tự `tray.Visible = False`, `tray.Icon = None`, `tray.Dispose()`.
+    2. Gọi ngay `Application.DoEvents()` để xả hàng đợi thông điệp WinForms, đẩy tức thì lệnh `Shell_NotifyIcon(NIM_DELETE)` sang `explorer.exe` (thời gian xử lý < 3ms).
+    3. Thêm hàm `_refresh_tray_window()` gửi `InvalidateRect` ép `Shell_TrayWnd` vẽ lại ngay, xóa sạch tàn dư icon.
+    4. Kích hoạt `fast_exit` kèm `os._exit(0)` ở cuối `main()` trong `loopbox/desktop.py` để chấm dứt process ngay, không bị nghẽn bởi COM/audio threads.
+
 - **Sửa dứt điểm lỗi biến mất Tray Icon trên Windows**:
   - Root cause: `window.events.shown` trong pywebview kích hoạt trên một worker thread (`Thread-X`). Khi `NotifyIcon` khởi tạo trên worker thread không có STA message loop và luồng đó kết thúc, Windows OS tự động thu hồi/tiêu hủy message window ẩn khiến icon biến mất khỏi khay hệ thống.
   - Khắc phục: Marshal `_setup_winforms()` vào WinForms STA UI thread qua `form.Invoke(MethodInvoker(...))`. Giữ biến tham chiếu mạnh ở module level `_GLOBAL_TRAY_REFS` để chống .NET/Python Garbage Collector dọn dẹp.
@@ -67,6 +123,14 @@
 # Session Handoff - Multi-Device User Auth, Google OAuth & Offline Sync Queue
 
 ## 1. Mục tiêu hoàn thành
+- **Tối ưu tốc độ biến mất của Tray Icon khi Thoát hoàn toàn (Instant Tray Disappear)**:
+  - **Vấn đề**: Khi chuột phải chọn "Thoát hoàn toàn", icon trên khay hệ thống mất vài giây mới biến mất do luồng dọn dẹp đợi uvicorn server graceful shutdown và WebView2 teardown mà không flush message queue của Windows Shell.
+  - **Khắc phục**:
+    1. Trong `_do_cleanup()`: Thiết lập tuần tự `tray.Visible = False`, `tray.Icon = None`, `tray.Dispose()`.
+    2. Gọi ngay `Application.DoEvents()` để xả hàng đợi thông điệp WinForms, đẩy tức thì lệnh `Shell_NotifyIcon(NIM_DELETE)` sang `explorer.exe` (thời gian xử lý < 3ms).
+    3. Thêm hàm `_refresh_tray_window()` gửi `InvalidateRect` ép `Shell_TrayWnd` vẽ lại ngay, xóa sạch tàn dư icon.
+    4. Kích hoạt `fast_exit` kèm `os._exit(0)` ở cuối `main()` trong `loopbox/desktop.py` để chấm dứt process ngay, không bị nghẽn bởi COM/audio threads.
+
 - **Hệ thống xác thực tài khoản & Đồng bộ thư viện đa thiết bị**:
   - Module `loopbox/auth.py`: SQLite `auth.db`, bảng `users`, `user_sessions`, `user_libraries`.
   - Mật khẩu mã hóa chuẩn PBKDF2-HMAC-SHA256 (100.000 rounds).

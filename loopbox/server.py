@@ -33,7 +33,7 @@ from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, M
 # the server says it is busy rather than queueing for hours.
 MAX_BACKLOG = 60
 
-app = FastAPI(title="Mash ∞ Loop", docs_url=None if MULTIUSER else "/docs", redoc_url=None,
+app = FastAPI(title="Meikova Loop", docs_url=None if MULTIUSER else "/docs", redoc_url=None,
               openapi_url=None if MULTIUSER else "/openapi.json")
 
 
