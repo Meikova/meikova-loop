@@ -231,5 +231,65 @@ class TestAuthAndMultiDeviceSync(unittest.TestCase):
 
 
 
+    def test_07_multi_device_session_key_and_audio_protection(self):
+        from unittest.mock import patch
+        from loopbox import config, server
+
+        with patch.object(config, "MULTIUSER", True), \
+             patch.object(sessions, "MULTIUSER", True), \
+             patch.object(server, "MULTIUSER", True):
+            suffix = os.urandom(4).hex()
+            username = f"audio_sync_{suffix}"
+            password = "testpass999!"
+
+            # Register user
+            reg_resp = self.client.post("/api/auth/register", json={
+                "username": username,
+                "password": password,
+                "display_name": "Audio Device Sync"
+            })
+            self.assertEqual(reg_resp.status_code, 200)
+            reg_data = reg_resp.json()
+            self.assertIn("session", reg_data)
+            self.assertIsNotNone(reg_data["session"]["k"])
+            key_reg = reg_data["session"]["k"]
+
+            # Machine A: Login
+            login_a = self.client.post("/api/auth/login", json={"username": username, "password": password})
+            self.assertEqual(login_a.status_code, 200)
+            data_a = login_a.json()
+            token_a = data_a["token"]
+            self.assertIn("session", data_a)
+            key_a = data_a["session"]["k"]
+            self.assertEqual(key_a, key_reg)
+
+            # Machine B: Login independently
+            login_b = self.client.post("/api/auth/login", json={"username": username, "password": password})
+            self.assertEqual(login_b.status_code, 200)
+            data_b = login_b.json()
+            token_b = data_b["token"]
+            self.assertIn("session", data_b)
+            key_b = data_b["session"]["k"]
+            # Keys MUST match across devices!
+            self.assertEqual(key_a, key_b)
+
+            # Machine B: POST /api/session with token
+            sess_b = self.client.post("/api/session", headers={"Authorization": f"Bearer {token_b}"})
+            self.assertEqual(sess_b.status_code, 200)
+            self.assertEqual(sess_b.json()["k"], key_b)
+
+            # /api/auth/me returns same session key
+            me_resp = self.client.get("/api/auth/me", headers={"Authorization": f"Bearer {token_a}"})
+            self.assertEqual(me_resp.status_code, 200)
+            self.assertEqual(me_resp.json()["session"]["k"], key_a)
+
+            # Test simulation of cache sweep / memory reload
+            sessions._user_sessions.clear()
+            sessions._sessions.clear()
+            v_reloaded = sessions.get_for_user(data_a["user"]["id"])
+            key_reloaded_b64 = base64.b64encode(v_reloaded.key).decode()
+            self.assertEqual(key_reloaded_b64, key_a)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -165,8 +165,26 @@ kbd {
   color: var(--text-faint);
 }
 
-/* Thin, quiet scrollbars in the panel. */
-* { scrollbar-width: thin; scrollbar-color: var(--ink-3) transparent; }
+/* Zero-Native-Scrollbars: custom 5px rounded ambient scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
 
 /* --------------------------------------------------------------- field */
 

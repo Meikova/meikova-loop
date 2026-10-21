@@ -1,3 +1,35 @@
+# Session Handoff - Fix Multi-Device Audio Playback ("Unable to decode audio data") & Duplicate Search Icon
+
+## 1. Mục tiêu hoàn thành
+- **Rà soát toàn diện các luồng (Full-Flow Audit) theo chuẩn /meikova**:
+  - **Luồng Upload file (`/api/upload`)**: Thêm header `Authorization: Bearer` trong `api.upload()` XHR request để tài khoản đã đăng nhập luôn gắn file tải lên vào thư viện cá nhân và đồng bộ đa thiết bị.
+  - **Bảo vệ quyền truy cập âm thanh (`_held`)**: Mở rộng `_held(v, tid)` trong `loopbox/server.py` cho phép phát kho nhạc mẫu công khai (`library.samples()["ids"]`) và tự động kiểm tra dự phòng thư viện tài khoản trong SQLite `user_libraries`.
+  - **Chuẩn Zero-Native-Dialogs**: Loại bỏ triệt để fallback `window.prompt/confirm/alert` trong `showModal` (`web/js/main.js`), thay thế bằng `showHudToast`.
+  - **Chuẩn Zero-Native-Scrollbars**: Áp dụng custom scrollbar 5px bo tròn, trong suốt, hover neon cho toàn bộ trang và container cuộn (`*::-webkit-scrollbar` và `scrollbar-width: thin`).
+- **Xử lý hoàn hảo luồng nhận Playlist qua link chia sẻ (`?pl_name=...&pl_tracks=...`)**:
+  - **Vấn đề trước đây**: `checkUrlPlaylistImport()` chạy đồng bộ khi parse script trước khi `ready()` hoàn thành -> `session.multiuser` bằng `false` -> bỏ qua lệnh `api.restore(tids)`. Do đó session của người nhận trên server không chứa bài hát -> bấm phát bị `HTTP 404: unknown track`.
+  - **Khắc phục**: Chuyển `checkUrlPlaylistImport()` sang `async`, `await ready()`, gọi `await api.restore(tids)` nạp bài hát vào session người nhận, `await refresh()` cập nhật danh sách bài hát và render giao diện. Đồng thời sửa điều kiện `missingPlIds` ở startup để mọi playlist trong local storage đều tự động được khôi phục vào server session.
+- **Sửa dứt điểm lỗi lặp icon kính lúp (`web/index.html`)**:
+  - Xóa thẻ `<svg>` bên trong nút submit `Tìm` tại `.add__field`, chỉ giữ lại `<span>Tìm</span>`. Giữ nguyên icon kính lúp phía trước ô input.
+- **Sửa dứt điểm lỗi không phát được nhạc đa thiết bị ("Unable to decode audio data")**:
+  - **Root Cause**: Trên Hugging Face Space (`MULTIUSER=1`), luồng stream audio được mã hóa XOR keystream bằng session key của `UserSessionView` trên server (`v.key`). Phía Client khi mở trang ban đầu được cấp một session key ẩn danh ngẫu nhiên. Khi người dùng đăng nhập (`login`/`register`/`google`), client chỉ lưu `userToken` mà không cập nhật lại `session.key`. Do đó, server mã hóa bằng User Key còn client giải mã bằng Guest Key cũ -> XOR ra dữ liệu rác (corrupted bytes) -> `AudioContext.decodeAudioData` quăng lỗi `Unable to decode audio data`.
+  - **Khắc phục Backend**:
+    - `loopbox/server.py`: Trả về `session` (chứa `sid`, `multiuser`, `k`) trong tất cả các endpoint xác thực: `POST /api/session`, `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/google`, `GET /api/auth/me`.
+    - `loopbox/sessions.py`: Gán deterministic 32-byte key cho `UserSessionView` sinh từ SHA-256 của `user_id` (`user_session_audio_key_v1:{user_id}`). Miễn trừ hết hạn TTL cho các session `u_*` trong `_load_session_db`. Cập nhật `UserSessionView.track_ids()` tự động đồng bộ tức thời với cơ sở dữ liệu `user_libraries`.
+  - **Khắc phục Frontend**:
+    - `web/js/api.js`: Thêm `updateSession(s)` và `resetSession()`. Trong `sound()`: Kiểm tra định dạng phản hồi không phải `text/html` hay `application/json`, tự động nạp lại `session` nếu thiếu key trước khi unscramble.
+    - `web/js/main.js`: Trong `onAuthSuccess()`: Cập nhật `session` ngay lập tức với key của người dùng, tự động gộp bài hát vãng lai trước khi đăng nhập (`localTrackIds`) với bài hát trong tài khoản (`remoteTrackIds`) qua `api.restore()`. Trong `btnLogout`: Reset session về guest session qua `resetSession()`.
+
+## 2. Kiểm thử & Verification
+- `test_auth_and_sync.py`: 7/7 tests passed (`Ran 7 tests in 1.214s, OK`, Exit Code 0), bao gồm test case mới mô phỏng kiểm tra key đồng bộ đa thiết bị `test_07_multi_device_session_key_and_audio_protection`.
+- `test_server_and_features.py`: `ALL TESTS PASSED WITH EXIT CODE 0` (28/28 tests passed, Exit Code 0).
+
+## 3. Cảnh báo kỹ thuật & Lưu ý
+- Khi người dùng đăng nhập trên thiết bị A hay thiết bị B, session key luôn nhất quán và khớp tuyệt đối với server dù server có restart hay reload bộ nhớ đệm.
+- Không bị mất bài hát tải lên trước khi bấm đăng nhập.
+
+---
+
 # Session Handoff - Cross-Platform System Tray & Background Runner
 
 ## 1. Mục tiêu hoàn thành

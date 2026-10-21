@@ -61,10 +61,10 @@ def _load_session_db(sid: str) -> "SessionView | None":
         if not row:
             return None
         sid, key, created_at, seen, ids_str, off_str = row
-        if time.time() - seen > SESSION_TTL_S:
+        if not sid.startswith("u_") and time.time() - seen > SESSION_TTL_S:
             return None
         v = SessionView(sid)
-        v.key = key
+        v.key = bytes(key) if key else None
         v.created_at = created_at
         v.seen = seen
         v.ids = json.loads(ids_str or "[]")
@@ -206,12 +206,25 @@ class UserSessionView(SessionView):
     Changes automatically sync to auth.save_user_library and persist across devices."""
 
     def __init__(self, user_id: str, sid: str | None = None):
+        import hashlib
         super().__init__(sid or f"u_{user_id}")
         self.user_id = user_id
+        # Stable 32-byte session key for the user across instances/restarts
+        self.key = hashlib.sha256(f"user_session_audio_key_v1:{user_id}".encode()).digest()
         from . import auth
         lib = auth.get_user_library(user_id)
         self.ids = list(lib.get("track_ids", []))
         self.off = set(lib.get("off_ids", []))
+
+    def track_ids(self) -> list[str]:
+        from . import auth
+        with _lock:
+            lib = auth.get_user_library(self.user_id)
+            db_ids = lib.get("track_ids", [])
+            if set(db_ids) != set(self.ids):
+                self.ids = list(db_ids)
+                self.off = set(lib.get("off_ids", []))
+            return list(self.ids)
 
     def _sync_db(self) -> None:
         from . import auth
@@ -345,7 +358,7 @@ def get_for_user(user_id: str) -> View:
             v = UserSessionView(user_id, sid=sid)
             existing = _load_session_db(sid)
             if existing and existing.key:
-                v.key = existing.key
+                v.key = bytes(existing.key)
             _user_sessions[user_id] = v
             _sessions[sid] = v
             _save_session_db(v)

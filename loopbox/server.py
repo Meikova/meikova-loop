@@ -247,6 +247,22 @@ def _add(v: sessions.View, tid: str, added: list) -> None:
     added.append(_public({**m, "enabled": True}))
 
 
+def _user_session_payload(user: dict) -> dict:
+    v = sessions.get_for_user(user["id"])
+    return {
+        "sid": v.id,
+        "multiuser": MULTIUSER,
+        "k": base64.b64encode(v.key).decode() if getattr(v, "key", None) else None,
+        "limits": {
+            "tracks": MAX_SESSION_TRACKS if MULTIUSER else None,
+            "playlist": MAX_PLAYLIST,
+            "upload_mb": MAX_UPLOAD_MB,
+            "audio_ttl_h": AUDIO_TTL_S // 3600 if MULTIUSER else None,
+            "max_duration_s": MAX_DURATION_S,
+        },
+    }
+
+
 @app.post("/api/session")
 def new_session(
     request: Request,
@@ -297,7 +313,7 @@ def auth_register(req: RegisterRequest):
         user = res["user"]
         token = res["token"]
         library_data = auth.get_user_library(user["id"])
-        return {"status": "ok", "user": user, "token": token, "library": library_data}
+        return {"status": "ok", "user": user, "token": token, "library": library_data, "session": _user_session_payload(user)}
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -313,7 +329,7 @@ def auth_login(req: LoginRequest):
         user = res["user"]
         token = res["token"]
         library_data = auth.get_user_library(user["id"])
-        return {"status": "ok", "user": user, "token": token, "library": library_data}
+        return {"status": "ok", "user": user, "token": token, "library": library_data, "session": _user_session_payload(user)}
     except HTTPException:
         raise
     except Exception as e:
@@ -327,7 +343,7 @@ def auth_google(req: GoogleAuthRequest):
         user = res["user"]
         token = res["token"]
         library_data = auth.get_user_library(user["id"])
-        return {"status": "ok", "user": user, "token": token, "library": library_data}
+        return {"status": "ok", "user": user, "token": token, "library": library_data, "session": _user_session_payload(user)}
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -495,7 +511,7 @@ def auth_me(
     if not user:
         raise HTTPException(401, "Chưa đăng nhập")
     library_data = auth.get_user_library(user["id"])
-    return {"user": user, "library": library_data}
+    return {"user": user, "library": library_data, "session": _user_session_payload(user)}
 
 
 @app.post("/api/auth/logout")
@@ -822,8 +838,21 @@ def relink(v: sessions.View = Depends(view_of)):
 
 def _held(v: sessions.View, tid: str) -> None:
     """Hosted, a song's data only goes to a library that holds it."""
-    if MULTIUSER and tid not in v.track_ids():
-        raise HTTPException(404, "unknown track")
+    if not MULTIUSER:
+        return
+    if tid in v.track_ids():
+        return
+    if tid in library.samples()["ids"]:
+        return
+    user_id = getattr(v, "user_id", None)
+    if user_id:
+        from . import auth
+        lib = auth.get_user_library(user_id)
+        if tid in lib.get("track_ids", []):
+            if hasattr(v, "ids") and tid not in v.ids:
+                v.ids.append(tid)
+            return
+    raise HTTPException(404, "unknown track")
 
 
 def keystream(key: bytes, tid: str) -> bytes:

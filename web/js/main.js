@@ -1,4 +1,4 @@
-import { api, currentUser, hooks, isMobile, Loader, ready, session, setCurrentUser, setUserToken, userToken } from "./api.js";
+import { api, currentUser, hooks, isMobile, Loader, ready, resetSession, session, setCurrentUser, setUserToken, updateSession, userToken } from "./api.js";
 import { Engine } from "./engine.js";
 import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
@@ -21,10 +21,8 @@ export function showModal({
 } = {}) {
   const dlg = $("#app-modal");
   if (!dlg || typeof dlg.showModal !== "function") {
-    if (prompt) return Promise.resolve(window.prompt(message || title, defaultValue));
-    if (cancelText) return Promise.resolve(window.confirm(message));
-    window.alert(message);
-    return Promise.resolve(true);
+    showHudToast(message || title);
+    return Promise.resolve(prompt ? defaultValue : true);
   }
   const titleEl = $("#modal-title");
   const bodyEl = $("#modal-body");
@@ -1576,10 +1574,10 @@ function renderPlaylistModalList() {
   }).join("");
 }
 
-function checkUrlPlaylistImport() {
+async function checkUrlPlaylistImport() {
   const params = new URLSearchParams(window.location.search);
   const name = params.get("pl_name");
-  const tracksParam = params.get("pl_tracks");
+  const tracksParam = params.get("pl_tracks") || params.get("tracks");
   if (name && tracksParam) {
     const tids = tracksParam.split(",").map((s) => s.trim()).filter(Boolean);
     if (tids.length) {
@@ -1593,9 +1591,21 @@ function checkUrlPlaylistImport() {
         savePlaylists();
       }
       activePlaylistId = existing.id;
+      await ready();
       if (session.multiuser) {
-        api.restore(tids).catch(() => {});
+        await api.restore(tids).catch(() => {});
+        await refresh();
       }
+      renderPlaylists();
+      renderActivePlaylistHeader();
+      showHudToast(`Đã nhận playlist "${name}" (${tids.length} bài)`);
+      try {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("pl_name");
+        cleanUrl.searchParams.delete("pl_tracks");
+        cleanUrl.searchParams.delete("tracks");
+        window.history.replaceState({}, "", cleanUrl.toString());
+      } catch (_) {}
     }
   }
 }
@@ -3654,24 +3664,31 @@ function updateAuthUI() {
 async function onAuthSuccess(res) {
   setUserToken(res.token);
   setCurrentUser(res.user);
+  if (res.session) {
+    updateSession(res.session);
+  } else {
+    await resetSession();
+  }
   updateAuthUI();
   const modal = $("#auth-modal");
   modal?.close();
   showHudToast(`Xin chào, ${res.user.display_name || res.user.username}!`);
 
-  // Merge library from server
-  if (res.library) {
-    if (res.library.playlists && res.library.playlists.length > 0) {
-      playlists = res.library.playlists;
-      savePlaylists();
-    }
-    if (res.library.track_ids && res.library.track_ids.length > 0) {
-      await api.restore(res.library.track_ids).catch(() => {});
-      await refresh();
-    }
+  // Merge library from server & preserve local tracks added before login
+  const localTrackIds = metas ? metas.map((m) => m.id) : [];
+  const remoteTrackIds = (res.library && res.library.track_ids) || [];
+  const mergedTrackIds = Array.from(new Set([...localTrackIds, ...remoteTrackIds]));
+
+  if (res.library && res.library.playlists && res.library.playlists.length > 0) {
+    playlists = res.library.playlists;
+    savePlaylists();
   }
 
+  if (mergedTrackIds.length > 0) {
+    await api.restore(mergedTrackIds).catch(() => {});
+  }
   await flushSyncQueue();
+  await refresh();
 }
 
 function initAuthAndSync() {
@@ -3755,9 +3772,11 @@ function initAuthAndSync() {
     await api.auth.logout().catch(() => {});
     setUserToken(null);
     setCurrentUser(null);
+    await resetSession();
     updateAuthUI();
     modal?.close();
     showHudToast("Đã đăng xuất tài khoản");
+    await refresh();
   });
 
   btnSync?.addEventListener("click", async () => {
@@ -3776,6 +3795,7 @@ function initAuthAndSync() {
   if (userToken) {
     api.auth.me().then((res) => {
       setCurrentUser(res.user);
+      if (res.session) updateSession(res.session);
       updateAuthUI();
       if (res.library && res.library.playlists && res.library.playlists.length > 0) {
         playlists = res.library.playlists;
@@ -3784,9 +3804,10 @@ function initAuthAndSync() {
         renderActivePlaylistHeader();
       }
       flushSyncQueue();
-    }).catch(() => {
+    }).catch(async () => {
       setUserToken(null);
       setCurrentUser(null);
+      await resetSession();
       updateAuthUI();
     });
   }
@@ -4025,8 +4046,9 @@ ready().then(async () => {
     for (const el of document.querySelectorAll("[data-ttl]")) el.textContent = session.limits.audio_ttl_h || 12;
 
     const plIds = [...new Set(playlists.flatMap((p) => p.trackIds || []))].filter(Boolean);
-    if (plIds.length && !metas.length) {
-      await api.restore(plIds).catch(() => {});
+    const missingPlIds = plIds.filter((id) => !metas.some((m) => m.id === id));
+    if (missingPlIds.length) {
+      await api.restore(missingPlIds).catch(() => {});
       await refresh();
     }
   }

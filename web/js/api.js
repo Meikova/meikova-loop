@@ -17,6 +17,24 @@ export function setCurrentUser(user) {
   currentUser = user;
 }
 
+export function updateSession(s) {
+  if (!s) return;
+  if (s.user) currentUser = s.user;
+  Object.assign(session, {
+    id: s.sid || s.id || session.id,
+    multiuser: s.multiuser ?? session.multiuser,
+    limits: s.limits || session.limits || {},
+    key: s.k ? Uint8Array.from(atob(s.k), (c) => c.charCodeAt(0)) : (s.key || session.key),
+  });
+}
+
+export async function resetSession() {
+  session.id = null;
+  session.key = null;
+  opening = null;
+  return open();
+}
+
 let opening = null;
 // Called after the server lost the session (it restarted): put the songs back.
 export const hooks = { restore: async () => {} };
@@ -85,12 +103,15 @@ async function sound(id, kind, kid, retry) {
   if (userToken) headers["Authorization"] = `Bearer ${userToken}`;
   const r = await fetch(`/api/tracks/${id}/${kind}`, { headers });
   if (r.status === 410 && retry) {
-    session.id = null;
-    await open();
+    await resetSession();
     await hooks.restore();
     return sound(id, kind, kid, false);
   }
   if (!r.ok) await fail(r);
+  const ct = r.headers.get("Content-Type") || "";
+  if (ct.includes("text/html") || ct.includes("application/json")) {
+    throw new Error(`Định dạng âm thanh phản hồi không hợp lệ (${ct})`);
+  }
   const buf = await r.arrayBuffer();
   const cr = r.headers.get("Content-Range");
   let byteOffset = 0;
@@ -98,7 +119,13 @@ async function sound(id, kind, kid, retry) {
     const m = /bytes\s+(\d+)-/i.exec(cr);
     if (m) byteOffset = parseInt(m[1], 10);
   }
-  return r.headers.get("X-Mash") === "1" ? unscramble(buf, kid, byteOffset) : buf;
+  if (r.headers.get("X-Mash") === "1") {
+    if (!session.key) {
+      await open();
+    }
+    return unscramble(buf, kid, byteOffset);
+  }
+  return buf;
 }
 
 async function fail(r) {
@@ -173,6 +200,7 @@ export const api = {
       const x = new XMLHttpRequest();
       x.open("POST", "/api/upload");
       x.setRequestHeader("X-Session", session.id);
+      if (userToken) x.setRequestHeader("Authorization", `Bearer ${userToken}`);
       x.setRequestHeader("X-Filename", encodeURIComponent(file.name));
       x.setRequestHeader("Content-Type", "application/octet-stream");
       x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
