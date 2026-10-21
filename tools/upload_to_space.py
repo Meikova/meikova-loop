@@ -14,7 +14,7 @@ if env_file.exists():
 
 TOKEN = os.environ.get("HF_TOKEN")
 
-REPO_ID = "m3ik18dp/MashLoop"
+REPO_ID = "m3ik18dp/meikova-loop"
 
 api = HfApi()
 

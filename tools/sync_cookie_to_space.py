@@ -15,7 +15,7 @@ if env_file.exists():
             os.environ.setdefault(k.strip(), v.strip())
 
 TOKEN = os.environ.get("HF_TOKEN")
-REPO_ID = "m3ik18dp/MashLoop"
+REPO_ID = "m3ik18dp/meikova-loop"
 
 json_file = Path(r"E:\Downloads\www.youtube.com_20-10-2026.json")
 if not json_file.exists():

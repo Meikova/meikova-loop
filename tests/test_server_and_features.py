@@ -37,7 +37,7 @@ def test_ip_extraction():
 
 def test_qr_api():
     client = TestClient(app)
-    resp = client.get("/api/qr?url=https://m3ik18dp-mashloop.hf.space")
+    resp = client.get("/api/qr?url=https://m3ik18dp-meikova-loop.hf.space")
     assert resp.status_code == 200
     assert "image/svg+xml" in resp.headers.get("content-type", "")
     assert "<svg" in resp.text

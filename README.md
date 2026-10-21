@@ -19,7 +19,7 @@ license: mit
 > - **Kho mã nguồn gốc (Original Repository):** [https://github.com/lvt1693/mashloop](https://github.com/lvt1693/mashloop)
 > - **Trang web chính thức của tác giả:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
 > - **Bản fork phát triển bởi:** **Phạm Đoàn Kiếm** ([@m3iK18dp](https://github.com/m3iK18dp))
-> - **Bản web trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space) (hoặc xem tại [Hugging Face Space](https://huggingface.co/spaces/m3ik18dp/MashLoop))
+> - **Bản web trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space) (hoặc xem tại [Hugging Face Space](https://huggingface.co/spaces/m3ik18dp/meikova-loop))
 >
 > **Các tính năng mở rộng trong bản fork này:**
 > 1. **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MeikovaLoop/MeikovaLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
@@ -31,7 +31,7 @@ license: mit
 
 Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
 
-- **Trải nghiệm trực tuyến (Bản fork trên HF Space):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space)
+- **Trải nghiệm trực tuyến (Bản fork trên HF Space):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space)
 - **Nghe thử bản gốc:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
 
 
@@ -103,7 +103,7 @@ trống chưa khớp nhịp thì không crossfade chồng lên nhau.
 
 ## Dùng bản trên web
 
-- **Bản trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-mashloop.hf.space](https://m3ik18dp-mashloop.hf.space)
+- **Bản trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space)
 - **Bản gốc của tác giả:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
 
 Mỗi lần mở trang là một thư viện mới, trống trơn, của riêng bạn. Chưa biết thêm gì thì mở một trong 9 kho có sẵn: Pass The Aux (làm bằng Suno), Pop, Rock, Hip-hop, Electro & Dance, Chill & Lofi, Acoustic, Remix ccMixter, Kevin MacLeod. Tám kho sau là nhạc Creative Commons từ Jamendo, ccMixter và Incompetech, có ghi tên tác giả. Nghe hết một kho thì nó tự nối sang kho kế, hoặc bấm *Kho khác*.
