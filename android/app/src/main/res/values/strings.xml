@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">MashLoop</string>
-    <string name="title_activity_main">MashLoop</string>
-    <string name="package_name">com.m3ik18dp.mashloop</string>
-    <string name="custom_url_scheme">com.m3ik18dp.mashloop</string>
+    <string name="app_name">Meikova Loop</string>
+    <string name="title_activity_main">Meikova Loop</string>
+    <string name="package_name">com.meikova.loop</string>
+    <string name="custom_url_scheme">com.meikova.loop</string>
 </resources>

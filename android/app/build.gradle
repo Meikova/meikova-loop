@@ -4,7 +4,7 @@ android {
     namespace "com.m3ik18dp.mashloop"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.m3ik18dp.mashloop"
+        applicationId "com.meikova.loop"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -72,7 +72,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="MashLoop",
+    name="MeikovaLoop",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -94,15 +94,15 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="MashLoop",
+    name="MeikovaLoop",
 )
 
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="MashLoop.app",
+        name="MeikovaLoop.app",
         icon=str(ROOT / "web" / "img" / "icon.ico") if (ROOT / "web" / "img" / "icon.ico").exists() else None,
-        bundle_identifier="com.mashloop.app",
+        bundle_identifier="com.meikova.loop",
         info_plist={
             "NSPrincipalClass": "NSApplication",
             "NSAppleScriptEnabled": False,
