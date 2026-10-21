@@ -17,8 +17,8 @@ def _load_env_file() -> None:
 _load_env_file()
 
 def _resolve_data_dir() -> Path:
-    if os.environ.get("MASHLOOP_DATA"):
-        return Path(os.environ["MASHLOOP_DATA"])
+    if os.environ.get("MEIKOVA_LOOP_DATA") or os.environ.get("MASHLOOP_DATA"):
+        return Path(os.environ.get("MEIKOVA_LOOP_DATA") or os.environ["MASHLOOP_DATA"])
     if getattr(sys, "frozen", False):
         try:
             (ROOT / "data").mkdir(parents=True, exist_ok=True)
@@ -27,7 +27,7 @@ def _resolve_data_dir() -> Path:
             test_f.unlink()
             return ROOT / "data"
         except (PermissionError, OSError):
-            return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "MashLoop" / "data"
+            return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "MeikovaLoop" / "data"
     return ROOT / "data"
 
 DATA_DIR = _resolve_data_dir()
@@ -48,32 +48,32 @@ def _env_int(name: str, default: int) -> int:
     return int(os.environ.get(name) or default)
 
 
-HOST = os.environ.get("MASHLOOP_HOST") or "0.0.0.0"
-PORT = _env_int("MASHLOOP_PORT", 8765)
+HOST = os.environ.get("MEIKOVA_LOOP_HOST") or os.environ.get("MASHLOOP_HOST") or "0.0.0.0"
+PORT = _env_int("MEIKOVA_LOOP_PORT", _env_int("MASHLOOP_PORT", 8765))
 
 # Hosted for many listeners (MASHLOOP_MULTIUSER=1): every visit starts an empty
 # library of its own, and songs anyone has added are kept as a shared cache.
 # Off (the default) it is the personal app: one library, kept between visits.
-MULTIUSER = os.environ.get("MASHLOOP_MULTIUSER") == "1"
+MULTIUSER = (os.environ.get("MEIKOVA_LOOP_MULTIUSER") or os.environ.get("MASHLOOP_MULTIUSER")) == "1"
 # Songs analysed at once (each worker process holds its own models on the GPU)
 # and processes computing transitions between songs.
-ANALYSIS_WORKERS = _env_int("MASHLOOP_ANALYSIS_WORKERS", 1)
-LINK_WORKERS = _env_int("MASHLOOP_LINK_WORKERS", 1)
+ANALYSIS_WORKERS = _env_int("MEIKOVA_LOOP_ANALYSIS_WORKERS", _env_int("MASHLOOP_ANALYSIS_WORKERS", 1))
+LINK_WORKERS = _env_int("MEIKOVA_LOOP_LINK_WORKERS", _env_int("MASHLOOP_LINK_WORKERS", 1))
 # CPU threads per worker process (numpy, librosa, torch on the CPU parts).
-WORKER_THREADS = _env_int("MASHLOOP_WORKER_THREADS", 4)
+WORKER_THREADS = _env_int("MEIKOVA_LOOP_WORKER_THREADS", _env_int("MASHLOOP_WORKER_THREADS", 4))
 # Shared cache size: past it, the songs nobody has used for longest go.
-MAX_STORE_GB = float(os.environ.get("MASHLOOP_MAX_STORE_GB") or 0)  # 0 = no limit
-MAX_SESSION_TRACKS = _env_int("MASHLOOP_MAX_SESSION_TRACKS", 60)
-MAX_PLAYLIST = _env_int("MASHLOOP_MAX_PLAYLIST", 50)
-MAX_UPLOAD_MB = _env_int("MASHLOOP_MAX_UPLOAD_MB", 500)
-SESSION_TTL_S = _env_int("MASHLOOP_SESSION_TTL_H", 12) * 3600
+MAX_STORE_GB = float(os.environ.get("MEIKOVA_LOOP_MAX_STORE_GB") or os.environ.get("MASHLOOP_MAX_STORE_GB") or 0)  # 0 = no limit
+MAX_SESSION_TRACKS = _env_int("MEIKOVA_LOOP_MAX_SESSION_TRACKS", _env_int("MASHLOOP_MAX_SESSION_TRACKS", 60))
+MAX_PLAYLIST = _env_int("MEIKOVA_LOOP_MAX_PLAYLIST", _env_int("MASHLOOP_MAX_PLAYLIST", 50))
+MAX_UPLOAD_MB = _env_int("MEIKOVA_LOOP_MAX_UPLOAD_MB", _env_int("MASHLOOP_MAX_UPLOAD_MB", 500))
+SESSION_TTL_S = _env_int("MEIKOVA_LOOP_SESSION_TTL_H", _env_int("MASHLOOP_SESSION_TTL_H", 12)) * 3600
 # Hosted, the sound of a song nobody has used for this long is deleted; what the
 # analysis made stays, so adding the song again only fetches the sound (an
 # uploaded file has to be uploaded again). The sample library and the songs an
 # open library holds are kept.
-AUDIO_TTL_S = _env_int("MASHLOOP_AUDIO_TTL_H", 12) * 3600
+AUDIO_TTL_S = _env_int("MEIKOVA_LOOP_AUDIO_TTL_H", _env_int("MASHLOOP_AUDIO_TTL_H", 12)) * 3600
 # JavaScript runtime yt-dlp uses for YouTube's player challenges (node or deno).
-JS_RUNTIME = os.environ.get("MASHLOOP_JS_RUNTIME") or "node"
+JS_RUNTIME = os.environ.get("MEIKOVA_LOOP_JS_RUNTIME") or os.environ.get("MASHLOOP_JS_RUNTIME") or "node"
 
 # Audio stored for playback and analysis: identical samples on both sides.
 SAMPLE_RATE = 44100
@@ -81,7 +81,7 @@ ANALYSIS_SR = 22050
 TARGET_LUFS = -14.0
 # Up to 60 minutes per track on Desktop / local personal app.
 # Multi-user / hosted environments (Space) default to 15 minutes to preserve resources.
-MAX_DURATION_S = _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60 if MULTIUSER else 60 * 60)
+MAX_DURATION_S = _env_int("MEIKOVA_LOOP_MAX_DURATION_S", _env_int("MASHLOOP_MAX_DURATION_S", 15 * 60 if MULTIUSER else 60 * 60))
 
 DEVICE = "cuda"  # falls back to cpu at runtime when CUDA is unavailable
 

@@ -24,15 +24,15 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-os.environ.setdefault("MASHLOOP_DATA", str(ROOT / "data"))
+os.environ.setdefault("MEIKOVA_LOOP_DATA", str(ROOT / "data"))
 sys.path.insert(0, str(ROOT))
 from loopbox import library  # noqa: E402
 from loopbox.config import DATA_DIR  # noqa: E402
 from loopbox.download import cc_name, track_id  # noqa: E402
 
 http.client._MAXLINE = 1 << 20  # ccMixter sends a header line over the 64 KiB default
-BASE = os.environ.get("MASHLOOP_URL", "http://127.0.0.1:18765")
-UA = "MashLoop-seed/1.0 (+https://mashloop.truclv.com; non-commercial sample library)"
+BASE = os.environ.get("MEIKOVA_LOOP_URL", "http://127.0.0.1:18765")
+UA = "Meikova Loop-seed/1.0 (+https://mashloop.truclv.com; non-commercial sample library)"
 MIN_S, MAX_S = 120, 420
 PER_ARTIST = 2  # songs one artist may have in a library, so a theme is not one band's album
 IN_FLIGHT = 24  # songs being fetched or analysed at once (the app turns new ones away past 60)

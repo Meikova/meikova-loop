@@ -209,7 +209,7 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "mashloop-v82" in sw_js
+    assert "meikova-loop-v82" in sw_js
     assert "app.css?v=82" in index_html
     assert "main.js?v=82" in index_html
     assert "sw.js?v=82" in index_html
@@ -538,7 +538,7 @@ def test_volume_150_themes_skip_and_shortcuts():
     assert 'Chế độ Chuỗi / Đơn / Tự do' in index_html
 
     # 5. Service worker bump
-    assert "mashloop-v82" in sw_js
+    assert "meikova-loop-v82" in sw_js
 
 
 def test_downloads_and_expanded_modals():
@@ -548,7 +548,7 @@ def test_downloads_and_expanded_modals():
     resp_desk = client.head("/api/download/desktop", follow_redirects=False)
     assert resp_desk.status_code in (200, 307)
     if resp_desk.status_code == 307:
-        assert "github.com/m3iK18dp/mashloop/releases" in resp_desk.headers["location"]
+        assert "github.com/Meikova/meikova-loop/releases" in resp_desk.headers["location"]
     else:
         assert "zip" in resp_desk.headers.get("content-type", "") or "octet-stream" in resp_desk.headers.get("content-type", "")
 
@@ -556,12 +556,12 @@ def test_downloads_and_expanded_modals():
     resp_apk = client.head("/api/download/apk", follow_redirects=False)
     assert resp_apk.status_code in (200, 307)
     if resp_apk.status_code == 307:
-        assert "MashLoop.apk" in resp_apk.headers["location"]
+        assert "MeikovaLoop.apk" in resp_apk.headers["location"]
 
     # 3. Download IPA endpoint
     resp_ipa = client.get("/api/download/ipa", follow_redirects=False)
     assert resp_ipa.status_code == 307
-    assert "MashLoop.ipa" in resp_ipa.headers["location"]
+    assert "MeikovaLoop.ipa" in resp_ipa.headers["location"]
 
     # 4. Modal widths and downloads UI check
     root = Path(__file__).resolve().parent.parent
@@ -642,15 +642,15 @@ def test_cross_platform_releases_and_media_controls():
 
     # 1. Download endpoints routing
     for target, expected_file in [
-        ("windows", "MashLoop-Windows.zip"),
-        ("desktop", "MashLoop-Windows.zip"),
-        ("macos", "MashLoop-macOS.zip"),
-        ("mac", "MashLoop-macOS.zip"),
-        ("linux", "MashLoop-Linux.tar.gz"),
-        ("apk", "MashLoop.apk"),
-        ("android", "MashLoop.apk"),
-        ("ipa", "MashLoop.ipa"),
-        ("ios", "MashLoop.ipa"),
+        ("windows", "MeikovaLoop-Windows.zip"),
+        ("desktop", "MeikovaLoop-Windows.zip"),
+        ("macos", "MeikovaLoop-macOS.zip"),
+        ("mac", "MeikovaLoop-macOS.zip"),
+        ("linux", "MeikovaLoop-Linux.tar.gz"),
+        ("apk", "MeikovaLoop.apk"),
+        ("android", "MeikovaLoop.apk"),
+        ("ipa", "MeikovaLoop.ipa"),
+        ("ios", "MeikovaLoop.ipa"),
     ]:
         resp = client.head(f"/api/download/{target}", follow_redirects=False)
         assert resp.status_code in (200, 307), f"Download route /api/download/{target} must return 200 or 307, got {resp.status_code}"
@@ -665,7 +665,7 @@ def test_cross_platform_releases_and_media_controls():
     assert resp_invalid.status_code == 404, "Invalid download target must return 404"
 
     # 2. PyInstaller spec cross-platform support
-    spec_content = Path("mashloop.spec").read_text(encoding="utf-8")
+    spec_content = Path("meikova_loop.spec").read_text(encoding="utf-8")
     assert 'sys.platform == "darwin"' in spec_content, "Spec must support macOS darwin"
     assert 'sys.platform.startswith("linux")' in spec_content, "Spec must support Linux"
     assert 'BUNDLE(' in spec_content, "Spec must create macOS BUNDLE"

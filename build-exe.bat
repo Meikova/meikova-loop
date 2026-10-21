@@ -6,8 +6,8 @@ if not exist ".venv\Scripts\pyinstaller.exe" (
     ".venv\Scripts\python.exe" -m pip install pyinstaller
 )
 
-echo [2/3] Build MashLoop Desktop Executable...
-".venv\Scripts\pyinstaller.exe" --noconfirm mashloop.spec
+echo [2/3] Build Meikova Loop Desktop Executable...
+".venv\Scripts\pyinstaller.exe" --noconfirm meikova_loop.spec
 
-echo [3/3] Hoan tat! File chay nam tai: dist\MashLoop\MashLoop.exe
+echo [3/3] Hoan tat! File chay nam tai: dist\MeikovaLoop\MeikovaLoop.exe
 pause

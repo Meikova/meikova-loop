@@ -17,9 +17,9 @@ from fastapi import HTTPException
 
 from .config import MULTIUSER
 
-# ponytail: ratelimit disabled during development by default; set MASHLOOP_RATELIMIT=1 in strict production
-RATELIMIT_ENABLED = os.environ.get("MASHLOOP_RATELIMIT", "0") == "1"
-WHITELIST_IPS = set(filter(None, os.environ.get("MASHLOOP_IP_WHITELIST", "").replace(" ", "").split(",")))
+# ponytail: ratelimit disabled during development by default; set MEIKOVA_LOOP_RATELIMIT=1 in strict production
+RATELIMIT_ENABLED = os.environ.get("MEIKOVA_LOOP_RATELIMIT", "0") == "1"
+WHITELIST_IPS = set(filter(None, os.environ.get("MEIKOVA_LOOP_IP_WHITELIST", "").replace(" ", "").split(",")))
 
 # kind -> (requests allowed, per seconds, message)
 LIMITS = {

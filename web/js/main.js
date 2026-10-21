@@ -1302,7 +1302,7 @@ function libCards(libs) {
 }
 
 // ------------------------------------------------------------- playlists & albums
-const PL_STORE_KEY = "mashloop.playlists.v1";
+const PL_STORE_KEY = "meikova.loop.playlists.v1";
 let playlists = [];
 let activePlaylistId = ui.activePlaylistId || "all";
 let lockToPlaylist = Boolean(ui.lockToPlaylist);
@@ -2312,7 +2312,7 @@ async function downloadTrack(id, btn) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${title} - MashLoop.mp3`;
+    a.download = `${title} - MeikovaLoop.mp3`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2702,7 +2702,7 @@ $("#add-form").addEventListener("submit", async (e) => {
   const box = $("#search-results");
   const submit = $("#add-form button[type=submit]");
 
-  // Check if user pasted a MashLoop share URL
+  // Check if user pasted a Meikova Loop share URL
   if (text.includes("pl_tracks=") || text.includes("tracks=")) {
     try {
       const u = new URL(text);
@@ -3045,7 +3045,7 @@ window.addEventListener("appinstalled", () => {
   const pwaDesc = $("#pwa-install-desc");
   if (pwaBadge) pwaBadge.textContent = "INSTALLED";
   if (pwaDesc) pwaDesc.textContent = "Đã cài đặt ✓";
-  showHudToast("Đã cài đặt MashLoop Web App thành công!");
+  showHudToast("Đã cài đặt Meikova Loop Web App thành công!");
 });
 
 if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) {
@@ -3532,7 +3532,7 @@ function initCookieManagement() {
 }
 
 // ------------------------------------------------------------- User Authentication & Offline Sync
-const SYNC_QUEUE_KEY = "mashloop.sync_queue.v1";
+const SYNC_QUEUE_KEY = "meikova.loop.sync_queue.v1";
 
 function getQueuedSync() {
   try {
@@ -3824,13 +3824,13 @@ function initAuthAndSync() {
 
   // Listen to cross-window auth message or storage change
   window.addEventListener("message", async (e) => {
-    if (e.data?.type === "MASHLOOP_AUTH_SUCCESS" && e.data?.token) {
+    if (e.data?.type === "MEIKOVA_LOOP_AUTH_SUCCESS" && e.data?.token) {
       await onAuthSuccess({ token: e.data.token, user: e.data.user });
     }
   });
 
   window.addEventListener("storage", async (e) => {
-    if (e.key === "mashloop:login_event" && e.newValue) {
+    if (e.key === "meikova:loop:login_event" && e.newValue) {
       try {
         const payload = JSON.parse(e.newValue);
         if (payload?.token && payload?.user) {
@@ -3919,7 +3919,7 @@ function initAuthAndSync() {
         if (isMobileOrStandalone) {
           window.location.href = res.auth_url;
         } else {
-          const popup = window.open(res.auth_url, "MashLoopGoogleAuth", "width=520,height=640");
+          const popup = window.open(res.auth_url, "MeikovaLoopGoogleAuth", "width=520,height=640");
           if (!popup || popup.closed || typeof popup.closed === "undefined") {
             window.location.href = res.auth_url;
           }

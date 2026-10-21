@@ -1,7 +1,7 @@
 """Web server: python -m loopbox.server [--open] [--host H] [--port P]
 
 Personal by default (http://127.0.0.1:8765, one library on disk). With
-MASHLOOP_MULTIUSER=1 every visit gets a library of its own (X-Session header)
+MEIKOVA_LOOP_MULTIUSER=1 every visit gets a library of its own (X-Session header)
 over a shared store of songs; see sessions.py."""
 import argparse
 import hashlib
@@ -388,17 +388,17 @@ def auth_google_callback(
             auth.fulfill_auth_request(state, {"token": token, "user": user})
             target_name = "Desktop App" if is_desktop else "Mobile App"
             msg = (
-                "Đã gửi phiên đăng nhập vào ứng dụng MashLoop trên máy tính.<br>Tab này sẽ tự đóng..."
+                "Đã gửi phiên đăng nhập vào ứng dụng Meikova Loop trên máy tính.<br>Tab này sẽ tự đóng..."
                 if is_desktop
-                else "Đã gửi phiên đăng nhập vào ứng dụng MashLoop trên điện thoại.<br>Bấm nút bên dưới để mở lại app nếu tab không tự đóng."
+                else "Đã gửi phiên đăng nhập vào ứng dụng Meikova Loop trên điện thoại.<br>Bấm nút bên dưới để mở lại app nếu tab không tự đóng."
             )
             app_link_html = (
-                '<div class="actions"><a href="com.m3ik18dp.mashloop://" class="btn">Mở lại MashLoop App</a><button class="btn btn-ghost" onclick="window.close()">Đóng tab</button></div>'
+                '<div class="actions"><a href="com.meikova.loop://" class="btn">Mở lại Meikova Loop App</a><button class="btn btn-ghost" onclick="window.close()">Đóng tab</button></div>'
                 if is_mobile
                 else '<button class="btn" onclick="window.close()">Đóng tab</button>'
             )
             redirect_js = (
-                "setTimeout(() => { window.location.href = 'com.m3ik18dp.mashloop://'; }, 400); setTimeout(() => window.close(), 1500);"
+                "setTimeout(() => { window.location.href = 'com.meikova.loop://'; }, 400); setTimeout(() => window.close(), 1500);"
                 if is_mobile
                 else "setTimeout(() => window.close(), 1200);"
             )
@@ -407,7 +407,7 @@ def auth_google_callback(
         <head>
           <meta charset="utf-8"/>
           <meta name="viewport" content="width=device-width, initial-scale=1"/>
-          <title>MashLoop // Đã xác thực cho {target_name}</title>
+          <title>Meikova Loop // Đã xác thực cho {target_name}</title>
           <style>
             body {{ background: #0e1015; color: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }}
             .card {{ background: #181b22; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 32px 24px; text-align: center; max-width: 380px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }}
@@ -426,8 +426,8 @@ def auth_google_callback(
           </div>
           <script>
             try {{
-              localStorage.removeItem('mashloop:token');
-              localStorage.removeItem('mashloop:login_event');
+              localStorage.removeItem('meikova:loop:token');
+              localStorage.removeItem('meikova:loop:login_event');
             }} catch(e) {{}}
             {redirect_js}
           </script>
@@ -440,7 +440,7 @@ def auth_google_callback(
         <head>
           <meta charset="utf-8"/>
           <meta name="viewport" content="width=device-width, initial-scale=1"/>
-          <title>MashLoop // Đăng nhập thành công</title>
+          <title>Meikova Loop // Đăng nhập thành công</title>
           <style>
             body {{ background: #0e1015; color: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }}
             .card {{ background: #181b22; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; padding: 32px 24px; text-align: center; max-width: 380px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }}
@@ -456,16 +456,16 @@ def auth_google_callback(
             <h2>Đăng nhập thành công!</h2>
             <p>Chào mừng <b>{user_name}</b>.<br>Đang đồng bộ dữ liệu vào ứng dụng...</p>
             <div class="actions">
-              <a href="/" class="btn" id="btn-return">Mở MashLoop ngay</a>
+              <a href="/" class="btn" id="btn-return">Mở Meikova Loop ngay</a>
               <button class="btn btn-ghost" id="btn-close" onclick="window.close()">Đóng tab</button>
             </div>
           </div>
           <script>
             try {{
-              localStorage.setItem('mashloop:token', '{token}');
-              localStorage.setItem('mashloop:login_event', JSON.stringify({{ token: '{token}', user: {json.dumps(user)}, time: Date.now() }}));
+              localStorage.setItem('meikova:loop:token', '{token}');
+              localStorage.setItem('meikova:loop:login_event', JSON.stringify({{ token: '{token}', user: {json.dumps(user)}, time: Date.now() }}));
               if (window.opener) {{
-                window.opener.postMessage({{ type: 'MASHLOOP_AUTH_SUCCESS', token: '{token}', user: {json.dumps(user)} }}, '*');
+                window.opener.postMessage({{ type: 'MEIKOVA_LOOP_AUTH_SUCCESS', token: '{token}', user: {json.dumps(user)} }}, '*');
               }}
             }} catch(e) {{}}
             setTimeout(() => {{
@@ -1021,7 +1021,7 @@ def download_app(target: str, request: Request):
     target_lower = target.lower().strip()
     root = Path(__file__).resolve().parent.parent
     dl_dir = root / "web" / "downloads"
-    release_base = "https://github.com/m3iK18dp/mashloop/releases/latest/download"
+    release_base = "https://github.com/Meikova/meikova-loop/releases/latest/download"
 
     def _serve(path: Path, media_type: str, filename: str):
         if request.method == "HEAD":
@@ -1032,46 +1032,46 @@ def download_app(target: str, request: Request):
         return FileResponse(path, media_type=media_type, filename=filename)
 
     if target_lower in ("desktop", "windows", "exe", "win"):
-        zip_file = dl_dir / "MashLoop-Windows.zip"
+        zip_file = dl_dir / "MeikovaLoop-Windows.zip"
         if zip_file.exists() and zip_file.stat().st_size > 0:
-            return _serve(zip_file, "application/zip", "MashLoop-Windows.zip")
-        exe_file = root / "dist" / "MashLoop" / "MashLoop.exe"
+            return _serve(zip_file, "application/zip", "MeikovaLoop-Windows.zip")
+        exe_file = root / "dist" / "MeikovaLoop" / "MeikovaLoop.exe"
         if exe_file.exists() and exe_file.stat().st_size > 0:
-            return _serve(exe_file, "application/octet-stream", "MashLoop.exe")
-        return RedirectResponse(f"{release_base}/MashLoop-Windows.zip", status_code=307)
+            return _serve(exe_file, "application/octet-stream", "MeikovaLoop.exe")
+        return RedirectResponse(f"{release_base}/MeikovaLoop-Windows.zip", status_code=307)
 
     elif target_lower in ("macos", "mac", "darwin", "osx"):
-        zip_file = dl_dir / "MashLoop-macOS.zip"
+        zip_file = dl_dir / "MeikovaLoop-macOS.zip"
         if zip_file.exists() and zip_file.stat().st_size > 0:
-            return _serve(zip_file, "application/zip", "MashLoop-macOS.zip")
-        dist_zip = root / "dist" / "MashLoop-macOS.zip"
+            return _serve(zip_file, "application/zip", "MeikovaLoop-macOS.zip")
+        dist_zip = root / "dist" / "MeikovaLoop-macOS.zip"
         if dist_zip.exists() and dist_zip.stat().st_size > 0:
-            return _serve(dist_zip, "application/zip", "MashLoop-macOS.zip")
-        return RedirectResponse(f"{release_base}/MashLoop-macOS.zip", status_code=307)
+            return _serve(dist_zip, "application/zip", "MeikovaLoop-macOS.zip")
+        return RedirectResponse(f"{release_base}/MeikovaLoop-macOS.zip", status_code=307)
 
     elif target_lower in ("linux", "tar.gz"):
-        tar_file = dl_dir / "MashLoop-Linux.tar.gz"
+        tar_file = dl_dir / "MeikovaLoop-Linux.tar.gz"
         if tar_file.exists() and tar_file.stat().st_size > 0:
-            return _serve(tar_file, "application/gzip", "MashLoop-Linux.tar.gz")
-        dist_tar = root / "dist" / "MashLoop-Linux.tar.gz"
+            return _serve(tar_file, "application/gzip", "MeikovaLoop-Linux.tar.gz")
+        dist_tar = root / "dist" / "MeikovaLoop-Linux.tar.gz"
         if dist_tar.exists() and dist_tar.stat().st_size > 0:
-            return _serve(dist_tar, "application/gzip", "MashLoop-Linux.tar.gz")
-        return RedirectResponse(f"{release_base}/MashLoop-Linux.tar.gz", status_code=307)
+            return _serve(dist_tar, "application/gzip", "MeikovaLoop-Linux.tar.gz")
+        return RedirectResponse(f"{release_base}/MeikovaLoop-Linux.tar.gz", status_code=307)
 
     elif target_lower in ("apk", "android"):
-        apk_file = dl_dir / "MashLoop.apk"
+        apk_file = dl_dir / "MeikovaLoop.apk"
         if apk_file.exists() and apk_file.stat().st_size > 0:
-            return _serve(apk_file, "application/vnd.android.package-archive", "MashLoop.apk")
+            return _serve(apk_file, "application/vnd.android.package-archive", "MeikovaLoop.apk")
         debug_apk = root / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
         if debug_apk.exists() and debug_apk.stat().st_size > 0:
-            return _serve(debug_apk, "application/vnd.android.package-archive", "MashLoop.apk")
-        return RedirectResponse(f"{release_base}/MashLoop.apk", status_code=307)
+            return _serve(debug_apk, "application/vnd.android.package-archive", "MeikovaLoop.apk")
+        return RedirectResponse(f"{release_base}/MeikovaLoop.apk", status_code=307)
 
     elif target_lower in ("ipa", "ios", "iphone"):
-        ipa_file = dl_dir / "MashLoop.ipa"
+        ipa_file = dl_dir / "MeikovaLoop.ipa"
         if ipa_file.exists() and ipa_file.stat().st_size > 0:
-            return _serve(ipa_file, "application/octet-stream", "MashLoop.ipa")
-        return RedirectResponse(f"{release_base}/MashLoop.ipa", status_code=307)
+            return _serve(ipa_file, "application/octet-stream", "MeikovaLoop.ipa")
+        return RedirectResponse(f"{release_base}/MeikovaLoop.ipa", status_code=307)
 
     raise HTTPException(404, f"Không hỗ trợ tải mục tiêu: {target}")
 

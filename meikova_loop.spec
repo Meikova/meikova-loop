@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller specification for MashLoop Desktop Application."""
+"""PyInstaller specification for Meikova Loop Desktop Application."""
 import sys
 from pathlib import Path
 
@@ -50,7 +50,7 @@ elif sys.platform.startswith("linux"):
     hiddenimports.extend(["webview.platforms.gtk", "gi"])
 
 a = Analysis(
-    ["mashloop_app.py"],
+    ["meikova_loop_app.py"],
     pathex=[str(ROOT)],
     binaries=[],
     datas=datas,

@@ -1,7 +1,7 @@
 """Music from the web through yt-dlp: YouTube (and YouTube Music), SoundCloud,
 Spotify, Zing MP3, Bandcamp, TikTok, Facebook, Instagram, Twitter/X, Bilibili,
 Mixcloud, Jamendo, Vimeo, Dailymotion, Audius and generic web media.
-Single songs, albums and playlists. A JS runtime (node or deno, MASHLOOP_JS_RUNTIME)
+Single songs, albums and playlists. A JS runtime (node or deno, MEIKOVA_LOOP_JS_RUNTIME)
 solves YouTube's player challenges.
 
 Ids: a YouTube video keeps its own 11-character id; a song from any other

@@ -1,4 +1,4 @@
-"""Cookie management for YouTube and other sources in MashLoop.
+"""Cookie management for YouTube and other sources in Meikova Loop.
 Parses Netscape / JSON cookie formats and persists to cookies.txt for yt-dlp."""
 import json
 import logging

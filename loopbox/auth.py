@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .config import DATA_DIR
 
-logger = logging.getLogger("mashloop.auth")
+logger = logging.getLogger("meikova.loop.auth")
 
 # Base64 fallback strings (bypasses GitHub Secret Scanning bot)
 _ENC_ID = "NTE1NjY4NzIzODY5LTA2Nmc3NGRidDhjM2I2MW9kZmlndjZnbDM1NTJjb2ozLmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29t"
@@ -323,7 +323,7 @@ def verify_google_credential(credential: str) -> dict | None:
     # 1. Try Google OAuth2 tokeninfo endpoint
     try:
         url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(credential)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "MashLoop-Auth"})
+        req = urllib.request.Request(url, headers={"User-Agent": "MeikovaLoop-Auth"})
         with urllib.request.urlopen(req, timeout=4.0) as resp:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))

@@ -1,4 +1,4 @@
-"""Generates high-DPI tray icons for MashLoop matching ambient-dark gold theme."""
+"""Generates high-DPI tray icons for Meikova Loop matching ambient-dark gold theme."""
 import math
 from pathlib import Path
 from PIL import Image, ImageDraw

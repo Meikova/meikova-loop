@@ -5,16 +5,16 @@
   - Root cause: `window.events.shown` trong pywebview kích hoạt trên một worker thread (`Thread-X`). Khi `NotifyIcon` khởi tạo trên worker thread không có STA message loop và luồng đó kết thúc, Windows OS tự động thu hồi/tiêu hủy message window ẩn khiến icon biến mất khỏi khay hệ thống.
   - Khắc phục: Marshal `_setup_winforms()` vào WinForms STA UI thread qua `form.Invoke(MethodInvoker(...))`. Giữ biến tham chiếu mạnh ở module level `_GLOBAL_TRAY_REFS` để chống .NET/Python Garbage Collector dọn dẹp.
 - **Hỗ trợ đầy đủ đa nền tảng (Windows, macOS, Linux)**:
-  - **Windows**: WinForms `NotifyIcon` (qua `pythonnet` / `clr` invoke trên STA UI thread) kèm fallback `pystray`. Single-instance qua Win32 Mutex `Local\MashLoop_Desktop_Mutex_{port}`.
+  - **Windows**: WinForms `NotifyIcon` (qua `pythonnet` / `clr` invoke trên STA UI thread) kèm fallback `pystray`. Single-instance qua Win32 Mutex `Local\Meikova Loop_Desktop_Mutex_{port}`.
   - **macOS**: Native `NSStatusBar` & `NSMenu` (qua PyObjC / AppKit của pywebview) kèm fallback `pystray`. Single-instance qua POSIX file lock (`fcntl.flock`).
   - **Linux**: Native `Gtk.StatusIcon` (qua GTK3 của pywebview) kèm fallback `pystray`. Single-instance qua POSIX file lock (`fcntl.flock`).
   - **Khởi động cùng hệ thống đa nền tảng**:
     - Windows: Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
-    - macOS: `~/Library/LaunchAgents/com.mashloop.app.plist`.
-    - Linux: `~/.config/autostart/mashloop.desktop`.
+    - macOS: `~/Library/LaunchAgents/com.meikova-loop.app.plist`.
+    - Linux: `~/.config/autostart/meikova-loop.desktop`.
 - **Menu chức năng**:
-  - `MashLoop // v2.0` (Header)
-  - `Mở MashLoop` (Restore & Activate window)
+  - `Meikova Loop // v2.0` (Header)
+  - `Mở Meikova Loop` (Restore & Activate window)
   - `Mở trên trình duyệt Web` (`http://127.0.0.1:{port}/`)
   - `Mở thư mục lưu trữ (Data)`
   - `Khởi động cùng hệ thống: Bật / Tắt` (Toggle động)
@@ -24,7 +24,7 @@
 ## 2. Kiểm thử & Verification
 - Unit test `tests/test_tray.py`: `OK` (2 tests, exit code 0).
 - Suite kiểm thử toàn diện `tests/test_server_and_features.py`: `ALL TESTS PASSED WITH EXIT CODE 0` (28/28 tests passed).
-- Build PyInstaller binary: `dist/MashLoop/MashLoop.exe` (Exit Code 0, Build thành công lúc 16:21:56).
+- Build PyInstaller binary: `dist/Meikova Loop/Meikova Loop.exe` (Exit Code 0, Build thành công lúc 16:21:56).
 
 ## 3. Cảnh báo kỹ thuật & Lưu ý
 - Khi click đóng cửa sổ ('X'), ứng dụng không tắt hẳn mà thu gọn vào Tray icon, uvicorn server và âm thanh tiếp tục chạy ngầm.
@@ -45,7 +45,7 @@
   - Hàm `sessions.get_for_user(user_id)` duy trì phiên nhất quán giữa Laptop và PC.
   - Bảo vệ track retention: `sessions.in_use()` tích hợp `auth.get_all_users_track_ids()`.
 - **Cơ chế Offline Sync Queue**:
-  - Khi offline / server mất kết nối: Thay đổi về playlist, danh sách bài hát, cài đặt được lưu vào hàng đợi `localStorage` (`mashloop.sync_queue.v1`).
+  - Khi offline / server mất kết nối: Thay đổi về playlist, danh sách bài hát, cài đặt được lưu vào hàng đợi `localStorage` (`meikova-loop.sync_queue.v1`).
   - Khi có mạng hoặc server hoạt động trở lại: Tự động kích hoạt qua sự kiện `window.online` và `window.focus`, gửi payload gộp `POST /api/user/sync` kèm `merge_tracks: true` và hiển thị Toast phản hồi.
 - **Giao diện người dùng Ambient Instrument Dark**:
   - Nút `.btn-auth-pill` trên thanh `topbar__end`.
@@ -56,12 +56,12 @@
 - `tests/test_tray.py`: 2/2 tests PASS (Exit Code 0).
 - `tests/test_server_and_features.py`: 28/28 tests PASS (Exit Code 0).
 - Toàn bộ JS cú pháp hợp lệ (`node -c web/js/api.js web/js/main.js` Exit Code 0).
-- Cập nhật `mashloop.spec` bổ sung hiddenimport `loopbox.auth`.
+- Cập nhật `meikova-loop.spec` bổ sung hiddenimport `loopbox.auth`.
 - Sửa lỗi hiển thị trùng 2 form (`.auth-form[hidden] { display: none !important; }`), chuẩn hóa giao diện theo `/ambient-instrument-ui`:
   - Nút chuyển tab Segmented Pill nền vàng hổ phách phát sáng `var(--accent)`.
   - Nút Google native Ambient Dark pill `.btn-ambient-google`.
   - Cơ chế RFC 8252 Loopback OAuth cho Desktop đa nền tảng (`GET /api/auth/google/start` & `GET /api/auth/google/callback`).
-- Build PyInstaller: `dist/MashLoop/MashLoop.exe` hoàn tất thành công (Exit Code 0).
+- Build PyInstaller: `dist/Meikova Loop/Meikova Loop.exe` hoàn tất thành công (Exit Code 0).
 - Push GitHub `origin/main` commit `efdd71f` và restart Hugging Face Space qua REST API (200 OK).
 
 - **Kiến trúc 3 tầng Google OAuth Credentials (`loopbox/auth.py`)**:
@@ -70,7 +70,7 @@
   - Tầng 3: Giải mã Base64 dự phòng cho GitHub Actions CI/CD build Desktop EXE, vượt qua 100% regex `GOCSPX-` của GitHub Secret Scanner.
 - **Tài liệu hướng dẫn**: Đã tạo file `docs/google-credentials-guide.md` hướng dẫn lấy Credentials theo 2 hướng (Project mới & Project có sẵn).
 - **Service Worker & Test Suites**:
-  - Đồng bộ cache bump `mashloop-v78` trong `web/sw.js` và `tests/test_server_and_features.py`.
+  - Đồng bộ cache bump `meikova-loop-v78` trong `web/sw.js` và `tests/test_server_and_features.py`.
   - Chạy `test_server_and_features.py`: ALL TESTS PASSED WITH EXIT CODE 0 (28/28 tests).
   - Chạy `unittest discover`: 7/7 tests PASS (Exit Code 0).
 - **Tối ưu Đa nền tảng PWA & Mobile OAuth**:
@@ -84,10 +84,10 @@
   - Tests: `test_tray.py` (7/7 PASS), `test_server_and_features.py` (28/28 PASS).
 - **Cô lập luồng đăng nhập Google OAuth cho Desktop & Mobile App**:
   - Khắc phục triệt để lỗi đăng nhập chéo: Đăng nhập trên Desktop hoặc Mobile app KHÔNG lưu cookie/localStorage vào trình duyệt web và KHÔNG chuyển hướng web về `/`.
-  - Hỗ trợ Mobile Native App (Capacitor APK/IPA): Mở trình duyệt hệ thống ngoài (tránh 403 `disallowed_useragent`), cơ chế polling `GET /api/auth/google/poll` và resume listener tự động nạp token vào app, hỗ trợ deep-link `com.m3ik18dp.mashloop://`.
+  - Hỗ trợ Mobile Native App (Capacitor APK/IPA): Mở trình duyệt hệ thống ngoài (tránh 403 `disallowed_useragent`), cơ chế polling `GET /api/auth/google/poll` và resume listener tự động nạp token vào app, hỗ trợ deep-link `com.m3ik18dp.meikova-loop://`.
   - Toàn bộ test suite xanh 100%: `tests/test_auth_and_sync.py` (8/8 PASS, bao gồm test cô lập luồng desktop & mobile), `tests/test_server_and_features.py` (28/28 PASS).
 - **Thanh tiêu đề tùy chỉnh Frameless (Custom Titlebar) & Khắc phục Deadlock Resize**:
-  - Tham khảo kiến trúc `EverythingDownloader`: Ẩn 100% thanh titlebar gốc của Windows, loại bỏ can thiệp `SetWindowLongW` gây hiện lại thanh Windows xám và deadlock render loop.
+  - Tham khảo kiến trúc `Meikova Harvest`: Ẩn 100% thanh titlebar gốc của Windows, loại bỏ can thiệp `SetWindowLongW` gây hiện lại thanh Windows xám và deadlock render loop.
   - Sửa lỗi Not Responding / Treo cứng khi nhấn nút Resize (Maximize / Restore):
     - Thay thế truy cập cross-thread `form.WindowState` trực tiếp bằng bộ gọi an toàn thông qua UI-thread invoker của pywebview (`self._window.maximize()` / `self._window.restore()`).
     - Lắng nghe sự kiện native `window.events.maximized` và `window.events.restored` để đồng bộ trạng thái hai chiều và cập nhật icon giữa Maximize và Restore.
@@ -96,6 +96,6 @@
   - Nút điều khiển cửa sổ: Thu nhỏ (min), Phóng to/Khôi phục (max/restore), Đóng app (thu nhỏ vào khay hệ thống, hover màu đỏ `#e81123`). Hỗ trợ double-click để phóng to/thu nhỏ.
   - Tự động ẩn trên Web, Mobile và chế độ toàn màn hình Zen mode.
   - Cache bump `v82` (`index.html`, `main.js`, `sw.js`, `test_server_and_features.py`).
-  - Sửa lỗi logo vô cực MashLoop bị thiếu một nửa bên trái: Phục hồi path SVG đầy đủ 2 cánh vô cực kèm điểm sáng trung tâm `circle.brand__dot`.
+  - Sửa lỗi logo vô cực Meikova Loop bị thiếu một nửa bên trái: Phục hồi path SVG đầy đủ 2 cánh vô cực kèm điểm sáng trung tâm `circle.brand__dot`.
   - Khắc phục lệch màu nền titlebar: Chuyển background `.desktop-titlebar` sang `transparent` để ánh sáng gradient ambient của `.field` tỏa đều liền mạch từ đỉnh xuống đáy cửa sổ.
-  - Build PyInstaller: [`dist/MashLoop/MashLoop.exe`](file:///d:/JOB/DEV/MashLoop/dist/MashLoop/MashLoop.exe) thành công (Exit Code 0).
+  - Build PyInstaller: [`dist/Meikova Loop/Meikova Loop.exe`](file:///d:/JOB/DEV/Meikova Loop/dist/Meikova Loop/Meikova Loop.exe) thành công (Exit Code 0).

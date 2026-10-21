@@ -1,5 +1,5 @@
 /**
- * Media Session API integration for MashLoop.
+ * Media Session API integration for Meikova Loop.
  * Connects standard OS lock screen, bluetooth controls, Dynamic Island, and hardware media keys to Player.
  */
 
@@ -14,7 +14,7 @@ export function setupMediaSession(player, engine, getSongMeta) {
     }
     const meta = getSongMeta ? getSongMeta(track.id) : track.meta;
     const title = meta?.title || track.meta?.title || "Mash ∞ Loop";
-    const artist = meta?.artist || track.meta?.channel || "MashLoop";
+    const artist = meta?.artist || track.meta?.channel || "Meikova Loop";
     const artwork = [];
 
     const thumb = meta?.thumbnail || track.meta?.thumbnail;

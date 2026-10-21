@@ -146,7 +146,7 @@ jobs:
       - name: Prepare Directories and Build Desktop Executable
         run: |
           if (-not (Test-Path "data\models")) { New-Item -ItemType Directory -Path "data\models" -Force }
-          pyinstaller --noconfirm mashloop.spec
+          pyinstaller --noconfirm meikova_loop.spec
 
       - name: Compress Desktop Release
         run: |
@@ -206,7 +206,7 @@ jobs:
       - name: Prepare Directories and Build Desktop Executable
         run: |
           mkdir -p data/models
-          pyinstaller --noconfirm mashloop.spec
+          pyinstaller --noconfirm meikova_loop.spec
 
       - name: Compress Desktop Release
         run: |
@@ -250,7 +250,7 @@ jobs:
       - name: Prepare Directories and Build Desktop App
         run: |
           mkdir -p data/models
-          pyinstaller --noconfirm mashloop.spec
+          pyinstaller --noconfirm meikova_loop.spec
 
       - name: Compress macOS Desktop Release
         run: |

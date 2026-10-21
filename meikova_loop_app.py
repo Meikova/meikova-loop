@@ -1,4 +1,4 @@
-"""MashLoop Desktop Application Launcher."""
+"""Meikova Loop Desktop Application Launcher."""
 import sys
 from loopbox.desktop import main
 

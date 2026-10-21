@@ -9,7 +9,7 @@ import torch
 
 from ..config import DATA_DIR
 
-logger = logging.getLogger("mashloop.onnx")
+logger = logging.getLogger("meikova.loop.onnx")
 
 ONNX_MODEL_PATH = DATA_DIR / "models" / "beat_this.onnx"
 

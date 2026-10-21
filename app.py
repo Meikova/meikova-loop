@@ -1,4 +1,4 @@
-"""Hugging Face Spaces Gradio entrypoint for MashLoop."""
+"""Hugging Face Spaces Gradio entrypoint for Meikova Loop."""
 import os
 import sys
 from pathlib import Path
@@ -25,19 +25,19 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 is_space = bool(os.environ.get("SPACE_ID"))
-os.environ.setdefault("MASHLOOP_HOST", "0.0.0.0")
-os.environ.setdefault("MASHLOOP_PORT", os.environ.get("PORT", "7860" if is_space else "8765"))
-os.environ.setdefault("MASHLOOP_MULTIUSER", "1")
-os.environ.setdefault("MASHLOOP_DATA", str(ROOT / "data"))
+os.environ.setdefault("MEIKOVA_LOOP_HOST", "0.0.0.0")
+os.environ.setdefault("MEIKOVA_LOOP_PORT", os.environ.get("PORT", "7860" if is_space else "8765"))
+os.environ.setdefault("MEIKOVA_LOOP_MULTIUSER", "1")
+os.environ.setdefault("MEIKOVA_LOOP_DATA", str(ROOT / "data"))
 
 def _sync_private_code():
     is_space = bool(os.environ.get("SPACE_ID"))
     if not is_space and (ROOT / "loopbox" / "server.py").exists() and (ROOT / "web" / "index.html").exists():
         return
-    if os.environ.get("_MASHLOOP_SYNCED"):
+    if os.environ.get("_MEIKOVA_LOOP_SYNCED"):
         return
     gh_token = os.environ.get("GH_TOKEN")
-    os.environ["_MASHLOOP_SYNCED"] = "1"
+    os.environ["_MEIKOVA_LOOP_SYNCED"] = "1"
     import urllib.request, zipfile, io
     print("Syncing codebase from GitHub Meikova/meikova-loop...")
     url = "https://api.github.com/repos/Meikova/meikova-loop/zipball/main"
@@ -218,7 +218,7 @@ body, html, .gradio-container, .main, gradio-app {
 }
 footer { display: none !important; }
 .contain { padding: 0 !important; }
-#mashloop-frame {
+#meikova-loop-frame {
     position: fixed;
     top: 0;
     left: 0;
@@ -230,16 +230,16 @@ footer { display: none !important; }
 """
 
 with gr.Blocks(title="Meikova Loop") as demo:
-    gr.HTML('<iframe id="mashloop-frame" src="/web/" allow="autoplay; accelerometer; gyroscope; screen-wake-lock; clipboard-write"></iframe>')
+    gr.HTML('<iframe id="meikova-loop-frame" src="/web/" allow="autoplay; accelerometer; gyroscope; screen-wake-lock; clipboard-write"></iframe>')
 
-def _mount_mashloop(target_app):
+def _mount_meikova_loop(target_app):
     if not target_app:
         return
     _ensure_worker()
     for r in fastapi_app.router.routes:
         if getattr(r, "name", "") != "web" and r not in target_app.router.routes:
             target_app.router.routes.append(r)
-    target_app.mount("/web", StaticFiles(directory=WEB_DIR, html=True), name="mashloop_web")
+    target_app.mount("/web", StaticFiles(directory=WEB_DIR, html=True), name="meikova_loop_web")
     if (WEB_DIR / "css").exists():
         target_app.mount("/css", StaticFiles(directory=WEB_DIR / "css"))
     if (WEB_DIR / "js").exists():
@@ -250,7 +250,7 @@ def _mount_mashloop(target_app):
         target_app.mount("/audio", StaticFiles(directory=WEB_DIR / "audio"))
 
 # Pre-mount on demo.app for any direct ASGI usage
-_mount_mashloop(demo.app)
+_mount_meikova_loop(demo.app)
 app = demo.app
 
 if __name__ == "__main__":
@@ -258,7 +258,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
 
     target_port = 7860 if bool(os.environ.get("SPACE_ID")) else 8765
-    port = int(os.environ.get("PORT") or os.environ.get("MASHLOOP_PORT") or target_port)
+    port = int(os.environ.get("PORT") or os.environ.get("MEIKOVA_LOOP_PORT") or target_port)
     demo.launch(
         server_name="0.0.0.0",
         server_port=port,
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     )
 
     # Post-mount on demo.server_app because launch() recreates server_app
-    _mount_mashloop(demo.server_app)
+    _mount_meikova_loop(demo.server_app)
     _ensure_worker()
 
     try:

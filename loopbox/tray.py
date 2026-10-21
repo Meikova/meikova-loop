@@ -1,4 +1,4 @@
-"""System Tray Icon and Background Runner for MashLoop Desktop Application.
+"""System Tray Icon and Background Runner for Meikova Loop Desktop Application.
 Full cross-platform support with ambient-dark themed context menu & icons:
 - Windows: Native WinForms NotifyIcon with custom dark ToolStripProfessionalRenderer & icons
 - macOS: Native AppKit NSStatusItem with custom menu icons or pystray
@@ -11,7 +11,7 @@ import webbrowser
 from pathlib import Path
 from typing import Callable
 
-logger = logging.getLogger("mashloop.tray")
+logger = logging.getLogger("meikova.loop.tray")
 
 # Keep strong references to prevent WinForms / AppKit / GTK objects from being garbage-collected
 _GLOBAL_TRAY_REFS: list = []
@@ -31,7 +31,7 @@ if sys.platform == "win32":
         from System.Drawing import Color, Pen
 
         class AmbientDarkColorTable(ProfessionalColorTable):
-            """MashLoop ambient dark color palette for ContextMenuStrip."""
+            """Meikova Loop ambient dark color palette for ContextMenuStrip."""
 
             @property
             def ToolStripDropDownBackground(self):
@@ -120,7 +120,7 @@ else:
     AmbientDarkRenderer = None
 
 
-def is_autostart_enabled(app_name: str = "MashLoop") -> bool:
+def is_autostart_enabled(app_name: str = "MeikovaLoop") -> bool:
     """Checks if the app is registered in system autostart across Windows, macOS, and Linux."""
     if sys.platform == "win32":
         try:
@@ -136,14 +136,14 @@ def is_autostart_enabled(app_name: str = "MashLoop") -> bool:
         except OSError:
             return False
     elif sys.platform == "darwin":
-        plist = Path.home() / "Library" / "LaunchAgents" / "com.mashloop.app.plist"
+        plist = Path.home() / "Library" / "LaunchAgents" / "com.meikova.loop.plist"
         return plist.is_file()
     else:
-        desktop = Path.home() / ".config" / "autostart" / "mashloop.desktop"
+        desktop = Path.home() / ".config" / "autostart" / "meikova-loop.desktop"
         return desktop.is_file()
 
 
-def set_autostart(enable: bool, app_name: str = "MashLoop") -> bool:
+def set_autostart(enable: bool, app_name: str = "MeikovaLoop") -> bool:
     """Enables or disables auto-start at logon via system configuration across platforms."""
     if getattr(sys, "frozen", False):
         exe_cmd = f'"{sys.executable}"'
@@ -174,7 +174,7 @@ def set_autostart(enable: bool, app_name: str = "MashLoop") -> bool:
             return False
 
     elif sys.platform == "darwin":
-        plist = Path.home() / "Library" / "LaunchAgents" / "com.mashloop.app.plist"
+        plist = Path.home() / "Library" / "LaunchAgents" / "com.meikova.loop.plist"
         try:
             if enable:
                 plist.parent.mkdir(parents=True, exist_ok=True)
@@ -183,7 +183,7 @@ def set_autostart(enable: bool, app_name: str = "MashLoop") -> bool:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.mashloop.app</string>
+    <string>com.meikova.loop</string>
     <key>ProgramArguments</key>
     <array>
         <string>{sys.executable}</string>
@@ -203,14 +203,14 @@ def set_autostart(enable: bool, app_name: str = "MashLoop") -> bool:
             return False
 
     else:  # Linux XDG Autostart
-        desktop = Path.home() / ".config" / "autostart" / "mashloop.desktop"
+        desktop = Path.home() / ".config" / "autostart" / "meikova-loop.desktop"
         try:
             if enable:
                 desktop.parent.mkdir(parents=True, exist_ok=True)
                 content = f"""[Desktop Entry]
 Type=Application
-Name=MashLoop
-Comment=MashLoop Desktop Application
+Name=Meikova Loop
+Comment=Meikova Loop Desktop Application
 Exec={raw_cmd}
 Terminal=false
 Categories=AudioVideo;Audio;
@@ -475,7 +475,7 @@ class DesktopTray:
             if not icon_loaded:
                 tray.Icon = SystemIcons.Application
 
-            tray.Text = "MashLoop - Nhạc nhảy nhịp vô tận"[:63]
+            tray.Text = "Meikova Loop - Nhạc nhảy nhịp vô tận"[:63]
 
             menu = ContextMenuStrip()
             if AmbientDarkRenderer:
@@ -490,7 +490,7 @@ class DesktopTray:
             item_pad = Padding(4, 5, 4, 5)
 
             # 1. Header (disabled title item with logo icon)
-            header = ToolStripMenuItem("MashLoop // v2.0")
+            header = ToolStripMenuItem("Meikova Loop // v2.0")
             header.Enabled = False
             header.Font = font_bold
             header.Padding = Padding(4, 6, 4, 6)
@@ -501,7 +501,7 @@ class DesktopTray:
             menu.Items.Add(ToolStripSeparator())
 
             # 2. Show Window
-            item_show = ToolStripMenuItem("Mở MashLoop")
+            item_show = ToolStripMenuItem("Mở Meikova Loop")
             item_show.Font = font_regular
             item_show.Padding = item_pad
             bmp_win = self._get_tray_icon_bitmap("window")
@@ -640,7 +640,7 @@ class DesktopTray:
                     ns_img.setTemplate_(True)
                     item.button().setImage_(ns_img)
             else:
-                item.button().setTitle_("MashLoop")
+                item.button().setTitle_("Meikova Loop")
 
             menu = NSMenu.alloc().init()
 
@@ -654,7 +654,7 @@ class DesktopTray:
                 return None
 
             header = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "MashLoop // v2.0", None, ""
+                "Meikova Loop // v2.0", None, ""
             )
             header.setEnabled_(False)
             h_img = _ns_icon("logo")
@@ -685,7 +685,7 @@ class DesktopTray:
             target.tray = self
 
             m_show = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Mở MashLoop", "onShow:", ""
+                "Mở Meikova Loop", "onShow:", ""
             )
             m_show.setTarget_(target)
             img_win = _ns_icon("window")
@@ -744,7 +744,7 @@ class DesktopTray:
             logo_path = self._get_tray_icon_path("logo") or self.icon_path
             if logo_path and logo_path.is_file():
                 tray.set_from_file(str(logo_path))
-            tray.set_tooltip_text("MashLoop - Nhạc nhảy nhịp vô tận")
+            tray.set_tooltip_text("Meikova Loop - Nhạc nhảy nhịp vô tận")
 
             def on_activate(widget):
                 self.show_window()
@@ -762,12 +762,12 @@ class DesktopTray:
                         it.connect("activate", on_click)
                     return it
 
-                header = _gtk_item("MashLoop // v2.0", "logo")
+                header = _gtk_item("Meikova Loop // v2.0", "logo")
                 header.set_sensitive(False)
                 menu.append(header)
                 menu.append(Gtk.SeparatorMenuItem())
 
-                item_show = _gtk_item("Mở MashLoop", "window", lambda w: self.show_window())
+                item_show = _gtk_item("Mở Meikova Loop", "window", lambda w: self.show_window())
                 menu.append(item_show)
 
                 item_web = _gtk_item(
@@ -824,9 +824,9 @@ class DesktopTray:
 
             img = Image.open(str(icon_file))
             menu = pystray.Menu(
-                pystray.MenuItem("MashLoop // v2.0", None, enabled=False),
+                pystray.MenuItem("Meikova Loop // v2.0", None, enabled=False),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Mở MashLoop", lambda: self.show_window(), default=True),
+                pystray.MenuItem("Mở Meikova Loop", lambda: self.show_window(), default=True),
                 pystray.MenuItem(
                     "Mở trên trình duyệt Web",
                     lambda: webbrowser.open(f"http://127.0.0.1:{self.port}/"),
@@ -839,7 +839,7 @@ class DesktopTray:
                 pystray.MenuItem("Thoát hoàn toàn", lambda: self.quit()),
             )
             self._tray = pystray.Icon(
-                "MashLoop", img, "MashLoop - Nhạc nhảy nhịp vô tận", menu
+                "Meikova Loop", img, "Meikova Loop - Nhạc nhảy nhịp vô tận", menu
             )
             _GLOBAL_TRAY_REFS.append(self._tray)
             import threading

@@ -46,7 +46,7 @@ def test_t43_mobile():
     assert cap_file.exists(), "capacitor.config.json missing"
     with open(cap_file, "r", encoding="utf-8") as f:
         cap = json.load(f)
-    assert cap.get("appId") == "com.m3ik18dp.mashloop"
+    assert cap.get("appId") == "com.meikova.loop"
     assert cap.get("webDir") == "web"
     assert cap.get("plugins", {}).get("SplashScreen", {}).get("backgroundColor") == "#0b0d10"
     assert cap.get("server", {}).get("url") == "http://100.118.230.52:8765", "Tailscale IP missing in capacitor.config.json"

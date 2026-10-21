@@ -191,7 +191,7 @@ class TestAuthAndMultiDeviceSync(unittest.TestCase):
             self.assertEqual(desk_resp.status_code, 200)
             desk_html = desk_resp.text
             self.assertIn("Đã xác thực cho Desktop App!", desk_html)
-            self.assertNotIn("localStorage.setItem('mashloop:token'", desk_html)
+            self.assertNotIn("localStorage.setItem('meikova:loop:token'", desk_html)
             self.assertNotIn("window.location.href = '/'", desk_html)
 
             # Check that desktop thread received the result
@@ -206,8 +206,8 @@ class TestAuthAndMultiDeviceSync(unittest.TestCase):
             self.assertEqual(mob_resp.status_code, 200)
             mob_html = mob_resp.text
             self.assertIn("Đã xác thực cho Mobile App!", mob_html)
-            self.assertIn("com.m3ik18dp.mashloop://", mob_html)
-            self.assertNotIn("localStorage.setItem('mashloop:token'", mob_html)
+            self.assertIn("com.meikova.loop://", mob_html)
+            self.assertNotIn("localStorage.setItem('meikova:loop:token'", mob_html)
             self.assertNotIn("window.location.href = '/'", mob_html)
 
             # Check that mobile polling endpoint retrieves the result
@@ -226,7 +226,7 @@ class TestAuthAndMultiDeviceSync(unittest.TestCase):
             web_resp = self.client.get("/api/auth/google/callback?code=fake_code")
             self.assertEqual(web_resp.status_code, 200)
             web_html = web_resp.text
-            self.assertIn("localStorage.setItem('mashloop:token'", web_html)
+            self.assertIn("localStorage.setItem('meikova:loop:token'", web_html)
             self.assertIn("window.location.href = '/'", web_html)
 
 

@@ -33,7 +33,7 @@ class DummyWindow:
 class TestDesktopTray(unittest.TestCase):
     def test_autostart_query(self):
         # Querying autostart status should return a bool without raising
-        status = is_autostart_enabled("MashLoopTest")
+        status = is_autostart_enabled("MeikovaLoopTest")
         self.assertIsInstance(status, bool)
 
     def test_tray_initialization(self):

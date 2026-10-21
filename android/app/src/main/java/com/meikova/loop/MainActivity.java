@@ -1,4 +1,4 @@
-package com.m3ik18dp.mashloop;
+package com.meikova.loop;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

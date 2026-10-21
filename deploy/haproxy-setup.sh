@@ -3,7 +3,7 @@
 # deploy/haproxy.cfg in place. Run after setup.sh (it reads the files from $APP).
 set -euo pipefail
 DOMAIN=${DOMAIN:-mashloop.truclv.com}
-APP=/root/truc_ai/mashloop
+APP=/root/meikova/meikova-loop
 
 if ! command -v haproxy >/dev/null || ! command -v certbot >/dev/null; then
     apt-get update -q

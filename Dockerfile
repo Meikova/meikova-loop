@@ -18,10 +18,10 @@ USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    MASHLOOP_HOST=0.0.0.0 \
-    MASHLOOP_PORT=7860 \
-    MASHLOOP_MULTIUSER=1 \
-    MASHLOOP_DATA=/home/user/app/data
+    MEIKOVA_LOOP_HOST=0.0.0.0 \
+    MEIKOVA_LOOP_PORT=7860 \
+    MEIKOVA_LOOP_MULTIUSER=1 \
+    MEIKOVA_LOOP_DATA=/home/user/app/data
 
 WORKDIR $HOME/app
 

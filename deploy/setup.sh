@@ -1,8 +1,8 @@
 #!/bin/bash
-# Installs or updates Mash ∞ Loop on the box from /tmp/mashloop.tgz (made by
+# Installs or updates Mash ∞ Loop on the box from /tmp/meikova-loop.tgz (made by
 # deploy/pack.py). Safe to run again: data/, .venv/ and bin/ are kept.
 set -euo pipefail
-APP=/root/truc_ai/mashloop
+APP=/root/meikova/meikova-loop
 UV=${UV:-/root/.local/bin/uv}
 # The torch the app is developed with. (Newer torch has no torchaudio, which
 # Beat This needs for its mel spectrogram.)
@@ -11,7 +11,7 @@ TORCH_INDEX=${TORCH_INDEX:-https://download.pytorch.org/whl/cu124}
 
 mkdir -p "$APP/data" "$APP/bin"
 find "$APP" -mindepth 1 -maxdepth 1 ! -name data ! -name .venv ! -name bin -exec rm -rf {} +
-tar -xzf /tmp/mashloop.tgz -C "$APP"
+tar -xzf /tmp/meikova-loop.tgz -C "$APP"
 
 [ -x "$APP/.venv/bin/python" ] || "$UV" venv "$APP/.venv" --python /usr/bin/python3.12
 PY="$APP/.venv/bin/python"
@@ -28,8 +28,8 @@ if [ ! -x "$APP/bin/deno" ]; then
     rm -f /tmp/deno.zip
 fi
 
-install -m 644 "$APP/deploy/mashloop.service" /etc/systemd/system/mashloop.service
+install -m 644 "$APP/deploy/meikova-loop.service" /etc/systemd/system/meikova-loop.service
 systemctl daemon-reload
-systemctl enable mashloop >/dev/null 2>&1
-systemctl restart mashloop
-echo "mashloop: $(systemctl is-active mashloop)"
+systemctl enable meikova-loop >/dev/null 2>&1
+systemctl restart meikova-loop
+echo "meikova-loop: $(systemctl is-active meikova-loop)"

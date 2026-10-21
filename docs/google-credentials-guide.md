@@ -1,6 +1,6 @@
-# Hướng dẫn tạo Google OAuth 2.0 Credentials cho MashLoop
+# Hướng dẫn tạo Google OAuth 2.0 Credentials cho Meikova Loop
 
-Tài liệu hướng dẫn chi tiết cách thiết lập Google OAuth 2.0 để đăng nhập đồng bộ đa thiết bị (Web & Desktop) cho MashLoop.
+Tài liệu hướng dẫn chi tiết cách thiết lập Google OAuth 2.0 để đăng nhập đồng bộ đa thiết bị (Web & Desktop) cho Meikova Loop.
 
 ---
 
@@ -26,14 +26,14 @@ Dù tạo mới hay dùng project có sẵn, khi tạo OAuth Client ID cần đi
 1. Truy cập [Google Cloud Console](https://console.cloud.google.com/).
 2. Đăng nhập tài khoản Google của bạn.
 3. Ở góc trên cùng bên trái (cạnh logo Google Cloud), nhấn vào menu chọn project -> Chọn **New Project** (Dự án mới).
-4. Đặt tên: `MashLoop-Sync` (hoặc tên tùy chọn) -> Nhấn **Create**.
+4. Đặt tên: `Meikova Loop-Sync` (hoặc tên tùy chọn) -> Nhấn **Create**.
 5. Đợi 5-10 giây để Google khởi tạo, sau đó chọn project vừa tạo ở thanh điều hướng trên cùng.
 
 ### Bước 2: Thiết lập OAuth Consent Screen (Màn hình đồng ý)
 1. Ở thanh menu bên trái, vào **APIs & Services** -> **OAuth consent screen** (Màn hình đồng ý OAuth).
 2. Chọn **User Type**: **External** (để tài khoản Gmail bất kỳ đều đăng nhập được) -> Nhấn **Create**.
 3. Điền thông tin ứng dụng:
-   * **App name:** `MashLoop`
+   * **App name:** `Meikova Loop`
    * **User support email:** Chọn email của bạn.
    * **Developer contact information:** Nhập email của bạn.
    * Nhấn **Save and Continue**.
@@ -54,7 +54,7 @@ Dù tạo mới hay dùng project có sẵn, khi tạo OAuth Client ID cần đi
 2. Nhấn nút **+ CREATE CREDENTIALS** (ở thanh trên cùng) -> Chọn **OAuth client ID**.
 3. Cấu hình các trường:
    * **Application type:** Chọn **Web application**.
-   * **Name:** `MashLoop Client`.
+   * **Name:** `Meikova Loop Client`.
    * **Authorized JavaScript origins:** Nhấn **+ ADD URI** và thêm:
      * `http://localhost:8765`
      * `http://127.0.0.1:8765`
@@ -72,7 +72,7 @@ Dù tạo mới hay dùng project có sẵn, khi tạo OAuth Client ID cần đi
 
 ## Hướng 2: Tạo trên Google Cloud Project ĐÃ CÓ SẴN
 
-Nếu bạn đã có sẵn project (ví dụ: `titan-remote`, `my-portal`, etc.):
+Nếu bạn đã có sẵn project (ví dụ: `meikova-relay`, `my-portal`, etc.):
 
 ### Bước 1: Chọn Project
 1. Vào [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials).
@@ -88,11 +88,11 @@ Nếu bạn đã có sẵn project (ví dụ: `titan-remote`, `my-portal`, etc.)
 ### Bước 3: Tạo Credentials mới hoặc Cập nhật Client ID cũ
 Bạn có 2 lựa chọn:
 
-#### Cách A: Tạo Client ID riêng cho MashLoop (Khuyên dùng)
+#### Cách A: Tạo Client ID riêng cho Meikova Loop (Khuyên dùng)
 1. Vào **APIs & Services** -> **Credentials**.
 2. Nhấn **+ CREATE CREDENTIALS** -> Chọn **OAuth client ID**.
 3. Application type: **Web application**.
-4. Name: `MashLoop Desktop & Web`.
+4. Name: `Meikova Loop Desktop & Web`.
 5. Thêm các Origins và Redirect URIs như mục **0. Thông số cốt lõi** ở trên.
 6. Nhấn **Create** -> Nhấn **DOWNLOAD JSON** -> Đổi tên thành `client_secret.json`.
 
@@ -109,14 +109,14 @@ Bạn có 2 lựa chọn:
 
 ---
 
-## Cách đưa Credentials vào MashLoop
+## Cách đưa Credentials vào Meikova Loop
 
-Hệ thống MashLoop hỗ trợ 3 tầng Fallback thông minh:
+Hệ thống Meikova Loop hỗ trợ 3 tầng Fallback thông minh:
 
 ### Cách 1: Nạp file JSON (Cho Local Dev & Desktop) - Khuyên dùng
 Copy file `client_secret.json` đã tải về đặt vào một trong hai thư mục:
 * `data/client_secret.json` (thư mục này đã có trong `.gitignore`, an toàn không lo commit nhầm).
-* Thư mục gốc project: `MashLoop/client_secret.json`.
+* Thư mục gốc project: `Meikova Loop/client_secret.json`.
 
 ### Cách 2: Nạp biến môi trường (Cho Cloud / Hugging Face Spaces / Render)
 Lấy trực tiếp chuỗi `Client ID` và `Client Secret` từ file JSON hoặc giao diện Google Console:
@@ -128,4 +128,4 @@ Lấy trực tiếp chuỗi `Client ID` và `Client Secret` từ file JSON hoặ
 * Hoặc trên Hugging Face Spaces: Vào **Settings** -> **Variables and secrets** -> Thêm Secret `GOOGLE_CLIENT_SECRET` và Variable `GOOGLE_CLIENT_ID`.
 
 ### Cách 3: Zero-Setup CI/CD (Tự động)
-Nếu không có file và không có biến môi trường, MashLoop đã tích hợp sẵn chuỗi Base64 dự phòng trong `loopbox/auth.py`, cho phép file `.exe` chạy được ngay lập tức mà không cần cấu hình thêm.
+Nếu không có file và không có biến môi trường, Meikova Loop đã tích hợp sẵn chuỗi Base64 dự phòng trong `loopbox/auth.py`, cho phép file `.exe` chạy được ngay lập tức mà không cần cấu hình thêm.

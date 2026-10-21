@@ -305,13 +305,13 @@ def _maybe_evict() -> None:
                 busy = set(_ingesting) | set(_upgrading) | {t for pair in _linking for t in pair}
             gone = library.evict(int(MAX_STORE_GB * 1e9), keep_ids() | busy)
             if gone:
-                print(f"[mashloop] store over {MAX_STORE_GB} GB: freed the {len(gone)} least used songs")
+                print(f"[meikova-loop] store over {MAX_STORE_GB} GB: freed the {len(gone)} least used songs")
         except Exception:
             traceback.print_exc()
         finally:
             _evict_state.update(at=time.time(), running=False)
 
-    threading.Thread(target=run, name="mashloop-evict", daemon=True).start()
+    threading.Thread(target=run, name="meikova-loop-evict", daemon=True).start()
 
 
 def _marker_path():
@@ -338,11 +338,11 @@ def start_retention(max_idle_s: float, keep: Callable[[], set[str]]) -> None:
                     busy = set(_ingesting) | set(_upgrading) | {t for pair in _linking for t in pair}
                 gone = library.drop_idle_audio(max_idle_s, keep() | busy)
                 if gone:
-                    print(f"[mashloop] deleted the audio of {len(gone)} songs unused for {max_idle_s / 3600:g} h")
+                    print(f"[meikova-loop] deleted the audio of {len(gone)} songs unused for {max_idle_s / 3600:g} h")
             except Exception:
                 traceback.print_exc()
 
-    threading.Thread(target=run, name="mashloop-retention", daemon=True).start()
+    threading.Thread(target=run, name="meikova-loop-retention", daemon=True).start()
 
 
 def start() -> None:
@@ -358,4 +358,4 @@ def start() -> None:
             enqueue_ingest(m["id"])
     samples = set(library.samples()["ids"])
     queue_upgrades(sorted(stale, key=lambda t: t not in samples))
-    threading.Thread(target=_upgrade_loop, name="mashloop-upgrade", daemon=True).start()
+    threading.Thread(target=_upgrade_loop, name="meikova-loop-upgrade", daemon=True).start()

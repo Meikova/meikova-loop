@@ -1,9 +1,9 @@
-; Inno Setup Script for MashLoop Desktop Application
-#define MyAppName "MashLoop"
+; Inno Setup Script for Meikova Loop Desktop Application
+#define MyAppName "Meikova Loop"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Truc LV"
-#define MyAppURL "https://github.com/m3iK18dp/mashloop"
-#define MyAppExeName "MashLoop.exe"
+#define MyAppURL "https://github.com/Meikova/meikova-loop"
+#define MyAppExeName "MeikovaLoop.exe"
 
 [Setup]
 AppId={{E6E45279-8DB6-49C3-92CE-1A79F93F2AC2}
@@ -17,7 +17,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=MashLoop-Setup-v{#MyAppVersion}
+OutputBaseFilename=MeikovaLoop-Setup-v{#MyAppVersion}
 SetupIconFile=web\img\icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -30,8 +30,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\MashLoop\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\MashLoop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\MeikovaLoop\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\MeikovaLoop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"

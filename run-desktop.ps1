@@ -9,5 +9,5 @@ if (-not (Test-Path $python)) {
     exit 1
 }
 
-Write-Host "Launching MashLoop Desktop Application..." -ForegroundColor Cyan
+Write-Host "Launching Meikova Loop Desktop Application..." -ForegroundColor Cyan
 & $python -m loopbox.desktop @args

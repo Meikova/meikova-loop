@@ -148,7 +148,7 @@ Dòng lệnh, nếu bạn thích:
 
 ## Dựng cho nhiều người
 
-Đặt `MASHLOOP_MULTIUSER=1` là thành bản cho nhiều người: mỗi lượt truy cập một thư
+Đặt `MEIKOVA_LOOP_MULTIUSER=1` là thành bản cho nhiều người: mỗi lượt truy cập một thư
 viện riêng, bài hát và điểm nối giữa từng cặp bài là kho chung trên server.
 `deploy/` có đủ thứ để dựng trên một máy Ubuntu có GPU:
 
@@ -158,7 +158,7 @@ viện riêng, bài hát và điểm nối giữa từng cặp bài là kho chun
   gia hạn.
 - `seed_samples.py`: biến một file zip nhạc thành thư viện mẫu. `seed_cc.py`: dựng
   các kho nhạc Creative Commons từ Jamendo, ccMixter và Incompetech.
-- `mashloop.service`: số bài phân tích song song, giới hạn mỗi thư viện, dung lượng
+- `meikova-loop.service`: số bài phân tích song song, giới hạn mỗi thư viện, dung lượng
   kho nhạc, tất cả là biến môi trường.
 
 Bản trên web có vài lớp chống lạm dụng, để nó không thành một dịch vụ tải nhạc miễn

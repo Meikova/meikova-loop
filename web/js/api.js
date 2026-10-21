@@ -4,13 +4,13 @@ import { Track } from "./graph.js";
 // every visit (nothing is kept in the browser, so a reload starts empty); in
 // the personal app the session is simply "local".
 export const session = { id: null, multiuser: false, limits: {}, key: null };
-export let userToken = localStorage.getItem("mashloop:token") || null;
+export let userToken = localStorage.getItem("meikova:loop:token") || null;
 export let currentUser = null;
 
 export function setUserToken(token) {
   userToken = token;
-  if (token) localStorage.setItem("mashloop:token", token);
-  else localStorage.removeItem("mashloop:token");
+  if (token) localStorage.setItem("meikova:loop:token", token);
+  else localStorage.removeItem("meikova:loop:token");
 }
 
 export function setCurrentUser(user) {

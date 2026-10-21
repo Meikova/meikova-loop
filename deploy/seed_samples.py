@@ -13,7 +13,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-BASE = os.environ.get("MASHLOOP_URL", "http://127.0.0.1:18765")
+BASE = os.environ.get("MEIKOVA_LOOP_URL", "http://127.0.0.1:18765")
 AUDIO = {".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus"}
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -59,7 +59,7 @@ def main():
         if t["status"] == "error":
             print(f"  error {t['id']} {t['title']}: {t['error']}")
     ready = [t for t in ids if any(s["id"] == t and s["status"] == "ready" for s in st)]
-    env = dict(os.environ, MASHLOOP_DATA=os.environ.get("MASHLOOP_DATA", str(ROOT / "data")))
+    env = dict(os.environ, MEIKOVA_LOOP_DATA=os.environ.get("MEIKOVA_LOOP_DATA", str(ROOT / "data")))
     blurb = sys.argv[3] if len(sys.argv) > 3 else ""
     subprocess.run([sys.executable, "-m", "loopbox.cli", "samples", "--name", name, "--blurb", blurb, *ready],
                    cwd=ROOT, env=env, check=True)

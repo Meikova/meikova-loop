@@ -1,4 +1,4 @@
-"""Desktop application launcher for MashLoop using Microsoft Edge WebView2 (pywebview)."""
+"""Desktop application launcher for Meikova Loop using Microsoft Edge WebView2 (pywebview)."""
 import argparse
 import logging
 import os
@@ -21,7 +21,7 @@ try:
 except (ImportError, ValueError):
     from loopbox.config import DATA_DIR, PORT as DEFAULT_PORT, WEB_DIR
 
-logger = logging.getLogger("mashloop.desktop")
+logger = logging.getLogger("meikova.loop.desktop")
 
 # Enable file logging in data directory for desktop diagnostics
 try:
@@ -270,7 +270,7 @@ class DesktopBridge:
 
 def _is_server_alive(port: int) -> bool:
     try:
-        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/tracks", headers={"User-Agent": "MashLoop-Desktop"})
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/tracks", headers={"User-Agent": "MeikovaLoop-Desktop"})
         with urllib.request.urlopen(req, timeout=1.5) as r:
             return r.status in (200, 401, 403)
     except Exception:
@@ -294,7 +294,7 @@ def _start_background_server(port: int):
 
     config = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
     server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, name="mashloop-uvicorn", daemon=True)
+    thread = threading.Thread(target=server.run, name="meikova-loop-uvicorn", daemon=True)
     thread.start()
     return server, thread
 
@@ -311,7 +311,7 @@ def hide_console():
 
 
 def apply_dark_titlebar(hwnd):
-    """Apply native dark theme to the Windows titlebar to match MashLoop ambient dark style."""
+    """Apply native dark theme to the Windows titlebar to match Meikova Loop ambient dark style."""
     try:
         import ctypes
         from ctypes import byref, c_int
@@ -346,7 +346,7 @@ def set_window_icon(hwnd, icon_path: Path):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="mashloop-desktop", description="MashLoop Desktop Application")
+    ap = argparse.ArgumentParser(prog="meikova-loop-desktop", description="Meikova Loop Desktop Application")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT, help="Server port (default: %(default)s)")
     ap.add_argument("--debug", action="store_true", help="Enable webview DevTools")
     args = ap.parse_args(argv)
@@ -364,11 +364,11 @@ def main(argv=None):
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
-            mutex_name = f"Local\\MashLoop_Desktop_Mutex_{port}"
+            mutex_name = f"Local\\MeikovaLoop_Desktop_Mutex_{port}"
             _h_mutex = kernel32.CreateMutexW(None, False, mutex_name)
             if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-                logger.info("Another MashLoop Desktop instance is already running. Restoring window.")
-                hwnd = ctypes.windll.user32.FindWindowW(None, "MashLoop - Nhạc nhảy nhịp vô tận")
+                logger.info("Another Meikova Loop Desktop instance is already running. Restoring window.")
+                hwnd = ctypes.windll.user32.FindWindowW(None, "Meikova Loop - Nhạc nhảy nhịp vô tận")
                 if hwnd:
                     ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
                     ctypes.windll.user32.SetForegroundWindow(hwnd)
@@ -386,7 +386,7 @@ def main(argv=None):
             fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except (BlockingIOError, OSError):
             if _is_server_alive(port):
-                logger.info("Another MashLoop instance is already running on port %s. Opening browser.", port)
+                logger.info("Another Meikova Loop instance is already running on port %s. Opening browser.", port)
                 import webbrowser
                 webbrowser.open(f"http://127.0.0.1:{port}/")
                 sys.exit(0)
@@ -401,9 +401,9 @@ def main(argv=None):
 
     bridge = DesktopBridge(port)
 
-    # Window creation (Frameless with custom titlebar controls inspired by EverythingDownloader)
+    # Window creation (Frameless with custom titlebar controls inspired by Meikova Harvest)
     window = webview.create_window(
-        title="MashLoop - Nhạc nhảy nhịp vô tận",
+        title="Meikova Loop - Nhạc nhảy nhịp vô tận",
         url=f"http://127.0.0.1:{port}/",
         width=1340,
         height=880,
@@ -442,7 +442,7 @@ def main(argv=None):
         icon_path = icon_png if icon_png.is_file() else icon_ico
     icon_str = str(icon_path) if icon_path and icon_path.is_file() else None
 
-    # ponytail: native system tray runner inspired by EverythingDownloader; minimize to tray on window close
+    # ponytail: native system tray runner inspired by Meikova Harvest; minimize to tray on window close
     desktop_tray = None
     try:
         from .tray import DesktopTray
@@ -526,7 +526,7 @@ def main(argv=None):
         icon=icon_str,
     )
 
-    print("MashLoop Desktop closed.")
+    print("Meikova Loop Desktop closed.")
     if desktop_tray:
         desktop_tray.quit()
     if server_obj:
