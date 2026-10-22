@@ -1,0 +1,19 @@
+PackageIdentifier: Meikova.Loop
+PackageVersion: 1.0.3
+PackageLocale: vi-VN
+Publisher: Nền Tảng Meikova
+PublisherUrl: https://meikova.org
+PublisherSupportUrl: https://meikova.org
+PackageName: Meikova Loop
+PackageUrl: https://meikova.org
+License: MIT
+LicenseUrl: https://raw.githubusercontent.com/meikova/meikova-loop/main/LICENSE
+ShortDescription: Máy phát nhạc vô tận và bộ chuyển beat thông minh chuẩn phòng thu.
+Description: Meikova Loop là máy phát nhạc chuẩn phòng thu, tự động phân tích cấu trúc nhịp điệu bài hát cục bộ và trực tuyến để tạo ra chuỗi âm thanh phát vô tận mượt mà.
+Tags:
+  - am-nhac
+  - phat-nhac
+  - chuyen-beat
+  - meikova
+ManifestType: locale
+ManifestVersion: 1.6.0

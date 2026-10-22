@@ -1,0 +1,20 @@
+PackageIdentifier: Meikova.Loop
+PackageVersion: 1.0.3
+PackageLocale: en-US
+Publisher: Meikova Platform
+PublisherUrl: https://meikova.org
+PublisherSupportUrl: https://meikova.org
+PackageName: Meikova Loop
+PackageUrl: https://meikova.org
+License: MIT
+LicenseUrl: https://raw.githubusercontent.com/meikova/meikova-loop/main/LICENSE
+ShortDescription: Infinite jukebox audio player and intelligent beat transition engine.
+Description: Meikova Loop is a studio-grade infinite audio player that analyzes local libraries and streams, generating seamless real-time beat-matched transitions.
+Tags:
+  - audio
+  - music
+  - dj
+  - infinite-jukebox
+  - player
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
