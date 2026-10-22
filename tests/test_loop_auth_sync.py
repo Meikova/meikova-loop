@@ -22,10 +22,7 @@ except ImportError:
         sys.path.insert(0, _shared_dir)
     from universal_sso import UniversalSSO
 
-sso_signer = UniversalSSO(
-    public_key_path=str(shared_pub) if shared_pub.exists() else None,
-    private_key_path=str(shared_priv) if shared_priv.exists() else None
-)
+sso_signer = UniversalSSO()
 
 
 class TestLoopAuthSync(unittest.TestCase):
