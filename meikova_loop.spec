@@ -6,6 +6,23 @@ from pathlib import Path
 block_cipher = None
 ROOT = Path.cwd()
 
+def get_safe_icon(candidate_path):
+    if not candidate_path:
+        return None
+    p = Path(candidate_path)
+    if not p.exists():
+        return None
+    try:
+        if p.stat().st_size > 500:
+            with open(p, "rb") as f:
+                head = f.read(30)
+                if not head.startswith(b"version https://git-lfs"):
+                    return str(p)
+    except Exception:
+        pass
+    return None
+
+
 datas = [
     (str(ROOT / "web"), "web"),
 ]
@@ -83,7 +100,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(ROOT / "web" / "img" / "icon.ico"),
+    icon=get_safe_icon(ROOT / "web" / "img" / "icon.ico"),
 )
 
 coll = COLLECT(
@@ -101,7 +118,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="MeikovaLoop.app",
-        icon=str(ROOT / "web" / "img" / "icon.icns") if (ROOT / "web" / "img" / "icon.icns").exists() else (str(ROOT / "web" / "img" / "icon.ico") if (ROOT / "web" / "img" / "icon.ico").exists() else None),
+        icon=get_safe_icon(ROOT / "web" / "img" / "icon.icns") or get_safe_icon(ROOT / "web" / "img" / "icon.ico"),
         bundle_identifier="com.meikova.loop",
         info_plist={
             "NSPrincipalClass": "NSApplication",
