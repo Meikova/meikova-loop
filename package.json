@@ -2,6 +2,7 @@
   "name": "meikova-loop",
   "version": "1.0.0",
   "description": "Meikova Loop mobile application shell",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "cap:sync": "cap sync",

@@ -575,7 +575,7 @@ class DesktopTray:
             # 5. Autostart toggle
             auto_on = is_autostart_enabled()
             self._autostart_item = ToolStripMenuItem(
-                f"Khởi động cùng Windows: {'Bật ✓' if auto_on else 'Tắt'}"
+                f"Khởi động cùng Windows: {'Bật [x]' if auto_on else 'Tắt'}"
             )
             self._autostart_item.Font = font_regular
             self._autostart_item.Padding = item_pad
@@ -589,7 +589,7 @@ class DesktopTray:
                 set_autostart(nxt)
                 if self._autostart_item:
                     self._autostart_item.Text = (
-                        f"Khởi động cùng Windows: {'Bật ✓' if nxt else 'Tắt'}"
+                        f"Khởi động cùng Windows: {'Bật [x]' if nxt else 'Tắt'}"
                     )
                     new_bmp = self._get_tray_icon_bitmap("autostart_on" if nxt else "autostart")
                     if new_bmp:

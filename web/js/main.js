@@ -3067,7 +3067,7 @@ window.addEventListener("appinstalled", () => {
   const pwaBadge = $("#pwa-install-badge");
   const pwaDesc = $("#pwa-install-desc");
   if (pwaBadge) pwaBadge.textContent = "INSTALLED";
-  if (pwaDesc) pwaDesc.textContent = "Đã cài đặt ✓";
+  if (pwaDesc) pwaDesc.textContent = "Đã cài đặt";
   showHudToast("Đã cài đặt Meikova Loop Web App thành công!");
 });
 
@@ -3292,7 +3292,7 @@ function renderStage() {
     const lib = empty ? stageSample() : null;
     setHTML($("#rc-kicker"), "HAI VÒNG ĐANG CHỜ");
     setHTML($("#rc-title"), empty ? "Thêm một bài để có vòng đầu tiên" : "Chọn một bài để bắt đầu vòng lặp");
-    setHTML($("#rc-meta"), !empty ? "Bấm phát, hoặc nút ▶ ở một bài trong thư viện"
+    setHTML($("#rc-meta"), !empty ? "Bấm phát, hoặc nút phát ở một bài trong thư viện"
       : lib ? "Gõ tên bài ở ô Thêm bài trong thư viện, hoặc nghe thử ngay" : "Gõ tên bài ở ô Thêm bài trong thư viện");
     cta.hidden = !lib;
     if (lib && !cta.disabled) {
@@ -3886,7 +3886,7 @@ function initAuthAndSync() {
     const authGatewayUrl = window.MEIKOVA_AUTH_URL || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:8990" : "https://meikova-auth.onrender.com");
     const origin = window.location.origin;
     const ssoUrl = `${authGatewayUrl}/login?client_id=loop&origin=${encodeURIComponent(origin)}`;
-    const w = 460, h = 640;
+    const w = 400, h = 540;
     const left = Math.max(0, (window.screen.width - w) / 2);
     const top = Math.max(0, (window.screen.height - h) / 2);
     window.open(ssoUrl, "meikova_sso", `width=${w},height=${h},left=${left},top=${top},status=no,toolbar=no,menubar=no`);
