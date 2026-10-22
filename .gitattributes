@@ -3,3 +3,6 @@
 *.sh text eol=lf
 *.service text eol=lf
 *.cfg text eol=lf
+web/audio/silence.mp3 filter=lfs diff=lfs merge=lfs -text
+web/img/app.icns filter=lfs diff=lfs merge=lfs -text
+web/img/og.png filter=lfs diff=lfs merge=lfs -text
