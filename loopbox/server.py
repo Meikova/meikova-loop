@@ -11,6 +11,7 @@ import threading
 import webbrowser
 import zipfile
 import json
+import time
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -534,6 +535,57 @@ def auth_sso_callback(req: SsoCallbackRequest):
         "user": user,
         "library": library_data,
         "session": _user_session_payload(user)
+    }
+
+
+
+
+class GatewaySyncPayload(BaseModel):
+    accounts: list[dict] | None = None
+    account: dict | None = None
+
+
+@app.get("/api/auth/sync/status")
+def auth_sync_status():
+    stats = auth.get_sync_status()
+    return {
+        "success": True,
+        "status": "online",
+        **stats,
+        "timestamp": int(time.time() * 1000)
+    }
+
+
+@app.post("/api/auth/sync/push")
+def auth_sync_push():
+    pending_queue = auth.get_auth_sync_queue("PENDING")
+    processed = []
+    for item in pending_queue:
+        auth.mark_auth_sync_status(item["id"], "SYNCED")
+        processed.append(item["id"])
+    return {
+        "success": True,
+        "synced_count": len(processed),
+        "processed_ids": processed
+    }
+
+
+@app.post("/api/auth/sync/gateway")
+def auth_sync_gateway(req: GatewaySyncPayload):
+    accounts = req.accounts if req.accounts is not None else ([req.account] if req.account else [])
+    results = []
+    for acc in accounts:
+        res_link = auth.link_gateway_account({
+            "email": acc.get("email"),
+            "gateway_user_id": acc.get("gateway_user_id") or acc.get("id") or acc.get("sub"),
+            "username": acc.get("username"),
+            "display_name": acc.get("display_name") or acc.get("name")
+        })
+        results.append(res_link)
+    return {
+        "success": True,
+        "count": len(results),
+        "results": results
     }
 
 

@@ -198,7 +198,10 @@ def _get_db() -> sqlite3.Connection:
                 salt TEXT,
                 provider TEXT DEFAULT 'local',
                 google_sub TEXT UNIQUE,
-                created_at REAL NOT NULL
+                gateway_user_id TEXT,
+                sync_status TEXT DEFAULT 'synced',
+                created_at REAL NOT NULL,
+                updated_at REAL
             );
         """)
         conn.execute("""
@@ -222,7 +225,290 @@ def _get_db() -> sqlite3.Connection:
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_sync_queue (
+                id TEXT PRIMARY KEY,
+                action TEXT NOT NULL,
+                user_id TEXT,
+                payload TEXT NOT NULL,
+                status TEXT DEFAULT 'PENDING',
+                retry_count INTEGER DEFAULT 0,
+                error_message TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            );
+        """)
+        migrations = [
+            "ALTER TABLE users ADD COLUMN gateway_user_id TEXT;",
+            "ALTER TABLE users ADD COLUMN sync_status TEXT DEFAULT 'synced';",
+            "ALTER TABLE users ADD COLUMN updated_at REAL;",
+            "CREATE INDEX IF NOT EXISTS idx_loop_users_email ON users(email);",
+            "CREATE INDEX IF NOT EXISTS idx_loop_users_gateway ON users(gateway_user_id);",
+            "CREATE INDEX IF NOT EXISTS idx_loop_sync_queue_status ON auth_sync_queue(status);",
+        ]
+        for sql in migrations:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
     return conn
+
+
+def queue_auth_sync(action: str, user_id: str | None, payload: dict | str) -> str:
+    sync_id = secrets.token_hex(16)
+    now = time.time()
+    payload_str = json.dumps(payload) if isinstance(payload, (dict, list)) else str(payload)
+    conn = _get_db()
+    with conn:
+        conn.execute("""
+            INSERT INTO auth_sync_queue (id, action, user_id, payload, status, retry_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'PENDING', 0, ?, ?)
+        """, (sync_id, action, user_id, payload_str, now, now))
+    conn.close()
+    return sync_id
+
+
+def get_auth_sync_queue(status: str = 'PENDING') -> list[dict]:
+    conn = _get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, action, user_id, payload, status, retry_count, created_at
+        FROM auth_sync_queue WHERE status = ? ORDER BY created_at ASC
+    """, (status,))
+    rows = cur.fetchall()
+    conn.close()
+    items = []
+    for r in rows:
+        payload = r[3]
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            pass
+        items.append({
+            "id": r[0],
+            "action": r[1],
+            "user_id": r[2],
+            "payload": payload,
+            "status": r[4],
+            "retry_count": r[5],
+            "created_at": r[6],
+        })
+    return items
+
+
+def mark_auth_sync_status(sync_id: str, status: str, error_msg: str | None = None):
+    now = time.time()
+    conn = _get_db()
+    with conn:
+        conn.execute("""
+            UPDATE auth_sync_queue SET status = ?, error_message = ?, updated_at = ? WHERE id = ?
+        """, (status, error_msg, now, sync_id))
+    conn.close()
+
+
+def get_sync_status() -> dict:
+    conn = _get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM auth_sync_queue WHERE status = 'PENDING'")
+    pending_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM auth_sync_queue WHERE status = 'SYNCED'")
+    synced_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM auth_sync_queue WHERE status = 'FAILED'")
+    failed_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM users WHERE sync_status = 'pending_gateway'")
+    pending_users = cur.fetchone()[0]
+    conn.close()
+    return {
+        "queue_count": pending_count,
+        "synced_count": synced_count,
+        "failed_count": failed_count,
+        "pending_users": pending_users,
+    }
+
+
+def find_user_by_identifier(identifier: str) -> dict | None:
+    if not identifier:
+        return None
+    raw = str(identifier).strip()
+    lower = raw.lower()
+    prefix = lower.split('@')[0] if '@' in lower else lower
+
+    conn = _get_db()
+    cur = conn.cursor()
+
+    # 1. Direct ID / gateway_user_id match
+    cur.execute("""
+        SELECT id, username, email, display_name, gateway_user_id, provider, sync_status, password_hash, salt
+        FROM users WHERE id = ? OR gateway_user_id = ?
+    """, (raw, raw))
+    row = cur.fetchone()
+    if not row:
+        # 2. Exact username or email match
+        cur.execute("""
+            SELECT id, username, email, display_name, gateway_user_id, provider, sync_status, password_hash, salt
+            FROM users WHERE lower(username) = ? OR lower(email) = ?
+        """, (lower, lower))
+        row = cur.fetchone()
+    if not row:
+        # 3. Smart prefix matching
+        cur.execute("""
+            SELECT id, username, email, display_name, gateway_user_id, provider, sync_status, password_hash, salt
+            FROM users WHERE lower(username) = ? OR lower(email) LIKE ?
+        """, (prefix, f"{prefix}@%"))
+        row = cur.fetchone()
+
+    conn.close()
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "username": row[1],
+        "email": row[2],
+        "display_name": row[3],
+        "gateway_user_id": row[4],
+        "provider": row[5],
+        "sync_status": row[6],
+        "password_hash": row[7],
+        "salt": row[8],
+    }
+
+
+def upsert_local_user_from_sso(sso_user: dict) -> dict:
+    if not sso_user or not sso_user.get("sub"):
+        return {}
+    sub = str(sso_user["sub"]).strip()
+    clean_user = str(sso_user.get("username") or sub).strip().lower()
+    clean_email = str(sso_user.get("email") or "").strip().lower() or None
+    disp = str(sso_user.get("display_name") or sso_user.get("username") or clean_user).strip()
+    now = time.time()
+
+    conn = _get_db()
+    cur = conn.cursor()
+
+    # 1. Search existing by sub / gateway_user_id
+    cur.execute("SELECT id, username, email FROM users WHERE id = ? OR gateway_user_id = ?", (sub, sub))
+    existing = cur.fetchone()
+
+    # 2. Search by email
+    if not existing and clean_email:
+        cur.execute("SELECT id, username, email FROM users WHERE lower(email) = ?", (clean_email,))
+        existing = cur.fetchone()
+
+    # 3. Search by username
+    if not existing:
+        cur.execute("SELECT id, username, email FROM users WHERE lower(username) = ?", (clean_user,))
+        existing = cur.fetchone()
+
+    if existing:
+        user_id = existing[0]
+        with conn:
+            conn.execute("""
+                UPDATE users
+                SET gateway_user_id = ?, email = COALESCE(?, email), display_name = ?,
+                    provider = 'universal_sso', sync_status = 'synced', updated_at = ?
+                WHERE id = ?
+            """, (sub, clean_email, disp, now, user_id))
+            conn.execute("""
+                INSERT OR IGNORE INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
+                VALUES (?, '[]', '[]', '[]', '[]', '{}', ?)
+            """, (user_id, now))
+        conn.close()
+        return {
+            "id": user_id,
+            "gateway_user_id": sub,
+            "username": existing[1],
+            "email": clean_email or existing[2],
+            "display_name": disp,
+            "provider": "universal_sso",
+        }
+
+    # Fresh insert
+    dummy_salt = secrets.token_hex(16)
+    dummy_hash = _hash_password(secrets.token_hex(32), dummy_salt)
+    with conn:
+        conn.execute("""
+            INSERT INTO users (id, username, email, display_name, password_hash, salt, provider, gateway_user_id, sync_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'universal_sso', ?, 'synced', ?, ?)
+        """, (sub, clean_user, clean_email, disp, dummy_hash, dummy_salt, sub, now, now))
+        conn.execute("""
+            INSERT OR IGNORE INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
+            VALUES (?, '[]', '[]', '[]', '[]', '{}', ?)
+        """, (sub, now))
+    conn.close()
+    return {
+        "id": sub,
+        "gateway_user_id": sub,
+        "username": clean_user,
+        "email": clean_email,
+        "display_name": disp,
+        "provider": "universal_sso",
+    }
+
+
+def link_gateway_account(data: dict) -> dict:
+    sub = str(data.get("gateway_user_id") or data.get("sub") or data.get("id") or "").strip()
+    if not sub:
+        return {"action": "ERROR", "message": "Missing gateway_user_id"}
+    clean_email = str(data.get("email") or "").strip().lower() or None
+    clean_user = str(data.get("username") or sub).strip().lower()
+    disp = str(data.get("display_name") or data.get("name") or clean_user).strip()
+    now = time.time()
+
+    conn = _get_db()
+    cur = conn.cursor()
+
+    # Case 1: Same Email -> Account Linking (Merge into Gateway identity)
+    if clean_email:
+        cur.execute("SELECT id, username, email FROM users WHERE lower(email) = ?", (clean_email,))
+        local_email_match = cur.fetchone()
+        if local_email_match:
+            local_id = local_email_match[0]
+            with conn:
+                conn.execute("""
+                    UPDATE users
+                    SET gateway_user_id = ?, provider = 'universal_sso', sync_status = 'synced', updated_at = ?
+                    WHERE id = ?
+                """, (sub, now, local_id))
+                conn.execute("""
+                    INSERT OR IGNORE INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
+                    VALUES (?, '[]', '[]', '[]', '[]', '{}', ?)
+                """, (local_id, now))
+            conn.close()
+            return {"action": "LINKED", "user_id": sub, "local_id": local_id}
+
+    # Case 2: Same Username, different Email -> Namespace Resolution
+    cur.execute("SELECT id, username, email FROM users WHERE lower(username) = ?", (clean_user,))
+    local_user_match = cur.fetchone()
+    if local_user_match and (not clean_email or (local_user_match[2] or "").lower() != clean_email):
+        local_id = local_user_match[0]
+        suffix = secrets.token_hex(3)
+        renamed_username = f"{local_user_match[1]}_local_{suffix}"
+        with conn:
+            conn.execute("""
+                UPDATE users
+                SET username = ?, sync_status = 'conflict', updated_at = ?
+                WHERE id = ?
+            """, (renamed_username, now, local_id))
+        conn.close()
+
+        # Insert fresh gateway user
+        upsert_local_user_from_sso({
+            "sub": sub,
+            "username": clean_user,
+            "email": clean_email,
+            "display_name": disp,
+        })
+        return {"action": "RESOLVED_NAMESPACE", "local_renamed_to": renamed_username, "user_id": sub}
+
+    conn.close()
+    # Case 3: Fresh insert / mirror
+    upsert_local_user_from_sso({
+        "sub": sub,
+        "username": clean_user,
+        "email": clean_email,
+        "display_name": disp,
+    })
+    return {"action": "INSERTED", "user_id": sub}
 
 
 def _hash_password(password: str, salt_hex: str) -> str:
@@ -249,9 +535,9 @@ def register_user(username: str, password: str, display_name: str = "") -> dict:
     try:
         with conn:
             conn.execute("""
-                INSERT INTO users (id, username, email, display_name, password_hash, salt, provider, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'local', ?)
-            """, (user_id, clean_username, clean_username if "@" in clean_username else None, disp, pwd_hash, salt_hex, now))
+                INSERT INTO users (id, username, email, display_name, password_hash, salt, provider, sync_status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'local', 'pending_gateway', ?, ?)
+            """, (user_id, clean_username, clean_username if "@" in clean_username else None, disp, pwd_hash, salt_hex, now, now))
             # Initialize empty library row
             conn.execute("""
                 INSERT INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
@@ -261,6 +547,14 @@ def register_user(username: str, password: str, display_name: str = "") -> dict:
         conn.close()
         raise ValueError("Tên đăng nhập hoặc email này đã tồn tại")
     conn.close()
+
+    # Enqueue for gateway synchronization
+    queue_auth_sync('REGISTER', user_id, {
+        "id": user_id,
+        "username": clean_username,
+        "email": clean_username if "@" in clean_username else None,
+        "created_at": now
+    })
 
     # Create session token
     token = _create_session(user_id)
@@ -277,21 +571,13 @@ def register_user(username: str, password: str, display_name: str = "") -> dict:
 
 
 def authenticate_user(username: str, password: str) -> dict | None:
-    """Authenticates username/password and returns user info + session token."""
-    clean_username = username.strip().lower()
-    conn = _get_db()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id, username, display_name, password_hash, salt, provider
-        FROM users WHERE username = ?
-    """, (clean_username,))
-    row = cur.fetchone()
-    conn.close()
-
-    if not row:
+    """Authenticates username/email and returns user info + session token."""
+    user = find_user_by_identifier(username)
+    if not user:
         return None
 
-    user_id, uname, disp, stored_hash, salt_hex, provider = row
+    stored_hash = user.get("password_hash")
+    salt_hex = user.get("salt")
     if not stored_hash or not salt_hex:
         return None
 
@@ -299,15 +585,15 @@ def authenticate_user(username: str, password: str) -> dict | None:
     if not secrets.compare_digest(stored_hash, computed_hash):
         return None
 
-    token = _create_session(user_id)
+    token = _create_session(user["id"])
     return {
         "success": True,
         "token": token,
         "user": {
-            "id": user_id,
-            "username": uname,
-            "display_name": disp or uname,
-            "provider": provider,
+            "id": user["id"],
+            "username": user["username"],
+            "display_name": user.get("display_name") or user["username"],
+            "provider": user.get("provider", "local"),
         },
     }
 
@@ -449,11 +735,12 @@ def validate_token(token: str) -> dict | None:
                     from universal_sso import verify_universal_token
             sso_user = verify_universal_token(token)
             if sso_user:
+                local_u = upsert_local_user_from_sso(sso_user)
                 return {
-                    'id': sso_user.get('sub'),
-                    'username': sso_user.get('username'),
-                    'email': sso_user.get('email'),
-                    'display_name': sso_user.get('display_name') or sso_user.get('username'),
+                    'id': local_u.get('id', sso_user.get('sub')),
+                    'username': local_u.get('username', sso_user.get('username')),
+                    'email': local_u.get('email', sso_user.get('email')),
+                    'display_name': local_u.get('display_name') or sso_user.get('display_name') or sso_user.get('username'),
                     'provider': 'universal_sso',
                 }
         except Exception:
@@ -509,8 +796,11 @@ def get_user_library(user_id: str) -> dict:
     cur = conn.cursor()
     cur.execute("""
         SELECT track_ids, off_ids, playlists, favorites, settings, updated_at
-        FROM user_libraries WHERE user_id = ?
-    """, (user_id,))
+        FROM user_libraries 
+        WHERE user_id = ? 
+           OR user_id IN (SELECT id FROM users WHERE gateway_user_id = ? OR id = ?)
+        ORDER BY updated_at DESC
+    """, (user_id, user_id, user_id))
     row = cur.fetchone()
     conn.close()
 
@@ -589,6 +879,11 @@ def save_user_library(
         current["settings"] = {**current.get("settings", {}), **settings}
 
     conn = _get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users WHERE id = ? OR gateway_user_id = ?", (user_id, user_id))
+    u_row = cur.fetchone()
+    target_id = u_row[0] if u_row else user_id
+
     with conn:
         conn.execute("""
             INSERT INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
@@ -601,7 +896,7 @@ def save_user_library(
                 settings = excluded.settings,
                 updated_at = excluded.updated_at
         """, (
-            user_id,
+            target_id,
             json.dumps(current["track_ids"]),
             json.dumps(current["off_ids"]),
             json.dumps(current["playlists"]),
