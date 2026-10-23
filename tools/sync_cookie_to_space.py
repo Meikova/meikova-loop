@@ -17,7 +17,8 @@ if env_file.exists():
 TOKEN = os.environ.get("HF_TOKEN")
 REPO_ID = "m3ik18dp/meikova-loop"
 
-json_file = Path(r"E:\Downloads\www.youtube.com_20-10-2026.json")
+cookie_env = os.environ.get("YOUTUBE_COOKIE_FILE", "cookies.json")
+json_file = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(cookie_env)
 if not json_file.exists():
     print(f"ERROR: Cookie file not found: {json_file}")
     sys.exit(1)

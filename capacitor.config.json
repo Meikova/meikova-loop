@@ -3,7 +3,7 @@
   "appName": "Meikova Loop",
   "webDir": "web",
   "server": {
-    "url": "http://100.118.230.52:8765",
+    "url": "https://m3ik18dp-meikova-loop.hf.space",
     "cleartext": true,
     "androidScheme": "https"
   },

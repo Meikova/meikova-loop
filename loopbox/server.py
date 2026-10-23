@@ -311,6 +311,7 @@ def new_session(
 
 
 @app.get("/api/auth/config")
+@app.get("/api/auth/google/config")
 def auth_config():
     return {"google_client_id": auth.get_google_client_id()}
 
@@ -604,7 +605,22 @@ def auth_logout(
     return {"status": "ok"}
 
 
+@app.get("/api/sync/status")
+def sync_status_get(
+    authorization: str | None = Header(default=None),
+    x_user_token: str | None = Header(default=None),
+):
+    user = get_user_from_headers(authorization, x_user_token)
+    return {
+        "online": True,
+        "authenticated": user is not None,
+        "user_id": user["id"] if user else None,
+        "username": user.get("username") if user else None,
+    }
+
+
 @app.get("/api/user/sync")
+@app.get("/api/sync/pull")
 def user_sync_get(
     authorization: str | None = Header(default=None),
     x_user_token: str | None = Header(default=None),
@@ -616,6 +632,7 @@ def user_sync_get(
 
 
 @app.post("/api/user/sync")
+@app.post("/api/sync/push")
 def user_sync_post(
     req: SyncLibraryRequest,
     authorization: str | None = Header(default=None),
@@ -1170,23 +1187,93 @@ def transitions(tid: str, v: sessions.View = Depends(view_of)):
     return {"items": v.transitions(tid), "onward": v.onward(tid)}
 
 
+def _get_network_ips() -> tuple[str, str | None]:
+    """Resolves local LAN IP and Tailscale mesh IP if available."""
+    import socket
+    lan_ip = "127.0.0.1"
+    tailscale_ip = None
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.5)
+        s.connect(("8.8.8.8", 80))
+        lan_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+
+    try:
+        _, _, ips = socket.gethostbyname_ex(socket.gethostname())
+        for ip in ips:
+            if ip.startswith("100."):
+                tailscale_ip = ip
+                break
+        if lan_ip == "127.0.0.1":
+            for ip in ips:
+                if not ip.startswith("127.") and not ip.startswith("100."):
+                    lan_ip = ip
+                    break
+    except Exception:
+        pass
+
+    return lan_ip, tailscale_ip
+
+
+@app.get("/api/host-info")
+@app.get("/api/network/host-info")
+def get_host_info(request: Request):
+    """Dynamic host and local network discovery for mobile pairing and QR codes."""
+    lan_ip, tailscale_ip = _get_network_ips()
+    host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
+    proto = "https" if ("hf.space" in host_header or request.headers.get("x-forwarded-proto") == "https") else "http"
+    active_url = f"{proto}://{host_header}"
+    is_local = host_header.startswith("localhost") or host_header.startswith("127.0.0.1")
+
+    port_suffix = f":{PORT}" if PORT and str(PORT) not in ("80", "443") and ":" not in lan_ip else ""
+    lan_url = f"http://{lan_ip}{port_suffix}"
+    tailscale_url = f"http://{tailscale_ip}{port_suffix}" if tailscale_ip else None
+
+    return {
+        "lan_ip": lan_ip,
+        "lan_url": lan_url,
+        "lan_origin": lan_url,  # backward compatibility alias
+        "tailscale_ip": tailscale_ip,
+        "tailscale_url": tailscale_url,
+        "host": host_header,
+        "active_url": active_url,
+        "public_origin": active_url,  # backward compatibility alias
+        "is_local": is_local,
+    }
+
+
 @app.get("/api/qr")
 def get_qr(data: str | None = None, request: Request = None):
-    import io
-    import qrcode
-    import qrcode.image.svg
-    text = (data or str(request.base_url)).strip()
+    text = (data or "").strip()
+    if not text:
+        host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
+        proto = "https" if ("hf.space" in host_header or request.headers.get("x-forwarded-proto") == "https") else "http"
+        text = f"{proto}://{host_header}"
     if len(text) > 2048:
         raise HTTPException(400, "data too long")
-    factory = qrcode.image.svg.SvgPathImage
-    img = qrcode.make(text, image_factory=factory)
-    buf = io.BytesIO()
-    img.save(buf)
-    return Response(
-        content=buf.getvalue(),
-        media_type="image/svg+xml",
-        headers={"Cache-Control": "public, max-age=86400"}
-    )
+    try:
+        import io
+        import qrcode
+        import qrcode.image.svg
+        factory = qrcode.image.svg.SvgPathImage
+        img = qrcode.make(text, image_factory=factory)
+        buf = io.BytesIO()
+        img.save(buf)
+        return Response(
+            content=buf.getvalue(),
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=60"}
+        )
+    except Exception:
+        from urllib.parse import quote
+        from starlette.responses import RedirectResponse
+        return RedirectResponse(
+            f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={quote(text)}",
+            status_code=307
+        )
 
 
 @app.get("/api/cookies")

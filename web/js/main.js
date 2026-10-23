@@ -2956,28 +2956,45 @@ document.querySelectorAll(".platform-tab").forEach((tabBtn) => {
   });
 });
 
-function updateMobileModal() {
+async function updateMobileModal() {
   const currentOrigin = window.location.origin;
-  const isTailscale = window.location.hostname.startsWith("100.");
+  const hostname = window.location.hostname;
+  const isTailscale = hostname.startsWith("100.");
   const isHfSpace =
-    window.location.hostname.includes("hf.space") ||
-    window.location.hostname.includes("huggingface.co");
+    hostname.includes("hf.space") ||
+    hostname.includes("huggingface.co");
   const isLocal =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
+    hostname === "localhost" ||
+    hostname === "127.0.0.1";
 
-  const ipSpan = $("#mobile-modal-ip");
-  const tagSpan = $("#mobile-modal-sub-tag");
-  const qrImg = $("#mobile-modal-qr");
-  const modalLink = $("#mobile-modal-link");
-  const scanDesc = $("#mobile-modal-scan-desc");
+  let displayUrl = currentOrigin;
 
-  const displayUrl = currentOrigin;
+  // On local host (Desktop or dev server), resolve reachable LAN/Tailscale IP from server
+  if (isLocal) {
+    try {
+      const res = await fetch("/api/host-info");
+      if (res.ok) {
+        const info = await res.json();
+        if (info && info.tailscale_url) {
+          displayUrl = info.tailscale_url;
+        } else if (info && info.lan_url && info.lan_ip !== "127.0.0.1") {
+          displayUrl = info.lan_url;
+        }
+      }
+    } catch (_) {}
+  }
+
+  const ipSpan = $("#mobile-modal-ip") || $("#apps-modal-ip");
+  const tagSpan = $("#mobile-modal-sub-tag") || $("#apps-modal-sub-tag");
+  const qrImg = $("#mobile-modal-qr") || $("#apps-harvest-qr");
+  const modalLink = $("#mobile-modal-link") || $("#apps-harvest-link");
+  const scanDesc = $("#mobile-modal-scan-desc") || $("#apps-harvest-scan-desc");
 
   if (ipSpan) ipSpan.textContent = displayUrl;
   if (tagSpan) {
     if (isHfSpace) tagSpan.textContent = "Hugging Face Space";
-    else if (isTailscale) tagSpan.textContent = "Tailscale Mesh";
+    else if (displayUrl.includes("100.") || isTailscale) tagSpan.textContent = "Tailscale Mesh";
+    else if (displayUrl.includes("192.168.") || displayUrl.includes("10.") || displayUrl.includes("172.")) tagSpan.textContent = "Mạng Wi-Fi (LAN)";
     else if (isLocal) tagSpan.textContent = "Local Host";
     else tagSpan.textContent = "Máy chủ Web";
   }
@@ -2986,9 +3003,15 @@ function updateMobileModal() {
     modalLink.textContent = `${displayUrl} ↗`;
   }
   if (scanDesc) {
-    scanDesc.textContent = isHfSpace
-      ? " để mở trực tiếp qua Hugging Face Space."
-      : " để mở ứng dụng tức thì trên điện thoại.";
+    if (isHfSpace) {
+      scanDesc.textContent = " để mở trực tiếp qua Hugging Face Space.";
+    } else if (displayUrl.includes("100.") || isTailscale) {
+      scanDesc.textContent = " (qua Tailscale) để mở ứng dụng từ bất kỳ đâu trên điện thoại.";
+    } else if (displayUrl.includes("192.168.") || displayUrl.includes("10.") || displayUrl.includes("172.")) {
+      scanDesc.textContent = " (cùng mạng Wi-Fi) để mở ứng dụng tức thì trên điện thoại.";
+    } else {
+      scanDesc.textContent = " để mở ứng dụng tức thì trên điện thoại.";
+    }
   }
   if (qrImg) {
     qrImg.src = `/api/qr?data=${encodeURIComponent(displayUrl)}`;
@@ -3015,7 +3038,7 @@ $("#btn-copy-winget-loop")?.addEventListener("click", async () => {
     const el = $("#btn-copy-winget-loop");
     if (el) {
       const orig = el.innerHTML;
-      el.innerHTML = '<span class="apps-cmd-prompt">$</span><span style="color:var(--accent,#FFB38A);">Đã sao chép lệnh ✓</span>';
+      el.innerHTML = '<span class="apps-cmd-prompt">$</span><span style="color:var(--accent,#FFB38A);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:3px"><polyline points="20 6 9 17 4 12"/></svg>Đã sao chép lệnh</span>';
       setTimeout(() => { el.innerHTML = orig; }, 2000);
     }
   } catch {}
@@ -3023,11 +3046,12 @@ $("#btn-copy-winget-loop")?.addEventListener("click", async () => {
 
 $("#btn-copy-server-url")?.addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(window.location.origin);
+    const urlToCopy = $("#mobile-modal-ip")?.textContent || window.location.origin;
+    await navigator.clipboard.writeText(urlToCopy);
     const btn = $("#btn-copy-server-url");
     if (btn) {
       const orig = btn.innerHTML;
-      btn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Đã chép ✓</span>`;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Đã chép</span>`;
       setTimeout(() => { btn.innerHTML = orig; }, 2000);
     }
   } catch {
@@ -4072,6 +4096,7 @@ renderLooks();
 renderTransport();
 renderStage();
 placeIndicators();
+updateMobileModal();
 ready().then(async () => {
   if (session.multiuser) {
     // Hosted: a library per visit; pairs are linked automatically and shared.

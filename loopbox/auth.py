@@ -89,13 +89,17 @@ def _decode_b64(val: str) -> str:
 
 def _read_google_credentials_file() -> dict:
     """Reads credentials safely from ignored data directory or local fallback."""
-    for candidate in [
+    candidates = [
         DATA_DIR / "client_secret.json",
         Path("data/client_secret.json"),
         Path("client_secret.json"),
-        Path("E:/Downloads/client_secret_515668723869-066g74dbt8c3b61odfigv6gl3552coj3.apps.googleusercontent.com.json"),
-    ]:
-        if candidate.exists():
+    ]
+    env_secret = os.environ.get("GOOGLE_SECRET_PATH")
+    if env_secret:
+        candidates.insert(0, Path(env_secret))
+
+    for candidate in candidates:
+        if candidate and candidate.exists():
             try:
                 data = json.loads(candidate.read_text("utf-8"))
                 web = data.get("web") or data.get("installed") or {}

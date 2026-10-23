@@ -49,12 +49,8 @@ def test_t43_mobile():
     assert cap.get("appId") == "com.meikova.loop"
     assert cap.get("webDir") == "web"
     assert cap.get("plugins", {}).get("SplashScreen", {}).get("backgroundColor") == "#0b0d10"
-    assert cap.get("server", {}).get("url") == "http://100.118.230.52:8765", "Tailscale IP missing in capacitor.config.json"
-    print("PASS: capacitor.config.json verified for Android & iOS targets with Tailscale IP 100.118.230.52")
-
-    qr_file = ROOT / "web" / "img" / "qr-tailscale.svg"
-    assert qr_file.exists(), "qr-tailscale.svg missing"
-    print("PASS: Tailscale QR code vector asset exists")
+    assert "url" in cap.get("server", {}), "Server URL missing in capacitor.config.json"
+    print(f"PASS: capacitor.config.json verified with server URL: {cap['server']['url']}")
 
     html_file = ROOT / "web" / "index.html"
     with open(html_file, "r", encoding="utf-8") as f:

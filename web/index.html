@@ -1382,7 +1382,7 @@
         <div class="mobile-modal__sub-meta">
           <span class="mobile-modal__led" aria-hidden="true"></span>
           <span class="mobile-modal__sub-tag" id="mobile-modal-sub-tag">Máy chủ</span>
-          <span class="mobile-modal__ip mono" id="mobile-modal-ip">http://100.118.230.52:8765</span>
+          <span class="mobile-modal__ip mono" id="mobile-modal-ip">Đang kết nối...</span>
         </div>
         <button type="button" class="mobile-modal__sub-btn btn-pill" id="btn-copy-server-url" title="Sao chép địa chỉ">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -1473,7 +1473,7 @@
         <div class="mobile-modal__qr-frame">
           <img
             id="mobile-modal-qr"
-            src="img/qr-tailscale.svg"
+            src="/api/qr"
             alt="Mã QR kết nối nhanh"
             width="112"
             height="112"
@@ -1489,12 +1489,11 @@
           </p>
           <a
             id="mobile-modal-link"
-            href="http://100.118.230.52:8765"
+            href="#"
             target="_blank"
             class="mobile-modal__link mono"
             title="Mở trong tab mới"
-            >http://100.118.230.52:8765 ↗</a
-          >
+            >Đang kết nối... ↗</a>
         </div>
       </div>
 
@@ -1888,7 +1887,7 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=82"></script>
+    <script type="module" src="js/main.js?v=83"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
