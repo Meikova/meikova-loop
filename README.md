@@ -62,7 +62,6 @@ nhảy qua lại giữa những đoạn giống nhau đến mức bạn không b
 thứ mấy. Phần ăn tiền là ở **giữa các bài**: khi đã ở đủ lâu, nó tìm chỗ nối sang bài
 khác, khớp nhịp, nắn tempo, giữ mood, rồi mix sang như một DJ không biết mỏi tay.
 
-![Hai vòng của dấu ∞: bài đang phát bên trái, bài kế tiếp bên phải, chạm nhau ở điểm mix](web/img/og.png)
 
 Mỗi bài là một vòng của dấu ∞, mang màu của mood bài đó. Chỗ hai vòng chạm nhau là
 chỗ mix, và ánh sáng đi qua điểm giao để chạy sang vòng của bài sau. Tên app, logo
