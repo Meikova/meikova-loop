@@ -1,6 +1,6 @@
----
+﻿---
 title: Meikova Loop
-emoji: ⚡
+emoji: loop
 colorFrom: blue
 colorTo: pink
 sdk: gradio
@@ -11,7 +11,25 @@ pinned: false
 license: mit
 ---
 
-# Meikova Loop (Infinite Soundscape)
+# Meikova Loop
+
+<div align="center">
+
+<img src="docs/assets/logo.png" alt="Meikova Loop Logo" width="160px">
+
+[![Release](https://img.shields.io/github/v/release/Meikova/meikova-loop?style=flat-square&color=059669)](https://github.com/Meikova/meikova-loop/releases)
+[![Platforms](https://img.shields.io/badge/Platforms-Web%20%7C%20Desktop%20%7C%20Mobile%20PWA-2563eb?style=flat-square)](https://github.com/Meikova/meikova-loop)
+[![Python](https://img.shields.io/badge/Python-3.12-3b82f6?style=flat-square)](https://www.python.org/)
+[![Database](https://img.shields.io/badge/Database-Turso%20libSQL-00e699?style=flat-square)](https://turso.tech/)
+[![License](https://img.shields.io/badge/License-MIT-16a34a?style=flat-square)](LICENSE)
+
+**Động cơ DJ mashup và infinite soundscape phát nhạc vô tận, tự động phân tích beat, tách stem, nắn tempo, chuyển bài thông minh và tích hợp Universal SSO.**
+
+[Trải Nghiệm Trực Tuyến](https://m3ik18dp-meikova-loop.hf.space) | [Tải Bản Desktop](https://github.com/Meikova/meikova-loop/releases) | [Báo Lỗi](https://github.com/Meikova/meikova-loop/issues)
+
+</div>
+
+---
 
 > [!NOTE]
 > **Thông tin Fork & Bản quyền Tác giả Gốc:**
@@ -254,7 +272,14 @@ machine. The UI is in Vietnamese; the code and its comments are in English.
 
 ## Hệ sinh thái Meikova
 
-- [Meikova Relay](https://github.com/Meikova/meikova-relay) - Remote desktop control độ trễ thấp, outbound-only.
-- [Meikova Loop](https://github.com/Meikova/meikova-loop) - DJ mashup và infinite soundscape engine chạy trên trình duyệt, desktop và mobile.
 - [Meikova Harvest](https://github.com/Meikova/meikova-harvest) - Hệ sinh thái trích xuất và tải đa phương tiện đa nền tảng.
-- [Meikova Harvest Tool](https://github.com/Meikova/meikova-harvest-tool) - Bộ công cụ bảo mật, xáo trộn mã nguồn AST và đóng gói phát hành CI/CD.
+- [Meikova Loop](https://github.com/Meikova/meikova-loop) - DJ mashup và infinite soundscape engine chạy trên web, desktop và mobile.
+- [Meikova Relay](https://github.com/Meikova/meikova-relay) - Điều khiển máy tính từ xa độ trễ thấp, outbound-only.
+- [Meikova Auth](https://github.com/Meikova/meikova-auth) - Cổng xác thực tập trung, Universal SSO Ed25519 và quản lý danh tính đa nền tảng.
+- [Meikova Balance](https://github.com/Meikova/meikova-balance) - Quản lý tài chính cá nhân, chia hóa đơn nhóm và trợ lý AI đa tầng.
+- [Meikova Campus](https://github.com/Meikova/meikova-campus) - Nền tảng thương mại khóa học, phân quyền Google Drive tự động và LMS trực tuyến.
+- [Meikova Exchange](https://github.com/Meikova/meikova-exchange) - Sàn giao dịch B2B cho dự án phần mềm, mã nguồn và tài sản số.
+- [Meikova Traverse](https://github.com/Meikova/meikova-traverse) - Trình duyệt tệp tin cục bộ, SFTP, WebDAV và quản lý lưu trữ đa nền tảng.
+- [Meikova Shield](https://github.com/Meikova/meikova-shield) - Hệ thống phòng thủ an ninh mạng và phát hiện web defacement bằng học máy lai ghép.
+- [Meikova Vision](https://github.com/Meikova/meikova-vision) - Bộ công cụ xử lý ảnh RAW, ghép đa phơi sáng HDR và tone mapping chuyên nghiệp.
+- [Meikova Flow](https://github.com/Meikova/meikova-flow) - Động cơ trích xuất, biến đổi, nạp dữ liệu (ETL) và tự động hóa luồng báo cáo.
