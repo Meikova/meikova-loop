@@ -58,14 +58,10 @@ Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
 - [x] **17/10** Chế độ "Như một set DJ", vòng ∞ mới lúc chờ.
 
 Mash ∞ Loop nghe kỹ từng beat của bài hát rồi phát mãi không dứt. Trong một bài, nó
-nhảy qua lại giữa những đoạn giống nhau đến mức bạn không biết mình đang ở lần lặp
-thứ mấy. Phần ăn tiền là ở **giữa các bài**: khi đã ở đủ lâu, nó tìm chỗ nối sang bài
-khác, khớp nhịp, nắn tempo, giữ mood, rồi mix sang như một DJ không biết mỏi tay.
-
-
-Mỗi bài là một vòng của dấu ∞, mang màu của mood bài đó. Chỗ hai vòng chạm nhau là
-chỗ mix, và ánh sáng đi qua điểm giao để chạy sang vòng của bài sau. Tên app, logo
-và màn hình chính là cùng một hình vẽ, chuyện này có chủ ý.
+nhảy qua lại giữa những đoạn giống nhau đến mức khó nhận ra đang ở lần lặp thứ mấy.
+Phần cốt lõi là ở **giữa các bài**: khi đã ở đủ lâu, hệ thống tìm chỗ nối sang bài
+khác, khớp nhịp, nắn tempo, giữ mood, rồi mix chuyển tiếp như một set DJ liên tục.
+Mỗi bài đại diện cho một vòng của dấu vô cực mang màu sắc theo tâm trạng (mood) bài đó.
 
 ## Nó làm gì
 
