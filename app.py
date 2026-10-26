@@ -273,6 +273,19 @@ if __name__ == "__main__":
     _mount_meikova_loop(demo.server_app)
     _ensure_worker()
 
+    if "--tunnel" in sys.argv or os.environ.get("AUTO_TUNNEL") in ("1", "true", "True"):
+        from loopbox.tunnel_manager import tunnel_manager
+        def _space_auto_tunnel():
+            import time
+            time.sleep(1.0)
+            try:
+                st = tunnel_manager.start(port)
+                print(f"[Tunnel] Active Cloudflare URL: {st.get('url')}")
+            except Exception as e:
+                print(f"[Tunnel] Auto-start failed: {e}")
+        import threading
+        threading.Thread(target=_space_auto_tunnel, daemon=True).start()
+
     try:
         demo.block_thread()
     except (KeyboardInterrupt, SystemExit):

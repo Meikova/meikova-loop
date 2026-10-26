@@ -20,7 +20,7 @@ import base64
 import numpy as np
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -29,6 +29,7 @@ from .audio import BITRATE as SOUND_KBPS
 from .audio import encode as encode_sound
 from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
     WEB_DIR
+from .tunnel_manager import tunnel_manager
 
 # Songs waiting to be fetched and analysed, all listeners together: past this
 # the server says it is busy rather than queueing for hours.
@@ -1232,6 +1233,10 @@ def get_host_info(request: Request):
     lan_url = f"http://{lan_ip}{port_suffix}"
     tailscale_url = f"http://{tailscale_ip}{port_suffix}" if tailscale_ip else None
 
+    tunnel_st = tunnel_manager.get_status()
+    if tunnel_st.get("running") and tunnel_st.get("url"):
+        active_url = tunnel_st["url"]
+
     return {
         "lan_ip": lan_ip,
         "lan_url": lan_url,
@@ -1242,7 +1247,42 @@ def get_host_info(request: Request):
         "active_url": active_url,
         "public_origin": active_url,  # backward compatibility alias
         "is_local": is_local,
+        "tunnel": tunnel_st,
     }
+
+
+@app.get("/api/tunnel/status")
+def get_tunnel_status():
+    return tunnel_manager.get_status()
+
+
+@app.post("/api/tunnel/start")
+def start_tunnel():
+    try:
+        st = tunnel_manager.start(PORT)
+        return {"ok": True, **st}
+    except Exception as e:
+        st = tunnel_manager.get_status()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e), **st})
+
+
+@app.post("/api/tunnel/stop")
+def stop_tunnel():
+    st = tunnel_manager.stop()
+    return {"ok": True, **st}
+
+
+@app.post("/api/tunnel/toggle")
+def toggle_tunnel():
+    try:
+        if tunnel_manager.status == "running":
+            st = tunnel_manager.stop()
+        else:
+            st = tunnel_manager.start(PORT)
+        return {"ok": True, **st}
+    except Exception as e:
+        st = tunnel_manager.get_status()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e), **st})
 
 
 @app.get("/api/qr")
@@ -1382,12 +1422,29 @@ app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 
+@app.on_event("startup")
+def _on_loop_startup():
+    import sys
+    if "--tunnel" in sys.argv or os.environ.get("AUTO_TUNNEL") in ("1", "true", "True"):
+        def _auto_tunnel():
+            time.sleep(1.0)
+            try:
+                st = tunnel_manager.start(PORT)
+                print(f"[Tunnel] Active Cloudflare URL: {st.get('url')}")
+            except Exception as e:
+                print(f"[Tunnel] Auto-start failed: {e}")
+        threading.Thread(target=_auto_tunnel, daemon=True).start()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--open", action="store_true", help="open the browser")
     ap.add_argument("--host", default=HOST)
     ap.add_argument("--port", type=int, default=PORT)
+    ap.add_argument("--tunnel", action="store_true", help="open Cloudflare Quick Tunnel for WAN access")
     args = ap.parse_args()
+    if args.tunnel:
+        os.environ["AUTO_TUNNEL"] = "1" 
     worker.start()
     if MULTIUSER:
         worker.start_retention(AUDIO_TTL_S, sessions.in_use)
