@@ -6,8 +6,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     curl \
+    ca-certificates \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# Install cloudflared for Universal Quick Tunnel support
+RUN curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb \
+    && dpkg -i /tmp/cloudflared.deb \
+    && rm -f /tmp/cloudflared.deb
 
 # Install Deno (official recommended JS engine for yt-dlp signature decryption)
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
