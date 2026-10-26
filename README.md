@@ -159,6 +159,34 @@ Dòng lệnh, nếu bạn thích:
 .venv\Scripts\python -m loopbox.cli relink     # tính lại điểm nối giữa các bài
 ```
 
+## Chạy bằng Docker
+
+Dự án hỗ trợ chạy container độc lập 100% qua Docker và Docker Compose, cài đặt sẵn toàn bộ runtime Python, Deno, FFmpeg và cloudflared:
+
+`ash
+# Khởi chạy dịch vụ container
+docker compose up -d
+
+# Xem log trực tiếp
+docker compose logs -f
+
+# Mở Cloudflare Quick Tunnel ra Internet xuyên NAT/Firewall
+AUTO_TUNNEL=1 docker compose up -d
+`
+
+Dịch vụ chạy tại cổng 8765 (truy cập http://localhost:8765).
+
+## Đường hầm Cloudflare Quick Tunnel
+
+Tích hợp sẵn Cloudflare Quick Tunnel (	rycloudflare.com) cho phép mở link công khai chia sẻ set nhạc tức thì mà không cần mở port mạng:
+
+- **Khởi động kèm Tunnel:** python app.py --tunnel (hoặc AUTO_TUNNEL=1 trong Docker)
+- **Quản trị API:**
+  - GET /api/tunnel/status - Lấy link https://*.trycloudflare.com
+  - POST /api/tunnel/start - Bật đường hầm
+  - POST /api/tunnel/stop - Tắt đường hầm
+  - POST /api/tunnel/restart - Khởi động lại đường hầm
+
 ## Dựng cho nhiều người
 
 Đặt `MEIKOVA_LOOP_MULTIUSER=1` là thành bản cho nhiều người: mỗi lượt truy cập một thư
