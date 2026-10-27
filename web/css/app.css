@@ -3309,6 +3309,10 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 /* Hosted: the visitor confirms they may use what they bring in. */
 .consent {
   width: min(410px, calc(100vw - 28px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
   padding: clamp(14px, 3.8vw, 20px);
   border: 1px solid var(--line);
   border-radius: clamp(12px, 3vw, 16px);
@@ -3416,7 +3420,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .btn-mobile-pill,
 .btn-shortcuts,
-.btn-auth-pill {
+.btn-auth-pill,
+.btn-tunnel-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3434,7 +3439,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .btn-mobile-pill:hover,
 .btn-shortcuts:hover,
-.btn-auth-pill:hover {
+.btn-auth-pill:hover,
+.btn-tunnel-pill:hover {
   background: var(--ink-3);
   border-color: var(--accent);
   box-shadow: 0 0 10px var(--accent-glow);
@@ -3452,13 +3458,15 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .btn-mobile-pill:active,
 .btn-shortcuts:active,
-.btn-auth-pill:active {
+.btn-auth-pill:active,
+.btn-tunnel-pill:active {
   transform: scale(0.96);
 }
 
 .btn-mobile-pill svg,
 .btn-shortcuts svg,
-.btn-auth-pill svg {
+.btn-auth-pill svg,
+.btn-tunnel-pill svg {
   width: 14px;
   height: 14px;
   display: block;
@@ -3468,7 +3476,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--focu
 
 .btn-mobile-pill span,
 .btn-shortcuts span,
-.btn-auth-pill span {
+.btn-auth-pill span,
+.btn-tunnel-pill span {
   display: inline-block;
   line-height: 1;
   transform: translateY(-0.5px);
@@ -3479,7 +3488,8 @@ dialog.shortcuts-modal,
 .shortcuts-modal {
   width: min(720px, calc(100vw - 28px)) !important;
   max-width: min(720px, calc(100vw - 28px)) !important;
-  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  -webkit-overflow-scrolling: touch;
   overflow-y: auto;
 }
 
@@ -3576,7 +3586,8 @@ dialog.mobile-modal,
 .mobile-modal {
   width: min(720px, calc(100vw - 28px)) !important;
   max-width: min(720px, calc(100vw - 28px)) !important;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  -webkit-overflow-scrolling: touch;
   overflow-y: auto;
   padding: clamp(14px, 2.4vw, 20px);
   background: var(--ink-1);
@@ -4203,10 +4214,13 @@ button.dl-card {
 }
 
 @media (max-width: 768px) {
+  #btn-shortcuts-modal { display: none !important; }
   .topbar__end span { display: none !important; }
   .topbar__end .btn-topbar-zen,
   .topbar__end .btn-mobile-pill,
-  .topbar__end .btn-shortcuts {
+  .topbar__end .btn-shortcuts,
+  .topbar__end .btn-tunnel-pill,
+  .topbar__end .btn-auth-pill {
     padding: 0 8px;
     height: 32px;
   }
@@ -4216,46 +4230,92 @@ button.dl-card {
   .deck__vol em { display: none; }
 }
 
+@media (max-width: 600px) {
+  #btn-zen { display: none !important; }
+}
+
 @media (max-width: 520px) {
   .topbar {
-    grid-template-columns: auto auto auto;
+    grid-template-columns: auto 1fr auto;
     justify-content: space-between;
-    padding: env(safe-area-inset-top) 8px 0 8px;
-    gap: 4px;
+    align-items: center;
+    padding: max(env(safe-area-inset-top, 0px), 8px) 8px 0 8px;
+    gap: 6px;
+    box-sizing: border-box;
+    max-width: 100vw;
   }
   .brand {
     font-size: 0.8125rem;
     gap: 3px;
     padding: 4px 0;
     margin-left: 0;
+    flex-shrink: 0;
   }
-  .brand__inf { width: 20px; height: 20px; }
-  .mode { justify-self: center; }
+  .brand__inf { width: 18px; height: 18px; }
+  .mode {
+    justify-self: center;
+    margin: 0 auto;
+    padding: 2px;
+  }
   .mode button {
     padding: 3px 6px;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     gap: 3px;
   }
   .mode button svg {
-    width: 11px;
-    height: 11px;
+    width: 10px;
+    height: 10px;
   }
   .topbar__end {
     display: flex !important;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     justify-self: end;
+    flex-shrink: 0;
   }
   .topbar__end .btn-topbar-zen,
   .topbar__end .btn-mobile-pill,
-  .topbar__end .btn-shortcuts {
+  .topbar__end .btn-shortcuts,
+  .topbar__end .btn-tunnel-pill,
+  .topbar__end .btn-auth-pill {
     width: 30px;
     height: 30px;
     min-width: 30px;
     padding: 0 !important;
     border-radius: 50%;
     justify-content: center;
+    position: relative;
   }
+  .topbar__end .btn-topbar-zen::after,
+  .topbar__end .btn-mobile-pill::after,
+  .topbar__end .btn-shortcuts::after,
+  .topbar__end .btn-tunnel-pill::after,
+  .topbar__end .btn-auth-pill::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 410px) {
+  .topbar {
+    padding-left: max(env(safe-area-inset-left, 0px), 6px);
+    padding-right: max(env(safe-area-inset-right, 0px), 6px);
+    gap: 4px;
+  }
+  .brand__word:first-child {
+    display: none;
+  }
+  .mode button {
+    padding: 2px 5px;
+    font-size: 0.65rem;
+  }
+  .topbar__end {
+    gap: 4px;
+  }
+}
   .topbar__end span { display: none !important; }
   .topbar__end .to-panel { display: none !important; }
   .ro-stats { display: none; }
@@ -5306,4 +5366,541 @@ dialog.auth-modal,
 .apps-footer-link:hover {
   text-decoration: underline;
   opacity: 0.9;
+}
+
+
+/* ------------------------------------------------------------------
+   Cloudflare Quick Tunnel (Multiplatform One-Click WAN)
+   Meikova Platform Standard UI
+   ------------------------------------------------------------------ */
+.btn-tunnel-pill.is-active {
+  border-color: oklch(var(--acc) / 0.6) !important;
+  background: oklch(var(--acc) / 0.12) !important;
+  box-shadow: 0 0 14px -2px var(--accent-glow) !important;
+}
+
+.btn-tunnel-pill.is-active svg {
+  stroke: var(--accent) !important;
+}
+
+.tunnel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.btn-tunnel-pill .tunnel-dot--idle {
+  display: none !important;
+}
+
+.tunnel-switch-card .tunnel-dot--idle {
+  display: inline-block;
+  background: #64748b;
+  box-shadow: none;
+}
+
+.tunnel-dot--starting {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: pulse-tunnel 1.2s infinite ease-in-out;
+}
+
+.tunnel-dot--running {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow), 0 0 4px var(--accent);
+  animation: pulse-tunnel 2s infinite ease-in-out;
+}
+
+.tunnel-dot--failed {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+@keyframes pulse-tunnel {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* Modal Tunnel Styles */
+dialog.tunnel-modal,
+.consent.tunnel-modal {
+  width: min(480px, calc(100vw - 28px)) !important;
+  max-width: min(480px, calc(100vw - 28px)) !important;
+  background: oklch(0.14 0.012 var(--gh) / 0.96) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 16px !important;
+  padding: 20px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 1px 1px oklch(var(--acc) / 0.2) !important;
+}
+
+.tunnel-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tunnel-modal__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tunnel-modal__icon-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-surface);
+  border: 1px solid oklch(var(--acc-l) var(--acc-c) var(--acc-h) / 0.3);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tunnel-modal__icon-badge svg {
+  stroke: var(--accent);
+}
+
+.tunnel-modal__headings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tunnel-modal__headings h2 {
+  font: 600 1.05rem / 1.2 var(--font-display, var(--font-sans));
+  margin: 0 !important;
+  color: var(--text);
+}
+
+.tunnel-modal__subtitle {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+
+.tunnel-modal__close {
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.tunnel-modal__close:hover {
+  background: var(--ink-3);
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: rotate(90deg);
+}
+
+.tunnel-switch-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.tunnel-switch-meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tunnel-switch-meta .status-dot {
+  margin-top: 6px;
+}
+
+.tunnel-switch-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tunnel-status-text {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.tunnel-status-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-tunnel-action {
+  background: var(--ink-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: 600 0.82rem / 1 var(--font-text);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+
+.btn-tunnel-action:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  color: var(--text);
+}
+
+.btn-tunnel-action.is-running {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-tunnel-action.is-running:hover {
+  border-color: rgba(239, 68, 68, 0.8);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.btn-tunnel-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tunnel-active-box {
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.tunnel-active-box[hidden] {
+  display: none !important;
+}
+
+.tunnel-field-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.tunnel-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tunnel-url-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--ink-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.tunnel-url-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px -2px var(--accent-glow);
+}
+
+.btn-copy-pill svg {
+  stroke: var(--accent);
+  flex-shrink: 0;
+}
+
+.btn-copy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--ink-3);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+
+.btn-copy-pill:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.tunnel-qr-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.tunnel-qr-frame {
+  width: 84px;
+  height: 84px;
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tunnel-qr-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.tunnel-qr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.tunnel-qr-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tunnel-qr-desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.tunnel-missing-box {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.tunnel-missing-box[hidden] {
+  display: none !important;
+}
+
+.tunnel-missing-content {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.tunnel-missing-content svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tunnel-missing-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tunnel-missing-title {
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin-bottom: 6px;
+}
+
+.tunnel-cmd-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.tunnel-cmd-box code {
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--text);
+}
+
+.btn-copy-cmd {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  height: auto;
+  border-radius: 4px;
+}
+
+@media (max-width: 1024px) {
+  #btnNavTunnel #navTunnelText {
+    display: none;
+  }
+  #btnNavTunnel {
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar__end #navTunnelDot {
+    display: inline-block !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar__end .btn-tunnel-pill {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0 !important;
+    border-radius: 50%;
+    justify-content: center;
+  }
+  .topbar__end .btn-tunnel-pill span {
+    display: none !important;
+  }
+  .topbar__end #navTunnelDot {
+    display: inline-block !important;
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+  }
+  .btn-tunnel-pill {
+    position: relative;
+  }
+  .tunnel-qr-row {
+    flex-wrap: wrap;
+  }
+}
+
+
+/* ------------------------------------------------------------------
+   Universal Mobile Modal Safe-Area Positioning & Scroll Architecture
+   Guarantees modal headers are NEVER clipped on iOS Safari / Notch / Dynamic Island
+   ------------------------------------------------------------------ */
+@media (max-width: 768px) {
+  dialog.consent,
+  .consent,
+  dialog.mobile-modal,
+  .mobile-modal,
+  dialog.shortcuts-modal,
+  .shortcuts-modal,
+  dialog.auth-modal,
+  .auth-modal,
+  dialog.tunnel-modal,
+  .tunnel-modal,
+  dialog.pl-modal,
+  .pl-modal,
+  dialog.inspect-modal,
+  .inspect-modal {
+    position: fixed !important;
+    top: max(env(safe-area-inset-top, 0px), 12px) !important;
+    bottom: max(env(safe-area-inset-bottom, 0px), 12px) !important;
+    left: max(env(safe-area-inset-left, 0px), 10px) !important;
+    right: max(env(safe-area-inset-right, 0px), 10px) !important;
+    margin: auto !important;
+    width: min(720px, calc(100vw - 20px)) !important;
+    max-width: min(720px, calc(100vw - 20px)) !important;
+    max-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 12px) - max(env(safe-area-inset-bottom, 0px), 12px) - 24px) !important;
+    padding: clamp(14px, 3.5vw, 18px) !important;
+    border-radius: 14px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain;
+    box-sizing: border-box !important;
+  }
+
+  .mobile-modal__head {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+  }
+
+  .mobile-modal__sub-box {
+    margin-bottom: 10px;
+    padding: 5px 8px;
+  }
+
+  .mobile-downloads {
+    margin-bottom: 10px;
+  }
+
+  .mobile-downloads__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .dl-card {
+    padding: 8px 10px;
+  }
+
+  .mobile-modal__qr-card {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .mobile-modal__qr-frame img {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+@media (max-height: 520px) {
+  dialog.consent,
+  .consent,
+  dialog.mobile-modal,
+  .mobile-modal,
+  dialog.shortcuts-modal,
+  .shortcuts-modal,
+  dialog.auth-modal,
+  .auth-modal,
+  dialog.tunnel-modal,
+  .tunnel-modal,
+  dialog.pl-modal,
+  .pl-modal,
+  dialog.inspect-modal,
+  .inspect-modal {
+    position: fixed !important;
+    top: 6px !important;
+    bottom: 6px !important;
+    left: max(env(safe-area-inset-left, 0px), 10px) !important;
+    right: max(env(safe-area-inset-right, 0px), 10px) !important;
+    margin: auto !important;
+    max-height: calc(100dvh - 16px) !important;
+    padding: 10px 14px !important;
+  }
 }

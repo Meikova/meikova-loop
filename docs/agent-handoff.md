@@ -1,3 +1,87 @@
+# Session Handoff: Universal Mobile Modal Centering & Safe-Area Bounds
+
+## 1. Mục tiêu hoàn thành
+- [x] **Căn giữa hoàn hảo cho Modal trên Mobile (`max-width: 768px` & `max-height: 520px`):**
+  - **Vấn đề trước:** Khi fix lỗi cắt header bằng `top: ... !important; bottom: auto !important;`, các modal ngắn (như `#modalTunnel`) bị kéo dính cứng lên đỉnh màn hình thay vì căn giữa dọc.
+  - **Giải pháp dứt điểm:**
+    - Sử dụng mô hình bounding-box an toàn 4 chiều:
+      ```css
+      position: fixed !important;
+      top: max(env(safe-area-inset-top, 0px), 12px) !important;
+      bottom: max(env(safe-area-inset-bottom, 0px), 12px) !important;
+      left: max(env(safe-area-inset-left, 0px), 10px) !important;
+      right: max(env(safe-area-inset-right, 0px), 10px) !important;
+      margin: auto !important;
+      max-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 12px) - max(env(safe-area-inset-bottom, 0px), 12px) - 24px) !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      ```
+    - Modal ngắn: `margin: auto` tự động căn giữa dọc và ngang hoàn hảo trong vùng an toàn giữa đỉnh và đáy màn hình.
+    - Modal dài: `max-height` giới hạn không vượt quá vùng an toàn, không đẩy đỉnh vượt qua Dynamic Island / Notch, cuộn mượt nội bộ.
+  - Tăng cache buster CSS: `css/app.css?v=89` trong `web/index.html`.
+- [x] **Đồng bộ Docker container & Rebuild Image:**
+  - `docker cp web meikova-loop:/home/user/app/`
+  - `docker build -t meikova-loop:latest .` -> Build thành công.
+  - `docker compose up -d` -> Container recreated & started.
+- [x] **Kiểm thử toàn diện:**
+  - `.\.venv\Scripts\python.exe -m unittest discover tests` -> **31/31 PASS (Exit Code 0)**.
+  - Docker container running healthy trên cổng `8765`.
+
+---
+
+# Session Handoff: Universal Mobile Safe-Area & Modal Responsive Overhaul
+
+## 1. Mục tiêu hoàn thành
+- [x] **Khắc phục lỗi Modal bị cắt phần đỉnh trên Mobile (iOS Safari / Dynamic Island / Notch):**
+  - **Nguyên nhân gốc:** Thẻ `<dialog>` có CSS mặc định `margin: auto;` của WebKit, kết hợp với `max-height: calc(100vh - 40px)` (trên iOS `100vh` dài hơn viewport khả dụng do chưa trừ thanh URL và notch). Khi nội dung modal dài, trình duyệt căn giữa làm `margin-top` mang giá trị âm, đẩy toàn bộ phần header của modal ra ngoài màn hình về phía trên notch/Dynamic Island.
+  - **Giải pháp triệt để:**
+    - Cố định đỉnh modal bằng safe-area: `top: max(calc(env(safe-area-inset-top, 0px) + 12px), 16px) !important; bottom: auto !important; margin: 0 auto !important;`.
+    - Thay thế `100vh` bằng `100dvh` (Dynamic Viewport Height): `max-height: calc(100dvh - safe-area-inset-top - safe-area-inset-bottom - 20px) !important;`.
+    - Bật cuộn mượt native: `overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain;`.
+    - Tự động áp dụng đồng bộ cho toàn bộ modal (`.mobile-modal`, `.auth-modal`, `.tunnel-modal`, `.shortcuts-modal`, `.pl-modal`, `.inspect-modal`, `.consent`).
+- [x] **Khắc phục lỗi tràn Topbar trên Mobile Screen (`<= 430px`):**
+  - Ẩn nút phím tắt `#btn-shortcuts-modal` trên mobile (`max-width: 768px`) do màn hình cảm ứng không dùng phím vật lý.
+  - Ẩn nút toàn màn hình `#btn-zen` trên mobile (`max-width: 600px`).
+  - Đưa `.btn-auth-pill` vào danh sách co tròn `30x30px` trên mobile đồng bộ với các nút khác, kèm vùng chạm ẩn `::after` `44x44px` theo chuẩn Apple HIG.
+  - Thu gọn brand `[logo] Loop` trên màn hình hẹp (`<= 410px`).
+- [x] **Chuẩn hóa màu thương hiệu SVG Modal:**
+  - Chuyển toàn bộ icon badge của `#modalTunnel` sang `var(--accent-surface)` và icon cam `var(--accent)` (`#FFB38A`), xóa sạch mã màu xanh cứng của Relay.
+  - Căn chỉnh LED dot ngang hàng với chữ "Đang tắt".
+
+## 2. Kiểm thử & Đóng gói
+- **Docker Compose:** Đã build và cập nhật image `meikova-loop:latest`, container đang chạy healthy trên cổng `8765`.
+- **Unit Tests:** `tests/test_*.py` -> **31/31 PASS (Exit Code 0)**.
+
+---
+
+# Session Handoff: Cloudflare Quick Tunnel UI & Universal Tunnel Bridge Standardization
+
+## 1. Mục tiêu hoàn thành
+- [x] **Universal-Tunnel-Bridge Mandate cho Meikova Loop:**
+  - Bổ sung nút bấm `#btnNavTunnel` (`.btn-tunnel-pill`) trên Topbar (`.topbar__end`) với inline SVG icon Cloudflare, LED indicator `#navTunnelDot` hiển thị trạng thái (idle, starting, running, failed).
+  - Bổ sung modal `#modalTunnel` (`<dialog class="consent tunnel-modal">`) chuẩn Meikova Ambient Dark gồm:
+    - Status Card với LED pulse và nút bấm hành động 1-chạm `#btnToggleTunnel` ("Bật Tunnel" / "Tắt Tunnel").
+    - Hộp hiển thị URL công khai `#tunnelUrlInput` kèm nút sao chép `#btnCopyTunnelUrl`.
+    - Thẻ mã QR di động `#tunnelQrImg` kết nối nhanh từ xa qua Internet.
+    - Hướng dẫn và nút sao chép lệnh cài đặt cloudflared `#tunnelInstallCmd` nếu máy chưa cài binary.
+  - Bổ sung CSS trong `web/css/app.css` đảm bảo responsive toàn diện (ẩn text giữ LED trên mobile/tablet, bo góc tinh tế, hairline border, zero-double-border).
+  - Bổ sung logic controller `initTunnelControls()` trong `web/js/main.js` tương tác với các endpoint `/api/tunnel/status` và `/api/tunnel/toggle`.
+  - Đồng bộ `updateMobileModal()` tự động nhận diện và cập nhật mã QR sang link trycloudflare.com khi Tunnel đang chạy.
+- [x] **Docker Image & Container Update:**
+  - Build lại Docker image `meikova-loop:latest` chứa đầy đủ file `web/` mới.
+  - Khởi chạy container `meikova-loop` qua `docker compose up -d`, phục vụ cổng `8765 -> 7860`.
+  - Đã kiểm tra thực tế: tunnel bật thành công trong container, cấp URL public `trycloudflare.com`, endpoint `/api/host-info` cập nhật `active_url`, và tắt tunnel an toàn.
+
+## 2. Kết quả kiểm thử & Xác thực
+- **Unit Tests:** `tests/test_*.py` -> **31/31 PASS (Exit Code 0)**.
+- **Docker Healthcheck:** Container `meikova-loop` -> `healthy`.
+- **Live Tunnel API Verification:**
+  - `GET /api/tunnel/status` -> `200 OK`
+  - `POST /api/tunnel/toggle` -> `200 OK` (Acquired public URL)
+  - `GET /api/host-info` -> `active_url` trỏ về URL tunnel.
+
+---
+
 # Session Handoff: Universal SSO, Fault-Tolerant Auth Sync & Conflict Resolution Ecosystem-Wide
 
 ## 1. Mục tiêu hoàn thành

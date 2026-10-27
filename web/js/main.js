@@ -2975,7 +2975,11 @@ async function updateMobileModal() {
       const res = await fetch("/api/host-info");
       if (res.ok) {
         const info = await res.json();
-        if (info && info.tailscale_url) {
+        if (info && info.tunnel && info.tunnel.running && info.tunnel.url) {
+          displayUrl = info.tunnel.url;
+        } else if (info && info.active_url && info.active_url.startsWith("https://") && !info.active_url.includes("localhost")) {
+          displayUrl = info.active_url;
+        } else if (info && info.tailscale_url) {
           displayUrl = info.tailscale_url;
         } else if (info && info.lan_url && info.lan_ip !== "127.0.0.1") {
           displayUrl = info.lan_url;
@@ -2992,7 +2996,8 @@ async function updateMobileModal() {
 
   if (ipSpan) ipSpan.textContent = displayUrl;
   if (tagSpan) {
-    if (isHfSpace) tagSpan.textContent = "Hugging Face Space";
+    if (displayUrl.includes("trycloudflare.com")) tagSpan.textContent = "Cloudflare Tunnel";
+    else if (isHfSpace) tagSpan.textContent = "Hugging Face Space";
     else if (displayUrl.includes("100.") || isTailscale) tagSpan.textContent = "Tailscale Mesh";
     else if (displayUrl.includes("192.168.") || displayUrl.includes("10.") || displayUrl.includes("172.")) tagSpan.textContent = "Mạng Wi-Fi (LAN)";
     else if (isLocal) tagSpan.textContent = "Local Host";
@@ -3003,7 +3008,9 @@ async function updateMobileModal() {
     modalLink.textContent = `${displayUrl} ↗`;
   }
   if (scanDesc) {
-    if (isHfSpace) {
+    if (displayUrl.includes("trycloudflare.com")) {
+      scanDesc.textContent = " (Cloudflare Quick Tunnel) để mở ứng dụng từ bất kỳ đâu qua Internet.";
+    } else if (isHfSpace) {
       scanDesc.textContent = " để mở trực tiếp qua Hugging Face Space.";
     } else if (displayUrl.includes("100.") || isTailscale) {
       scanDesc.textContent = " (qua Tailscale) để mở ứng dụng từ bất kỳ đâu trên điện thoại.";
@@ -4038,6 +4045,177 @@ if (ui.activeTab && ui.activeTab !== "library") {
     t.classList.toggle("on", t.id === `tab-${ui.activeTab}`);
   }
 }
+function initTunnelControls() {
+  const btnNavTunnel = $("#btnNavTunnel");
+  const navTunnelDot = $("#navTunnelDot");
+  const modalTunnel = $("#modalTunnel");
+  const btnCloseTunnelModal = $("#btnCloseTunnelModal");
+  const btnToggleTunnel = $("#btnToggleTunnel");
+  const btnToggleTunnelText = $("#btnToggleTunnelText");
+  const tunnelStatusBadgeDot = $("#tunnelStatusBadgeDot");
+  const tunnelStatusText = $("#tunnelStatusText");
+  const tunnelStatusDetail = $("#tunnelStatusDetail");
+  const tunnelActiveBox = $("#tunnelActiveBox");
+  const tunnelUrlInput = $("#tunnelUrlInput");
+  const btnCopyTunnelUrl = $("#btnCopyTunnelUrl");
+  const tunnelQrImg = $("#tunnelQrImg");
+  const tunnelNotInstalledBox = $("#tunnelNotInstalledBox");
+  const tunnelInstallCmd = $("#tunnelInstallCmd");
+  const btnCopyTunnelInstallCmd = $("#btnCopyTunnelInstallCmd");
+
+  if (!btnNavTunnel || !modalTunnel) return;
+
+  let isOperating = false;
+  let pollTimer = null;
+
+  function renderTunnelStatus(st) {
+    if (!st) return;
+    if (st.running && st.url) {
+      btnNavTunnel.classList.add("is-active");
+      if (navTunnelDot) navTunnelDot.className = "status-dot tunnel-dot tunnel-dot--running";
+      if (tunnelStatusBadgeDot) tunnelStatusBadgeDot.className = "status-dot tunnel-dot tunnel-dot--running";
+      if (tunnelStatusText) tunnelStatusText.textContent = "Đang chạy";
+      if (tunnelStatusDetail) tunnelStatusDetail.textContent = "Internet WAN sẵn sàng (trycloudflare.com)";
+      if (btnToggleTunnelText) btnToggleTunnelText.textContent = "Tắt Tunnel";
+      if (btnToggleTunnel) {
+        btnToggleTunnel.classList.add("is-running");
+        btnToggleTunnel.disabled = false;
+      }
+      if (tunnelActiveBox) tunnelActiveBox.removeAttribute("hidden");
+      if (tunnelUrlInput) tunnelUrlInput.value = st.url;
+      if (tunnelQrImg) tunnelQrImg.src = "/api/qr?data=" + encodeURIComponent(st.url);
+      if (tunnelNotInstalledBox) tunnelNotInstalledBox.setAttribute("hidden", "");
+    } else if (st.status === "starting") {
+      btnNavTunnel.classList.remove("is-active");
+      if (navTunnelDot) navTunnelDot.className = "status-dot tunnel-dot tunnel-dot--starting";
+      if (tunnelStatusBadgeDot) tunnelStatusBadgeDot.className = "status-dot tunnel-dot tunnel-dot--starting";
+      if (tunnelStatusText) tunnelStatusText.textContent = "Đang kết nối...";
+      if (tunnelStatusDetail) tunnelStatusDetail.textContent = "Đang xin cấp trycloudflare.com URL";
+      if (btnToggleTunnelText) btnToggleTunnelText.textContent = "Đang bật...";
+      if (btnToggleTunnel) btnToggleTunnel.disabled = true;
+      if (tunnelActiveBox) tunnelActiveBox.setAttribute("hidden", "");
+    } else {
+      btnNavTunnel.classList.remove("is-active");
+      if (navTunnelDot) navTunnelDot.className = "status-dot tunnel-dot tunnel-dot--idle";
+      if (tunnelStatusBadgeDot) {
+        tunnelStatusBadgeDot.className = st.status === "failed" ? "status-dot tunnel-dot tunnel-dot--failed" : "status-dot tunnel-dot tunnel-dot--idle";
+      }
+      if (tunnelStatusText) tunnelStatusText.textContent = st.status === "failed" ? "Lỗi kết nối" : "Đang tắt";
+      if (tunnelStatusDetail) tunnelStatusDetail.textContent = st.error || "Nhấn 'Bật Tunnel' để mở truy cập Internet";
+      if (btnToggleTunnelText) btnToggleTunnelText.textContent = "Bật Tunnel";
+      if (btnToggleTunnel) {
+        btnToggleTunnel.classList.remove("is-running");
+        btnToggleTunnel.disabled = false;
+      }
+      if (tunnelActiveBox) tunnelActiveBox.setAttribute("hidden", "");
+
+      if (!st.installed && tunnelNotInstalledBox) {
+        tunnelNotInstalledBox.removeAttribute("hidden");
+        if (tunnelInstallCmd && st.installCommand) tunnelInstallCmd.textContent = st.installCommand;
+      } else if (tunnelNotInstalledBox) {
+        tunnelNotInstalledBox.setAttribute("hidden", "");
+      }
+    }
+  }
+
+  async function fetchTunnelStatus() {
+    try {
+      const res = await fetch("/api/tunnel/status");
+      if (res.ok) {
+        const st = await res.json();
+        renderTunnelStatus(st);
+        if (st.status === "starting") {
+          if (!pollTimer) {
+            pollTimer = setTimeout(() => {
+              pollTimer = null;
+              fetchTunnelStatus();
+            }, 2000);
+          }
+        }
+        return st;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function toggleTunnel() {
+    if (isOperating) return;
+    isOperating = true;
+    if (btnToggleTunnel) btnToggleTunnel.disabled = true;
+    if (btnToggleTunnelText) btnToggleTunnelText.textContent = "Đang xử lý...";
+
+    try {
+      const res = await fetch("/api/tunnel/toggle", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        renderTunnelStatus(data);
+        if (data.running) {
+          showHudToast("Cloudflare Tunnel đã kích hoạt!");
+        } else {
+          showHudToast("Đã tắt Cloudflare Tunnel");
+        }
+        try { updateMobileModal(); } catch (_) {}
+      } else {
+        showHudToast(data.error || "Thao tác Tunnel thất bại");
+        fetchTunnelStatus();
+      }
+    } catch (err) {
+      showHudToast("Lỗi kết nối mạng: " + err.message);
+      fetchTunnelStatus();
+    } finally {
+      isOperating = false;
+      if (btnToggleTunnel) btnToggleTunnel.disabled = false;
+    }
+  }
+
+  btnNavTunnel.addEventListener("click", () => {
+    fetchTunnelStatus();
+    modalTunnel.showModal();
+  });
+
+  btnCloseTunnelModal?.addEventListener("click", () => {
+    modalTunnel.close();
+  });
+
+  modalTunnel.addEventListener("click", (e) => {
+    const rect = modalTunnel.getBoundingClientRect();
+    const isInDialog = (
+      rect.top <= e.clientY &&
+      e.clientY <= rect.top + rect.height &&
+      rect.left <= e.clientX &&
+      e.clientX <= rect.left + rect.width
+    );
+    if (!isInDialog) {
+      modalTunnel.close();
+    }
+  });
+
+  btnToggleTunnel?.addEventListener("click", toggleTunnel);
+
+  btnCopyTunnelUrl?.addEventListener("click", async () => {
+    if (!tunnelUrlInput?.value) return;
+    try {
+      await navigator.clipboard.writeText(tunnelUrlInput.value);
+      showHudToast("Đã sao chép link Tunnel!");
+    } catch (_) {
+      tunnelUrlInput.select();
+      document.execCommand("copy");
+      showHudToast("Đã sao chép link!");
+    }
+  });
+
+  btnCopyTunnelInstallCmd?.addEventListener("click", async () => {
+    if (!tunnelInstallCmd?.textContent) return;
+    try {
+      await navigator.clipboard.writeText(tunnelInstallCmd.textContent.trim());
+      showHudToast("Đã sao chép lệnh cài đặt!");
+    } catch (_) {}
+  });
+
+  // Initial status check on boot
+  fetchTunnelStatus();
+}
+
 function initDesktopTitlebar() {
   const updateMaxIcon = (isMax) => {
     const icon = $("#dt-max-icon");
@@ -4091,6 +4269,7 @@ function initDesktopTitlebar() {
 
 initCookieManagement();
 initAuthAndSync();
+initTunnelControls();
 initDesktopTitlebar();
 renderLooks();
 renderTransport();

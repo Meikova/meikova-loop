@@ -54,7 +54,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=82" />
+    <link rel="stylesheet" href="css/app.css?v=89" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -151,6 +151,30 @@
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           <span>Tải App</span>
+        </button>
+        <button
+          type="button"
+          class="btn-tunnel-pill"
+          id="btnNavTunnel"
+          aria-label="Mở cấu hình Cloudflare Tunnel (WAN Access)"
+          title="Mở cấu hình Cloudflare Tunnel (WAN Access)"
+          data-i18n-title="topbar.tunnel_title"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+          </svg>
+          <span id="navTunnelText" data-i18n="topbar.tunnel">Tunnel</span>
+          <span id="navTunnelDot" class="status-dot tunnel-dot tunnel-dot--idle" aria-hidden="true"></span>
         </button>
         <button
           type="button"
@@ -1887,14 +1911,84 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=83"></script>
+    <!-- Modal: Cloudflare Quick Tunnel (Multiplatform One-Click WAN) -->
+    <dialog class="consent tunnel-modal" id="modalTunnel" aria-labelledby="modalTunnelTitle">
+      <div class="tunnel-modal__head">
+        <div class="tunnel-modal__title-wrap">
+          <div class="tunnel-modal__icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            </svg>
+          </div>
+          <div class="tunnel-modal__headings">
+            <h2 id="modalTunnelTitle">Cloudflare Tunnel</h2>
+            <span class="tunnel-modal__subtitle mono">WAN ACCESS // TRYCLOUDFLARE.COM</span>
+          </div>
+        </div>
+        <button type="button" class="tunnel-modal__close" id="btnCloseTunnelModal" aria-label="Đóng" title="Đóng">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Tunnel Switch Panel -->
+      <div class="tunnel-switch-card">
+        <div class="tunnel-switch-meta">
+          <span id="tunnelStatusBadgeDot" class="status-dot tunnel-dot tunnel-dot--idle" aria-hidden="true"></span>
+          <div class="tunnel-switch-text-wrap">
+            <div id="tunnelStatusText" class="tunnel-status-text">Đang tắt</div>
+            <div id="tunnelStatusDetail" class="tunnel-status-detail">Nhấn 'Bật Tunnel' để mở truy cập Internet</div>
+          </div>
+        </div>
+        <button id="btnToggleTunnel" class="btn-tunnel-action" type="button">
+          <span id="btnToggleTunnelText">Bật Tunnel</span>
+        </button>
+      </div>
+
+      <!-- Active Tunnel URL & QR Box -->
+      <div id="tunnelActiveBox" class="tunnel-active-box" hidden>
+        <div class="tunnel-field-label">PUBLIC URL</div>
+        <div class="tunnel-url-row">
+          <input type="text" id="tunnelUrlInput" class="tunnel-url-input mono" readonly spellcheck="false" />
+          <button id="btnCopyTunnelUrl" class="btn-copy-pill" type="button" title="Sao chép">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span>Sao chép</span>
+          </button>
+        </div>
+
+        <div class="tunnel-qr-row">
+          <div class="tunnel-qr-frame">
+            <img id="tunnelQrImg" src="" alt="Mã QR Tunnel" width="84" height="84" />
+          </div>
+          <div class="tunnel-qr-info">
+            <div class="tunnel-qr-title">Quét mã di động</div>
+            <span class="tunnel-qr-desc">Kết nối từ xa qua Internet (Cloudflare Quick Tunnel)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Missing Cloudflared Box -->
+      <div id="tunnelNotInstalledBox" class="tunnel-missing-box" hidden>
+        <div class="tunnel-missing-content">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          <div class="tunnel-missing-text">
+            <div class="tunnel-missing-title">Chưa cài đặt cloudflared</div>
+            <div class="tunnel-cmd-box mono">
+              <code id="tunnelInstallCmd">winget install --id Cloudflare.cloudflared --exact --silent</code>
+              <button id="btnCopyTunnelInstallCmd" class="btn-copy-pill btn-copy-cmd" type="button">Sao chép</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <script type="module" src="js/main.js?v=85"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=82")
+          .register("sw.js?v=83")
           .then((reg) => {
             reg.update();
           })

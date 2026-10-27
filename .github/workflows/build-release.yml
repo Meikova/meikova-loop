@@ -191,7 +191,7 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
           Get-Item dist\MeikovaLoop-Setup.exe | Select-Object Name, Length
-          $ver = if ("${{ github.ref_name }}" -match '^v?([0-9]+\.[0-9]+\.[0-9]+)') { $matches[1] } else { "1.0.3" }
+          $ver = if ("${{ github.ref_name }}" -match '^v?([0-9]+\.[0-9]+\.[0-9]+)') { $matches[1] } else { "1.0.4" }
           Copy-Item "dist\MeikovaLoop-Setup.exe" "dist\MeikovaLoop-Setup-$ver.exe" -Force
 
       - name: Compress Desktop Release
