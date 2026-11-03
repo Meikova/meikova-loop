@@ -1,3 +1,39 @@
+# Session Handoff: Comprehensive OWASP Security Hardening & Documentation Overhaul
+
+## 1. Mục tiêu hoàn thành
+- [x] **Gia cố bảo mật toàn diện theo chuẩn OWASP (Tương đương Meikova Relay):**
+  - **5-Strike Auth Lockout & Timing Protection:**
+    - Tạo module loopbox/security_shield.py với lớp SecurityShield.
+    - Khóa IP hoặc username trong 15 phút nếu thử sai quá 5 lần liên tiếp (HTTP 429).
+    - Thêm độ trễ nhân tạo (300-350ms) chống tấn công phân tích thời gian thực thi (timing attacks).
+  - **Triệt tiêu lỗ hổng IDOR qua X-Session: u_*:**
+    - Sửa loopbox/sessions.py và loopbox/server.py (iew_of): Cấm tuyệt đối nhận diện session người dùng qua header X-Session có prefix u_ khi không có JWT token hợp lệ.
+  - **Ngăn chặn triệt để LFI & SSRF:**
+    - Chặn 100% URI schema ile:// trong hydrate_track và /api/library/{tid}/hydrate.
+    - Phân giải DNS và kiểm tra địa chỉ IP đích: Chặn dải private (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), loopback (127.0.0.1), link-local, và AWS/cloud metadata (169.254.169.254).
+  - **Bảo vệ ranh giới Host Client (Host Boundary Guard):**
+    - Áp dụng is_trusted_host_client() bảo vệ các route quản trị hạ tầng (/api/tunnel/*, /api/cookies, /api/settings), chỉ cho phép localhost/desktop shell hoặc header X-Admin-Key.
+  - **Bổ sung Security Headers chuẩn OWASP:**
+    - Tích hợp SecurityHeadersMiddleware vào FastAPI: X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN, Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy.
+  - **Xóa bỏ Fallback Key tĩnh trong Universal SSO:**
+    - Cập nhật loopbox/universal_sso.py: Loại bỏ key fallback tĩnh, chuyển sang cơ chế sinh cặp khóa Ed25519 ephemeral an toàn trong bộ nhớ theo vòng đời tiến trình.
+- [x] **TDD Test Suite & Toàn bộ Kiểm thử:**
+    - Viết mới 	ests/test_loop_security_hardening.py kiểm tra 7 vector tấn công -> **7/7 PASS (Green)**.
+    - Chạy toàn bộ test suite dự án: python -m unittest discover tests -> **38/38 PASS (Exit Code 0)**.
+- [x] **Làm mới Landing Page & README.md:**
+    - Cập nhật README.md: Bổ sung toàn diện kiến trúc bảo mật OWASP, badge an ninh, Docker compose, Cloudflare Quick Tunnel, Turso libSQL, dọn dẹp lỗi định dạng markdown.
+    - Cập nhật web/index.html: Tăng CSS cache buster lên =90.
+- [x] **Đồng bộ Docker Container:**
+    - Đồng bộ loopbox/ và web/ vào container meikova-loop.
+    - Khởi động lại container, xác nhận trạng thái Healthy và kiểm chứng Security Headers phản hồi đúng 100%.
+
+## 2. Lệnh kiểm tra đã chạy & Kết quả
+- .\.venv\Scripts\python.exe -m unittest tests.test_loop_security_hardening -> **Exit Code 0 (7 tests OK)**
+- .\.venv\Scripts\python.exe -m unittest discover tests -> **Exit Code 0 (38 tests OK)**
+- curl.exe -i http://localhost:8765/api/health -> **Exit Code 0 (HTTP 200, Security Headers đầy đủ)**
+
+---
+
 # Session Handoff: Universal Mobile Modal Centering & Safe-Area Bounds
 
 ## 1. Mục tiêu hoàn thành

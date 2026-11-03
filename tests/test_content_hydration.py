@@ -24,7 +24,22 @@ class TestContentHydrationAndTursoAdapter(unittest.TestCase):
 
     def tearDown(self):
         for tid in self.test_tids:
+            for _ in range(20):
+                if not library.is_hydrating(tid):
+                    break
+                time.sleep(0.05)
             library.delete(tid)
+
+    @staticmethod
+    def _create_dummy_wav():
+        import io, wave
+        buf = io.BytesIO()
+        with wave.open(buf, 'wb') as w:
+            w.setnchannels(2)
+            w.setsampwidth(2)
+            w.setframerate(44100)
+            w.writeframes(b'\x00\x00' * 44100)
+        return buf.getvalue()
 
     def test_01_turso_cloud_connection(self):
         """Kiểm tra kết nối Turso Database meikova-loop thành công qua LoopDbAdapter."""
@@ -151,9 +166,9 @@ class TestContentHydrationAndTursoAdapter(unittest.TestCase):
         tid = "hydratrun01"
         self.test_tids.append(tid)
 
-        # Create temporary dummy source audio file
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-            f.write(b"MOCK_AUDIO_DATA_" * 128)
+        wav_data = self._create_dummy_wav()
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(wav_data)
             mock_src_path = f.name
 
         try:
@@ -179,8 +194,9 @@ class TestContentHydrationAndTursoAdapter(unittest.TestCase):
         tid = "srvhydrate1"
         self.test_tids.append(tid)
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-            f.write(b"SAMPLE_MP3_STREAM_CONTENT_" * 64)
+        wav_data = self._create_dummy_wav()
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(wav_data)
             mock_audio_path = f.name
 
         try:
@@ -209,6 +225,12 @@ class TestContentHydrationAndTursoAdapter(unittest.TestCase):
             hyd_resp = self.client.post(f"/api/library/{tid}/hydrate", json={"remote_url": mock_audio_path})
             self.assertEqual(hyd_resp.status_code, 200)
             self.assertIn(hyd_resp.json().get("status"), ("ok", "already_synced"))
+
+            # 5. Wait for background hydration to complete cleanly
+            for _ in range(50):
+                if not library.is_hydrating(tid) and library.has_audio(tid):
+                    break
+                time.sleep(0.05)
         finally:
             if os.path.exists(mock_audio_path):
                 os.unlink(mock_audio_path)

@@ -54,7 +54,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=89" />
+    <link rel="stylesheet" href="css/app.css?v=90" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -1963,6 +1963,25 @@
             <div class="tunnel-qr-title">Quét mã di động</div>
             <span class="tunnel-qr-desc">Kết nối từ xa qua Internet (Cloudflare Quick Tunnel)</span>
           </div>
+        </div>
+
+        <!-- Edge Server & Latency Diagnostics -->
+        <div id="tunnelEdgeBox" class="tunnel-edge-badge" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding: 8px 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); border-radius: 8px; font-size: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent); flex-shrink: 0;">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span><span>Trạm Edge:</span> <strong id="tunnelEdgeColoText" class="mono" style="color: var(--text-bright, #F8FAFC);">---</strong></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="status-dot" id="tunnelLatencyDot" style="width: 6px; height: 6px; background: var(--accent); border-radius: 50%;"></span>
+            <span id="tunnelLatencyText" class="mono" style="color: var(--text-muted, rgba(255, 255, 255, 0.6));">-- ms</span>
+          </div>
+        </div>
+        <div id="tunnelRoutingHint" style="margin-top: 8px; font-size: 0.7rem; color: var(--text-muted, rgba(255, 255, 255, 0.4)); line-height: 1.4;">
+          <span>Định tuyến tự động qua Anycast BGP của nhà mạng. Với độ trễ &lt;10ms trong nước, hãy dùng mạng LAN hoặc VPS Relay nội địa.</span>
         </div>
       </div>
 

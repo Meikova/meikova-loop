@@ -4062,6 +4062,11 @@ function initTunnelControls() {
   const tunnelNotInstalledBox = $("#tunnelNotInstalledBox");
   const tunnelInstallCmd = $("#tunnelInstallCmd");
   const btnCopyTunnelInstallCmd = $("#btnCopyTunnelInstallCmd");
+  const tunnelEdgeBox = $("#tunnelEdgeBox");
+  const tunnelEdgeColoText = $("#tunnelEdgeColoText");
+  const tunnelLatencyText = $("#tunnelLatencyText");
+  const tunnelLatencyDot = $("#tunnelLatencyDot");
+  const tunnelRoutingHint = $("#tunnelRoutingHint");
 
   if (!btnNavTunnel || !modalTunnel) return;
 
@@ -4085,6 +4090,40 @@ function initTunnelControls() {
       if (tunnelUrlInput) tunnelUrlInput.value = st.url;
       if (tunnelQrImg) tunnelQrImg.src = "/api/qr?data=" + encodeURIComponent(st.url);
       if (tunnelNotInstalledBox) tunnelNotInstalledBox.setAttribute("hidden", "");
+      if (tunnelEdgeBox) tunnelEdgeBox.removeAttribute("hidden");
+      if (tunnelRoutingHint) tunnelRoutingHint.style.display = "block";
+      if (tunnelEdgeColoText) {
+        if (st.edgeLocation && st.edgeColo) {
+          tunnelEdgeColoText.textContent = `${st.edgeLocation} (${st.edgeColo})`;
+        } else if (st.edgeColo) {
+          tunnelEdgeColoText.textContent = st.edgeColo;
+        } else {
+          tunnelEdgeColoText.textContent = "Đang nhận diện...";
+        }
+      }
+      if (tunnelLatencyText) {
+        if (typeof st.latencyMs === "number" && st.latencyMs > 0) {
+          tunnelLatencyText.textContent = `${st.latencyMs} ms`;
+          if (tunnelLatencyDot) {
+            if (st.latencyMs < 60) {
+              tunnelLatencyDot.style.background = "#22C55E";
+            } else if (st.latencyMs < 120) {
+              tunnelLatencyDot.style.background = "#F59E0B";
+            } else {
+              tunnelLatencyDot.style.background = "#EF4444";
+            }
+          }
+        } else {
+          tunnelLatencyText.textContent = "-- ms";
+          if (tunnelLatencyDot) tunnelLatencyDot.style.background = "var(--accent)";
+        }
+      }
+      if (!st.edgeColo || !st.latencyMs) {
+        clearTimeout(window._tunnelColoRetryTimer);
+        window._tunnelColoRetryTimer = setTimeout(fetchTunnelStatus, 800);
+      } else {
+        clearTimeout(window._tunnelColoRetryTimer);
+      }
     } else if (st.status === "starting") {
       btnNavTunnel.classList.remove("is-active");
       if (navTunnelDot) navTunnelDot.className = "status-dot tunnel-dot tunnel-dot--starting";
@@ -4094,6 +4133,11 @@ function initTunnelControls() {
       if (btnToggleTunnelText) btnToggleTunnelText.textContent = "Đang bật...";
       if (btnToggleTunnel) btnToggleTunnel.disabled = true;
       if (tunnelActiveBox) tunnelActiveBox.setAttribute("hidden", "");
+      if (tunnelEdgeBox) tunnelEdgeBox.setAttribute("hidden", "");
+      if (tunnelRoutingHint) tunnelRoutingHint.style.display = "none";
+      if (tunnelEdgeColoText) tunnelEdgeColoText.textContent = "---";
+      if (tunnelLatencyText) tunnelLatencyText.textContent = "-- ms";
+      clearTimeout(window._tunnelColoRetryTimer);
     } else {
       btnNavTunnel.classList.remove("is-active");
       if (navTunnelDot) navTunnelDot.className = "status-dot tunnel-dot tunnel-dot--idle";

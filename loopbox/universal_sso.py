@@ -30,6 +30,8 @@ def _b64url_decode(s: str) -> bytes:
 
 
 class UniversalSSO:
+    _shared_priv = None
+    _shared_pub = None
     def __init__(self, public_key_path: str = None, private_key_path: str = None):
         pub_pem = os.getenv("AUTH_PUBLIC_KEY_PEM")
         if not pub_pem and os.getenv("AUTH_PUBLIC_KEY_B64"):
@@ -67,14 +69,37 @@ class UniversalSSO:
                     priv_pem = c.read_text(encoding="utf-8")
                     break
 
-        # 3. Dev/test fallback key (base64 encoded to bypass secret scanning)
+        # 3. Ephemeral in-memory key generation (Zero Hardcoded Secrets)
         if not priv_pem:
-            _ENC = "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1DNENBUUF3QlFZREsyVndCQ0lFSVBNVFl3Y2RFUTR5MjhXcTJoOWRpS05TdFhpSGRlU242MDdENGE3S0pXdUkKLS0tLS1FTkQgUFJJVkFURSBLRVktLS0tLQo="
-            try:
-                priv_pem = base64.b64decode(_ENC).decode("utf-8")
-            except Exception:
-                pass
-
+            if UniversalSSO._shared_priv and UniversalSSO._shared_pub:
+                priv_pem = UniversalSSO._shared_priv
+                pub_pem = UniversalSSO._shared_pub
+            else:
+                try:
+                    from cryptography.hazmat.primitives import serialization
+                    from cryptography.hazmat.primitives.asymmetric import ed25519
+                    _ephemeral = ed25519.Ed25519PrivateKey.generate()
+                    priv_pem = _ephemeral.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.NoEncryption()
+                    ).decode('utf-8')
+                    pub_pem = _ephemeral.public_key().public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    ).decode('utf-8')
+                    UniversalSSO._shared_priv = priv_pem
+                    UniversalSSO._shared_pub = pub_pem
+                except Exception:
+                    try:
+                        from Cryptodome.PublicKey import ECC
+                        _ecc = ECC.generate(curve='Ed25519')
+                        priv_pem = _ecc.export_key(format='PEM')
+                        pub_pem = _ecc.public_key().export_key(format='PEM')
+                        UniversalSSO._shared_priv = priv_pem
+                        UniversalSSO._shared_pub = pub_pem
+                    except Exception:
+                        pass
         self.public_key_pem = pub_pem
         self.private_key_pem = priv_pem
 

@@ -330,8 +330,9 @@ def create() -> View:
 def get(sid: str | None) -> View | None:
     if not MULTIUSER:
         return local()
-    if sid and sid.startswith("u_"):
-        return get_for_user(sid[2:])
+    # Reject spoofed user session strings in anonymous session getter
+    if not sid or sid.startswith("u_"):
+        return None
     with _lock:
         v = _sessions.get(sid or "")
         if v is None and sid:

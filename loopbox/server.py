@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import auth, download, ingest, library, ratelimit, sessions, worker
+from .security_shield import shield, is_trusted_host_client, validate_remote_url, SecurityHeadersMiddleware, get_client_ip
 from .audio import BITRATE as SOUND_KBPS
 from .audio import encode as encode_sound
 from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
@@ -37,6 +38,7 @@ MAX_BACKLOG = 60
 
 app = FastAPI(title="Meikova Loop", docs_url=None if MULTIUSER else "/docs", redoc_url=None,
               openapi_url=None if MULTIUSER else "/openapi.json")
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 class AddRequest(BaseModel):
@@ -107,6 +109,8 @@ def view_of(
     user = get_user_from_headers(authorization, x_user_token)
     if user:
         return sessions.get_for_user(user["id"])
+    if x_session and x_session.startswith("u_"):
+        raise HTTPException(401, "User session requires valid authentication token")
     v = sessions.get(x_session)
     if v is None:
         raise HTTPException(410, "session expired")
@@ -135,6 +139,8 @@ def get_settings():
 
 @app.post("/api/settings")
 async def save_settings(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Settings modification is restricted to host/desktop client")
     try:
         data = await request.json()
         SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
@@ -332,11 +338,18 @@ def auth_register(req: RegisterRequest):
 
 
 @app.post("/api/auth/login")
-def auth_login(req: LoginRequest):
+def auth_login(req: LoginRequest, request: Request):
+    client_ip = get_client_ip(request)
+    is_locked, remaining = shield.is_locked_out(client_ip, req.username)
+    if is_locked:
+        raise HTTPException(429, f"Tài khoản hoặc IP tạm thời bị khóa do thử sai nhiều lần. Thử lại sau {max(1, remaining // 60)} phút.")
     try:
         res = auth.authenticate_user(req.username, req.password)
         if not res:
+            shield.apply_timing_delay()
+            shield.record_failure(client_ip, req.username)
             raise HTTPException(401, "Tên đăng nhập hoặc mật khẩu không chính xác")
+        shield.record_success(client_ip, req.username)
         user = res["user"]
         token = res["token"]
         library_data = auth.get_user_library(user["id"])
@@ -492,7 +505,7 @@ def auth_google_callback(
               localStorage.setItem('meikova:loop:token', '{token}');
               localStorage.setItem('meikova:loop:login_event', JSON.stringify({{ token: '{token}', user: {json.dumps(user)}, time: Date.now() }}));
               if (window.opener) {{
-                window.opener.postMessage({{ type: 'MEIKOVA_LOOP_AUTH_SUCCESS', token: '{token}', user: {json.dumps(user)} }}, '*');
+                window.opener.postMessage({{ type: 'MEIKOVA_LOOP_AUTH_SUCCESS', token: '{token}', user: {json.dumps(user)} }}, window.location.origin);
               }}
             }} catch(e) {{}}
             setTimeout(() => {{
@@ -934,6 +947,11 @@ async def hydrate_library_item(tid: str, request: Request, v: sessions.View = De
             remote_url = body.get("remote_url")
     except Exception:
         pass
+    if remote_url:
+        try:
+            remote_url = validate_remote_url(remote_url, allow_local_temp_for_testing=True)
+        except ValueError as val_err:
+            raise HTTPException(400, f"URL không hợp lệ hoặc bị chặn bảo mật: {val_err}")
 
     meta = library.read_meta(tid)
     if not remote_url and meta:
@@ -959,11 +977,12 @@ async def hydrate_library_item(tid: str, request: Request, v: sessions.View = De
     if library.has_audio(tid):
         return {"status": "ok", "tid": tid, "hydration_status": "SYNCED_LOCAL", "message": "already synced"}
 
-    threading.Thread(
-        target=library.hydrate_track,
-        args=(tid, remote_url),
-        daemon=True
-    ).start()
+    if not library.is_hydrating(tid):
+        threading.Thread(
+            target=library.hydrate_track,
+            args=(tid, remote_url),
+            daemon=True
+        ).start()
 
     return {"status": "ok", "tid": tid, "hydration_status": "DOWNLOADING"}
 
@@ -1013,12 +1032,17 @@ def analysis(tid: str, v: sessions.View = Depends(view_of)):
 
 def _stream_remote_audio(tid: str, remote_url: str, request: Request, v: sessions.View) -> Response:
     """Stream audio on-demand directly from remote_url and trigger background hydration."""
-    if not library.is_hydrating(tid):
-        threading.Thread(target=library.hydrate_track, args=(tid, remote_url), daemon=True).start()
-
     url_str = str(remote_url)
-    if url_str.startswith("file://") or (Path(url_str).exists() and not url_str.startswith("http")):
-        local_p = Path(url_str.replace("file://", ""))
+    try:
+        url_str = validate_remote_url(url_str, allow_local_temp_for_testing=True)
+    except ValueError as val_err:
+        raise HTTPException(400, f"URL streaming không an toàn: {val_err}")
+
+    if not library.is_hydrating(tid):
+        threading.Thread(target=library.hydrate_track, args=(tid, url_str), daemon=True).start()
+
+    if not (url_str.startswith("http://") or url_str.startswith("https://")):
+        local_p = Path(url_str)
         return FileResponse(local_p, media_type="audio/mpeg", headers={"Cache-Control": "no-cache"})
 
     range_header = request.headers.get("range")
@@ -1257,9 +1281,18 @@ def get_tunnel_status():
 
 
 @app.post("/api/tunnel/start")
-def start_tunnel():
+async def start_tunnel(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Tunnel management is restricted to host/desktop client")
+    ip_version = "auto"
     try:
-        st = tunnel_manager.start(PORT)
+        body = await request.json()
+        if isinstance(body, dict):
+            ip_version = body.get("ipVersion") or request.query_params.get("ipVersion", "auto")
+    except Exception:
+        ip_version = request.query_params.get("ipVersion", "auto")
+    try:
+        st = tunnel_manager.start(PORT, ip_version=ip_version)
         return {"ok": True, **st}
     except Exception as e:
         st = tunnel_manager.get_status()
@@ -1267,18 +1300,29 @@ def start_tunnel():
 
 
 @app.post("/api/tunnel/stop")
-def stop_tunnel():
+def stop_tunnel(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Tunnel management is restricted to host/desktop client")
     st = tunnel_manager.stop()
     return {"ok": True, **st}
 
 
 @app.post("/api/tunnel/toggle")
-def toggle_tunnel():
+async def toggle_tunnel(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Tunnel management is restricted to host/desktop client")
+    ip_version = "auto"
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            ip_version = body.get("ipVersion") or request.query_params.get("ipVersion", "auto")
+    except Exception:
+        ip_version = request.query_params.get("ipVersion", "auto")
     try:
         if tunnel_manager.status == "running":
             st = tunnel_manager.stop()
         else:
-            st = tunnel_manager.start(PORT)
+            st = tunnel_manager.start(PORT, ip_version=ip_version)
         return {"ok": True, **st}
     except Exception as e:
         st = tunnel_manager.get_status()
@@ -1324,6 +1368,8 @@ def get_cookie_status():
 
 @app.post("/api/cookies")
 async def upload_cookies(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Cookie management is restricted to host/desktop client")
     from . import cookies as cookie_mgr
     content = ""
     ct = request.headers.get("content-type", "")
@@ -1350,7 +1396,9 @@ async def upload_cookies(request: Request):
 
 
 @app.delete("/api/cookies")
-def delete_cookies():
+def delete_cookies(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Cookie management is restricted to host/desktop client")
     from . import cookies as cookie_mgr
     return cookie_mgr.delete_cookies()
 

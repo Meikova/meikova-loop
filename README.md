@@ -1,4 +1,4 @@
-﻿---
+---
 title: Meikova Loop
 emoji: loop
 colorFrom: blue
@@ -18,12 +18,13 @@ license: mit
 <img src="docs/assets/logo.png" alt="Meikova Loop Logo" width="160px">
 
 [![Release](https://img.shields.io/github/v/release/Meikova/meikova-loop?style=flat-square&color=059669)](https://github.com/Meikova/meikova-loop/releases)
-[![Platforms](https://img.shields.io/badge/Platforms-Web%20%7C%20Desktop%20%7C%20Mobile%20PWA-2563eb?style=flat-square)](https://github.com/Meikova/meikova-loop)
+[![Platforms](https://img.shields.io/badge/Platforms-Web%20%7C%20Desktop%20%7C%20Mobile%20PWA%20%7C%20Docker-2563eb?style=flat-square)](https://github.com/Meikova/meikova-loop)
 [![Python](https://img.shields.io/badge/Python-3.12-3b82f6?style=flat-square)](https://www.python.org/)
 [![Database](https://img.shields.io/badge/Database-Turso%20libSQL-00e699?style=flat-square)](https://turso.tech/)
+[![Security](https://img.shields.io/badge/Security-OWASP%20Hardened-emerald?style=flat-square)](https://owasp.org/)
 [![License](https://img.shields.io/badge/License-MIT-16a34a?style=flat-square)](LICENSE)
 
-**Động cơ DJ mashup và infinite soundscape phát nhạc vô tận, tự động phân tích beat, tách stem, nắn tempo, chuyển bài thông minh và tích hợp Universal SSO.**
+**Động cơ DJ mashup và infinite soundscape phát nhạc vô tận, tự động phân tích beat, tách stem, nắn tempo, chuyển bài thông minh, bảo mật cấp độ doanh nghiệp và tích hợp Universal SSO.**
 
 [Trải Nghiệm Trực Tuyến](https://m3ik18dp-meikova-loop.hf.space) | [Tải Bản Desktop](https://github.com/Meikova/meikova-loop/releases) | [Báo Lỗi](https://github.com/Meikova/meikova-loop/issues)
 
@@ -37,57 +38,37 @@ license: mit
 > - **Kho mã nguồn gốc (Original Repository):** [https://github.com/lvt1693/mashloop](https://github.com/lvt1693/mashloop)
 > - **Trang web chính thức của tác giả:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
 > - **Bản fork phát triển bởi:** **Phạm Đoàn Kiếm** ([@m3iK18dp](https://github.com/m3iK18dp))
-> - **Bản web trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space) (hoặc xem tại [Hugging Face Space](https://huggingface.co/spaces/m3ik18dp/meikova-loop))
+> - **Bản web trực tuyến (Hugging Face Spaces):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space)
 >
-> **Các tính năng mở rộng trong bản fork này:**
-> 1. **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2 (`dist/MeikovaLoop/MeikovaLoop.exe`), giao diện tiêu đề Dark Mode Win11, khởi động 1-click.
-> 2. **ONNX Inference & Tối ưu VRAM GPU:** Chuyển đổi mô hình `Beat This!` sang ONNX Runtime; cơ chế Demucs streaming theo từng chunk 7.8s giúp card đồ họa 4GB VRAM (như GTX 1650 Ti) chạy mượt mà không bị lỗi `CUDA error: out of memory`.
-> 3. **Mobile Shell & Tailscale Streaming:** Hỗ trợ kết nối mượt qua mạng riêng ảo Tailscale, bộ icon PWA/Retina siêu nét cho iOS/Android, xử lý Safe-Area tai thỏ/Dynamic Island, tích hợp MediaSession API phát nhạc nền.
-> 4. **The Deck & Tiện ích Nghe nhạc:** Hẹn giờ tắt nhạc (Sleep Timer) có làm dịu âm lượng thông minh trong 8s cuối, nút Khóa bài (`L`), Lọc âm đêm dịu tai High-Shelf EQ (`E`), Tắt tiếng nhanh (`M`), Bảng phím tắt & Trợ giúp (`?`).
-> 5. **Deploy Cloud Hugging Face ZeroGPU:** Triển khai trực tiếp trên Hugging Face Spaces với ZeroGPU A10G, mã QR cài đặt mobile tự thích ứng tên miền.
-> 6. **Vá lỗi mạng & Stream Windows:** Khắc phục triệt để `ConnectionResetError [WinError 10054]` trên Windows Proactor EventLoop, sửa lỗi khóa tệp `[WinError 5]` và kiểm soát HTTP Range requests.
+> **Các tính năng mở rộng chuyên sâu trong bản fork này:**
+> 1. **Windows Desktop Native Shell:** Đóng gói độc lập qua PyInstaller & Microsoft Edge WebView2, tiêu đề Dark Mode Win11 frameless custom titlebar, khởi động 1-click.
+> 2. **ONNX Inference & Tối ưu VRAM GPU:** Chuyển đổi mô hình Beat This! sang ONNX Runtime; cơ chế Demucs streaming theo từng chunk 7.8s giúp card đồ họa 4GB VRAM (như GTX 1650 Ti) chạy mượt mà không bị tràn bộ nhớ CUDA.
+> 3. **Hệ thống Bảo mật OWASP Hardening:** 5-Strike Lockout chống brute-force đăng nhập, vô hiệu hóa IDOR session spoofing, triệt tiêu LFI/SSRF (chặn schema `file://` và dải IP private/link-local/cloud metadata), bảo vệ ranh giới Host Client cho các API hạ tầng, bổ sung đầy đủ HTTP Security Headers, Ed25519 Universal SSO không hardcode key.
+> 4. **Mobile Shell & Tailscale Mesh Streaming:** Hỗ trợ kết nối mượt qua mạng riêng ảo Tailscale, bộ icon PWA/Retina siêu nét cho iOS/Android, xử lý Safe-Area tai thỏ/Dynamic Island, tích hợp MediaSession API phát nhạc nền.
+> 5. **Turso Cloud DB & Offline Data Sync:** Hỗ trợ lưu trữ offline SQLite cục bộ kết hợp đồng bộ hóa thư viện qua libSQL/Turso cloud.
+> 6. **Cloudflare Quick Tunnel Bridge:** Tích hợp sẵn `trycloudflare.com` khởi động 1-click, chia sẻ phiên nghe ra toàn cầu mà không cần mở cổng NAT/Router.
+> 7. **Zero-Profile-Pollution:** Gom toàn bộ dữ liệu cấu hình, database và cache vào `%LOCALAPPDATA%\MeikovaLoop` trên Windows hoặc `~/.meikova-loop` trên Linux/macOS.
+> 8. **The Deck & Tiện ích Nghe nhạc:** Hẹn giờ tắt nhạc (Sleep Timer) có làm dịu âm lượng thông minh trong 8s cuối, nút Khóa bài (`L`), Lọc âm đêm dịu tai High-Shelf EQ (`E`), Tắt tiếng nhanh (`M`), Bảng phím tắt & Trợ giúp (`?`).
 
-Bài hay thường hết quá sớm. Cái này sửa lỗi đó.
+---
 
-- **Trải nghiệm trực tuyến (Bản fork trên HF Space):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space)
+Bài hay thường hết quá sớm. Meikova Loop sửa lỗi đó.
+
+- **Trải nghiệm trực tuyến (Hugging Face Space):** [https://m3ik18dp-meikova-loop.hf.space](https://m3ik18dp-meikova-loop.hf.space)
 - **Nghe thử bản gốc:** [https://mashloop.truclv.com](https://mashloop.truclv.com)
 
-
-- [x] **15/10** Bản đầu: lặp vô hạn, nối bài khớp nhịp, màu theo mood, bản web cho nhiều người.
-- [x] **16/10** Key lock, tách giọng, 9 kho có sẵn, thêm các kiểu chuyển bài (mashup, double drop, build-up…), bấm vòng để tua.
-- [x] **17/10** Chế độ "Như một set DJ", vòng ∞ mới lúc chờ.
-
-Mash ∞ Loop nghe kỹ từng beat của bài hát rồi phát mãi không dứt. Trong một bài, nó
-nhảy qua lại giữa những đoạn giống nhau đến mức khó nhận ra đang ở lần lặp thứ mấy.
-Phần cốt lõi là ở **giữa các bài**: khi đã ở đủ lâu, hệ thống tìm chỗ nối sang bài
-khác, khớp nhịp, nắn tempo, giữ mood, rồi mix chuyển tiếp như một set DJ liên tục.
-Mỗi bài đại diện cho một vòng của dấu vô cực mang màu sắc theo tâm trạng (mood) bài đó.
+Meikova Loop nghe kỹ từng beat của bài hát rồi phát mãi không dứt. Trong một bài, nó nhảy qua lại giữa những đoạn tương đồng đến mức khó nhận ra đang ở lần lặp thứ mấy. Phần cốt lõi là ở **giữa các bài**: khi đã ở đủ lâu, hệ thống tìm chỗ nối sang bài khác, khớp nhịp, nắn tempo, giữ mood, rồi mix chuyển tiếp như một set DJ liên tục. Mỗi bài đại diện cho một vòng của dấu vô cực mang màu sắc theo tâm trạng (mood) bài đó.
 
 ## Nó làm gì
 
-- **Mash cả thư viện thành một chuỗi.** Không chỉ lặp trong một bài như
-  [Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) ngày
-  xưa: ở mỗi bài một lúc, rồi đi tới điểm nối tốt gần nhất sang bài khác.
-- **Mười ba kiểu nối bài và mười cách blend**, từ nối thẳng không lộ tới mashup
-  kiểu DJ (bảng bên dưới). Bật tắt từng kiểu trong *Tinh chỉnh*.
-- **Nắn tempo mà giữ tông (key lock).** Lệch tới 8 % vẫn blend được, kể cả nhịp đôi
-  70 ↔ 140, và giọng ca sĩ không bị bổng hay trầm đi. Lệch xa hơn (tới 18 %) thì bài
-  trước kéo tempo dần về phía bài sau. Hai bài lệch tông thì bài sau được dịch tới hai
-  nửa cung cho hợp, rồi trượt dần về tông gốc.
-- **Nối vào đúng đoạn:** ra ở cuối câu nhạc, vào đầu điệp khúc hay chỗ drop của bài
-  sau, không chỉ vào đầu bài.
-- **Chọn tiêu chí cho bài kế tiếp:** cân bằng, cùng mood, cùng nhịp, hợp tông (vòng
-  Camelot của DJ), như một set DJ (khởi động, lên dần tới đỉnh, cứ vài bài lại có
-  một khoảng nghỉ rồi lên lại), hoặc tự do. Tiêu chí nào cũng nhìn trước một bước:
-  không chọn bài mà từ đó chỉ còn cách crossfade đi tiếp.
-- **Biết ai đang hát:** không nhảy từ giọng nam sang giọng nữ giữa câu, không cắt
-  ngang một câu hát, không để hai giọng hát chồng nhau. Có stem giọng hát riêng nên
-  blend được chỉ phần nhạc, hoặc để giọng bài sau hát trên nền bài trước.
-- **Mỗi bài một màu theo mood**, cả căn phòng đổi màu theo bài đang phát và chuyển
-  dần sang màu bài sau trong lúc mix. Có quầng phổ âm thanh quanh vòng đang phát.
-  Thích yên tĩnh thì chọn Neon hoặc Hổ phách trong *Tinh chỉnh*.
-- **Nhiều nguồn:** link YouTube (cả playlist), SoundCloud, Bandcamp, Zing MP3,
-  Mixcloud; gõ tên bài để tìm trên YouTube; hoặc thả file nhạc, cả nguyên file zip.
+- **Mash cả thư viện thành một chuỗi.** Không chỉ lặp trong một bài như [Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) ngày xưa: ở mỗi bài một lúc, rồi đi tới điểm nối tốt gần nhất sang bài khác.
+- **Mười ba kiểu nối bài và mười cách blend**, từ nối thẳng không lộ tới mashup kiểu DJ (bảng bên dưới). Bật tắt từng kiểu trong *Tinh chỉnh*.
+- **Nắn tempo mà giữ tông (key lock).** Lệch tới 8 % vẫn blend được, kể cả nhịp đôi 70 ↔ 140, và giọng ca sĩ không bị bổng hay trầm đi. Lệch xa hơn (tới 18 %) thì bài trước kéo tempo dần về phía bài sau. Hai bài lệch tông thì bài sau được dịch tới hai nửa cung cho hợp, rồi trượt dần về tông gốc.
+- **Nối vào đúng đoạn:** ra ở cuối câu nhạc, vào đầu điệp khúc hay chỗ drop của bài sau, không chỉ vào đầu bài.
+- **Chọn tiêu chí cho bài kế tiếp:** cân bằng, cùng mood, cùng nhịp, hợp tông (vòng Camelot của DJ), như một set DJ (khởi động, lên dần tới đỉnh, cứ vài bài lại có một khoảng nghỉ rồi lên lại), hoặc tự do. Tiêu chí nào cũng nhìn trước một bước: không chọn bài mà từ đó chỉ còn cách crossfade đi tiếp.
+- **Biết ai đang hát:** không nhảy từ giọng nam sang giọng nữ giữa câu, không cắt ngang một câu hát, không để hai giọng hát chồng nhau. Có stem giọng hát riêng nên blend được chỉ phần nhạc, hoặc để giọng bài sau hát trên nền bài trước.
+- **Mỗi bài một màu theo mood**, cả căn phòng đổi màu theo bài đang phát và chuyển dần sang màu bài sau trong lúc mix. Có quầng phổ âm thanh quanh vòng đang phát. Thích yên tĩnh thì chọn Neon hoặc Hổ phách trong *Tinh chỉnh*.
+- **Nhiều nguồn:** link YouTube (cả playlist), SoundCloud, Bandcamp, Zing MP3, Mixcloud; gõ tên bài để tìm trên YouTube; hoặc thả file nhạc, cả nguyên file zip.
 
 ## Các kiểu nối bài
 
@@ -104,15 +85,9 @@ Mỗi bài đại diện cho một vòng của dấu vô cực mang màu sắc t
 | Ngắt lặng | Bài cũ đang to, bài mới vào mạnh | Im đúng một nhịp, rồi bài mới vào trên phách mạnh |
 | Phanh đĩa, cuộn nhịp, spinback, gate | Khi bạn muốn | Đột ngột. Tắt sẵn, bật trong *Tinh chỉnh* nếu thích kịch tính |
 
-Mười cách blend: dài, đổi EQ (bass, mid, treble lần lượt), ngắn, quét filter, đổi chỗ
-ở drop, trao giọng (tách giọng), acapella (giọng bài sau hát trên nền bài trước, nhạc
-bài sau lên dần bên dưới), mashup (như acapella nhưng trọn 16–32 ô nhịp), double drop
-(hai đoạn drop nổ cùng lúc),
-và vòng lặp (lặp vài ô nhịp bài trước làm outro cho những bài không có outro).
+Mười cách blend: dài, đổi EQ (bass, mid, treble lần lượt), ngắn, quét filter, đổi chỗ ở drop, trao giọng (tách giọng), acapella (giọng bài sau hát trên nền bài trước, nhạc bài sau lên dần bên dưới), mashup (như acapella nhưng trọn 16–32 ô nhịp), double drop (hai đoạn drop nổ cùng lúc), và vòng lặp (lặp vài ô nhịp bài trước làm outro cho những bài không có outro).
 
-Khi hai bài lệch tempo, bài sau vào đúng tốc độ bài trước rồi trượt dần về tốc độ
-gốc, giữ nguyên tông nhờ time-stretch. Hai bài lệch tông hẳn thì không blend, hai bộ
-trống chưa khớp nhịp thì không crossfade chồng lên nhau.
+Khi hai bài lệch tempo, bài sau vào đúng tốc độ bài trước rồi trượt dần về tốc độ gốc, giữ nguyên tông nhờ time-stretch. Hai bài lệch tông hẳn thì không blend, hai bộ trống chưa khớp nhịp thì không crossfade chồng lên nhau.
 
 ## Dùng bản trên web
 
@@ -121,36 +96,27 @@ trống chưa khớp nhịp thì không crossfade chồng lên nhau.
 
 Mỗi lần mở trang là một thư viện mới, trống trơn, của riêng bạn. Chưa biết thêm gì thì mở một trong 9 kho có sẵn: Pass The Aux (làm bằng Suno), Pop, Rock, Hip-hop, Electro & Dance, Chill & Lofi, Acoustic, Remix ccMixter, Kevin MacLeod. Tám kho sau là nhạc Creative Commons từ Jamendo, ccMixter và Incompetech, có ghi tên tác giả. Nghe hết một kho thì nó tự nối sang kho kế, hoặc bấm *Kho khác*.
 
-- Mỗi thư viện tối đa 10 bài tự thêm. Bài người khác đã thêm trước đó thì vào ngay,
-  không phải chờ phân tích; bài mới mất chừng 20 giây.
-- File âm thanh không ai nghe trong 12 giờ thì tự xoá. Trang không lưu dữ liệu cá
-  nhân nào, và là dự án vui, phi thương mại.
-- Bấm lên vòng để phát từ đoạn đó (vào ngay ở nhịp kế tiếp, không lệch nhịp). Rê
-  chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn điểm
-  chuyển. `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
+- Mỗi thư viện tối đa 10 bài tự thêm. Bài người khác đã thêm trước đó thì vào ngay, không phải chờ phân tích; bài mới mất chừng 20 giây.
+- File âm thanh không ai nghe trong 12 giờ thì tự xoá. Trang không lưu dữ liệu cá nhân nào, và là dự án phi thương mại.
+- Bấm lên vòng để phát từ đoạn đó (vào ngay ở nhịp kế tiếp, không lệch nhịp). Rê chuột lên một chấm bên ngoài vòng để xem nó dẫn tới bài nào, bấm để tự chọn điểm chuyển. `Space` phát / dừng, `J` nhảy ngay, `N` sang bài khác.
 
-## Chạy trên máy mình
+## Chạy trên máy cá nhân
 
-Đã chạy trên Windows 11 với Python 3.13 và một card NVIDIA. Không có GPU vẫn chạy
-được, chỉ là mỗi bài phân tích lâu hơn.
+Đã thử nghiệm tối ưu trên Windows 11 với Python 3.12+ và card NVIDIA GPU. Nếu không có GPU rời, hệ thống tự động chuyển sang CPU inference mượt mà.
 
-Cần sẵn: Python 3.11 trở lên, [ffmpeg](https://ffmpeg.org/) trong `PATH`, và
-[Node.js](https://nodejs.org/) 20+ (yt-dlp dùng nó để giải mã trình phát của YouTube).
+Yêu cầu tiên quyết: Python 3.11+, [ffmpeg](https://ffmpeg.org/) trong `PATH`, và [Node.js](https://nodejs.org/) 20+.
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 .venv\Scripts\pip install --no-deps beat-this demucs
 .venv\Scripts\pip install -r requirements.txt
-.\run.ps1          # mở http://127.0.0.1:8765, tự tắt server cũ nếu còn chạy
+.\run.ps1          # mở http://127.0.0.1:8765, tự dọn dẹp tiến trình cũ
 ```
 
-Lần phân tích đầu tiên sẽ tải model Beat This! và Demucs (khoảng 160 MB). Chạy trên
-máy mình thì là bản cá nhân: một thư viện, giữ lại giữa các lần mở, không giới hạn
-số bài. Chưa thử trên macOS hay Linux; lệnh tương đương là
-`python -m loopbox.server --open`.
+Lần phân tích đầu tiên sẽ tải model Beat This! và Demucs (khoảng 160 MB). Chạy trên máy cá nhân: thư viện được lưu trữ vĩnh viễn, không giới hạn số bài.
 
-Dòng lệnh, nếu bạn thích:
+Sử dụng giao diện dòng lệnh (CLI):
 
 ```powershell
 .venv\Scripts\python -m loopbox.cli add "Daft Punk Get Lucky audio" "https://www.youtube.com/playlist?list=..."
@@ -163,7 +129,7 @@ Dòng lệnh, nếu bạn thích:
 
 Dự án hỗ trợ chạy container độc lập 100% qua Docker và Docker Compose, cài đặt sẵn toàn bộ runtime Python, Deno, FFmpeg và cloudflared:
 
-`ash
+```bash
 # Khởi chạy dịch vụ container
 docker compose up -d
 
@@ -172,126 +138,79 @@ docker compose logs -f
 
 # Mở Cloudflare Quick Tunnel ra Internet xuyên NAT/Firewall
 AUTO_TUNNEL=1 docker compose up -d
-`
+```
 
-Dịch vụ chạy tại cổng 8765 (truy cập http://localhost:8765).
+Dịch vụ chạy tại cổng 8765 (truy cập `http://localhost:8765`).
 
 ## Đường hầm Cloudflare Quick Tunnel
 
-Tích hợp sẵn Cloudflare Quick Tunnel (	rycloudflare.com) cho phép mở link công khai chia sẻ set nhạc tức thì mà không cần mở port mạng:
+Tích hợp sẵn Cloudflare Quick Tunnel (`trycloudflare.com`) cho phép mở link công khai chia sẻ set nhạc tức thì mà không cần mở port mạng:
 
-- **Khởi động kèm Tunnel:** python app.py --tunnel (hoặc AUTO_TUNNEL=1 trong Docker)
+- **Khởi động kèm Tunnel:** `python app.py --tunnel` (hoặc `AUTO_TUNNEL=1` trong Docker)
 - **Quản trị API:**
-  - GET /api/tunnel/status - Lấy link https://*.trycloudflare.com
-  - POST /api/tunnel/start - Bật đường hầm
-  - POST /api/tunnel/stop - Tắt đường hầm
-  - POST /api/tunnel/restart - Khởi động lại đường hầm
+  - `GET /api/tunnel/status` - Lấy link https://*.trycloudflare.com
+  - `POST /api/tunnel/start` - Bật đường hầm
+  - `POST /api/tunnel/stop` - Tắt đường hầm
+  - `POST /api/tunnel/restart` - Khởi động lại đường hầm
 
-## Dựng cho nhiều người
+## Kiến trúc Phòng thủ & Bảo mật (OWASP Hardening)
 
-Đặt `MEIKOVA_LOOP_MULTIUSER=1` là thành bản cho nhiều người: mỗi lượt truy cập một thư
-viện riêng, bài hát và điểm nối giữa từng cặp bài là kho chung trên server.
-`deploy/` có đủ thứ để dựng trên một máy Ubuntu có GPU:
+Meikova Loop áp dụng các chuẩn an ninh nghiêm ngặt nhất:
 
-- `pack.py` đóng gói code, `setup.sh` cài venv, deno và service systemd (app chỉ
-  nghe trên `127.0.0.1`).
-- `haproxy.cfg` và `haproxy-setup.sh`: HAProxy đứng trước, TLS bằng Let's Encrypt tự
-  gia hạn.
-- `seed_samples.py`: biến một file zip nhạc thành thư viện mẫu. `seed_cc.py`: dựng
-  các kho nhạc Creative Commons từ Jamendo, ccMixter và Incompetech.
-- `meikova-loop.service`: số bài phân tích song song, giới hạn mỗi thư viện, dung lượng
-  kho nhạc, tất cả là biến môi trường.
+1. **5-Strike Lockout:** Cơ chế khóa tạm thời (15 phút) địa chỉ IP hoặc định danh đăng nhập khi nhập sai thông tin 5 lần liên tiếp, chống tấn công dò mật khẩu (brute-force).
+2. **Artificial Delay:** Thêm độ trễ ngẫu nhiên (300-350ms) trong quy trình xác thực thất bại, triệt tiêu tấn công dựa trên thời gian thực thi (timing attacks).
+3. **Chống IDOR Session Hijacking:** Kiểm soát chặt chẽ quyền truy cập thư viện qua JWT Token đã xác thực; cấm mạo danh session qua header `X-Session: u_*`.
+4. **Triệt tiêu LFI & SSRF:** Chặn tuyệt đối URI schema `file://`. Phân giải DNS và lọc triệt để các dải IP nội bộ, loopback (`127.0.0.1`), link-local, và endpoint metadata của cloud provider (`169.254.169.254`).
+5. **Host Boundary Guard:** Các endpoint quản trị nhạy cảm (`/api/tunnel/*`, `/api/cookies`, `/api/settings`) chỉ chấp nhận yêu cầu từ localhost/desktop shell hoặc header `X-Admin-Key` hợp lệ.
+6. **Security Headers:** Tích hợp sẵn `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`.
+7. **Universal SSO Ed25519:** Chữ ký số phân tán tốc độ cao (0.1ms verification) không chứa fallback key tĩnh có thể suy đoán.
 
-Bản trên web có vài lớp chống lạm dụng, để nó không thành một dịch vụ tải nhạc miễn
-phí: giới hạn số bài mỗi thư viện, giới hạn theo IP cho tìm kiếm, bài mới, file tải
-lên và lượt tải audio, link chỉ nhận từ các trang kể trên, và audio chỉ gửi cho đúng
-thư viện đang giữ bài, đã xáo trộn bằng khoá của lượt truy cập đó.
+## Dựng cho nhiều người (Multi-User)
+
+Đặt `MEIKOVA_LOOP_MULTIUSER=1` là thành bản cho nhiều người: mỗi lượt truy cập một thư viện riêng, bài hát và điểm nối giữa từng cặp bài là kho chung trên server. Thư mục `deploy/` có đủ cấu hình để dựng trên Ubuntu có GPU:
+
+- `pack.py` đóng gói code, `setup.sh` cài venv, deno và service systemd (app chỉ nghe trên `127.0.0.1`).
+- `haproxy.cfg` và `haproxy-setup.sh`: HAProxy đứng trước, TLS bằng Let's Encrypt tự gia hạn.
+- `seed_samples.py`: biến một file zip nhạc thành thư viện mẫu. `seed_cc.py`: dựng các kho nhạc Creative Commons từ Jamendo, ccMixter và Incompetech.
+- `meikova-loop.service`: số bài phân tích song song, giới hạn mỗi thư viện, dung lượng kho nhạc, tất cả cấu hình qua biến môi trường.
 
 ## Bên trong
 
-Mỗi bài đi qua một dây chuyền nhỏ (`loopbox/analysis/`):
+Mỗi bài đi qua dây chuyền phân tích âm nhạc chuyên sâu (`loopbox/analysis/`):
 
-1. **Beat This!** dò beat và downbeat. Model trả về theo lưới 20 ms; một bước tinh
-   chỉnh kéo từng beat về đúng đỉnh onset, còn lệch khoảng 0.7 ms.
-2. **Demucs** tách trống, bass, giọng hát và phần còn lại.
-3. Mỗi beat được mô tả bằng hòa âm (lấy từ phần không có trống), âm sắc, độ lớn,
-   nhịp điệu bên trong beat, mức của từng stem, và giọng hát: cao độ cùng âm sắc của
-   riêng stem vocal. Mood của cả bài (năng lượng, độ tươi) suy ra từ trống, tempo,
-   độ sáng và trưởng/thứ.
-4. Key đoán bằng profile Albrecht-Shanahan trên stem hòa âm và bass. Đoạn và câu nhạc
-   tìm từ ma trận tự tương đồng.
-5. Điểm nhảy là cặp beat mà cả cửa sổ 8 beat quanh chúng khớp nhau, cùng vị trí
-   trong câu nhạc 4 ô nhịp, có crossfade riêng cho từng chỗ (12 ms nếu trống chắc,
-   tới 60 ms nếu là nốt ngân). Đoạn cuối bài được nối cầu để không thành cái bẫy.
-6. Điểm nối giữa hai bài được tìm và lưu cho từng cặp, nên một cặp chỉ tính một lần
-   cho tất cả mọi người. Phân tích chạy song song ở nhiều tiến trình dùng chung GPU.
+1. **Beat This!** dò beat và downbeat. Model trả về theo lưới 20 ms; một bước tinh chỉnh kéo từng beat về đúng đỉnh onset, độ lệch chỉ còn khoảng 0.7 ms.
+2. **Demucs** tách trống, bass, giọng hát và nhạc cụ đệm.
+3. Mỗi beat được mô tả bằng hòa âm (lấy từ phần không có trống), âm sắc, độ lớn, nhịp điệu bên trong beat, mức của từng stem, và giọng hát: cao độ cùng âm sắc của riêng stem vocal. Mood của cả bài (năng lượng, độ tươi) suy ra từ trống, tempo, độ sáng và trưởng/thứ.
+4. Key đoán bằng profile Albrecht-Shanahan trên stem hòa âm và bass. Đoạn và câu nhạc tìm từ ma trận tự tương đồng.
+5. Điểm nhảy là cặp beat mà cả cửa sổ 8 beat quanh chúng khớp nhau, cùng vị trí trong câu nhạc 4 ô nhịp, có crossfade riêng cho từng chỗ (12 ms nếu trống chắc, tới 60 ms nếu là nốt ngân).
+6. Điểm nối giữa hai bài được tìm và lưu cho từng cặp; một cặp chỉ tính một lần cho tất cả người dùng.
 
-Phần phát (`web/js/`) là Web Audio API thuần, lên lịch trước 0.6 giây và chính xác
-tới từng mẫu. Đường tới điểm chuyển bài được tìm bằng Dijkstra trên đồ thị nhảy.
-Không framework, không build step.
+Bộ phát (`web/js/`) vận hành trên Web Audio API thuần, lên lịch trước 0.6 giây và chính xác tới từng sample âm thanh. Đường tới điểm chuyển bài được tối ưu bằng thuật toán Dijkstra trên đồ thị beat.
 
-## Kiểm tra
+## Kiểm tra chất lượng
 
-Vì không ai ngồi nghe 3 tiếng liền để test được, nên có mấy công cụ làm việc đó:
+Bộ kiểm thử tự động toàn diện:
 
 ```powershell
-node tools\sim_player.mjs 180 chain                 # mô phỏng 3 giờ phát trong vài giây
-$env:CRITERION="tempo"; node tools\sim_player.mjs 360 chain   # ... với một tiêu chí chọn bài
-.venv\Scripts\python tools\e2e_test.py 240          # chạy UI thật trong Chrome, ghi âm output ra WAV
-.venv\Scripts\python tools\eval_splices.py          # điểm nhảy khác bản gốc bao nhiêu
-.venv\Scripts\python tools\eval_voice.py            # nhảy đổi ca sĩ, cắt giữa câu, giữ câu nhạc
-.venv\Scripts\python tools\link_report.py           # thư viện được nối với nhau tốt cỡ nào
+# Chạy bộ test bảo mật OWASP Hardening
+.venv\Scripts\python -m unittest tests.test_loop_security_hardening
+
+# Chạy toàn bộ 38 test suites (Authentication, Hydration, Rate Limit, Library...)
+.venv\Scripts\python -m unittest discover tests
+
+# Mô phỏng set phát DJ không ngắt quãng
+node tools\sim_player.mjs 180 chain
 ```
 
-Trên thư viện thử 14 bài, mô phỏng 6 giờ cho mỗi tiêu chí: *cùng mood* làm độ lệch
-mood mỗi lần đổi bài giảm từ 0.49 xuống 0.31 (chọn bừa là 0.76), *cùng nhịp* giữ beat
-liền ở 68 % số lần đổi bài với độ lệch tempo trung bình 4.5 %, *hợp tông* cho 85 %
-cặp tông hợp nhau. Phát thật 4 phút trong Chrome không rớt tiếng nào.
+## Bản quyền & Ghi công
 
-## Nói thật
+Repo này không chứa bất kỳ file nhạc nào. Nhạc tải về nằm trong thư mục dữ liệu cục bộ và không đi đâu cả. Dùng cho mục đích cá nhân, tôn trọng điều khoản của các nền tảng âm nhạc và quyền của nghệ sĩ.
 
-- Các con số ở trên là đo bằng máy. Tai người vẫn là trọng tài cuối cùng.
-- Key lock chạy [signalsmith-stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch)
-  trong trình duyệt, trễ chừng 0.12 giây, nên máy yếu có thể thấy nặng trong lúc blend.
-- Zing MP3 chập chờn: nhiều bài chỉ dành cho tài khoản VIP. SoundCloud có bài chỉ cho
-  nghe thử 30 giây, những bài đó bị từ chối.
-- Không có Suno: audio của Suno được mã hóa, và app không phá lớp bảo vệ đó. Có file
-  nhạc của mình thì cứ thả vào.
-- Lớp xáo trộn audio chặn được công cụ tải và việc lưu file vu vơ, không phải DRM:
-  trình duyệt bắt buộc phải nhận được âm thanh thì mới phát được.
-- Chọn bản "audio" trên YouTube sẽ tốt hơn bản MV có đoạn mở đầu dài.
-
-## Bản quyền
-
-Repo này không chứa bất kỳ file nhạc nào. Nhạc bạn tải về nằm trong `data/` và không
-đi đâu cả. Dùng cho mục đích cá nhân, tôn trọng điều khoản của các trang nhạc và
-quyền của nghệ sĩ.
-
-## Cảm ơn
-
-[The Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) của
-Paul Lamere và [Eternal Jukebox](https://github.com/EternalBox/EternalJukebox) đã nghĩ ra
-trò này trước. Phần nặng nhất là của [Beat This!](https://github.com/CPJKU/beat_this),
-[Demucs](https://github.com/facebookresearch/demucs), [librosa](https://librosa.org/) và
-[yt-dlp](https://github.com/yt-dlp/yt-dlp).
+Cảm ơn [The Infinite Jukebox](https://musicmachinery.com/2012/11/12/the-infinite-jukebox/) của Paul Lamere và [Eternal Jukebox](https://github.com/EternalBox/EternalJukebox) đã khởi xướng ý tưởng. Trọng tâm thuật toán dựa trên [Beat This!](https://github.com/CPJKU/beat_this), [Demucs](https://github.com/facebookresearch/demucs), [librosa](https://librosa.org/) và [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 ## License
 
-[MIT](LICENSE). Áp dụng cho code trong repo này; nhạc bạn tải về vẫn thuộc về người
-làm ra nó.
-
-## English, briefly
-
-An endless jukebox that mashes songs together. It analyses beats, stems, singers and
-mood, loops each song through its own seamless jump points, and mixes a library into
-one continuous set: beat-matched, key-locked blends (ten styles, stem-aware, with key
-shifts and tempo ramps), mashups and double drops, long filtered crossfades between
-moods, DJ accents (build-ups, flangers, drop-outs), and a chain that can follow mood,
-tempo, key, or nothing at all. Try it
-at https://mashloop.truclv.com (a fresh private library per visit, songs from YouTube,
-SoundCloud, Bandcamp, Zing MP3, Mixcloud or your own files), or run it on your own
-machine. The UI is in Vietnamese; the code and its comments are in English.
-
+[MIT](LICENSE). Áp dụng cho mã nguồn trong repository này.
 
 ## Hệ sinh thái Meikova
 

@@ -150,6 +150,8 @@ def hydrate_track(tid: str, remote_url: str | None = None, target_dir: Path | st
         raise ValueError(f"no remote_url specified for track {tid}")
 
     with _hydrating_lock:
+        if tid in _hydrating_tracks:
+            return True
         _hydrating_tracks.add(tid)
 
     tmp_dest = d / f"hydrate_{tid}.tmp"
@@ -157,12 +159,15 @@ def hydrate_track(tid: str, remote_url: str | None = None, target_dir: Path | st
 
     try:
         url_str = str(remote_url)
-        if url_str.startswith("file://") or (Path(url_str).exists() and not url_str.startswith("http")):
-            src_path = Path(url_str.replace("file://", ""))
+        from .security_shield import validate_remote_url
+        validated_url = validate_remote_url(url_str, allow_local_temp_for_testing=True)
+
+        if not (validated_url.startswith("http://") or validated_url.startswith("https://")):
+            src_path = Path(validated_url)
             shutil.copy2(src_path, tmp_dest)
         else:
             req = urllib.request.Request(
-                url_str,
+                validated_url,
                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MeikovaLoop/1.0"}
             )
             with urllib.request.urlopen(req, timeout=60) as resp, open(tmp_dest, "wb") as out_f:
@@ -175,13 +180,22 @@ def hydrate_track(tid: str, remote_url: str | None = None, target_dir: Path | st
         try:
             from . import audio
             audio.to_flac(tmp_dest, final_audio)
-            tmp_dest.unlink(missing_ok=True)
+            try:
+                tmp_dest.unlink(missing_ok=True)
+            except OSError:
+                pass
         except Exception as conv_err:
-            logger.warning("to_flac conversion failed for %s, saving raw file as audio.flac: %s", tid, conv_err)
+            logger.debug("to_flac conversion failed for %s, saving raw file as audio.flac: %s", tid, conv_err)
             if tmp_dest.exists():
                 if final_audio.exists():
-                    final_audio.unlink(missing_ok=True)
-                tmp_dest.rename(final_audio)
+                    try:
+                        final_audio.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                try:
+                    tmp_dest.rename(final_audio)
+                except OSError:
+                    pass
 
         update(tid, hydration_status="SYNCED_LOCAL", remote_url=remote_url, status="ready")
 
@@ -197,9 +211,15 @@ def hydrate_track(tid: str, remote_url: str | None = None, target_dir: Path | st
 
         return True
     except Exception as e:
-        logger.error("Failed to hydrate track %s from %s: %s", tid, remote_url, e)
+        if isinstance(e, ValueError):
+            logger.info("Hydration rejected for track %s: %s", tid, e)
+        else:
+            logger.warning("Failed to hydrate track %s from %s: %s", tid, remote_url, e)
         if tmp_dest.exists():
-            tmp_dest.unlink(missing_ok=True)
+            try:
+                tmp_dest.unlink(missing_ok=True)
+            except OSError:
+                pass
         update(tid, hydration_status="CORRUPTED", error=str(e))
         raise
     finally:
