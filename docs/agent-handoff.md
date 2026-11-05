@@ -1,3 +1,30 @@
+# Session Handoff: Responsive Auto-Fill Grid for Side Panel & Input Placeholder Contrast Overhaul (v1.0.7 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Responsive Auto-Fill Grid cho Side Panel khi tăng độ rộng:**
+  - **Nguyên nhân gốc:** .kinds bị gán cứng grid-template-columns: repeat(3, 1fr); và @media (max-width: 1199px) and (min-width: 900px) bị ép 
+epeat(2, 1fr). Khi người dùng kéo dãn thanh chia --panel-w rộng ra (600px - 1000px), grid vẫn cố định 3 cột khổng lồ khiến giao diện bị kéo dãn bất hợp lý.
+  - **Giải pháp:**
+    - Chuyển .kinds sang grid-template-columns: repeat(auto-fill, minmax(min(100%, 115px), 1fr));.
+    - Đồng bộ responsive auto-fill cho .kinds.looks (minmax(min(100%, 120px), 1fr)) và .libs (minmax(min(100%, 150px), 1fr)).
+    - Xóa media query cứng ép 2 cột ở max-width: 1199px, giữ nguyên mobile 1 cột ở max-width: 520px.
+    - Thêm overflow-wrap: break-word và 	ext-wrap: pretty vào .kind span:not(.swatch) đảm bảo ngắt dòng hoàn hảo khi độ rộng cột co giãn.
+- [x] **Sửa triệt để độ tương phản Placeholder trong toàn bộ inputs:**
+  - Khai báo chuẩn SSOT --text-dim và --text-bright trong :root của web/css/app.css.
+  - Thiết lập bộ quy tắc placeholder toàn cục với ar(--text-dim, rgba(255, 255, 255, 0.32)) và -webkit-text-fill-color, loại bỏ hoàn toàn tình trạng chữ mờ bị trắng sáng 98% giống văn bản đã nhập.
+  - Chuẩn hóa placeholder .auth-field sang ar(--font-text) và font-size đồng bộ.
+  - Tăng cache buster CSS lên =93.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- .\.venv\Scripts\python.exe -m unittest discover tests -> **Ran 41 tests: Exit Code 0 (ALL PASS)**.
+- docker cp ... meikova-loop -> Đồng bộ thành công vào container Docker meikova-loop cổng 8765.
+- Xác thực container HTTP GET / -> Phục vụ css/app.css?v=93 (Exit Code 0).
+
+## 3. Các phần còn tồn đọng và cảnh báo kỹ thuật
+- Không có lỗi tồn đọng. Bản dựng sẵn sàng release 1.0.7.
+
+---
+
 # Session Handoff: Desktop Kinds Grid Restoration, EQ Popover UI Polish & Smart Title Splitter (v1.0.6 Release)
 
 ## 1. Mục tiêu hoàn thành
