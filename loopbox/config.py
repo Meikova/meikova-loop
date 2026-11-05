@@ -59,8 +59,17 @@ MULTIUSER = (os.environ.get("MEIKOVA_LOOP_MULTIUSER") or os.environ.get("MASHLOO
 # and processes computing transitions between songs.
 ANALYSIS_WORKERS = _env_int("MEIKOVA_LOOP_ANALYSIS_WORKERS", _env_int("MASHLOOP_ANALYSIS_WORKERS", 1))
 LINK_WORKERS = _env_int("MEIKOVA_LOOP_LINK_WORKERS", _env_int("MASHLOOP_LINK_WORKERS", 1))
-# CPU threads per worker process (numpy, librosa, torch on the CPU parts).
-WORKER_THREADS = _env_int("MEIKOVA_LOOP_WORKER_THREADS", _env_int("MASHLOOP_WORKER_THREADS", 4))
+def _default_worker_threads() -> int:
+    cores = os.cpu_count() or 4
+    if cores <= 2:
+        return 1
+    elif cores <= 4:
+        return 2
+    else:
+        return min(4, cores - 2)
+
+# CPU threads per worker process (numpy, librosa, torch on the CPU parts) - capped to avoid core saturation
+WORKER_THREADS = _env_int("MEIKOVA_LOOP_WORKER_THREADS", _env_int("MASHLOOP_WORKER_THREADS", _default_worker_threads()))
 # Shared cache size: past it, the songs nobody has used for longest go.
 MAX_STORE_GB = float(os.environ.get("MEIKOVA_LOOP_MAX_STORE_GB") or os.environ.get("MASHLOOP_MAX_STORE_GB") or 0)  # 0 = no limit
 MAX_SESSION_TRACKS = _env_int("MEIKOVA_LOOP_MAX_SESSION_TRACKS", _env_int("MASHLOOP_MAX_SESSION_TRACKS", 60))

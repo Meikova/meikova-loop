@@ -1473,6 +1473,12 @@ app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 @app.on_event("startup")
 def _on_loop_startup():
     import sys
+    try:
+        worker.start()
+        if MULTIUSER:
+            worker.start_retention(AUDIO_TTL_S, sessions.in_use)
+    except Exception as e:
+        logger.error(f"worker.start failed on startup: {e}")
     if "--tunnel" in sys.argv or os.environ.get("AUTO_TUNNEL") in ("1", "true", "True"):
         def _auto_tunnel():
             time.sleep(1.0)

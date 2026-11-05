@@ -4,13 +4,18 @@ run inside the same jobs, so several fetch at once), and transitions between
 songs are computed in a second pool (LINK_WORKERS). The server process only
 schedules: it knows what is on its way and tells whoever is listening when a
 song is ready or a pair of songs is linked."""
+import logging
 import multiprocessing as mp
 import os
+import sys
 import threading
 import time
 import traceback
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+try:
+    from concurrent.futures.process import BrokenProcessPool
+except ImportError:
+    BrokenProcessPool = None
 from typing import Callable
 
 from . import library
@@ -19,8 +24,11 @@ from .config import ANALYSIS_VERSION, ANALYSIS_WORKERS, LINK_WORKERS, MAX_STORE_
 
 LINK_CHUNK = 6  # songs per linking job, so several link workers share a big library
 
+logger = logging.getLogger("meikova.loop.worker")
+USE_THREADS = getattr(sys, "frozen", False) or sys.platform == "win32" or os.environ.get("MEIKOVA_WORKER_THREAD", "0") == "1"
+
 _lock = threading.RLock()
-_pools: dict[str, ProcessPoolExecutor] = {}
+_pools: dict[str, Executor] = {}
 _ingesting: dict[str, int] = {}  # track id -> attempts
 _futures: dict[str, any] = {}  # track id -> Future
 _linking: set[tuple[str, str]] = set()  # ordered pairs being computed
@@ -40,11 +48,16 @@ UPGRADE_SLOTS = max(1, ANALYSIS_WORKERS - 1)
 # ------------------------------------------------------------ in the children
 
 def _init_child(uses_torch: bool) -> None:
-    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMBA_NUM_THREADS"):
-        os.environ[var] = str(WORKER_THREADS)
+    t_str = str(WORKER_THREADS)
+    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMBA_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+        os.environ[var] = t_str
     if uses_torch:
-        import torch
-        torch.set_num_threads(WORKER_THREADS)
+        try:
+            import torch
+            torch.set_num_threads(WORKER_THREADS)
+            torch.set_num_interop_threads(1)
+        except Exception:
+            pass
 
 
 def _ingest_job(tid: str) -> str:
@@ -69,25 +82,32 @@ def _relink_job() -> None:
 
 # ------------------------------------------------------------- in the server
 
-def _pool(kind: str) -> ProcessPoolExecutor:
+def _pool(kind: str) -> Executor:
     with _lock:
         pool = _pools.get(kind)
         if pool is None:
             n = ANALYSIS_WORKERS if kind == "ingest" else LINK_WORKERS
-            # spawn, not fork: CUDA cannot be shared with a forked child.
-            pool = ProcessPoolExecutor(max_workers=max(1, n), mp_context=mp.get_context("spawn"),
-                                       initializer=_init_child, initargs=(kind == "ingest",))
+            if USE_THREADS:
+                _init_child(kind == "ingest")
+                pool = ThreadPoolExecutor(max_workers=max(1, n), thread_name_prefix=f"loopbox-{kind}")
+            else:
+                # spawn, not fork: CUDA cannot be shared with a forked child.
+                pool = ProcessPoolExecutor(max_workers=max(1, n), mp_context=mp.get_context("spawn"),
+                                           initializer=_init_child, initargs=(kind == "ingest",))
             _pools[kind] = pool
         return pool
 
 
-def _reset_pool(kind: str, broken: ProcessPoolExecutor) -> None:
+def _reset_pool(kind: str, broken: Executor) -> None:
     """A worker process died (a native crash, the OOM killer): the pool is
     unusable, so a fresh one takes its place."""
     with _lock:
         if _pools.get(kind) is broken:
             _pools.pop(kind)
-            broken.shutdown(wait=False, cancel_futures=True)
+            try:
+                broken.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
 
 
 def enqueue_ingest(tid: str) -> None:
@@ -138,18 +158,19 @@ def _ingest_done(tid: str, pool, fut) -> None:
     status = "error"
     try:
         status = fut.result()
-    except BrokenProcessPool:
-        _reset_pool("ingest", pool)
-        with _lock:
-            tries = (was_ingesting or 0) + 1
-            _ingesting[tid] = tries
-        if tries < 2 and not library.is_cancelled(tid):
-            _submit_ingest(tid)
-            return
+    except Exception as e:
+        is_broken = BrokenProcessPool and isinstance(e, BrokenProcessPool)
+        if is_broken:
+            _reset_pool("ingest", pool)
+            with _lock:
+                tries = (was_ingesting or 0) + 1
+                _ingesting[tid] = tries
+            if tries < 2 and not library.is_cancelled(tid):
+                _submit_ingest(tid)
+                return
+        logger.error(f"Phân tích bài thất bại ({tid}): {e}")
         if not library.is_cancelled(tid):
-            library.update(tid, status="error", stage="error", progress=0.0, error="máy phân tích bị lỗi với bài này")
-    except Exception:
-        pass
+            library.update(tid, status="error", stage="error", progress=0.0, error=str(e) or "máy phân tích bị lỗi với bài này")
     if status == "ready" and not library.is_cancelled(tid):
         for cb in on_ready:
             try:

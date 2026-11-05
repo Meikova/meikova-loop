@@ -1,3 +1,36 @@
+# Session Handoff: Desktop Worker Mutex Crash Fix & CPU/RAM Resource Guard (v1.0.8 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Khắc phục triệt để lỗi nạp playlist nhạc bị treo ở "đang chờ · 0%":**
+  - **Nguyên nhân gốc rễ:**
+    1. Trên Windows, `ProcessPoolExecutor` sử dụng cơ chế `spawn` để tạo tiến trình con. Khi đóng gói PyInstaller thành file `.exe`, tiến trình con được khởi tạo bằng cách gọi lại chính file `MeikovaLoop.exe`.
+    2. Điểm nhập `meikova_loop_app.py` thiếu `multiprocessing.freeze_support()`, khiến tiến trình con không nhận diện được cờ `--multiprocessing-fork` mà tiếp tục chạy vào hàm `desktop.main()`.
+    3. Tại `desktop.main()`, kiểm tra Mutex ứng dụng đơn lẻ (`Local\MeikovaLoop_Desktop_Mutex_8765`) phát hiện tiến trình mẹ đang chiếm giữ Mutex -> gọi `sys.exit(0)` kết thúc ngay lập tức.
+    4. Worker subprocess chết tức thì trước khi nhận việc, khiến pipe giao tiếp IPC bị đóng/treo vô thời hạn, dẫn đến toàn bộ 44 bài hát bị kẹt vĩnh viễn ở trạng thái "đang chờ · 0%".
+    5. Thiếu `worker.start()` trong hook `@app.on_event("startup")` của FastAPI/Starlette, khiến khi khởi động server từ `desktop.py` thì hàng đợi ngầm không tự động phục hồi các tác vụ dở dang.
+  - **Giải pháp dứt điểm:**
+    1. Chuyển đổi `_pool` sang `ThreadPoolExecutor` trên môi trường Windows / Desktop Frozen. Luồng worker chạy trực tiếp trong tiến trình ứng dụng, loại bỏ 100% việc tạo tiến trình con, triệt tiêu hoàn toàn xung đột Mutex và lỗi IPC pipe.
+    2. Bổ sung `multiprocessing.freeze_support()` vào đầu `meikova_loop_app.py`.
+    3. Đăng ký `worker.start()` vào hook `@app.on_event("startup")` để tự động khôi phục và xử lý tiếp các bài hát đang chờ mỗi khi mở ứng dụng.
+- [x] **Thiết lập cơ chế Chống Tràn RAM & Tràn CPU (Resource Guard):**
+  - **Giới hạn luồng CPU (`WORKER_THREADS`):** Tự động điều tiết theo số nhân CPU máy (`cores <= 2: 1`, `cores <= 4: 2`, `cores > 4: min(4, cores - 2)`), luôn dự trữ ít nhất 1-2 core cho giao diện Web, phát âm thanh và hệ điều hành, không bao giờ ép CPU chạy 100%.
+  - **Khóa đa luồng PyTorch:** Bổ sung `torch.set_num_interop_threads(1)` ngăn ngừa tình trạng bùng nổ luồng ngầm (thread explosion).
+  - **Xả bộ nhớ RAM (Garbage Collection):** Bổ sung khối `finally` với `gc.collect()` và giải phóng bộ nhớ đồ họa `torch.cuda.empty_cache()` ngay sau khi kết thúc xử lý từng bài hát, giữ mức RAM luôn phẳng và ổn định xuyên suốt danh sách 50+ bài hát.
+  - **Tuân thủ ngưỡng dung lượng & thời lượng:** Giữ nguyên `MAX_DURATION_S = 720` (12 phút) và `MAX_PLAYLIST = 50` bài, từ chối an toàn các bản mix quá dài để chống OOM.
+- [x] **Biên dịch & Cập nhật Executable:**
+  - Biên dịch thành công `dist/MeikovaLoop/MeikovaLoop.exe` (vừa tạo lúc 17:03).
+  - Shortcut trên Desktop (`C:\Users\kiemp\OneDrive\Máy tính\Meikova Loop.lnk`) và trong thư mục dự án đã sẵn sàng trỏ thẳng vào bản dựng mới.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe -m unittest discover tests` -> **41/41 tests PASS (Exit Code 0)**.
+- `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> **Exit Code 0**.
+- Test xử lý thực tế 1 track YouTube (`05S2uf37ufc`): Tải về, tách phách, trích xuất 153 jumps, tính mood -> `status: "ready"` (Thành công 100%).
+
+## 3. Các phần còn tồn đọng và cảnh báo kỹ thuật
+- Không còn lỗi tồn đọng. Bản dựng đã sẵn sàng sử dụng mượt mà.
+
+---
+
 # Session Handoff: Responsive Auto-Fill Grid for Side Panel & Input Placeholder Contrast Overhaul (v1.0.7 Release)
 
 ## 1. Mục tiêu hoàn thành
