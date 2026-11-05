@@ -6,13 +6,22 @@ import sys
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 def _load_env_file() -> None:
-    env_file = ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+    candidates = [
+        ROOT / ".env",
+        Path.cwd() / ".env",
+        Path(sys.executable).parent / ".env",
+        Path(__file__).resolve().parent.parent / ".env",
+    ]
+    for env_file in candidates:
+        if env_file and env_file.exists():
+            try:
+                for line in env_file.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+            except Exception:
+                pass
 
 _load_env_file()
 
@@ -20,14 +29,12 @@ def _resolve_data_dir() -> Path:
     if os.environ.get("MEIKOVA_LOOP_DATA") or os.environ.get("MASHLOOP_DATA"):
         return Path(os.environ.get("MEIKOVA_LOOP_DATA") or os.environ["MASHLOOP_DATA"])
     if getattr(sys, "frozen", False):
-        try:
-            (ROOT / "data").mkdir(parents=True, exist_ok=True)
-            test_f = ROOT / "data" / ".w_test"
-            test_f.touch()
-            test_f.unlink()
-            return ROOT / "data"
-        except (PermissionError, OSError):
-            return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "MeikovaLoop" / "data"
+        # On Windows desktop, persistent data MUST be in %LOCALAPPDATA%\MeikovaLoop\data
+        # so rebuilding the exe or updating the app NEVER deletes user accounts or data!
+        base = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+        p = base / "MeikovaLoop" / "data"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
     return ROOT / "data"
 
 DATA_DIR = _resolve_data_dir()

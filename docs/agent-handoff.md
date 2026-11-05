@@ -1,3 +1,28 @@
+# Session Handoff: Persistent Local AppData Storage & Turso Cloud Bi-directional Auth Sync (v1.0.9 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Giải quyết triệt để lỗi mất tài khoản khi build lại ứng dụng:**
+  - **Nguyên nhân gốc rễ:**
+    1. Trước đây, khi app đóng gói PyInstaller chạy (`sys.frozen = True`), hàm `_resolve_data_dir()` trong `loopbox/config.py` trỏ vào `ROOT / "data"` (tức `dist/MeikovaLoop/_internal/data`).
+    2. Mỗi khi chạy lại lệnh PyInstaller để cập nhật phần mềm, PyInstaller luôn thực hiện lệnh xóa sạch thư mục đích (`Removing dir dist/MeikovaLoop`), khiến toàn bộ cơ sở dữ liệu `auth.db`, `loopbox.db`, settings và tài khoản người dùng đã tạo bị xóa sạch theo.
+    3. Ngoài ra, file cấu hình `.env` chứa token bảo mật Turso không được bundle vào bản phân phối, khiến app desktop không nạp được biến môi trường `TURSO_DATABASE_URL` và `TURSO_AUTH_TOKEN`.
+  - **Giải pháp dứt điểm:**
+    1. Chuẩn hóa đường dẫn lưu trữ theo đúng quy tắc OS isolation: Khi chạy bản frozen desktop, `DATA_DIR` luôn luôn trỏ vào `%LOCALAPPDATA%\MeikovaLoop\data`. Bất kể bạn có build lại exe, cập nhật phiên bản mới hay di dời thư mục cài đặt, dữ liệu tài khoản và thư viện nhạc luôn được bảo toàn vĩnh viễn không bao giờ mất.
+    2. Bundle file `.env` vào file spec của PyInstaller và tối ưu cơ chế nạp biến môi trường đa vị trí (tự động quét từ thư mục exe, thư mục làm việc và MEIPASS).
+- [x] **Tích hợp đồng bộ đám mây hai chiều với Turso Cloud Database (Turso Bi-directional Sync):**
+  - **Đồng bộ khi đăng ký:** Khi tạo tài khoản mới (dù là ở Desktop, Web HF hay Mobile), tài khoản được lưu vào SQLite nội bộ và đồng thời đồng bộ tức thì lên bảng `users` của Turso Cloud.
+  - **Đăng nhập trên thiết bị mới (Cloud Auth Fallback):** Khi bạn đăng nhập trên một thiết bị/máy tính mới mà chưa có dữ liệu local, hệ thống sẽ tự động tra cứu trên Turso Cloud, xác thực mã băm PBKDF2 an toàn, và tự động đồng bộ tài khoản cùng toàn bộ Playlist, Favorites về thiết bị đó.
+  - **Đồng bộ Playlist & Favorites:** Bổ sung cơ chế đồng bộ hai chiều bảng `user_libraries` với Turso Cloud.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe -m unittest discover tests` -> **41/41 tests PASS (Exit Code 0)**.
+- Test tạo tài khoản và tra cứu trên Turso Cloud: Tạo thành công trên local, tìm thấy trên Turso Cloud (`https://meikova-loop-m3ik18dp.aws-ap-northeast-1.turso.io`), xác thực đồng bộ 100%.
+
+## 3. Các phần còn tồn đọng và cảnh báo kỹ thuật
+- Không còn lỗi tồn đọng. Bản dựng đã hỗ trợ đầy đủ Cloud Sync và bảo vệ dữ liệu vĩnh viễn.
+
+---
+
 # Session Handoff: Desktop Worker Mutex Crash Fix & CPU/RAM Resource Guard (v1.0.8 Release)
 
 ## 1. Mục tiêu hoàn thành

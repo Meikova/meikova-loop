@@ -188,6 +188,162 @@ def exchange_google_code(code: str, redirect_uri: str) -> dict:
     return google_auth(id_token)
 
 
+def _get_turso_client():
+    url = os.environ.get("TURSO_DATABASE_URL", "").strip()
+    token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
+    if not (url and token):
+        return None
+    try:
+        import libsql_client
+        if url.startswith("libsql://"):
+            url = "https://" + url[len("libsql://"):]
+        return libsql_client.create_client_sync(url=url, auth_token=token)
+    except Exception as e:
+        logger.debug("Turso client init skipped: %s", e)
+        return None
+
+
+def _sync_user_to_turso(user_data: dict) -> None:
+    client = _get_turso_client()
+    if not client:
+        return
+    try:
+        client.execute(
+            """INSERT OR REPLACE INTO users (id, username, email, display_name, password_hash, salt, provider, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                user_data["id"],
+                user_data["username"],
+                user_data.get("email"),
+                user_data.get("display_name"),
+                user_data["password_hash"],
+                user_data["salt"],
+                user_data.get("provider", "local"),
+                user_data["created_at"],
+                user_data.get("updated_at", user_data["created_at"]),
+            ]
+        )
+        logger.info("User '%s' synced to Turso Cloud", user_data["username"])
+    except Exception as e:
+        logger.warning("Failed to sync user to Turso Cloud: %s", e)
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
+def _find_user_in_turso(raw: str, lower: str, prefix: str) -> dict | None:
+    client = _get_turso_client()
+    if not client:
+        return None
+    try:
+        rs = client.execute(
+            """SELECT id, username, email, display_name, password_hash, salt, provider, created_at, updated_at
+               FROM users WHERE id = ? OR lower(username) = ? OR lower(email) = ? OR lower(username) = ?""",
+            [raw, lower, lower, prefix]
+        )
+        if rs.rows:
+            r = rs.rows[0]
+            user = {
+                "id": str(r[0]),
+                "username": str(r[1]),
+                "email": str(r[2]) if r[2] is not None else None,
+                "display_name": str(r[3]) if r[3] is not None else str(r[1]),
+                "password_hash": str(r[4]),
+                "salt": str(r[5]),
+                "provider": str(r[6] or "local"),
+                "created_at": float(r[7] or time.time()),
+                "updated_at": float(r[8] or r[7] or time.time()),
+            }
+            logger.info("User '%s' retrieved from Turso Cloud", user["username"])
+            return user
+    except Exception as e:
+        logger.warning("Turso user lookup error: %s", e)
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+    return None
+
+
+def _cache_user_locally(user: dict) -> None:
+    conn = _get_db()
+    with conn:
+        conn.execute("""
+            INSERT OR REPLACE INTO users (id, username, email, display_name, password_hash, salt, provider, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user["id"], user["username"], user["email"], user["display_name"],
+            user["password_hash"], user["salt"], user.get("provider", "local"),
+            user["created_at"], user["updated_at"]
+        ))
+        conn.execute("""
+            INSERT OR IGNORE INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
+            VALUES (?, '[]', '[]', '[]', '[]', '{}', ?)
+        """, (user["id"], user["created_at"]))
+    conn.close()
+
+
+def _sync_library_to_turso(user_id: str, track_ids: list, off_ids: list, playlists: list, favorites: list, settings: dict, updated_at: float):
+    client = _get_turso_client()
+    if not client:
+        return
+    try:
+        client.execute(
+            """INSERT OR REPLACE INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            [user_id, json.dumps(track_ids), json.dumps(off_ids), json.dumps(playlists), json.dumps(favorites), json.dumps(settings), updated_at]
+        )
+    except Exception as e:
+        logger.debug("Failed to sync library to Turso: %s", e)
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
+def _fetch_library_from_turso(user_id: str) -> dict | None:
+    client = _get_turso_client()
+    if not client:
+        return None
+    try:
+        rs = client.execute(
+            """SELECT track_ids, off_ids, playlists, favorites, settings, updated_at
+               FROM user_libraries WHERE user_id = ?""",
+            [user_id]
+        )
+        if rs.rows:
+            r = rs.rows[0]
+            track_ids_str, off_ids_str, pl_str, fav_str, set_str, updated_at = r
+            lib = {
+                "track_ids": json.loads(track_ids_str or "[]"),
+                "off_ids": json.loads(off_ids_str or "[]"),
+                "playlists": json.loads(pl_str or "[]"),
+                "favorites": json.loads(fav_str or "[]"),
+                "settings": json.loads(set_str or "{}"),
+                "updated_at": float(updated_at or time.time()),
+            }
+            conn = _get_db()
+            with conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO user_libraries (user_id, track_ids, off_ids, playlists, favorites, settings, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, track_ids_str, off_ids_str, pl_str, fav_str, set_str, updated_at))
+            conn.close()
+            return lib
+    except Exception as e:
+        logger.debug("Failed to fetch library from Turso: %s", e)
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+    return None
+
+
 def _get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(str(_db_path), timeout=15.0)
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -363,6 +519,10 @@ def find_user_by_identifier(identifier: str) -> dict | None:
 
     conn.close()
     if not row:
+        turso_user = _find_user_in_turso(raw, lower, prefix)
+        if turso_user:
+            _cache_user_locally(turso_user)
+            return turso_user
         return None
     return {
         "id": row[0],
@@ -552,7 +712,20 @@ def register_user(username: str, password: str, display_name: str = "") -> dict:
         raise ValueError("Tên đăng nhập hoặc email này đã tồn tại")
     conn.close()
 
-    # Enqueue for gateway synchronization
+    # Sync immediately to Turso Cloud and gateway
+    user_payload = {
+        "id": user_id,
+        "username": clean_username,
+        "email": clean_username if "@" in clean_username else None,
+        "display_name": disp,
+        "password_hash": pwd_hash,
+        "salt": salt_hex,
+        "provider": "local",
+        "created_at": now,
+        "updated_at": now,
+    }
+    threading.Thread(target=_sync_user_to_turso, args=(user_payload,), daemon=True).start()
+
     queue_auth_sync('REGISTER', user_id, {
         "id": user_id,
         "username": clean_username,
@@ -809,6 +982,9 @@ def get_user_library(user_id: str) -> dict:
     conn.close()
 
     if not row:
+        turso_lib = _fetch_library_from_turso(user_id)
+        if turso_lib:
+            return turso_lib
         return {
             "track_ids": [],
             "off_ids": [],
@@ -911,6 +1087,11 @@ def save_user_library(
     conn.close()
 
     current["updated_at"] = now
+    threading.Thread(
+        target=_sync_library_to_turso,
+        args=(target_id, current["track_ids"], current["off_ids"], current["playlists"], current["favorites"], current["settings"], now),
+        daemon=True
+    ).start()
     return current
 
 

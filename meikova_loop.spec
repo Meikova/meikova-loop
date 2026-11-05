@@ -26,6 +26,8 @@ def get_safe_icon(candidate_path):
 datas = [
     (str(ROOT / "web"), "web"),
 ]
+if (ROOT / ".env").exists():
+    datas.append((str(ROOT / ".env"), "."))
 if (ROOT / "data" / "models").exists():
     datas.append((str(ROOT / "data" / "models"), "data/models"))
 if (ROOT / "data" / "samples").exists():
