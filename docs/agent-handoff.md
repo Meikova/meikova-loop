@@ -1050,3 +1050,30 @@ elay-server/public/index.html & web-client: Bổ sung nút #btn-sso-gateway và 
 - **Lệnh kiểm tra đã chạy & Exit Code:**
   - `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> `ALL TESTS PASSED WITH EXIT CODE 0` (Exit Code 0).
   - `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).
+
+
+## Session Handoff: Meikova Loop v1.0.12 (Version SSOT, Tray Version Dynamic Fix, Move & Storage Cleanup)
+- **Mục tiêu hoàn thành:**
+  1. *Giải thích & chuyển đổi Move vs Copy (Dọn dẹp giải phóng ổ C):* Khi chuyển thư mục lưu trữ dữ liệu sang ổ đĩa khác (D:, E:, F:), cơ chế mới thực hiện di chuyển thực sự (Move) và xóa sạch dữ liệu cũ tại ổ C bằng `shutil.rmtree` và `unlink`, giải phóng 100% dung lượng ổ C. Cập nhật UI từ "sao chép" sang "Tự động di chuyển dữ liệu sang thư mục mới - Chuyển toàn bộ bài hát, stems, models và dọn dẹp giải phóng ổ C".
+  2. *Single Source of Truth (SSOT) `version.py`:* Tạo công cụ quản lý đồng bộ version tập trung tại gốc dự án (`version.py`). Đồng bộ toàn diện:
+     - `package.json`
+     - `installer.iss`
+     - `loopbox/__init__.py`
+     - `loopbox/config.py`
+     - `loopbox/tray.py` (kiểm tra dynamic)
+     - `web/index.html` (meta tag + version badge v1.0.12)
+     - CLI hỗ trợ: `--check`, `--sync`, `--bump [patch|minor|major]`, `--set <ver>`.
+  3. *Sửa lỗi Version trong Tray Menu:* Xóa bỏ hoàn toàn 4 vị trí hardcode `Meikova Loop // v2.0` trong `loopbox/tray.py` (Windows WinForms, macOS AppKit, Linux GTK, pystray fallback), chuyển sang kế thừa động `f"Meikova Loop // v{APP_VERSION}"`.
+  4. *Đóng gói và Phát hành:*
+     - Biên dịch thành công PyInstaller `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).
+     - Đồng bộ `web` vào `dist/MeikovaLoop/web`.
+     - Git commit `364d948` với cờ `[build] [release]`.
+     - Đã tạo và push tag `v1.0.12` và nhánh `main` lên GitHub (Exit Code 0).
+     - Đã đồng bộ và kích hoạt Space rebuild trên Hugging Face Spaces `m3ik18dp/meikova-loop` (Stage: BUILDING, Exit Code 0).
+- **Lệnh kiểm tra đã chạy & Exit Code:**
+  - `python version.py --check` -> `[PASS] All project files are in 100% version synchronization` (Exit Code 0).
+  - `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> `ALL TESTS PASSED WITH EXIT CODE 0` (43/43 tests, Exit Code 0).
+  - `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> `Building COLLECT completed successfully` (Exit Code 0).
+  - `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> `SUCCESS, Space status: BUILDING` (Exit Code 0).
+- **Các phần còn tồn đọng và cảnh báo kỹ thuật:**
+  - GitHub Actions đang tự động nhận trigger `[build] [release]` từ tag `v1.0.12` để build installer Inno Setup đa nền tảng và publish GitHub Releases.
