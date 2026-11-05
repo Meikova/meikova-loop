@@ -21,7 +21,7 @@ for (let k = 0; k <= HALO_N; k++) {
   HALO_COS[k] = Math.cos(theta);
   HALO_SIN[k] = Math.sin(theta);
 }
-const reduceMQ = matchMedia("(prefers-reduced-motion: reduce)");
+const reduceMQ = typeof matchMedia !== "undefined" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
 export const KIND_VI = {
   cut: "Nối thẳng", drop: "Drop vào đoạn mới", blend: "Blend khớp nhịp", fade: "Crossfade",
   echo: "Echo vang", wash: "Reverb wash", riser: "Build-up", flanger: "Flanger", gap: "Ngắt lặng 1 beat",
@@ -59,24 +59,137 @@ export function short(t, n = 28) {
 }
 
 // YouTube titles carry upload noise ("(Official Audio)", "| Official MV").
-// Split them into the song and the artist so the song can be the display line.
-const NOISE = /\s*[([]([^)\]]*\b(official|audio|video|lyrics?|mv|m\/v|visuali[sz]er|remaster(ed)?|hd|4k|explicit)\b[^)\]]*)[)\]]\s*/gi;
+// Split them into the song title and artist intelligently, handling both
+// "Artist - Title" (Western) and "Title - Artist" (Vietnamese / Remix / Asian) conventions.
+const NOISE = /\s*[([]([^)\]]*\b(official\s*(music\s*)?(video|audio|mv|m\/v)?|video\s*clip|lyric(s)?(\s*video)?|audio\s*lyrics?|visuali[sz]er|remaster(ed)?|hd|4k|explicit|mv|m\/v)\b[^)\]]*)[)\]]\s*/gi;
+const TRAILING_NOISE = /\s*\|\s*(official|bản ghi|live|mv|audio|video|sáng tác|written by).*$/i;
+const TITLE_HINTS = /\b(remix|mashup|lofi|slowed|reverb|acoustic|medley|ost|nhạc\s*phim|hot\s*tik\s*tok|trend\s*tik\s*tok|bản\s*chuẩn|peak\s*tik\s*tok|vinahouse|club\s*mix|extended|dance\s*version)\b/i;
+const VN_SENTENCE_WORDS = /\b(anh|em|tôi|mình|ta|ai|người|yêu|thương|nhớ|quên|đau|đi|về|cho|vì|lòng|đời|sao|không|chẳng|gì|nào|đã|đang|sẽ|có|lại|được|mất|chờ|mong)\b/i;
+
+function cleanArtist(s) {
+  if (!s) return "";
+  const m = s.split(/[\s]*[♫🎶🎼|][\s]*/);
+  let res = (m.length > 1 && m[0].trim().length >= 2) ? m[0].trim() : s;
+  res = res.replace(/\s*\/\s*(audio\s*)?lyrics?.*$/i, "").trim();
+  res = res.replace(/\s*[([](?!.*?\b(ft|feat)\b)[^)\]]*[)\]]/gi, "").trim();
+  return res;
+}
+
+function cleanTitle(s) {
+  if (!s) return "";
+  let res = s.replace(/\s*\|\s*.*$/, "").trim();
+  res = res.replace(/^["'“「『]+|["'”」』]+$/g, "").trim();
+  return res;
+}
+
 export function splitTitle(raw, channel = "") {
-  let s = String(raw || "").replace(NOISE, " ").replace(/\s*\|\s*official.*$/i, "").replace(/\s+/g, " ").trim();
-  let artist = "";
-  let title = s;
-  const sep = s.match(/\s[-–—|]\s/);
-  if (sep) {
-    artist = s.slice(0, sep.index).trim();
-    title = s.slice(sep.index + sep[0].length).trim();
+  let s = String(raw || "").trim();
+  s = s.replace(NOISE, " ").replace(TRAILING_NOISE, "").replace(/\s+/g, " ").trim();
+
+  const chClean = String(channel || "")
+    .replace(/\s*-\s*Topic$/i, "")
+    .replace(/(official|music|records|vevo|entertainment|channel|media)$/gi, "")
+    .replace(/\b(official|music|records|vevo|entertainment|channel|media)\b/gi, "")
+    .trim();
+
+  let sep = s.match(/\s[-–—]\s/);
+  if (!sep) {
+    sep = s.match(/\s[|]\s/);
   }
-  const ft = title.match(/\s\(?(ft\.?|feat\.?|featuring)\s[^)]+\)?$/i);
-  if (ft) {
-    artist = `${artist || ""} ${ft[0].trim().replace(/^\(|\)$/g, "")}`.trim();
-    title = title.slice(0, ft.index).trim();
+
+  if (!sep) {
+    let artist = "";
+    let title = s;
+    const ft = title.match(/\s\(?(ft\.?|feat\.?|featuring)\s[^)]+\)?$/i);
+    if (ft) {
+      artist = ft[0].trim().replace(/^\(|\)$/g, "");
+      title = title.slice(0, ft.index).trim();
+    }
+    if (!artist && channel) {
+      artist = channel.replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim();
+    }
+    return { title: cleanTitle(title) || s || raw, artist: cleanArtist(artist) };
   }
-  if (!artist && channel) artist = channel.replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim();
-  return { title: title || s || raw, artist };
+
+  const partA = s.slice(0, sep.index).trim();
+  const partB = s.slice(sep.index + sep[0].length).trim();
+
+  let scoreA_is_artist = 0;
+  let scoreB_is_artist = 0;
+
+  // Channel matching: an artist name usually matches their official YouTube channel
+  if (chClean && chClean.length >= 3) {
+    const chLower = chClean.toLowerCase();
+    if (partA.toLowerCase().includes(chLower)) scoreA_is_artist += 4;
+    if (partB.toLowerCase().includes(chLower)) scoreB_is_artist += 4;
+  }
+
+  // Song hints (remix, mashup, acoustic, etc.) strongly indicate a Song Title
+  if (TITLE_HINTS.test(partA)) scoreA_is_artist -= 10;
+  if (TITLE_HINTS.test(partB)) {
+    if (!/\b(cover|ca\s*sĩ|singer|prod|beat)\b/i.test(partB) && !/[♫🎶🎼|]/.test(partB)) {
+      scoreB_is_artist -= 3;
+    }
+  }
+
+  // Artist hints (cover, ca sĩ, song ca, composer, etc.)
+  if (/\b(cover|ca\s*sĩ|singer|thể\s*hiện|trình\s*bày|song\s*ca|tam\s*ca|composer|sáng\s*tác|written\s*by|prod(\.|\s*by)|beat(\s*by)?)\b/i.test(partA)) scoreA_is_artist += 4;
+  if (/\b(cover|ca\s*sĩ|singer|thể\s*hiện|trình\s*bày|song\s*ca|tam\s*ca|composer|sáng\s*tác|written\s*by|prod(\.|\s*by)|beat(\s*by)?)\b/i.test(partB)) scoreB_is_artist += 4;
+
+  // "ft." or "feat." in part B usually means: MainArtist - SongTitle (ft. GuestArtist)
+  if (/\b(ft\.?|feat\.?|featuring)\b/i.test(partB)) scoreA_is_artist += 4;
+  if (/\b(ft\.?|feat\.?|featuring)\b/i.test(partA)) scoreB_is_artist += 2;
+
+  // Multiple artist separator (comma, x, +, &)
+  if (/,/.test(partB) || /\b(x|\&|\+)\b/i.test(partB)) scoreB_is_artist += 3;
+  if (/,/.test(partA) || /\b(x|\&|\+)\b/i.test(partA)) scoreA_is_artist += 1;
+
+  // Trailing lyric notes/quotes in part B (very common in VN remix videos)
+  if (/[♫🎶🎼]/.test(partB)) scoreB_is_artist += 5;
+
+  // Clean candidate strings before sentence word inspection
+  const candArtistA = cleanArtist(partA);
+  const candArtistB = cleanArtist(partB);
+
+  // If candidate artist B is a short clean name and part A is a title
+  if (candArtistB.length > 0 && candArtistB.length < 35 && candArtistB.split(/\s+/).length <= 4) {
+    scoreB_is_artist += 3;
+  }
+
+  // Grammatical clause check on clean parts (sentence words in title vs proper nouns in artist)
+  if (VN_SENTENCE_WORDS.test(partA) && !VN_SENTENCE_WORDS.test(candArtistB)) {
+    scoreA_is_artist -= 3;
+    scoreB_is_artist += 3;
+  } else if (!VN_SENTENCE_WORDS.test(candArtistA) && VN_SENTENCE_WORDS.test(partB) && !/[♫🎶🎼|]/.test(partB)) {
+    scoreA_is_artist += 3;
+    scoreB_is_artist -= 3;
+  }
+
+  let title, artist;
+  if (scoreA_is_artist > scoreB_is_artist) {
+    // Format: "Artist - Title" (Western convention or Artist matched on left)
+    artist = cleanArtist(partA);
+    title = cleanTitle(partB);
+  } else {
+    // Format: "Title - Artist" (Vietnamese / Asian / Remix convention, or Artist on right)
+    title = cleanTitle(partA);
+    artist = cleanArtist(partB);
+  }
+
+  // Extract ft. in title only if no artist has been found yet
+  if (!artist) {
+    const ft = title.match(/\s\(?(ft\.?|feat\.?|featuring)\s[^)]+\)?$/i);
+    if (ft) {
+      artist = ft[0].trim().replace(/^\(|\)$/g, "");
+      title = title.slice(0, ft.index).trim();
+    }
+  }
+
+  if (!artist && channel) {
+    artist = channel.replace(/\s*-\s*Topic$/i, "").replace(/VEVO$/i, "").trim();
+  }
+
+  return { title: title || s || raw, artist: artist || "" };
 }
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -194,7 +307,7 @@ export class Viz {
   }
 
   get reduced() {
-    return reduceMQ.matches;
+    return reduceMQ?.matches ?? false;
   }
 
   // ------------------------------------------------------------- geometry

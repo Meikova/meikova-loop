@@ -1,3 +1,43 @@
+# Session Handoff: Desktop Kinds Grid Restoration, EQ Popover UI Polish & Smart Title Splitter (v1.0.6 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Sửa triệt để lỗi đảo ngược Tên bài hát & Ca sĩ khi nạp Playlist YouTube:**
+  - **Nguyên nhân gốc:** Hàm `splitTitle` trong `web/js/viz.js` mặc định giả định quy ước Tây phương `Artist - Title` (lấy phần trước dấu gạch ngang làm Ca sĩ, phần sau làm Tên bài hát). Tuy nhiên, trên YouTube Việt Nam / Châu Á / Remix / EDM, định dạng phổ biến áp đảo lại là `[Tên Bài Hát] - [Ca Sĩ / Producer]`, dẫn đến Tên bài hát bị đẩy xuống dòng phụ (chữ nhỏ), còn Ca sĩ / Nhóm ca lại bị phóng to làm tiêu đề chính (chữ lớn).
+  - **Biện pháp xử lý triệt để (Multi-Heuristic Smart Parser):**
+    - Nhận diện nhãn dòng nhạc & hậu tố (`remix`, `mashup`, `lofi`, `slowed`, `acoustic`, `bản chuẩn`, `peak tiktok`...) -> khẳng định 100% vế đó là Song Title.
+    - Nhận diện tín hiệu Ca sĩ (`cover`, `ca sĩ`, `singer`, `thể hiện`, `song ca`, `prod.`, `beat by`, danh sách tên nối bằng dấu phẩy `,` hoặc `x`) -> xác định Artist.
+    - Tự động tách và làm sạch emoji nốt nhạc/lời bài hát clickbait trailing (`♫`, `🎶`, `🎼`, `|`) trong tên kênh/ca sĩ.
+    - So khớp kênh (`channel matching`): Đối chiếu với tên kênh YouTube chính thức của nghệ sĩ.
+    - Phân tích ngữ pháp tiếng Việt (`VN_SENTENCE_WORDS`): Phân biệt đại từ / vị ngữ trong tiêu đề ca khúc (`anh`, `em`, `yêu`, `thương`, `nhớ`, `quên`, `đau`, `lòng`...) với danh từ riêng (tên ca sĩ).
+    - Tương thích 100% cả bài hát phương Tây (`Coldplay - Yellow`, `Queen - Bohemian Rhapsody`, `Avicii - Wake Me Up`).
+- [x] **Khắc phục lỗi mất CSS Grid 3 cột trên Desktop (`.kinds`):**
+  - **Nguyên nhân gốc:** Tại dòng 4378 trong `web/css/app.css`, block `@media (max-width: 520px)` bị đóng ngoặc sớm trước `@media (max-width: 410px)`. Toàn bộ các rule mobile bên dưới (`.kinds { grid-template-columns: 1fr; }`, `.deck__btn span { display: none !important; }`, `.topbar__end span { display: none !important; }`) bị đẩy ra ngoài media query, chạy ở global scope làm vỡ layout trên desktop.
+  - **Biện pháp xử lý triệt để:** Gộp lại toàn bộ các rule mobile vào đúng bên trong `@media (max-width: 520px)`. Khôi phục layout desktop 3 cột `grid-template-columns: repeat(3, 1fr);`, tablet 2 cột và mobile 1 cột.
+- [x] **Thiết kế lại Popover Hiệu ứng EQ (`.eq-popover`) chuẩn Meikova Ambient UI:**
+  - Hero preset `Chuẩn (Gốc)` (`[data-eq="flat"]`): Chiếm trọn hàng đầu (`grid-column: 1 / -1; height: 40px;`).
+  - 4 presets bên dưới (`Âm đêm dịu`, `Bass Boost`, `Tôn giọng`, `Lofi Chill`): Chia đều 2 hàng (2x2) đối xứng, chiều cao cố định `38px`, `white-space: nowrap` chống ngắt dòng méo mó.
+  - Tích hợp 100% Inline Vector SVG icons optical center cho cả 5 preset và header icon.
+  - Áp dụng đơn viền hairline `border: 1px solid var(--accent)` kèm neon glow `box-shadow: 0 0 14px -2px oklch(var(--acc) / 0.42)`, triệt tiêu lỗi viền kép (zero-double-border).
+  - Tăng CSS/JS cache buster lên `v=91` trong `web/index.html`.
+- [x] **TDD & Unit Testing:**
+  - Viết mới `tests/test_title_splitter.py` kiểm thử 6 ca khúc thực tế của người dùng và các ca khúc phương Tây/Châu Á.
+  - Chạy toàn bộ test suite: `.\.venv\Scripts\python.exe -m unittest discover tests` -> **41/41 tests PASS (Exit Code 0)**.
+- [x] **Đóng gói Desktop Executable:**
+  - Đóng gói bằng PyInstaller với `meikova_loop.spec` sinh thư mục `dist/MeikovaLoop/MeikovaLoop.exe` (66.8 MB) đồng bộ toàn bộ web bundle mới nhất.
+- [x] **Bumping Version & CI/CD Trigger:**
+  - Bump SemVer lên `1.0.6` trong `package.json`.
+  - Push commit với cờ `[build] [release]` và tag `v1.0.6` lên `origin main`.
+  - Đồng bộ và trigger rebuild trên Hugging Face Spaces (`m3ik18dp/meikova-loop` / `space`).
+
+## 2. Lệnh kiểm tra đã chạy & Kết quả
+- `node scratch/test_split.mjs` -> **49/49 real library tracks PASS**
+- `.\.venv\Scripts\python.exe -m unittest tests.test_title_splitter` -> **2/2 tests PASS (Exit Code 0)**
+- `.\.venv\Scripts\python.exe -m unittest discover tests` -> **41/41 tests PASS (Exit Code 0)**
+- PyInstaller compilation `meikova_loop.spec` -> **Success (MeikovaLoop.exe 66.8MB generated)**
+- `package.json` -> **Version 1.0.6**
+
+---
+
 # Session Handoff: Comprehensive OWASP Security Hardening & Documentation Overhaul
 
 ## 1. Mục tiêu hoàn thành

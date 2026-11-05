@@ -54,7 +54,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=90" />
+    <link rel="stylesheet" href="css/app.css?v=91" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -446,24 +446,54 @@
               aria-label="Chọn hiệu ứng âm thanh"
             >
               <div class="eq-popover__head">
-                <span class="eq-popover__title">Hiệu ứng EQ</span>
+                <div class="eq-popover__title-wrap">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+                  </svg>
+                  <span class="eq-popover__title">Hiệu ứng EQ</span>
+                </div>
                 <span class="eq-popover__badge mono" id="eq-badge">Chuẩn</span>
               </div>
               <div class="eq-popover__opts">
                 <button type="button" class="eq-opt on" data-eq="flat">
-                  Chuẩn (Gốc)
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="12" x2="21" y2="12" /><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                  </svg>
+                  <span>Chuẩn (Gốc)</span>
                 </button>
                 <button type="button" class="eq-opt" data-eq="night">
-                  Âm đêm dịu
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                  <span>Âm đêm dịu</span>
                 </button>
                 <button type="button" class="eq-opt" data-eq="bass">
-                  Bass Boost
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="4" y1="10" x2="4" y2="14" />
+                    <line x1="8" y1="7" x2="8" y2="17" />
+                    <line x1="12" y1="4" x2="12" y2="20" />
+                    <line x1="16" y1="7" x2="16" y2="17" />
+                    <line x1="20" y1="10" x2="20" y2="14" />
+                  </svg>
+                  <span>Bass Boost</span>
                 </button>
                 <button type="button" class="eq-opt" data-eq="vocal">
-                  Tôn giọng
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                  <span>Tôn giọng</span>
                 </button>
                 <button type="button" class="eq-opt" data-eq="lofi">
-                  Lofi Chill
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <span>Lofi Chill</span>
                 </button>
               </div>
             </div>
@@ -2000,7 +2030,7 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=85"></script>
+    <script type="module" src="js/main.js?v=91"></script>
     <script>
       if (
         "serviceWorker" in navigator &&

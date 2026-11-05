@@ -168,9 +168,11 @@ hooks.restore = async () => {
 const byId = () => new Map(metas.map((m) => [m.id, m]));
 // A credited song (the Creative Commons libraries) has its exact title and
 // artist already: "Anyway - Produced by J. Glaze" is a title, not "artist - title".
-const songOf = (m) => m?.credit
-  ? { title: m.title || "", artist: m.channel || m.credit.artist || "" }
-  : splitTitle(m?.title || "", m?.channel || "");
+const songOf = (m) => {
+  if (m?.credit) return { title: m.title || "", artist: m.channel || m.credit.artist || "" };
+  if (m?.track && m?.artist) return { title: m.track, artist: m.artist };
+  return splitTitle(m?.title || "", m?.channel || "");
+};
 const titleOf = (id) => {
   const m = byId().get(id) || known.get(id);
   return m ? songOf(m).title : id;
