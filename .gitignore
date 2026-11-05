@@ -63,3 +63,5 @@ agents/
 _agents/
 AGENTS.md
 docs/agent-handoff.md
+
+*.lnk
