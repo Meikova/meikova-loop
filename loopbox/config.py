@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 
+APP_VERSION = "1.0.12"
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 def _load_env_file() -> None:
@@ -147,10 +148,14 @@ def apply_data_dir(new_path: Path | str, migrate: bool = False) -> dict:
             dest = target / item.name
             try:
                 if item.is_dir():
-                    if not dest.exists():
-                        shutil.copytree(item, dest, dirs_exist_ok=True)
-                elif item.is_file() and not dest.exists():
+                    shutil.copytree(item, dest, dirs_exist_ok=True)
+                    shutil.rmtree(item, ignore_errors=True)
+                elif item.is_file():
                     shutil.copy2(item, dest)
+                    try:
+                        item.unlink()
+                    except OSError:
+                        pass
             except Exception:
                 pass
 

@@ -6596,3 +6596,33 @@ dialog.tunnel-modal,
     padding: 10px 14px !important;
   }
 }
+
+.settings-app-info {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 10px 14px !important;
+  background: var(--ink-2) !important;
+  border: 1px solid var(--line-soft) !important;
+  border-radius: 10px !important;
+  margin-top: 14px !important;
+}
+
+.settings-app-info__name {
+  font-family: var(--font-display, var(--font-sans)) !important;
+  font-size: var(--step--1) !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  letter-spacing: -0.01em !important;
+}
+
+.settings-app-info__version {
+  font-size: 11px !important;
+  padding: 3px 9px !important;
+  border-radius: 9999px !important;
+  background: oklch(var(--acc) / 0.12) !important;
+  border: 1px solid oklch(var(--acc) / 0.3) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+}

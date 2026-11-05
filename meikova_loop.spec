@@ -46,6 +46,7 @@ hiddenimports = [
     "uvicorn.lifespan",
     "uvicorn.lifespan.on",
     "psutil",
+    "version",
     "loopbox.server",
     "loopbox.desktop",
     "loopbox.tray",

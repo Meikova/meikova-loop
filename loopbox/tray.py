@@ -11,6 +11,14 @@ import webbrowser
 from pathlib import Path
 from typing import Callable
 
+try:
+    from .config import APP_VERSION
+except Exception:
+    try:
+        from loopbox.config import APP_VERSION
+    except Exception:
+        APP_VERSION = "1.0.12"
+
 logger = logging.getLogger("meikova.loop.tray")
 
 # Keep strong references to prevent WinForms / AppKit / GTK objects from being garbage-collected
@@ -520,7 +528,7 @@ class DesktopTray:
             item_pad = Padding(4, 5, 4, 5)
 
             # 1. Header (disabled title item with logo icon)
-            header = ToolStripMenuItem("Meikova Loop // v2.0")
+            header = ToolStripMenuItem(f"Meikova Loop // v{APP_VERSION}")
             header.Enabled = False
             header.Font = font_bold
             header.Padding = Padding(4, 6, 4, 6)
@@ -684,7 +692,7 @@ class DesktopTray:
                 return None
 
             header = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                "Meikova Loop // v2.0", None, ""
+                f"Meikova Loop // v{APP_VERSION}", None, ""
             )
             header.setEnabled_(False)
             h_img = _ns_icon("logo")
@@ -792,7 +800,7 @@ class DesktopTray:
                         it.connect("activate", on_click)
                     return it
 
-                header = _gtk_item("Meikova Loop // v2.0", "logo")
+                header = _gtk_item(f"Meikova Loop // v{APP_VERSION}", "logo")
                 header.set_sensitive(False)
                 menu.append(header)
                 menu.append(Gtk.SeparatorMenuItem())
@@ -854,7 +862,7 @@ class DesktopTray:
 
             img = Image.open(str(icon_file))
             menu = pystray.Menu(
-                pystray.MenuItem("Meikova Loop // v2.0", None, enabled=False),
+                pystray.MenuItem(f"Meikova Loop // v{APP_VERSION}", None, enabled=False),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Mở Meikova Loop", lambda: self.show_window(), default=True),
                 pystray.MenuItem(

@@ -28,7 +28,7 @@ from . import auth, download, ingest, library, ratelimit, sessions, worker
 from .security_shield import shield, is_trusted_host_client, validate_remote_url, SecurityHeadersMiddleware, get_client_ip
 from .audio import BITRATE as SOUND_KBPS
 from .audio import encode as encode_sound
-from .config import AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
+from .config import APP_VERSION, AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
     WEB_DIR
 from .tunnel_manager import tunnel_manager
 
@@ -1323,6 +1323,7 @@ def get_host_info(request: Request):
         active_url = tunnel_st["url"]
 
     return {
+        "version": APP_VERSION,
         "lan_ip": lan_ip,
         "lan_url": lan_url,
         "lan_origin": lan_url,  # backward compatibility alias
@@ -1334,6 +1335,11 @@ def get_host_info(request: Request):
         "is_local": is_local,
         "tunnel": tunnel_st,
     }
+
+
+@app.get("/api/version")
+def api_version():
+    return {"version": APP_VERSION, "app": "Meikova Loop"}
 
 
 @app.get("/api/tunnel/status")

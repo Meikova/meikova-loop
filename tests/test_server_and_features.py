@@ -799,6 +799,56 @@ def test_parallel_download_and_hardware_aware_analysis():
     library.clear_cancelled(tid_test)
 
 
+def test_storage_migration_move_and_cleanup():
+    import tempfile
+    import shutil
+    from loopbox import config
+
+    with tempfile.TemporaryDirectory() as tmp_src:
+        src = Path(tmp_src)
+        (src / "library").mkdir()
+        (src / "library" / "song1.flac").write_bytes(b"FLACDATA")
+        (src / "pairs").mkdir()
+        (src / "pairs" / "p1.json").write_text("{}", encoding="utf-8")
+        (src / "settings.json").write_text("{}", encoding="utf-8")
+
+        with tempfile.TemporaryDirectory() as tmp_dest:
+            dest = Path(tmp_dest) / "NewStorage"
+            orig_data_dir = config.DATA_DIR
+            try:
+                config.DATA_DIR = src
+                info = config.apply_data_dir(dest, migrate=True)
+                assert info["data_dir"] == str(dest.resolve())
+                assert (dest / "library" / "song1.flac").exists()
+                assert (dest / "pairs" / "p1.json").exists()
+                assert (dest / "settings.json").exists()
+                assert not (src / "library" / "song1.flac").exists()
+                assert not (src / "library").exists()
+                assert not (src / "pairs" / "p1.json").exists()
+                assert not (src / "settings.json").exists()
+            finally:
+                config.DATA_DIR = orig_data_dir
+                config.STORAGE_CONFIG_FILE.unlink(missing_ok=True)
+
+
+def test_version_ssot_sync_and_api():
+    import version
+    from loopbox import config, server
+
+    # 1. SSOT version consistency
+    assert version.get_version() == version.__version__
+    assert config.APP_VERSION == version.__version__
+
+    # 2. Check sync across all project files
+    is_ok, report = version.check_sync()
+    assert is_ok is True, f"Files out of version sync: {report}"
+
+    # 3. API endpoint /api/version
+    res = server.api_version()
+    assert res["version"] == version.__version__
+    assert res["app"] == "Meikova Loop"
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -829,6 +879,8 @@ if __name__ == "__main__":
     test_ratelimit_dev_bypass_and_ip_whitelist()
     test_desktop_tray_and_background_minimize()
     test_parallel_download_and_hardware_aware_analysis()
+    test_storage_migration_move_and_cleanup()
+    test_version_ssot_sync_and_api()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 
