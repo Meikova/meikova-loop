@@ -72,8 +72,13 @@ def upgrade(tid: str) -> bool:
         return False
 
 
-def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str:
-    """Returns the final status ("ready" or "error")."""
+def download_and_convert(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str:
+    """Stage 1 of ingestion (I/O bound): fetch remote stream or upload -> convert to FLAC & MP3 preview.
+    Returns:
+      "ready" if the song was already analysed before and its sound was restored.
+      "downloaded" if FLAC audio is ready on disk and queued for AI feature analysis.
+      "error" if failed or cancelled.
+    """
     def stage(name: str, progress: float, **extra):
         m = library.update(tid, stage=name, progress=round(progress, 3), **extra)
         if m:
@@ -90,6 +95,7 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
             raise RuntimeError("analysed by a newer Meikova Loop version: restart the server")
         if meta.get("duration") and meta["duration"] > MAX_DURATION_S:
             raise RuntimeError(f"dài hơn {MAX_DURATION_S // 60} phút")
+
         if not library.audio_path(tid).exists():
             known = meta.get("duration")  # what the song measured when it was analysed, if it was
             d = library.track_dir(tid)
@@ -109,7 +115,7 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
                                    duration=info.get("duration"), thumbnail=info.get("thumbnail") or meta.get("thumbnail"),
                                    # a credit set by hand (the sample libraries) is more exact: kept
                                    **({"credit": info["credit"]} if info.get("credit") and not meta.get("credit") else {}))
-            stage("converting", 0.3, status="analyzing")
+            stage("converting", 0.3, status="downloading")
             if not src.exists() or src.stat().st_size == 0:
                 raise RuntimeError("file tải về bị trống hoặc không tồn tại")
             try:
@@ -143,6 +149,36 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
             library.clear_cancelled(tid)
             library.delete(tid)
             return "error"
+
+        stage("queued", 0.32, status="queued")
+        return "downloaded"
+    except Exception as e:
+        if library.is_cancelled(tid) or "huỷ" in str(e).lower() or "cancel" in str(e).lower():
+            library.clear_cancelled(tid)
+            library.delete(tid)
+            return "error"
+        err_msg = str(e) if isinstance(e, RuntimeError) else download.clean_error(e)
+        logger.warning(f"Tải/chuyển đổi bài thất bại ({tid}): {err_msg}")
+        stage("error", 0.0, status="error", error=err_msg)
+        return "error"
+
+
+def analyze_features(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str:
+    """Stage 2 of ingestion (Compute bound): stem separation & feature analysis on the prepared FLAC audio.
+    Returns the final status ("ready" or "error")."""
+    def stage(name: str, progress: float, **extra):
+        m = library.update(tid, stage=name, progress=round(progress, 3), **extra)
+        if m:
+            on_update(m)
+
+    try:
+        if library.is_cancelled(tid):
+            library.clear_cancelled(tid)
+            library.delete(tid)
+            return "error"
+        if not library.audio_path(tid).exists():
+            raise RuntimeError("file âm thanh chưa sẵn sàng để phân tích")
+
         from .analysis import pipeline
         stage("analyzing", 0.32, status="analyzing")
         stats = pipeline.analyze(tid, lambda s, p: stage(s, 0.32 + 0.66 * p, status="analyzing"))
@@ -155,7 +191,7 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
             library.delete(tid)
             return "error"
         err_msg = str(e) if isinstance(e, RuntimeError) else download.clean_error(e)
-        logger.warning(f"Nạp bài thất bại ({tid}): {err_msg}")
+        logger.warning(f"Phân tích bài thất bại ({tid}): {err_msg}")
         stage("error", 0.0, status="error", error=err_msg)
         return "error"
     finally:
@@ -167,3 +203,11 @@ def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str
                 torch.cuda.empty_cache()
         except Exception:
             pass
+
+
+def process(tid: str, on_update: Callable[[dict], None] = lambda m: None) -> str:
+    """Downloads, converts, and analyses a track sequentially. Returns "ready" or "error"."""
+    status = download_and_convert(tid, on_update)
+    if status == "downloaded":
+        return analyze_features(tid, on_update)
+    return status

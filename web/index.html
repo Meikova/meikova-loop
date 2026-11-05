@@ -54,7 +54,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=93" />
+    <link rel="stylesheet" href="css/app.css?v=94" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -1273,6 +1273,32 @@
             </div>
           </section>
 
+          <section class="group" aria-labelledby="g-storage" id="sec-storage">
+            <h2 class="label" id="g-storage">Vị trí lưu trữ dữ liệu</h2>
+            <div class="storage-card" id="storage-card">
+              <div class="storage-card__head">
+                <div class="storage-badge" id="storage-badge">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  <span id="storage-status-text">Mặc định</span>
+                </div>
+                <span class="storage-drive-info" id="storage-drive-info">Trống ... GB</span>
+              </div>
+              <div class="storage-card__path-box">
+                <span class="storage-path-label">Thư mục hiện tại (nhạc, stems & dữ liệu):</span>
+                <div class="storage-path-display mono" id="storage-current-path" title="Thư mục lưu trữ">...</div>
+              </div>
+              <div class="storage-card__acts">
+                <button type="button" class="btn-storage btn-storage--change" id="btn-change-storage" title="Chọn ổ đĩa khác để tránh đầy ổ C">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>Đổi thư mục lưu trữ</span>
+                </button>
+                <button type="button" class="btn-storage btn-storage--reset" id="btn-reset-storage" title="Đặt lại về thư mục mặc định" hidden>
+                  <span>Về mặc định</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section class="group" id="group-relink" aria-labelledby="g-lib">
             <h2 class="label" id="g-lib">Thư viện</h2>
             <button id="btn-relink" type="button" class="ghost">
@@ -1938,6 +1964,66 @@
           </button>
           <button type="button" class="auth-btn-logout" id="btn-logout">Đăng xuất</button>
         </div>
+      </div>
+    </dialog>
+
+    <!-- Modal: Thay đổi vị trí lưu trữ dữ liệu -->
+    <dialog class="consent storage-modal" id="modal-storage" aria-labelledby="modal-storage-title">
+      <div class="storage-modal__head">
+        <div class="storage-modal__title-wrap">
+          <div class="storage-modal__icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div class="storage-modal__headings">
+            <h2 id="modal-storage-title" class="storage-modal__title">Vị trí lưu trữ dữ liệu</h2>
+            <p class="storage-modal__sub">Lưu trữ nhạc, stems và models trên ổ đĩa khác để tránh đầy ổ C</p>
+          </div>
+        </div>
+        <button type="button" class="storage-modal__close" id="btn-close-storage-modal" aria-label="Đóng" title="Đóng">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="storage-modal__body">
+        <div class="storage-section">
+          <label class="storage-section__label">Các ổ đĩa khả dụng trên máy</label>
+          <div class="storage-drives-grid" id="storage-drives-list">
+            <!-- Render dynamically -->
+          </div>
+        </div>
+
+        <div class="storage-section">
+          <label for="storage-input-path" class="storage-section__label">Đường dẫn thư mục lưu trữ mới</label>
+          <div class="storage-input-row">
+            <input type="text" id="storage-input-path" class="storage-input" placeholder="Ví dụ: E:\MeikovaLoopData" spellcheck="false" autocomplete="off" />
+            <button type="button" class="btn-storage-browse" id="btn-storage-browse" title="Duyệt thư mục">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span>Duyệt...</span>
+            </button>
+          </div>
+          <p class="storage-hint">Chọn nhanh ổ đĩa ở trên hoặc nhập đường dẫn bất kỳ. Thư mục sẽ được tự động tạo nếu chưa có.</p>
+        </div>
+
+        <div class="storage-section storage-migrate-box">
+          <label class="storage-checkbox-label">
+            <input type="checkbox" id="storage-migrate-chk" checked />
+            <span class="storage-checkbox-text">
+              <span class="storage-checkbox-title">Tự động sao chép dữ liệu hiện có sang thư mục mới</span>
+              <span class="storage-checkbox-desc">Di chuyển toàn bộ bài hát, stems, phân tích và database sang ổ mới</span>
+            </span>
+          </label>
+        </div>
+
+        <div id="storage-modal-err" class="storage-modal-err" hidden></div>
+      </div>
+
+      <div class="storage-modal__foot">
+        <button type="button" class="btn-storage-action btn-storage-action--cancel" id="btn-cancel-storage-modal">Hủy bỏ</button>
+        <button type="button" class="btn-storage-action btn-storage-action--save" id="btn-save-storage-modal">
+          <span>Áp dụng &amp; Lưu</span>
+        </button>
       </div>
     </dialog>
 

@@ -59,6 +59,11 @@ class LocalIngestRequest(BaseModel):
     paths: list[str]
 
 
+class StorageChangeRequest(BaseModel):
+    path: str
+    migrate: bool = True
+
+
 class RegisterRequest(BaseModel):
     username: str
     password: str
@@ -147,6 +152,55 @@ async def save_settings(request: Request):
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+@app.get("/api/storage/info")
+def storage_info(request: Request):
+    from . import config
+    return config.get_storage_info()
+
+
+@app.post("/api/storage/change")
+def storage_change(req: StorageChangeRequest, request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Thay đổi thư mục lưu trữ chỉ áp dụng từ máy chủ hoặc ứng dụng desktop")
+    from . import config
+    try:
+        return config.apply_data_dir(req.path, migrate=req.migrate)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Lỗi chuyển thư mục lưu trữ: {e}")
+
+
+@app.post("/api/storage/reset")
+def storage_reset(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Đặt lại thư mục lưu trữ chỉ áp dụng từ máy chủ hoặc ứng dụng desktop")
+    from . import config
+    try:
+        return config.reset_default_data_dir()
+    except Exception as e:
+        raise HTTPException(500, f"Lỗi đặt lại thư mục mặc định: {e}")
+
+
+@app.post("/api/storage/browse")
+def storage_browse(request: Request):
+    if not is_trusted_host_client(request):
+        raise HTTPException(403, "Chọn thư mục chỉ áp dụng từ máy chủ hoặc ứng dụng desktop")
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        folder = filedialog.askdirectory(title="Chọn thư mục lưu trữ dữ liệu Meikova Loop")
+        root.destroy()
+        if folder:
+            return {"path": str(Path(folder).resolve())}
+    except Exception:
+        pass
+    return {"path": None}
 
 
 def _public(m: dict) -> dict:

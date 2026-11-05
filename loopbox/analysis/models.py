@@ -10,9 +10,7 @@ import torch
 
 from ..config import DEVICE, SAMPLE_RATE
 
-_lock = threading.Lock()
-_beat_tracker = None
-_separator = None
+_local = threading.local()
 
 
 def device() -> str:
@@ -20,34 +18,34 @@ def device() -> str:
 
 
 def beat_tracker():
-    global _beat_tracker
-    with _lock:
-        if _beat_tracker is None:
-            from ..config import DATA_DIR, MODELS_DIR
-            onnx_path = MODELS_DIR / "beat_this.onnx"
-            if onnx_path.exists():
-                try:
-                    from .onnx_tracker import ONNXBeatTracker
-                    _beat_tracker = ONNXBeatTracker(onnx_path)
-                    return _beat_tracker
-                except Exception:
-                    pass
-            from beat_this.inference import Audio2Beats
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                _beat_tracker = Audio2Beats(checkpoint_path="final0", device=device(), dbn=False)
-        return _beat_tracker
+    tracker = getattr(_local, "beat_tracker", None)
+    if tracker is None:
+        from ..config import DATA_DIR, MODELS_DIR
+        onnx_path = MODELS_DIR / "beat_this.onnx"
+        if onnx_path.exists():
+            try:
+                from .onnx_tracker import ONNXBeatTracker
+                tracker = ONNXBeatTracker(onnx_path)
+                _local.beat_tracker = tracker
+                return tracker
+            except Exception:
+                pass
+        from beat_this.inference import Audio2Beats
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tracker = Audio2Beats(checkpoint_path="final0", device=device(), dbn=False)
+        _local.beat_tracker = tracker
+    return tracker
 
 
 def separator():
-    global _separator
-    with _lock:
-        if _separator is None:
-            from demucs.pretrained import get_model
-            model = get_model("htdemucs")
-            model.to(device()).eval()
-            _separator = model
-        return _separator
+    model = getattr(_local, "separator", None)
+    if model is None:
+        from demucs.pretrained import get_model
+        model = get_model("htdemucs")
+        model.to(device()).eval()
+        _local.separator = model
+    return model
 
 
 def separate(y: np.ndarray, keep_stereo: tuple[str, ...] = ()) -> tuple[np.ndarray, list[str], dict]:

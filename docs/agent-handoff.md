@@ -1039,3 +1039,14 @@ elay-server/public/index.html & web-client: Bổ sung nút #btn-sso-gateway và 
    - `meikova-loop`: `tests/test_content_hydration.py` -> 6 tests passed (Exit Code 0).
    - `meikova-harvest`: `tests/test_turso_harvest_full.py` -> 3 suites passed, Turso Cloud + Local WAL + SSO (Exit Code 0).
    - `meikova-relay`: `node test_turso_dual_adapter.js` -> 8 tests passed, Turso Cloud + Local WAL + SSO (Exit Code 0).
+
+## Session Handoff: Meikova Loop v1.0.11 (Batch Parallel Download, Hardware-Aware Analysis, Custom Storage Location)
+- **Mục tiêu hoàn thành:**
+  1. *Giải đáp và chứng minh lưu trữ tài khoản:* Tài khoản `kiempd` không hề bị mất. Được lưu song song ở SQLite `%LOCALAPPDATA%\MeikovaLoop\data\auth.db` và Turso Cloud Database (`meikova-loop-m3ik18dp.aws-ap-northeast-1.turso.io`). Mật khẩu hash khớp chính xác `123456`.
+  2. *Pipeline Tải hàng loạt song song (Batch Parallel Download):* Tách 2 ThreadPoolExecutor độc lập (`download` 3-4 luồng song song, `analyze` Hardware-Aware 1-3 luồng). Tải 50 bài playlist YouTube cùng lúc mà không bị nghẽn I/O.
+  3. *Tự động nhận diện phần cứng (Hardware-Aware Analysis):* GPU < 7.5GB VRAM (GTX 1650 Ti 4GB) chạy tuần tự 1 GPU worker chống tràn VRAM (`OutOfMemoryError`), GPU >= 15GB chạy 3 workers song song.
+  4. *Tùy chọn vị trí lưu trữ dữ liệu (Custom Data Storage Location):* Hỗ trợ đổi thư mục lưu trữ bài hát, stems, models sang ổ đĩa khác (ổ D:, E:, F:) để chống tràn ổ C:. Anchor config tại `%LOCALAPPDATA%\MeikovaLoop\storage_config.json`. UI trực quan trong Cài đặt với thẻ thông tin ổ đĩa và modal chọn thư mục.
+  5. *Dọn sạch định danh cũ:* 100% biến môi trường chuyển sang `MEIKOVA_LOOP_*`.
+- **Lệnh kiểm tra đã chạy & Exit Code:**
+  - `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> `ALL TESTS PASSED WITH EXIT CODE 0` (Exit Code 0).
+  - `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).

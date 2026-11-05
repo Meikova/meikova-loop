@@ -19,7 +19,7 @@ except ImportError:
 from typing import Callable
 
 from . import library
-from .config import ANALYSIS_VERSION, ANALYSIS_WORKERS, LINK_WORKERS, MAX_STORE_GB, TRANSITIONS_DIR, \
+from .config import ANALYSIS_VERSION, ANALYSIS_WORKERS, DOWNLOAD_WORKERS, LINK_WORKERS, MAX_STORE_GB, TRANSITIONS_DIR, \
     TRANSITIONS_VERSION, WORKER_THREADS
 
 LINK_CHUNK = 6  # songs per linking job, so several link workers share a big library
@@ -60,6 +60,16 @@ def _init_child(uses_torch: bool) -> None:
             pass
 
 
+def _download_job(tid: str) -> str:
+    from . import ingest
+    return ingest.download_and_convert(tid)
+
+
+def _analyze_job(tid: str) -> str:
+    from . import ingest
+    return ingest.analyze_features(tid)
+
+
 def _ingest_job(tid: str) -> str:
     from . import ingest
     return ingest.process(tid)
@@ -86,14 +96,28 @@ def _pool(kind: str) -> Executor:
     with _lock:
         pool = _pools.get(kind)
         if pool is None:
-            n = ANALYSIS_WORKERS if kind == "ingest" else LINK_WORKERS
-            if USE_THREADS:
-                _init_child(kind == "ingest")
-                pool = ThreadPoolExecutor(max_workers=max(1, n), thread_name_prefix=f"loopbox-{kind}")
+            if kind == "download":
+                n = DOWNLOAD_WORKERS
+                pool = ThreadPoolExecutor(max_workers=max(1, n), thread_name_prefix="loopbox-download")
+            elif kind in ("analyze", "ingest"):
+                n = ANALYSIS_WORKERS
+                if USE_THREADS:
+                    _init_child(True)
+                    pool = ThreadPoolExecutor(max_workers=max(1, n), thread_name_prefix="loopbox-analyze")
+                else:
+                    # spawn, not fork: CUDA cannot be shared with a forked child.
+                    pool = ProcessPoolExecutor(max_workers=max(1, n), mp_context=mp.get_context("spawn"),
+                                               initializer=_init_child, initargs=(True,))
+            elif kind == "link":
+                n = LINK_WORKERS
+                if USE_THREADS:
+                    _init_child(False)
+                    pool = ThreadPoolExecutor(max_workers=max(1, n), thread_name_prefix="loopbox-link")
+                else:
+                    pool = ProcessPoolExecutor(max_workers=max(1, n), mp_context=mp.get_context("spawn"),
+                                               initializer=_init_child, initargs=(False,))
             else:
-                # spawn, not fork: CUDA cannot be shared with a forked child.
-                pool = ProcessPoolExecutor(max_workers=max(1, n), mp_context=mp.get_context("spawn"),
-                                           initializer=_init_child, initargs=(kind == "ingest",))
+                pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"loopbox-{kind}")
             _pools[kind] = pool
         return pool
 
@@ -102,12 +126,14 @@ def _reset_pool(kind: str, broken: Executor) -> None:
     """A worker process died (a native crash, the OOM killer): the pool is
     unusable, so a fresh one takes its place."""
     with _lock:
-        if _pools.get(kind) is broken:
-            _pools.pop(kind)
-            try:
-                broken.shutdown(wait=False, cancel_futures=True)
-            except Exception:
-                pass
+        keys_to_check = ("analyze", "ingest") if kind in ("analyze", "ingest") else (kind,)
+        for k in keys_to_check:
+            if _pools.get(k) is broken:
+                _pools.pop(k, None)
+        try:
+            broken.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
 
 
 def enqueue_ingest(tid: str) -> None:
@@ -116,18 +142,30 @@ def enqueue_ingest(tid: str) -> None:
         if tid in _ingesting:
             return
         _ingesting[tid] = _ingesting.get(tid, 0)
-        _submit_ingest(tid)
+        _submit_pipeline(tid)
 
 
-def _submit_ingest(tid: str) -> None:
+def _submit_pipeline(tid: str) -> None:
     with _lock:
         if library.is_cancelled(tid):
             _ingesting.pop(tid, None)
             return
-        pool = _pool("ingest")
-        fut = pool.submit(_ingest_job, tid)
-        _futures[tid] = fut
-    fut.add_done_callback(lambda f: _ingest_done(tid, pool, f))
+        if library.audio_path(tid).exists():
+            # Audio already on disk: skip download, run feature analysis
+            pool = _pool("analyze")
+            fut = pool.submit(_analyze_job, tid)
+            _futures[tid] = fut
+            fut.add_done_callback(lambda f, p=pool: _analyze_done(tid, p, f))
+        else:
+            # Remote stream: download in parallel download pool
+            pool = _pool("download")
+            fut = pool.submit(_download_job, tid)
+            _futures[tid] = fut
+            fut.add_done_callback(lambda f, p=pool: _download_done(tid, p, f))
+
+
+def _submit_ingest(tid: str) -> None:
+    _submit_pipeline(tid)
 
 
 def cancel(tid: str) -> bool:
@@ -148,7 +186,55 @@ def cancel_many(tids: list[str]) -> int:
         return len(tids)
 
 
-def _ingest_done(tid: str, pool, fut) -> None:
+def _download_done(tid: str, pool: Executor, fut) -> None:
+    with _lock:
+        if library.is_cancelled(tid) or fut.cancelled():
+            _futures.pop(tid, None)
+            _ingesting.pop(tid, None)
+            library.clear_cancelled(tid)
+            return
+
+    res = "error"
+    try:
+        res = fut.result()
+    except Exception as e:
+        logger.error(f"Tải bài thất bại ({tid}): {e}")
+        with _lock:
+            _futures.pop(tid, None)
+            _ingesting.pop(tid, None)
+        if not library.is_cancelled(tid):
+            library.update(tid, status="error", stage="error", progress=0.0, error=str(e) or "lỗi tải nhạc")
+        return
+
+    if res == "downloaded":
+        # Download and FLAC conversion succeeded: enqueue to analysis pool
+        with _lock:
+            if library.is_cancelled(tid) or tid not in _ingesting:
+                _futures.pop(tid, None)
+                _ingesting.pop(tid, None)
+                return
+            pool_an = _pool("analyze")
+            fut_an = pool_an.submit(_analyze_job, tid)
+            _futures[tid] = fut_an
+        fut_an.add_done_callback(lambda f, p=pool_an: _analyze_done(tid, p, f))
+    elif res == "ready":
+        with _lock:
+            _futures.pop(tid, None)
+            _ingesting.pop(tid, None)
+        if not library.is_cancelled(tid):
+            for cb in on_ready:
+                try:
+                    cb(tid)
+                except Exception:
+                    traceback.print_exc()
+        _maybe_evict()
+    else:
+        with _lock:
+            _futures.pop(tid, None)
+            _ingesting.pop(tid, None)
+
+
+def _analyze_done(tid: str, pool: Executor, fut) -> None:
     with _lock:
         _futures.pop(tid, None)
         was_ingesting = _ingesting.pop(tid, None)
@@ -161,12 +247,12 @@ def _ingest_done(tid: str, pool, fut) -> None:
     except Exception as e:
         is_broken = BrokenProcessPool and isinstance(e, BrokenProcessPool)
         if is_broken:
-            _reset_pool("ingest", pool)
+            _reset_pool("analyze", pool)
             with _lock:
                 tries = (was_ingesting or 0) + 1
                 _ingesting[tid] = tries
             if tries < 2 and not library.is_cancelled(tid):
-                _submit_ingest(tid)
+                _submit_pipeline(tid)
                 return
         logger.error(f"Phân tích bài thất bại ({tid}): {e}")
         if not library.is_cancelled(tid):

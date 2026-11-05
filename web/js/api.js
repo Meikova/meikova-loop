@@ -176,6 +176,10 @@ export const api = {
   deleteCookies: () => json("/api/cookies", { method: "DELETE" }),
   settings: () => json("/api/settings"),
   saveSettings: (data) => json("/api/settings", send("POST", data)),
+  storageInfo: () => json("/api/storage/info"),
+  storageChange: (path, migrate = true) => json("/api/storage/change", send("POST", { path, migrate })),
+  storageReset: () => json("/api/storage/reset", send("POST", {})),
+  storageBrowse: () => json("/api/storage/browse", send("POST", {})),
   auth: {
     config: () => json("/api/auth/config"),
     register: (username, password, display_name) => json("/api/auth/register", send("POST", { username, password, display_name })),

@@ -223,6 +223,15 @@ class DesktopBridge:
             return res
         return {"error": "Timeout hoặc hủy xác thực Google trên trình duyệt."}
 
+    def choose_storage_folder(self) -> str | None:
+        if not self._window:
+            return None
+        res = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        if not res:
+            return None
+        folder_path = res[0] if isinstance(res, (list, tuple)) else res
+        return str(Path(folder_path).resolve())
+
     def select_folder(self) -> list[str]:
         if not self._window:
             return []

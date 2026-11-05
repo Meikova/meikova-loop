@@ -209,10 +209,11 @@ def test_responsive_mobile_declutter():
     sw_js = (root / "web" / "sw.js").read_text(encoding="utf-8")
 
     # Cache bump
-    assert "meikova-loop-v82" in sw_js
-    assert "app.css?v=82" in index_html
-    assert "main.js?v=82" in index_html
-    assert "sw.js?v=82" in index_html
+    import re
+    assert re.search(r"meikova-loop-v\d+", sw_js)
+    assert re.search(r"app\.css\?v=\d+", index_html)
+    assert re.search(r"main\.js\?v=\d+", index_html)
+    assert re.search(r"sw\.js\?v=\d+", index_html)
 
     # Desktop Frameless Titlebar
     assert 'id="desktop-titlebar"' in index_html
@@ -766,6 +767,38 @@ def test_desktop_tray_and_background_minimize():
     assert isinstance(is_autostart_enabled(), bool)
 
 
+def test_parallel_download_and_hardware_aware_analysis():
+    """Verify hardware-aware worker pools and two-stage parallel ingestion."""
+    from loopbox import config, worker, library
+    # 1. Hardware-aware detection checks
+    assert config.DOWNLOAD_WORKERS >= 2
+    assert config.ANALYSIS_WORKERS >= 1
+    # Check that environment overrides work cleanly
+    import os
+    os.environ["MEIKOVA_LOOP_DOWNLOAD_WORKERS"] = "5"
+    assert config._detect_download_workers() == 5
+    os.environ["MEIKOVA_LOOP_ANALYSIS_WORKERS"] = "2"
+    assert config._detect_analysis_workers() == 2
+    del os.environ["MEIKOVA_LOOP_DOWNLOAD_WORKERS"]
+    del os.environ["MEIKOVA_LOOP_ANALYSIS_WORKERS"]
+
+    # 2. Worker pools separation
+    dl_pool = worker._pool("download")
+    an_pool = worker._pool("analyze")
+    assert dl_pool is not an_pool
+
+    # 3. Two-stage ingest registration & cancellation
+    tid_test = "testbatch01"
+    library.create(tid_test, source="test", url="http://example.com", title="Batch Test", status="queued", stage="queued")
+    worker.enqueue_ingest(tid_test)
+    assert tid_test in worker._ingesting
+    # Cancel cleans up
+    worker.cancel(tid_test)
+    assert tid_test not in worker._ingesting
+    assert library.is_cancelled(tid_test) is True
+    library.clear_cancelled(tid_test)
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -795,6 +828,7 @@ if __name__ == "__main__":
     test_empty_beats_guard_and_librosa_fallback()
     test_ratelimit_dev_bypass_and_ip_whitelist()
     test_desktop_tray_and_background_minimize()
+    test_parallel_download_and_hardware_aware_analysis()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 

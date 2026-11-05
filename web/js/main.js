@@ -4262,6 +4262,200 @@ function initTunnelControls() {
   fetchTunnelStatus();
 }
 
+
+// ------------------------------------------------------------- Storage Location Management
+function initStorageManagement() {
+  const sec = $("#sec-storage");
+  const pathDisplay = $("#storage-current-path");
+  const driveInfo = $("#storage-drive-info");
+  const badge = $("#storage-badge");
+  const statusText = $("#storage-status-text");
+  const btnChange = $("#btn-change-storage");
+  const btnReset = $("#btn-reset-storage");
+  const modal = $("#modal-storage");
+  const btnClose = $("#btn-close-storage-modal");
+  const btnCancel = $("#btn-cancel-storage-modal");
+  const btnSave = $("#btn-save-storage-modal");
+  const btnBrowse = $("#btn-storage-browse");
+  const inputPath = $("#storage-input-path");
+  const chkMigrate = $("#storage-migrate-chk");
+  const drivesList = $("#storage-drives-list");
+  const errBox = $("#storage-modal-err");
+
+  if (!sec) return;
+
+  let currentStorage = null;
+
+  async function refreshStorageInfo() {
+    try {
+      const info = await api.storageInfo();
+      currentStorage = info;
+      if (pathDisplay) {
+        pathDisplay.textContent = info.data_dir;
+        pathDisplay.title = info.data_dir;
+      }
+      if (driveInfo) {
+        driveInfo.textContent = `Trống ${info.free_gb} GB / ${info.total_gb} GB`;
+      }
+      if (badge && statusText) {
+        if (info.is_custom) {
+          badge.classList.add("storage-badge--custom");
+          statusText.textContent = "Tùy chỉnh";
+        } else {
+          badge.classList.remove("storage-badge--custom");
+          statusText.textContent = "Mặc định (AppData)";
+        }
+      }
+      if (btnReset) {
+        btnReset.hidden = !info.is_custom;
+      }
+      return info;
+    } catch (e) {
+      console.warn("Storage info fetch warning:", e);
+    }
+  }
+
+  function renderDrives(drives, currentPath) {
+    if (!drivesList) return;
+    drivesList.innerHTML = "";
+    if (!drives || !drives.length) {
+      drivesList.innerHTML = '<span class="storage-hint">Không tìm thấy phân vùng ổ đĩa cố định.</span>';
+      return;
+    }
+    const curDrive = (currentPath || "").slice(0, 2).toUpperCase();
+    for (const d of drives) {
+      const mount = d.mount.replace(/\\$/, "");
+      const isCur = mount.toUpperCase().startsWith(curDrive);
+      const card = document.createElement("div");
+      card.className = `storage-drive-item ${isCur ? "is-current" : ""}`;
+      card.innerHTML = `
+        <div class="storage-drive-item__head">
+          <div class="storage-drive-item__mount-wrap">
+            <svg class="storage-drive-item__icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="storage-drive-item__mount">${d.mount}</span>
+          </div>
+          ${isCur ? '<span class="storage-drive-item__tag">Hiện tại</span>' : ""}
+        </div>
+        <div class="storage-drive-item__free">Trống: <strong class="${d.free_gb > 50 ? "text-accent" : ""}">${d.free_gb} GB</strong> <span class="storage-drive-item__total">/ ${d.total_gb} GB</span></div>
+      `;
+      card.addEventListener("click", () => {
+        drivesList.querySelectorAll(".storage-drive-item").forEach((c) => c.classList.remove("is-selected"));
+        card.classList.add("is-selected");
+        const targetDir = `${d.mount.replace(/\\$/, "")}\\MeikovaLoopData`;
+        if (inputPath) {
+          inputPath.value = targetDir;
+          inputPath.focus();
+        }
+      });
+      drivesList.appendChild(card);
+    }
+  }
+
+  btnChange?.addEventListener("click", async () => {
+    if (errBox) {
+      errBox.textContent = "";
+      errBox.hidden = true;
+    }
+    const info = await refreshStorageInfo();
+    if (info) {
+      renderDrives(info.drives, info.data_dir);
+      if (inputPath) {
+        inputPath.value = info.data_dir;
+      }
+    }
+    modal?.showModal();
+  });
+
+  const closeModal = () => {
+    modal?.close();
+  };
+  btnClose?.addEventListener("click", closeModal);
+  btnCancel?.addEventListener("click", closeModal);
+
+  btnBrowse?.addEventListener("click", async () => {
+    if (window.pywebview?.api?.choose_storage_folder) {
+      try {
+        const chosen = await window.pywebview.api.choose_storage_folder();
+        if (chosen && inputPath) {
+          inputPath.value = chosen;
+          return;
+        }
+      } catch (_) {}
+    }
+    try {
+      const res = await api.storageBrowse();
+      if (res?.path && inputPath) {
+        inputPath.value = res.path;
+      }
+    } catch (_) {}
+  });
+
+  btnSave?.addEventListener("click", async () => {
+    const newPath = inputPath?.value?.trim();
+    if (!newPath) {
+      if (errBox) {
+        errBox.textContent = "Vui lòng nhập hoặc chọn đường dẫn thư mục lưu trữ.";
+        errBox.hidden = false;
+      }
+      return;
+    }
+    btnSave.disabled = true;
+    const oldHtml = btnSave.innerHTML;
+    btnSave.innerHTML = `
+      <svg class="spin" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+      <span>Đang áp dụng...</span>
+    `;
+    try {
+      const migrate = chkMigrate ? chkMigrate.checked : true;
+      const res = await api.storageChange(newPath, migrate);
+      modal?.close();
+      await refreshStorageInfo();
+      await showModal({
+        title: "Đã cập nhật vị trí lưu trữ",
+        message: `Thư mục lưu trữ đã được chuyển sang:\n${res.data_dir}\n\nDung lượng còn trống: ${res.free_gb} GB`,
+        confirmText: "Tuyệt vời",
+      });
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message || "Không thể thay đổi thư mục lưu trữ.";
+        errBox.hidden = false;
+      }
+    } finally {
+      btnSave.disabled = false;
+      btnSave.innerHTML = oldHtml;
+    }
+  });
+
+  btnReset?.addEventListener("click", async () => {
+    const ok = await showModal({
+      title: "Đặt lại về mặc định",
+      message: "Khôi phục vị trí lưu trữ về thư mục chuẩn trong LocalAppData?",
+      confirmText: "Khôi phục",
+      cancelText: "Hủy",
+    });
+    if (ok) {
+      try {
+        await api.storageReset();
+        await refreshStorageInfo();
+        await showModal({
+          title: "Đã khôi phục",
+          message: "Đã đặt lại vị trí lưu trữ về thư mục mặc định.",
+          confirmText: "Đã hiểu",
+        });
+      } catch (err) {
+        await showModal({
+          title: "Lỗi",
+          message: err.message || "Không thể khôi phục vị trí mặc định.",
+          confirmText: "Đã hiểu",
+          danger: true,
+        });
+      }
+    }
+  });
+
+  refreshStorageInfo();
+}
+
 function initDesktopTitlebar() {
   const updateMaxIcon = (isMax) => {
     const icon = $("#dt-max-icon");
@@ -4316,6 +4510,7 @@ function initDesktopTitlebar() {
 initCookieManagement();
 initAuthAndSync();
 initTunnelControls();
+initStorageManagement();
 initDesktopTitlebar();
 renderLooks();
 renderTransport();
