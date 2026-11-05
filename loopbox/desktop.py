@@ -17,9 +17,9 @@ import uvicorn
 import webview
 
 try:
-    from .config import DATA_DIR, PORT as DEFAULT_PORT, WEB_DIR
+    from .config import DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
 except (ImportError, ValueError):
-    from loopbox.config import DATA_DIR, PORT as DEFAULT_PORT, WEB_DIR
+    from loopbox.config import DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
 
 logger = logging.getLogger("meikova.loop.desktop")
 
@@ -286,13 +286,13 @@ def _wait_for_server(port: int, timeout: float = 15.0) -> bool:
     return False
 
 
-def _start_background_server(port: int):
+def _start_background_server(port: int, host: str = DEFAULT_HOST):
     try:
         from .server import app
     except (ImportError, ValueError):
         from loopbox.server import app
 
-    config = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
+    config = uvicorn.Config(app=app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, name="meikova-loop-uvicorn", daemon=True)
     thread.start()
@@ -347,6 +347,7 @@ def set_window_icon(hwnd, icon_path: Path):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="meikova-loop-desktop", description="Meikova Loop Desktop Application")
+    ap.add_argument("--host", default=DEFAULT_HOST, help="Server host (default: %(default)s)")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT, help="Server port (default: %(default)s)")
     ap.add_argument("--debug", action="store_true", help="Enable webview DevTools")
     args = ap.parse_args(argv)
@@ -360,6 +361,7 @@ def main(argv=None):
     if not args.debug:
         hide_console()
 
+    host = args.host
     port = args.port
     server_obj = None
 
@@ -401,7 +403,7 @@ def main(argv=None):
 
     # Check if server is already running on the port
     if not _is_server_alive(port):
-        server_obj, _ = _start_background_server(port)
+        server_obj, _ = _start_background_server(port, host=host)
         if not _wait_for_server(port):
             sys.exit(1)
 

@@ -819,7 +819,14 @@ def ingest_local(req: LocalIngestRequest, request: Request, v: sessions.View = D
     """Ingest local audio files from the user's computer directly into the library.
     Restricted to localhost/desktop client."""
     ip = _ip(request)
-    if ip not in ("127.0.0.1", "::1", "localhost", "testclient"):
+    is_trusted = (
+        not MULTIUSER
+        or ip in ("127.0.0.1", "::1", "localhost", "testclient")
+        or ip.startswith("100.")
+        or ip.startswith("192.168.")
+        or ip.startswith("10.")
+    )
+    if not is_trusted:
         raise HTTPException(403, "Local ingestion only available on desktop/local host")
     if v.room() <= 0:
         raise HTTPException(409, f"Thư viện đã đủ {MAX_SESSION_TRACKS} bài: bỏ bớt một bài để thêm bài khác")

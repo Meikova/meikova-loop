@@ -236,11 +236,17 @@ class CloudflaredTunnelManager:
             if self.process:
                 try:
                     if sys.platform == "win32" and self.process.pid:
+                        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+                        startupinfo = subprocess.STARTUPINFO()
+                        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        startupinfo.wShowWindow = 0
                         subprocess.run(
                             ["taskkill", "/pid", str(self.process.pid), "/t", "/f"],
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                             check=False,
+                            creationflags=creationflags,
+                            startupinfo=startupinfo,
                         )
                     else:
                         self.process.terminate()

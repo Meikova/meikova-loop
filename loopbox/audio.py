@@ -41,8 +41,16 @@ def get_ffmpeg_bin() -> str:
 
 def _ffmpeg(*args: str) -> subprocess.CompletedProcess:
     bin_path = get_ffmpeg_bin()
+    creationflags = 0
+    startupinfo = None
+    if sys.platform == "win32":
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 0
     return subprocess.run([bin_path, "-hide_banner", "-nostdin", *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          creationflags=creationflags, startupinfo=startupinfo)
 
 
 def to_flac(src: Path, dst: Path) -> None:
