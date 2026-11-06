@@ -17,9 +17,9 @@ import uvicorn
 import webview
 
 try:
-    from .config import DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
+    from .config import ANCHOR_DIR, DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
 except (ImportError, ValueError):
-    from loopbox.config import DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
+    from loopbox.config import ANCHOR_DIR, DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
 
 logger = logging.getLogger("meikova.loop.desktop")
 
@@ -533,7 +533,23 @@ def main(argv=None):
 
     window.events.shown += on_shown
 
-    profile_dir = DATA_DIR / "desktop_profile"
+    profile_dir = ANCHOR_DIR / "desktop_profile"
+    # Seamless migration: if profile exists in old location (e.g. ANCHOR_DIR/data/desktop_profile or DATA_DIR/desktop_profile)
+    # copy it to ANCHOR_DIR/desktop_profile so user credentials, localStorage, and playlists are permanently preserved.
+    if not profile_dir.exists():
+        import shutil
+        old_profiles = [
+            ANCHOR_DIR / "data" / "desktop_profile",
+            DATA_DIR / "desktop_profile",
+        ]
+        for op in old_profiles:
+            if op.exists() and op != profile_dir:
+                try:
+                    shutil.copytree(op, profile_dir, dirs_exist_ok=True)
+                    logger.info("Migrated desktop_profile from %s to %s", op, profile_dir)
+                    break
+                except Exception as ex:
+                    logger.debug("Profile migration notice: %s", ex)
     profile_dir.mkdir(parents=True, exist_ok=True)
 
     webview.start(

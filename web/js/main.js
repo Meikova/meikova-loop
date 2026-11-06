@@ -1651,7 +1651,11 @@ function trackRow(m, idx = 0, total = 0) {
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
   const removeBtn = inPl
     ? `<button type="button" data-act="pl-remove" aria-label="Bỏ khỏi playlist này" title="Bỏ khỏi playlist này">${ICON.plRemove}</button>`
-    : (m.status === "error" ? `<button type="button" data-act="delete" aria-label="Xoá lỗi" title="Xoá">${ICON.del}</button>` : "");
+    : (m.status === "error"
+        ? `<button type="button" data-act="delete" aria-label="Xoá lỗi" title="Xoá">${ICON.del}</button>`
+        : m.status !== "ready"
+          ? `<button type="button" data-act="delete" aria-label="Hủy tải về" title="Hủy tải về / Xóa">${ICON.del}</button>`
+          : "");
   const cb = batchMode
     ? `<input type="checkbox" class="track-cb" data-id="${esc(m.id)}" ${isSelected ? "checked" : ""} aria-label="Chọn bài ${title}" />`
     : "";
@@ -1920,10 +1924,12 @@ $("#track-list").addEventListener("click", async (e) => {
       }
       case "delete":
         if (!session.multiuser) {
+          const isBusy = m.status !== "ready" && m.status !== "error";
+          const trackTitle = songOf(m).title || m.title || "bài này";
           const ok = await showModal({
-            title: "Xác nhận xoá",
-            message: `Xoá "${m.title}" khỏi thư viện?`,
-            confirmText: "Xoá",
+            title: isBusy ? "Hủy và xóa bài" : "Xác nhận xoá",
+            message: isBusy ? `Hủy tiến trình và xóa "${trackTitle}" khỏi thư viện?` : `Xoá "${trackTitle}" khỏi thư viện?`,
+            confirmText: isBusy ? "Hủy & Xóa" : "Xoá",
             cancelText: "Thôi",
             danger: true,
           });
@@ -4410,6 +4416,7 @@ function initStorageManagement() {
       const res = await api.storageChange(newPath, migrate);
       modal?.close();
       await refreshStorageInfo();
+      await refresh();
       await showModal({
         title: "Đã cập nhật vị trí lưu trữ",
         message: `Thư mục lưu trữ đã được chuyển sang:\n${res.data_dir}\n\nDung lượng còn trống: ${res.free_gb} GB`,

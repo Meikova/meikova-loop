@@ -254,8 +254,9 @@ def sound_files(tid: str) -> list[Path]:
 def drop_pairs(tid: str) -> None:
     """Forgets every transition to or from a track (they are computed again)."""
     shutil.rmtree(PAIRS_DIR / tid, ignore_errors=True)
-    for d in PAIRS_DIR.iterdir():
-        (d / f"{tid}.json").unlink(missing_ok=True)
+    if PAIRS_DIR.exists():
+        for d in PAIRS_DIR.iterdir():
+            (d / f"{tid}.json").unlink(missing_ok=True)
 
 
 def analysis_current(tid: str, meta: dict) -> bool:
@@ -353,8 +354,9 @@ def delete(tid: str) -> None:
         shutil.rmtree(track_dir(tid), ignore_errors=True)
         transitions_path(tid).unlink(missing_ok=True)
         shutil.rmtree(PAIRS_DIR / tid, ignore_errors=True)
-        for d in PAIRS_DIR.iterdir():
-            (d / f"{tid}.json").unlink(missing_ok=True)
+        if PAIRS_DIR.exists():
+            for d in PAIRS_DIR.iterdir():
+                (d / f"{tid}.json").unlink(missing_ok=True)
 
 
 def mark_cancelled(tid: str) -> None:

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.0.12"
+APP_VERSION = "1.0.13"
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 def _load_env_file() -> None:
@@ -58,6 +58,24 @@ def _resolve_data_dir() -> Path:
                 return p
         except Exception:
             pass
+
+    # Auto-discovery fallback: scan fixed partitions for existing MeikovaLoopData
+    try:
+        import psutil
+        for part in psutil.disk_partitions():
+            if 'fixed' in part.opts or 'rw' in part.opts:
+                cand = Path(part.mountpoint) / "MeikovaLoopData"
+                if cand.is_dir() and (cand / "library").is_dir():
+                    try:
+                        STORAGE_CONFIG_FILE.write_text(
+                            json.dumps({"data_dir": str(cand.resolve())}, ensure_ascii=False, indent=2),
+                            encoding="utf-8",
+                        )
+                    except Exception:
+                        pass
+                    return cand.resolve()
+    except Exception:
+        pass
 
     p = get_default_data_dir().resolve()
     p.mkdir(parents=True, exist_ok=True)
@@ -160,6 +178,16 @@ def apply_data_dir(new_path: Path | str, migrate: bool = False) -> dict:
                 pass
 
     STORAGE_CONFIG_FILE.write_text(json.dumps({"data_dir": str(target)}, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        (target / "storage_marker.json").write_text(
+            json.dumps({"app": "Meikova Loop", "type": "library"}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        if (ANCHOR_DIR / "settings.json").exists() and not (target / "settings.json").exists():
+            import shutil
+            shutil.copy2(ANCHOR_DIR / "settings.json", target / "settings.json")
+    except Exception:
+        pass
 
     DATA_DIR = target
     LIBRARY_DIR = DATA_DIR / "library"

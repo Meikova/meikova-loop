@@ -28,7 +28,7 @@ from . import auth, download, ingest, library, ratelimit, sessions, worker
 from .security_shield import shield, is_trusted_host_client, validate_remote_url, SecurityHeadersMiddleware, get_client_ip
 from .audio import BITRATE as SOUND_KBPS
 from .audio import encode as encode_sound
-from .config import APP_VERSION, AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
+from .config import ANCHOR_DIR, APP_VERSION, AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
     WEB_DIR
 from .tunnel_manager import tunnel_manager
 
@@ -138,6 +138,11 @@ def get_settings():
             res = json.loads(SETTINGS_FILE.read_text("utf-8"))
         except Exception:
             pass
+    elif (ANCHOR_DIR / "settings.json").exists():
+        try:
+            res = json.loads((ANCHOR_DIR / "settings.json").read_text("utf-8"))
+        except Exception:
+            pass
     res["max_duration_s"] = MAX_DURATION_S
     return res
 
@@ -148,7 +153,12 @@ async def save_settings(request: Request):
         raise HTTPException(403, "Settings modification is restricted to host/desktop client")
     try:
         data = await request.json()
-        SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
+        payload = json.dumps(data, ensure_ascii=False, indent=2)
+        SETTINGS_FILE.write_text(payload, "utf-8")
+        try:
+            (ANCHOR_DIR / "settings.json").write_text(payload, "utf-8")
+        except Exception:
+            pass
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(400, str(e))

@@ -797,6 +797,7 @@ def test_parallel_download_and_hardware_aware_analysis():
     assert tid_test not in worker._ingesting
     assert library.is_cancelled(tid_test) is True
     library.clear_cancelled(tid_test)
+    library.delete(tid_test)
 
 
 def test_storage_migration_move_and_cleanup():
@@ -815,6 +816,7 @@ def test_storage_migration_move_and_cleanup():
         with tempfile.TemporaryDirectory() as tmp_dest:
             dest = Path(tmp_dest) / "NewStorage"
             orig_data_dir = config.DATA_DIR
+            orig_cfg_bytes = config.STORAGE_CONFIG_FILE.read_bytes() if config.STORAGE_CONFIG_FILE.exists() else None
             try:
                 config.DATA_DIR = src
                 info = config.apply_data_dir(dest, migrate=True)
@@ -827,8 +829,11 @@ def test_storage_migration_move_and_cleanup():
                 assert not (src / "pairs" / "p1.json").exists()
                 assert not (src / "settings.json").exists()
             finally:
-                config.DATA_DIR = orig_data_dir
-                config.STORAGE_CONFIG_FILE.unlink(missing_ok=True)
+                config.apply_data_dir(orig_data_dir, migrate=False)
+                if orig_cfg_bytes is not None:
+                    config.STORAGE_CONFIG_FILE.write_bytes(orig_cfg_bytes)
+                else:
+                    config.STORAGE_CONFIG_FILE.unlink(missing_ok=True)
 
 
 def test_version_ssot_sync_and_api():
@@ -847,6 +852,33 @@ def test_version_ssot_sync_and_api():
     res = server.api_version()
     assert res["version"] == version.__version__
     assert res["app"] == "Meikova Loop"
+
+
+def test_download_cancel_and_storage_persistence():
+    from loopbox import library, worker, config
+    from fastapi.testclient import TestClient
+    from loopbox.server import app
+
+    client = TestClient(app)
+    # Test cancelling an in-progress / downloading track
+    tid = "testdlcan01"
+    try:
+        library.create(tid, source="test", url="http://example.com/fake", title="Fake Stuck Track", status="downloading", stage="downloading")
+        worker.enqueue_ingest(tid)
+        assert tid in worker._ingesting
+
+        # Delete it via API
+        res = client.delete(f"/api/tracks/{tid}")
+        assert res.status_code == 200
+        assert tid not in worker._ingesting
+        assert library.is_cancelled(tid) is True
+        assert library.read_meta(tid) is None
+    finally:
+        library.clear_cancelled(tid)
+        library.delete(tid)
+
+    # Test anchor dir and storage config existence
+    assert config.ANCHOR_DIR.exists()
 
 
 if __name__ == "__main__":
@@ -881,6 +913,7 @@ if __name__ == "__main__":
     test_parallel_download_and_hardware_aware_analysis()
     test_storage_migration_move_and_cleanup()
     test_version_ssot_sync_and_api()
+    test_download_cancel_and_storage_persistence()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
 
 
