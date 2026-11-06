@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.0.16"
+APP_VERSION = "1.0.18"
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 def _load_env_file() -> None:
@@ -245,18 +245,20 @@ def _detect_analysis_workers() -> int:
             return max(1, int(env_val))
         except ValueError:
             pass
-    try:
-        import torch
-        if torch.cuda.is_available():
-            vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-            if vram_gb >= 15.0:
-                return 3
-            elif vram_gb >= 7.5:
-                return 2
-            else:
-                return 1
-    except Exception:
-        pass
+    # Avoid heavy torch import during module init if not already loaded
+    if "torch" in sys.modules:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                if vram_gb >= 15.0:
+                    return 3
+                elif vram_gb >= 7.5:
+                    return 2
+                else:
+                    return 1
+        except Exception:
+            pass
     try:
         import psutil
         ram_gb = psutil.virtual_memory().total / (1024 ** 3)

@@ -49,6 +49,7 @@ hiddenimports = [
     "version",
     "loopbox.server",
     "loopbox.desktop",
+    "loopbox.splash",
     "loopbox.tray",
     "loopbox.sessions",
     "loopbox.auth",

@@ -344,11 +344,11 @@ export class Viz {
     const { w, h } = this;
     const k = SECOND_RATIO;
     const sc = this.scale || 1.0;
-    if (!two) return { a: { x: w / 2, y: h / 2, r: Math.min(w, h) * 0.37 * sc } };
+    if (!two) return { a: { x: w / 2, y: h / 2, r: Math.min(w, h) * 0.36 * sc } };
     const s = easeInOut(Math.max(0, Math.min(1, swap)));
     const fa = 1 - (1 - k) * s, fb = k + (1 - k) * s;
     if (w >= h * 1.05) {
-      const R = Math.min(h * 0.37, (w * 0.86) / (2 * (1 + k))) * sc;
+      const R = Math.min(h * 0.34, (w * 0.84) / (2 * (1 + k))) * sc;
       const x0 = (w - 2 * R * (1 + k)) / 2;
       return {
         a: { x: x0 + fa * R, y: h / 2, r: fa * R, face: 0 },
@@ -356,7 +356,7 @@ export class Viz {
         cross: { x: x0 + 2 * fa * R, y: h / 2 },
       };
     }
-    const R = Math.min(w * 0.37, (h * 0.86) / (2 * (1 + k))) * sc;
+    const R = Math.min(w * 0.34, (h * 0.84) / (2 * (1 + k))) * sc;
     const y0 = (h - 2 * R * (1 + k)) / 2;
     return {
       a: { x: w / 2, y: y0 + fa * R, r: fa * R, face: Math.PI / 2 },
@@ -403,7 +403,7 @@ export class Viz {
   _buildLayer(track) {
     const RL = Math.round(this.layerR);
     const th = this._thickness(RL);
-    let S = Math.ceil(RL * 2.6);
+    let S = Math.ceil(RL * 2.9);
     if (S % 2 !== 0) S++;
     // Supersample the offscreen texture (SSAA) so rotated drawImage remains razor sharp
     const layerScale = Math.min(Math.max(Math.round(this.dpr * 2), 2), 4);
@@ -975,11 +975,22 @@ export class Viz {
       if (ring.alpha < 0.02 || ring.x === null || !ring.col) continue;
       const isP = ring === primary;
       const base = (isP ? 0.07 + 0.05 * this.pulse + 0.09 * this.bass : 0.07) * gain;
-      const g = ctx.createRadialGradient(ring.x, ring.y, ring.r * 0.2, ring.x, ring.y, ring.r * 1.55);
+
+      const edgeDist = Math.min(ring.x, this.w - ring.x, ring.y, this.h - ring.y);
+      const maxSafeR = Math.max(20, edgeDist - 6);
+      const rOuter = Math.min(ring.r * 1.35, maxSafeR);
+      const rInner = Math.min(ring.r * 0.25, rOuter * 0.4);
+
+      const g = ctx.createRadialGradient(ring.x, ring.y, rInner, ring.x, ring.y, rOuter);
       g.addColorStop(0, theme.css(ring.col, base * ring.alpha));
+      g.addColorStop(0.45, theme.css(ring.col, base * ring.alpha * 0.4));
+      g.addColorStop(0.78, theme.css(ring.col, base * ring.alpha * 0.08));
       g.addColorStop(1, theme.css(ring.col, 0));
+
       ctx.fillStyle = g;
-      ctx.fillRect(ring.x - ring.r * 1.6, ring.y - ring.r * 1.6, ring.r * 3.2, ring.r * 3.2);
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, rOuter, 0, TAU);
+      ctx.fill();
     }
   }
 
@@ -1604,10 +1615,19 @@ export class Viz {
     const root = document.documentElement.style;
     const rect = this.canvas.getBoundingClientRect();
     const vw = window.innerWidth || 1;
-    if (primary) root.setProperty("--key-x", `${(((rect.left + primary.x) / vw) * 100).toFixed(1)}%`);
+    const vh = window.innerHeight || 1;
+    if (primary && primary.x !== null && primary.y !== null) {
+      root.setProperty("--key-x", `${(((rect.left + primary.x) / vw) * 100).toFixed(1)}%`);
+      root.setProperty("--key-y", `${(((rect.top + primary.y) / vh) * 100).toFixed(1)}%`);
+      root.setProperty("--key-r-px", `${Math.round(primary.r)}px`);
+    }
     const second = [...this.rings.values()].find((r) => r.role === "second");
     const place = second || this.placeholder;
-    if (place) root.setProperty("--fill-x", `${(((rect.left + place.x) / vw) * 100).toFixed(1)}%`);
+    if (place && place.x !== null && place.y !== null) {
+      root.setProperty("--fill-x", `${(((rect.left + place.x) / vw) * 100).toFixed(1)}%`);
+      root.setProperty("--fill-y", `${(((rect.top + place.y) / vh) * 100).toFixed(1)}%`);
+      root.setProperty("--fill-r-px", `${Math.round(place.r || (primary ? primary.r * 0.7 : 180))}px`);
+    }
     // CSS eases these over a second or so; the targets go out unsmoothed.
     const view = this.player.audible();
     const a = primary ? theme.accentOf(primary.track.id) : theme.idleAccent();

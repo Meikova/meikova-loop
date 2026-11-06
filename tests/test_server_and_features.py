@@ -898,6 +898,21 @@ def test_download_cancel_and_storage_persistence():
     assert config.ANCHOR_DIR.exists()
 
 
+def test_native_splash_and_fast_startup():
+    """Verify ambient dark splash screen and fast startup initialization."""
+    from loopbox import splash, desktop, config
+    s = splash.NativeSplash()
+    assert s.title == "Meikova Loop"
+    s.set_status("Đang kiểm tra...")
+    assert s.status == "Đang kiểm tra..."
+    s.close()
+
+    assert hasattr(desktop, "_is_server_alive")
+    assert hasattr(desktop, "_wait_for_server")
+    assert config.ANALYSIS_WORKERS >= 1
+    assert config.DOWNLOAD_WORKERS >= 2
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -931,7 +946,9 @@ if __name__ == "__main__":
     test_storage_migration_move_and_cleanup()
     test_version_ssot_sync_and_api()
     test_download_cancel_and_storage_persistence()
+    test_native_splash_and_fast_startup()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
+    os._exit(0)
 
 
 

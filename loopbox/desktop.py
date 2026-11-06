@@ -279,19 +279,19 @@ class DesktopBridge:
 
 def _is_server_alive(port: int) -> bool:
     try:
-        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/tracks", headers={"User-Agent": "MeikovaLoop-Desktop"})
-        with urllib.request.urlopen(req, timeout=1.5) as r:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/health", headers={"User-Agent": "MeikovaLoop-Desktop"})
+        with urllib.request.urlopen(req, timeout=1.0) as r:
             return r.status in (200, 401, 403)
     except Exception:
         return False
 
 
-def _wait_for_server(port: int, timeout: float = 15.0) -> bool:
+def _wait_for_server(port: int, timeout: float = 15.0, splash=None) -> bool:
     t0 = time.time()
     while time.time() - t0 < timeout:
         if _is_server_alive(port):
             return True
-        time.sleep(0.2)
+        time.sleep(0.05)
     return False
 
 
@@ -354,7 +354,7 @@ def set_window_icon(hwnd, icon_path: Path):
         pass
 
 
-def main(argv=None):
+def main(argv=None, splash=None):
     ap = argparse.ArgumentParser(prog="meikova-loop-desktop", description="Meikova Loop Desktop Application")
     ap.add_argument("--host", default=DEFAULT_HOST, help="Server host (default: %(default)s)")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT, help="Server port (default: %(default)s)")
@@ -370,6 +370,18 @@ def main(argv=None):
     if not args.debug:
         hide_console()
 
+    # Ensure splash screen is active if not in debug mode
+    if splash is None and not args.debug:
+        try:
+            from .splash import get_splash, start_splash
+            splash = get_splash() or start_splash()
+        except Exception:
+            try:
+                from loopbox.splash import get_splash, start_splash
+                splash = get_splash() or start_splash()
+            except Exception:
+                splash = None
+
     host = args.host
     port = args.port
     server_obj = None
@@ -384,6 +396,8 @@ def main(argv=None):
             mutex_name = f"Local\\MeikovaLoop_Desktop_Mutex_{port}"
             _h_mutex = kernel32.CreateMutexW(None, False, mutex_name)
             if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+                if splash:
+                    splash.close()
                 logger.info("Another Meikova Loop Desktop instance is already running. Restoring window.")
                 hwnd = ctypes.windll.user32.FindWindowW(None, "Meikova Loop - Nhạc nhảy nhịp vô tận")
                 if hwnd:
@@ -412,11 +426,17 @@ def main(argv=None):
 
     # Check if server is already running on the port
     if not _is_server_alive(port):
+        if splash:
+            splash.set_status("Đang khởi tạo máy chủ âm thanh...")
         server_obj, _ = _start_background_server(port, host=host)
-        if not _wait_for_server(port):
+        if not _wait_for_server(port, splash=splash):
+            if splash:
+                splash.close()
             sys.exit(1)
 
     bridge = DesktopBridge(port)
+    if splash:
+        splash.set_status("Đang mở không gian làm việc...")
 
     # Window creation (Frameless with custom titlebar controls inspired by Meikova Harvest)
     window = webview.create_window(
@@ -506,6 +526,8 @@ def main(argv=None):
 
     def on_shown():
         try:
+            if splash:
+                splash.close()
             hwnd = window.native.Handle.ToInt64()
             if sys.platform == "win32":
                 # ponytail: constrain frameless maximized bounds to working area so taskbar remains visible

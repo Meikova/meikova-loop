@@ -1,6 +1,10 @@
 /* Mash ∞ Loop — design tokens and components. See design/ART_DIRECTION.md. */
 
 @property --pulse { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --key-x { syntax: "<percentage>"; inherits: true; initial-value: 38%; }
+@property --key-y { syntax: "<percentage>"; inherits: true; initial-value: 48%; }
+@property --fill-x { syntax: "<percentage>"; inherits: true; initial-value: 78%; }
+@property --fill-y { syntax: "<percentage>"; inherits: true; initial-value: 48%; }
 
 /* The light of the room is the colour of the song that is playing (theme.js
    sets these numbers; CSS animates them, so every colour built from them
@@ -224,12 +228,12 @@ kbd {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(44% 54% at var(--key-x, 38%) 46%, oklch(var(--acc) / calc((0.07 + var(--pulse) * 0.06) * var(--glow-mult, 1))), transparent 70%),
-    radial-gradient(38% 48% at var(--fill-x, 78%) 56%, oklch(var(--acc2) / calc(var(--fill-a) * (1 + var(--pulse) * 0.4) * var(--glow-mult, 1))), transparent 72%),
+    radial-gradient(circle calc(var(--key-r-px, 240px) * 2.0) at var(--key-x, 38%) var(--key-y, 48%), oklch(var(--acc) / calc((0.14 + var(--pulse) * 0.08) * var(--glow-mult, 1))), transparent 70%),
+    radial-gradient(circle calc(var(--fill-r-px, 180px) * 2.0) at var(--fill-x, 78%) var(--fill-y, 48%), oklch(var(--acc2) / calc(var(--fill-a) * (1.2 + var(--pulse) * 0.5) * var(--glow-mult, 1))), transparent 72%),
     radial-gradient(70% 46% at 22% 112%, oklch(0.3 calc(var(--acc-c) * 0.55 * var(--glow-mult, 1)) var(--acc-h) / calc(0.55 * var(--glow-mult, 1))), transparent 70%),
     radial-gradient(70% 46% at 80% 112%, oklch(0.3 calc(var(--acc2-c) * 0.55 * var(--glow-mult, 1)) var(--acc2-h) / calc(0.45 * var(--glow-mult, 1))), transparent 70%),
     var(--ink-0);
-  transition: --pulse var(--dur-base) var(--ease-out);
+  transition: --pulse var(--dur-base) var(--ease-out), --key-x 0.6s var(--ease-out), --key-y 0.6s var(--ease-out), --fill-x 0.6s var(--ease-out), --fill-y 0.6s var(--ease-out);
 }
 
 .field::after {
@@ -524,10 +528,15 @@ body.is-zen .desktop-titlebar {
   height: min(220px, 38%);
   transform: translate(-50%, -50%);
   background: radial-gradient(ellipse at center, oklch(var(--acc) / 0.12) 0%, oklch(var(--acc) / 0.04) 45%, transparent 72%);
-  filter: blur(28px);
+  filter: blur(36px);
   pointer-events: none;
   border-radius: 50%;
   z-index: 0;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+.stage:has(.ring-center[data-mode="idle"]) .canvas-wrap::before {
   opacity: 0.85;
 }
 
