@@ -1,3 +1,40 @@
+# Session Handoff: 5 Strategic Upgrades Suite Deployment & Desktop Build (v1.0.19 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Tiện ích 1 - Live Mix Audio Recorder:**
+  - Tạo mới web/js/recorder.js với lớp MixRecorder kết nối MediaStreamDestination từ analyser/master node.
+  - Hỗ trợ ghi âm chất lượng cao WebM/Opus (256kbps), tự động gắn chapter timestamps khi chuyển bài hát trong phiên mashup.
+  - Tích hợp nút ghi âm phát quang neon nhấp nháy trên Floating Deck (#btn-record) và Zen Visualizer HUD (#zen-btn-record).
+  - Hộp thoại Ambient Dark #modal-record-result cho phép nghe lại trực tiếp, tải tệp .webm, và xuất file Tracklist / Chapter Markers .txt sao chép 1 chạm.
+- [x] **Tiện ích 2 - Vocal / Beat Stem Karaoke Toggle:**
+  - Nâng cấp Engine (web/js/engine.js) với ocalFilter (peaking DSP filter 1800Hz, Q=1.4) và phương thức setVocalMode(mode).
+  - Tích hợp nút bấm trên Floating Deck (#btn-vocal-mode) chuyển đổi 3 chế độ mượt mà: Full Mix (Gốc) -> Instrumental (Beat Karaoke loại bỏ giọng hát) -> Acapella (Giọng ca sĩ solo).
+  - Tự động áp dụng cho cả Demucs pre-separated stems và dynamic real-time DSP filter cho các bài hát thông thường.
+- [x] **Tiện ích 3 - Mini Player Always-On-Top:**
+  - Mở rộng loopbox/desktop.py với 	oggle_mini_player() điều khiển kích thước cửa sổ PyWebView về 340x130px và áp dụng Win32 HWND_TOPMOST.
+  - Thiết kế chế độ giao diện ody.is-mini-player với #mini-player-strip kéo thả (pywebview-drag-region), đèn neon phát quang, tên bài/nghệ sĩ chạy mượt, và cụm nút điều khiển mini (Prev, Play/Pause, Next, Phóng to).
+  - Tích hợp nút kích hoạt trên Topbar (#btn-mini), Desktop Titlebar (#dt-btn-mini), Zen HUD (#btn-zen-mini), và phím tắt Shift+M.
+- [x] **Tiện ích 4 - Smart Camelot DJ Sorter:**
+  - Tạo mới web/js/harmonic.js với thuật toán hòa âm Camelot Wheel (khoảng cách vòng tròn + BPM delta với Nearest-Neighbor & 2-Opt local search).
+  - Tích hợp nút bấm #pl-sort-camelot-btn trong Playlist Header Actions, tự động sắp xếp lại danh sách bài hát trong playlist theo vòng hòa âm chuẩn DJ để chuỗi mix không bị lệch tông.
+- [x] **Tiện ích 5 - Global Media Hotkeys & Windows SMTC:**
+  - Thêm luồng daemon Win32 _media_keys_loop trong loopbox/desktop.py bắt các phím cứng VK_MEDIA_PLAY_PAUSE, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP qua GetAsyncKeyState (25Hz polling, <0.01% CPU).
+  - Cho phép điều khiển nhạc toàn cục từ bàn phím đa phương tiện hoặc tai nghe Bluetooth ngay cả khi ứng dụng đang thu nhỏ hoặc chạy nền.
+- [x] **Kiểm thử toàn diện, Đóng gói Native & Đồng bộ Release:**
+  - Mở rộng bộ kiểm thử 	ests/test_server_and_features.py với 	est_strategic_upgrades_suite(). Toàn bộ test suite chạy đỗ **Exit Code 0**.
+  - Tăng phiên bản chuẩn SemVer lên **v1.0.19** đồng bộ 100% 6 tệp version qua python version.py --set 1.0.19.
+  - Đóng gói thành công native executable dist/MeikovaLoop/MeikovaLoop.exe (PyInstaller 66.9MB).
+  - Push commit cờ [build] lên GitHub origin main.
+  - Đồng bộ và khởi động lại sạch cả 2 Hugging Face Spaces (m3ik18dp/meikova-loop và m3ik18dp/MashLoop) với trạng thái OK.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- .\.venv\Scripts\python.exe tests/test_server_and_features.py -> **Exit Code 0 (ALL TESTS PASSED)**.
+- .\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec -> **Exit Code 0 (MeikovaLoop.exe built)**.
+- git push origin main -> **Exit Code 0 (commit 82ced37)**.
+- .\.venv\Scripts\python.exe tools/upload_to_space.py -> **Exit Code 0 (cả 2 Spaces đồng bộ & OK)**.
+
+---
+
 # Session Handoff: Stray Test Tracks Auto-Purge, Worker Isolation & PyInstaller Build (v1.0.16 Release)
 
 ## 1. Mục tiêu hoàn thành
