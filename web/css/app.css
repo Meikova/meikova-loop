@@ -722,14 +722,14 @@ body.is-zen .desktop-titlebar {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 6px 10px;
+  padding: 6px 14px 6px 12px;
   border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
   border-radius: var(--round);
   background: oklch(0.195 var(--gc) var(--gh) / 0.78);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 24px -4px oklch(var(--acc) / 0.16);
-  max-width: calc(100% - 16px);
+  max-width: calc(100% - 24px);
   box-sizing: border-box;
   flex-shrink: 0;
   transition: gap var(--dur-fast) var(--ease-out), padding var(--dur-fast) var(--ease-out),
@@ -821,9 +821,10 @@ body.is-zen .desktop-titlebar {
 .deck__vol {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px 0 10px;
+  gap: 6px;
+  padding: 0 10px 0 8px;
   margin-left: 4px;
+  margin-right: 4px;
   border-left: 1px solid var(--line-soft);
   color: var(--text-muted);
   flex-shrink: 0;
@@ -831,9 +832,9 @@ body.is-zen .desktop-titlebar {
 
 .deck__vol svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; overflow: visible; }
 
-.deck__vol input { width: 92px; flex-shrink: 0; }
+.deck__vol input { width: 72px; max-width: 76px; flex-shrink: 1; }
 
-.deck__vol em { font-size: var(--step--2); min-width: 4.2ch; text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.deck__vol em { font-size: 11px; min-width: 3.6ch; margin-right: 2px; text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
 /* Quick Mute Button */
 .btn-mute {
@@ -1187,15 +1188,16 @@ body.is-night .topbar {
 /* ------------------------------------------------------------- Deck Responsive Engine */
 
 /* Container Queries: Stage-driven fluid adaptation */
-@container stage (max-width: 1180px) {
+@container stage (max-width: 1480px) {
   .deck {
     gap: 4px;
-    padding: 5px 8px;
+    padding: 5px 12px 5px 8px;
   }
   .deck__btn span:not(.rec-dot):not(.mic-dot) {
     display: none !important;
   }
-  .deck__record .rec-dot {
+  .deck__record .rec-dot,
+  .deck__mic .mic-dot {
     display: inline-block !important;
   }
   .deck__btn {
@@ -1204,7 +1206,7 @@ body.is-night .topbar {
     height: 42px;
   }
   .deck__vol input {
-    width: 68px;
+    width: 64px;
   }
   .deck__vol em {
     display: none !important;
@@ -4514,11 +4516,12 @@ button.dl-card {
 /* .kinds auto-fills columns dynamically across all viewports */
 
 /* Floating Deck Dual-Layer Responsive Fallbacks */
-@media (max-width: 1400px) {
+@media (max-width: 1680px) {
   .layout:not(.is-zen) .stage .deck__btn span:not(.rec-dot):not(.mic-dot) {
     display: none !important;
   }
-  .layout:not(.is-zen) .stage .deck__record .rec-dot {
+  .layout:not(.is-zen) .stage .deck__record .rec-dot,
+  .layout:not(.is-zen) .stage .deck__mic .mic-dot {
     display: inline-block !important;
   }
   .layout:not(.is-zen) .stage .deck__btn {
@@ -4526,14 +4529,14 @@ button.dl-card {
     min-width: 38px;
   }
   .layout:not(.is-zen) .stage .deck__vol input {
-    width: 68px;
+    width: 64px;
   }
   .layout:not(.is-zen) .stage .deck__vol em {
     display: none !important;
   }
   .layout:not(.is-zen) .stage .deck {
     gap: 4px;
-    padding: 5px 8px;
+    padding: 5px 12px 5px 8px;
   }
 }
 
