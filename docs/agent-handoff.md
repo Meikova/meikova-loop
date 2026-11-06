@@ -1,3 +1,27 @@
+# Session Handoff: Test Pipeline Isolation & Stray Batch Test Elimination (v1.0.15 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Truy vết và triệt tiêu tận gốc lỗi tái phát "Batch Test":**
+  - **Nguyên nhân gốc rễ:**
+    - Trong `tests/test_server_and_features.py`, hàm `test_parallel_download_and_hardware_aware_analysis` (dòng 792) và các hàm test cancellation tạo một bài test giả lập mang tiêu đề `"Batch Test"` với URL giả lập `"http://example.com"`.
+    - Khi gọi `worker.enqueue_ingest(tid_test)`, luồng worker nền trong thread pool thực sự kích hoạt và cố gắng tải URL này.
+    - Test thread trên luồng chính cố gắng xóa bài bằng `library.delete()` ngay lập tức. Nhưng trên Windows, do luồng worker nền đang giữ file handle mở trên `meta.json` của bài hát, lệnh `shutil.rmtree(..., ignore_errors=True)` bị Windows từ chối cấp quyền (`WinError 32: Access Denied`) và bỏ qua lỗi trong im lặng.
+    - Vài mili-giây sau đó, khi tiến trình tải `http://example.com` thất bại, worker thread ghi đè `status: "error"` vào `meta.json`.
+    - Hậu quả: Mỗi lần chạy test suite trước khi build release, bài "Batch Test" lại bị vô tình ghi đè thẳng vào thư viện nhạc thực tế `E:\MeikovaLoopData\library\testbatch01`.
+  - **Giải pháp dứt điểm:**
+    - Cô lập 100% pipeline của worker trong tất cả các bài test: Thay thế hàm nạp luồng thực thi nền `worker._submit_pipeline` bằng mock no-op trong các unit test. Kiểm tra trạng thái hàng đợi và hủy bỏ mà không sinh bất kỳ luồng nền thực tế nào, không gọi HTTP ra ngoài, và không bao giờ để Windows khóa file handle.
+    - Xóa sạch bài `testbatch01` trực tiếp qua API server đang chạy và trên đĩa `E:\MeikovaLoopData\library`.
+    - Đã xác thực trên server đang chạy: `Total tracks: 50, Ready: 50, Errors: 0, Other: 0`.
+- [x] **Khắc phục nút Xóa bài lỗi/đang tải bị ẩn trên giao diện:**
+  - Bổ sung `data-status="${m.status}"` trên thẻ `li.track`.
+  - Thiết lập CSS `.track:not([data-status="ready"]) .acts button { display: inline-flex !important; }` để mọi bài ở trạng thái `error`, `downloading` hoặc `queued` luôn hiển thị sẵn nút "Hủy / Xóa" (X), không bị ẩn khi không hover chuột (đặc biệt trên màn hình cảm ứng).
+- [x] **Đóng gói & Phát hành:**
+  - Chạy lại test suite: `tests/test_server_and_features.py` vượt qua với **Exit Code 0** và không còn để lại bất kỳ file rác nào.
+  - Bump SemVer lên **v1.0.15** đồng bộ 100% codebase.
+  - Đẩy lên GitHub với tag `v1.0.15` và Hugging Face Space.
+
+---
+
 # Session Handoff: Instant Playback Startup via Transitions Cache & Audio Race Condition Fix (v1.0.14 Release)
 
 ## 1. Mục tiêu hoàn thành
