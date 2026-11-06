@@ -236,7 +236,7 @@ class NativeSplash:
         # 6. Status text
         hFontStatus = gdi32.CreateFontW(13, 0, 0, 0, 600, 0, 0, 0, 1, 0, 0, 2, 0, "Segoe UI")
         gdi32.SelectObject(hdc, hFontStatus)
-        gdi32.SetTextColor(hdc, 0x0081B910)  # Neon Emerald #10B981
+        gdi32.SetTextColor(hdc, 0x008AB3FF)  # Warm Peach Coral #FFB38A (Brand SSOT)
         rc_status = RECT_CLS(32, 145, self._w - 32, 168)
         user32.DrawTextW(hdc, self.status, -1, byref(rc_status), 0x00000000 | 0x00000004)
 
@@ -254,7 +254,7 @@ class NativeSplash:
         runner_w = int(bar_w * 0.35)
         runner_x = bar_x + int((bar_w - runner_w) * self._progress)
         rc_runner = RECT_CLS(runner_x, bar_y, runner_x + runner_w, bar_y + bar_h)
-        runner_brush = gdi32.CreateSolidBrush(0x0081B910)
+        runner_brush = gdi32.CreateSolidBrush(0x008AB3FF)  # Warm Peach Coral #FFB38A (Brand SSOT)
         user32.FillRect(hdc, byref(rc_runner), runner_brush)
         gdi32.DeleteObject(runner_brush)
 

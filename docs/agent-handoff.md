@@ -1,3 +1,62 @@
+# Session Handoff: Stage Restoration, Splash Brand Coral Alignment & Tray Toast i18n (v1.0.24 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Khắc phục triệt để lỗi Sân khấu chính biến mất (Stage Missing / Layout Collapse):**
+  - **Nguyên nhân gốc rễ:**
+    - Trong `web/index.html`, thẻ đóng `</div>` của `.mini-controls-row` bị thiếu 1 thẻ đóng, khiến container `<div id="mini-player-strip">` nuốt toàn bộ các phần tử phía sau nó (`.zen-hud-top`, `.canvas-wrap`, `.ring-center`, `.next`, `.deck`).
+    - Vì `.mini-player-strip` có CSS `display: none !important` khi ở chế độ hiển thị bình thường, toàn bộ sân khấu chính trung tâm (vòng beat, tên bài, floating deck) bị ẩn theo.
+  - **Giải pháp dứt điểm:**
+    - Bổ sung đầy đủ cả 2 thẻ đóng `</div>` (1 thẻ đóng `.mini-controls-row`, 1 thẻ đóng `#mini-player-strip`).
+    - Kiểm tra và xác nhận cấu trúc HTML: Toàn bộ thẻ đóng mở khớp 100%, sân khấu chính phục hồi hoàn toàn.
+    - Tăng cache buster CSS/JS lên `v=97`.
+- [x] **Đồng bộ Màu Sắc Thương hiệu Màn hình Khởi động Splash Screen (Brand Coral SSOT):**
+  - **Nguyên nhân gốc rễ:**
+    - Trong `loopbox/splash.py`, màu chữ trạng thái (`hFontStatus`) và thanh tiến trình chạy (`runner_brush`) bị hardcode màu xanh lá neon `0x0081B910` (`#10B981`), lệch hoàn toàn so với logo Meikova Loop màu cam san hô ấm (`#FFB38A`).
+  - **Giải pháp dứt điểm:**
+    - Đổi màu Win32 GDI BGR sang `0x008AB3FF` (tương ứng hex RGB `#FFB38A` chuẩn thương hiệu Meikova Loop SSOT).
+    - Màn hình Splash hiển thị đồng nhất 100% màu sắc với logo và nhận diện thương hiệu.
+- [x] **Chuẩn hóa Tiêu đề Thông báo Windows Toast & Đa Ngôn ngữ i18n:**
+  - **Nguyên nhân gốc rễ:**
+    - `loopbox/desktop.py` đăng ký `SetCurrentProcessExplicitAppUserModelID("meikova.loop.desktop.2.0")`, khiến header xám của Windows Toast Notification hiện chuỗi kỹ thuật dài dòng.
+    - Tiêu đề thông báo lặp lại tên ứng dụng (`"Meikova Loop"`), thiếu chuẩn hóa i18n đa ngôn ngữ.
+  - **Giải pháp dứt điểm:**
+    - Trong `loopbox/desktop.py`: Đổi `SetCurrentProcessExplicitAppUserModelID("Meikova Loop")`, header hiển thị tên ứng dụng sạch sẽ.
+    - Trong `loopbox/tray.py`: Xây dựng từ điển `TRAY_I18N` (`vi` / `en`) và hàm `get_tray_i18n()` tự động phát hiện ngôn ngữ hệ thống.
+    - Tiêu đề Toast: `"Đã thu nhỏ vào khay hệ thống"` / `"Minimized to System Tray"`.
+    - Nội dung Toast: `"Meikova Loop đang chạy ngầm và tiếp tục phát nhạc. Nhấp vào biểu tượng để mở lại."` / `"Meikova Loop is running in the background. Click the tray icon to restore."`.
+- [x] **Kiểm thử Toàn diện & Biên dịch Native Executable:**
+  - Toàn bộ test suite `tests/test_server_and_features.py` vượt qua với **Exit Code 0** (ALL TESTS PASSED).
+  - Tăng phiên bản SemVer lên **v1.0.24** đồng bộ 100% 6 tệp cấu hình qua `python version.py --set 1.0.24`.
+  - Biên dịch thành công PyInstaller `dist/MeikovaLoop/MeikovaLoop.exe` (66.9MB, Exit Code 0).
+  - Đồng bộ tài nguyên tĩnh mới nhất vào `dist/MeikovaLoop/_internal/web` và `dist/MeikovaLoop/web`.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> **Exit Code 0 (ALL TESTS PASSED)**.
+- `.\.venv\Scripts\pyinstaller.exe meikova_loop.spec --noconfirm` -> **Exit Code 0 (MeikovaLoop.exe built 66.9MB)**.
+
+---
+
+# Session Handoff: Play Button Neon Hover Restoration & Contrast Fix (v1.0.23 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Khắc phục triệt để lỗi nút Play bị đổi thành nền đen khi rê chuột vào (Hover Blackout):**
+  - **Nguyên nhân gốc rễ:**
+    - Quy tắc chung `.mini-btn:hover { background: rgba(255, 255, 255, 0.1) !important; }` đã vô tình ghi đè lên `.mini-btn--play:hover` do thiếu bộ chọn phủ định `:not(.mini-btn--play)`.
+    - Khi rê chuột vào nút Play, nền chuyển thành xám đen mờ mịt (`rgba(255, 255, 255, 0.1)`), trong khi icon bên trong mang màu tối `#0c0f13`, khiến cả icon lẫn nền bị chìm nghỉm vào bóng tối không nhìn thấy gì như ảnh người dùng chụp.
+  - **Giải pháp dứt điểm:**
+    - Tách biệt hoàn toàn bộ chọn: `.mini-btn:not(.mini-btn--play):hover` để không bao giờ tác động đến nút Play.
+    - Trong `.mini-btn--play:hover`, khai báo tường minh: `background: var(--accent, #FFB38A) !important; color: var(--on-accent, #0c0f13) !important; filter: brightness(1.15) !important;` cùng quầng sáng neon rực rỡ `box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 26px -1px var(--accent, #FFB38A), 0 0 42px 2px oklch(var(--acc) / 0.65) !important;`.
+    - Khi hover chuột vào, nút Play duy trì 100% màu neon thương hiệu sáng rực, icon pause/play/load màu đen tương phản tuyệt đối cực kỳ rõ nét.
+  - Cập nhật trực tiếp vào bản đóng gói `dist/MeikovaLoop/_internal/web`.
+  - Push commit `fix: v1.0.23 [build]` lên GitHub và đồng bộ 2 Spaces Hugging Face.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> **Exit Code 0 (ALL TESTS PASSED)**.
+- `git push origin main` -> **Exit Code 0 (commit a30a80b)**.
+- `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> **Exit Code 0 (Status OK cả 2 Spaces)**.
+
+---
+
 # Session Handoff: Mini Player Visual Polish, Infinity Loading Trace & Repeated Icon Fix (v1.0.22 Release)
 
 ## 1. Mục tiêu hoàn thành

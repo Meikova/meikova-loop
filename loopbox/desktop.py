@@ -482,7 +482,7 @@ def main(argv=None, splash=None):
     if sys.platform == "win32":
         try:
             import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("meikova.loop.desktop.2.0")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Meikova Loop")
         except Exception:
             pass
     if not args.debug:

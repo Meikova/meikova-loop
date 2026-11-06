@@ -21,6 +21,46 @@ except Exception:
 
 logger = logging.getLogger("meikova.loop.tray")
 
+TRAY_I18N = {
+    "vi": {
+        "minimized_title": "Đã thu nhỏ vào khay hệ thống",
+        "minimized_msg": "Meikova Loop đang chạy ngầm và tiếp tục phát nhạc. Nhấp vào biểu tượng để mở lại.",
+        "menu_header": "Meikova Loop // v{version}",
+        "menu_show": "Mở Meikova Loop",
+        "menu_web": "Mở trên trình duyệt Web",
+        "menu_data": "Mở thư mục lưu trữ (Data)",
+        "menu_autostart": "Khởi động cùng Windows",
+        "menu_reload": "Tải lại giao diện",
+        "menu_quit": "Thoát hoàn toàn",
+        "status_on": "Bật [x]",
+        "status_off": "Tắt",
+    },
+    "en": {
+        "minimized_title": "Minimized to System Tray",
+        "minimized_msg": "Meikova Loop is running in the background. Click the tray icon to restore.",
+        "menu_header": "Meikova Loop // v{version}",
+        "menu_show": "Open Meikova Loop",
+        "menu_web": "Open in Web Browser",
+        "menu_data": "Open Storage Folder (Data)",
+        "menu_autostart": "Launch on Windows Startup",
+        "menu_reload": "Reload Interface",
+        "menu_quit": "Quit Completely",
+        "status_on": "Enabled [x]",
+        "status_off": "Disabled",
+    },
+}
+
+def get_tray_i18n():
+    import locale
+    try:
+        loc = locale.getdefaultlocale()[0] or ""
+        if loc.lower().startswith("en"):
+            return TRAY_I18N["en"]
+    except Exception:
+        pass
+    return TRAY_I18N["vi"]
+
+
 # Keep strong references to prevent WinForms / AppKit / GTK objects from being garbage-collected
 _GLOBAL_TRAY_REFS: list = []
 
@@ -369,10 +409,8 @@ class DesktopTray:
                 self.window.hide()
 
             if not self._balloon_shown and self._tray:
-                self.show_balloon(
-                    "Meikova Loop",
-                    "Đang chạy ngầm · Nhấp vào biểu tượng để mở lại.",
-                )
+                _t = get_tray_i18n()
+                self.show_balloon(_t["minimized_title"], _t["minimized_msg"])
                 self._balloon_shown = True
         except Exception as e:
             logger.debug("Error hiding window to tray: %s", e)
