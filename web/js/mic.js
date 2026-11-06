@@ -30,14 +30,18 @@ export class KaraokeMic {
         throw new Error("Trình duyệt không hỗ trợ truy cập Micro.");
       }
 
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          latency: 0,
-        },
-      });
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (firstErr) {
+        // Fallback to basic audio constraint in case audio device rejects DSP options
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
 
       this.source = ctx.createMediaStreamSource(this.stream);
 

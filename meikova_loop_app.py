@@ -1,6 +1,19 @@
 """Meikova Loop Desktop Application Launcher."""
 import multiprocessing
+import os
 import sys
+
+if sys.platform == "win32":
+    cur_args = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+    flags = [
+        "--use-fake-ui-for-media-stream",
+        "--enable-features=AudioServiceOutOfProcess",
+        "--autoplay-policy=no-user-gesture-required",
+    ]
+    for flag in flags:
+        if flag not in cur_args:
+            cur_args = (cur_args + " " + flag).strip()
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = cur_args
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

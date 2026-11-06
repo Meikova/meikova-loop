@@ -43,3 +43,12 @@
 - Dung lượng: ~67 MB
 - Đóng gói đầy đủ Web assets (v=101, CSS responsive fix, Karaoke Mic engine).
 - Trạng thái: Build hoàn tất thành công (Exit Code 0).
+
+### 6. Fix Microphone Permission Denied in Desktop App (v1.0.26)
+- **Nguyên nhân gốc rễ:** Trên Windows desktop shell chạy Microsoft Edge WebView2 (pywebview), khi ứng dụng gọi `navigator.mediaDevices.getUserMedia()`, WebView2 phát sinh sự kiện `CoreWebView2.PermissionRequested`. Do ứng dụng chạy ở chế độ frameless (không có thanh công cụ trình duyệt mặc định) và pywebview không cài đặt bộ xử lý sự kiện này, WebView2 mặc định từ chối cấp quyền truy cập phần cứng (`Permission denied / NotAllowedError`).
+- **Giải pháp xử lý triệt để:**
+  1. Thêm cờ Chromium tự động phê duyệt thiết bị media vào `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`: `--use-fake-ui-for-media-stream`, `--enable-features=AudioServiceOutOfProcess`, `--autoplay-policy=no-user-gesture-required` tại cả `meikova_loop_app.py` và `loopbox/desktop.py`. Cờ này cho phép truy cập trực tiếp vào microphone phần cứng thật mà không hiển thị dialog chặn.
+  2. Đăng ký sự kiện `CoreWebView2.PermissionRequested` trên WebView2 control: Tự động gán `args.State = CoreWebView2PermissionState.Allow` và `args.SavesInProfile = True`.
+  3. Cải tiến `web/js/mic.js`: Tự động fallback về `{ audio: true }` nếu driver âm thanh của thiết bị từ chối các ràng buộc xử lý số tín hiệu (DSP constraints).
+  4. Cải tiến `web/js/main.js`: Thông báo lỗi tiếng Việt rõ ràng, chỉ dẫn người dùng mở quyền trong Windows Settings khi cần.
+  5. Nâng phiên bản SSOT lên **v1.0.26** và đồng bộ toàn bộ codebase.

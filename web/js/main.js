@@ -1336,7 +1336,13 @@ async function toggleKaraokeMic() {
     }
   } catch (err) {
     console.error("Mic error:", err);
-    showHudToast("Không thể mở Micro: " + (err.message || "Vui lòng cấp quyền"));
+    let msg = err.message || "Vui lòng cấp quyền";
+    if (err.name === "NotAllowedError" || msg.includes("Permission denied") || msg.toLowerCase().includes("denied")) {
+      msg = "Quyền truy cập bị từ chối. Vui lòng cho phép Micro trong Cài đặt Windows (Privacy -> Microphone).";
+    } else if (err.name === "NotFoundError" || msg.toLowerCase().includes("not found")) {
+      msg = "Không tìm thấy thiết bị Microphone. Vui lòng cắm Micro và thử lại.";
+    }
+    showHudToast("Không thể mở Micro: " + msg);
     updateMicUI(false);
   }
 }

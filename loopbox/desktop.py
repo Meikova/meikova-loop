@@ -13,6 +13,18 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
+if sys.platform == "win32":
+    cur_args = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+    flags = [
+        "--use-fake-ui-for-media-stream",
+        "--enable-features=AudioServiceOutOfProcess",
+        "--autoplay-policy=no-user-gesture-required",
+    ]
+    for flag in flags:
+        if flag not in cur_args:
+            cur_args = (cur_args + " " + flag).strip()
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = cur_args
+
 import uvicorn
 import webview
 
@@ -665,6 +677,40 @@ def main(argv=None, splash=None):
                     pass
             if desktop_tray:
                 desktop_tray.setup()
+            if sys.platform == "win32":
+                try:
+                    browser_ctrl = getattr(window.native, "browser", None)
+                    wv = getattr(browser_ctrl, "webview", None)
+                    if wv:
+                        def _setup_core_wv(core_wv):
+                            if not core_wv:
+                                return
+                            try:
+                                from webview.util import interop_dll_path
+                                import clr
+                                clr.AddReference(interop_dll_path("Microsoft.Web.WebView2.Core.dll"))
+                                from Microsoft.Web.WebView2.Core import CoreWebView2PermissionState
+                                def _on_perm_req(sender, args):
+                                    try:
+                                        args.State = CoreWebView2PermissionState.Allow
+                                        args.SavesInProfile = True
+                                        logger.info("WebView2 permission auto-granted: %s for %s", args.PermissionKind, args.Uri)
+                                    except Exception as p_err:
+                                        logger.debug("PermissionRequested handler notice: %s", p_err)
+                                core_wv.PermissionRequested += _on_perm_req
+                                logger.info("WebView2 PermissionRequested handler attached successfully.")
+                            except Exception as ex:
+                                logger.debug("Failed to attach PermissionRequested: %s", ex)
+
+                        if getattr(wv, "CoreWebView2", None):
+                            _setup_core_wv(wv.CoreWebView2)
+                        else:
+                            def _on_core_init(s, a):
+                                if getattr(a, "IsSuccess", False):
+                                    _setup_core_wv(wv.CoreWebView2)
+                            wv.CoreWebView2InitializationCompleted += _on_core_init
+                except Exception as perm_ex:
+                    logger.debug("WebView2 permission hook notice: %s", perm_ex)
             threading.Thread(target=_volume_sync_loop, name="volume-sync", daemon=True).start()
             threading.Thread(target=_media_keys_loop, args=(bridge,), name="media-keys", daemon=True).start()
             init_v = bridge.get_system_volume()
