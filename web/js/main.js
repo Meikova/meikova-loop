@@ -1227,16 +1227,29 @@ $("#dt-btn-mini")?.addEventListener("click", toggleMiniPlayer);
 $("#btn-zen-mini")?.addEventListener("click", toggleMiniPlayer);
 $("#mini-btn-expand")?.addEventListener("click", toggleMiniPlayer);
 $("#mini-btn-prev")?.addEventListener("click", () => {
+  const btn = $("#mini-btn-prev");
+  btn?.classList.add("is-active");
+  setTimeout(() => btn?.classList.remove("is-active"), 220);
   player.seek(0);
   showHudToast("Tua về đầu bài");
 });
 $("#mini-btn-play")?.addEventListener("click", () => {
+  const btn = $("#mini-btn-play");
+  btn?.classList.add("is-active");
+  setTimeout(() => btn?.classList.remove("is-active"), 200);
   $("#btn-play")?.click();
+  renderTransport();
 });
 $("#mini-btn-next")?.addEventListener("click", () => {
+  const btn = $("#mini-btn-next");
+  btn?.classList.add("is-active");
+  setTimeout(() => btn?.classList.remove("is-active"), 220);
   $("#btn-next")?.click();
 });
 $("#mini-btn-jump")?.addEventListener("click", () => {
+  const btn = $("#mini-btn-jump");
+  btn?.classList.add("is-active");
+  setTimeout(() => btn?.classList.remove("is-active"), 220);
   $("#btn-jump")?.click();
 });
 $("#mini-btn-lock")?.addEventListener("click", () => {
@@ -1441,13 +1454,9 @@ function renderTransport() {
   // Sync Mini Player UI
   const miniPlay = $("#mini-btn-play");
   if (miniPlay) {
-    const isPlaying = player.cur && player.playing;
-    const playSvg = miniPlay.querySelector(".mini-i-play");
-    const pauseSvg = miniPlay.querySelector(".mini-i-pause");
-    if (playSvg && pauseSvg) {
-      playSvg.hidden = isPlaying;
-      pauseSvg.hidden = !isPlaying;
-    }
+    miniPlay.dataset.state = state;
+    miniPlay.setAttribute("aria-label", state === "load" ? "Đang tải bài..." : state === "pause" ? "Tạm dừng" : player.cur ? "Tiếp tục" : "Phát");
+    miniPlay.disabled = busy || (!player.cur && !metas.some((m) => m.status === "ready"));
   }
   const curMetaMini = player.cur ? metas.find((m) => m.id === player.cur.id) : null;
   const miniTitle = $("#mini-title");
@@ -1457,29 +1466,29 @@ function renderTransport() {
   const miniArtist = $("#mini-artist");
   if (miniArtist) {
     const artistStr = curMetaMini ? (curMetaMini.artist || curMetaMini.artists || "Đang phát") : "Chưa phát";
-    const bpmStr = curMetaMini?.bpm ? ` • ${Math.round(curMetaMini.bpm)} BPM` : "";
+    const bpmStr = curMetaMini?.bpm ? ` · ${Math.round(curMetaMini.bpm)} BPM` : "";
     const camStr = curMetaMini?.camelot ? ` (${curMetaMini.camelot})` : "";
     miniArtist.textContent = `${artistStr}${bpmStr}${camStr}`;
   }
 
   const miniVocalLabel = $("#mini-vocal-label");
+  const miniVocalBtn = $("#mini-btn-vocal");
   if (miniVocalLabel) {
     miniVocalLabel.textContent = VOCAL_LABELS[player.vocalMode || "full"] || "Gốc";
+  }
+  if (miniVocalBtn) {
+    const isSpecialVocal = player.vocalMode && player.vocalMode !== "full";
+    miniVocalBtn.setAttribute("data-active", isSpecialVocal ? "true" : "false");
   }
 
   const miniLock = $("#mini-btn-lock");
   if (miniLock) {
     const isLocked = player.settings.mode === "single";
-    const openSvg = miniLock.querySelector(".mini-lock-open");
-    const closedSvg = miniLock.querySelector(".mini-lock-closed");
-    if (openSvg && closedSvg) {
-      openSvg.hidden = isLocked;
-      closedSvg.hidden = !isLocked;
-    }
+    miniLock.setAttribute("aria-pressed", isLocked ? "true" : "false");
+    miniLock.title = isLocked ? "Đang khoá bài này lặp mãi (L)" : "Khoá lặp bài này mãi (L)";
   }
 }
 
-// ------------------------------------------------------------------ library
 
 const STAGES = {
   queued: "đang chờ", downloading: "đang tải về", converting: "chuyển định dạng", analyzing: "đang phân tích",

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
   <head>
-    <meta name="version" content="1.0.21" />
+    <meta name="version" content="1.0.22" />
     <meta charset="utf-8" />
     <meta
       name="viewport"
@@ -55,7 +55,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=94" />
+    <link rel="stylesheet" href="css/app.css?v=95" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -268,9 +268,9 @@
               </div>
             </div>
             <div class="mini-top-actions">
-              <button type="button" class="mini-icon-btn" id="mini-btn-lock" title="Khoá lặp bài này (L)">
-                <svg class="mini-lock-open" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                <svg class="mini-lock-closed" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" hidden><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <button type="button" class="mini-icon-btn" id="mini-btn-lock" title="Khoá lặp bài này (L)" aria-pressed="false">
+                <svg class="mini-lock-open" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                <svg class="mini-lock-closed" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </button>
               <button type="button" class="mini-icon-btn" id="mini-btn-expand" title="Phóng to giao diện đầy đủ (M)">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -281,7 +281,7 @@
             </div>
           </div>
 
-          <!-- Bottom Row: Controls (Jump, Prev, Play/Pause, Next, Vocal Mode) -->
+          <!-- Bottom Row: Controls (Jump, Prev, Play/Pause/Load, Next, Vocal Mode) -->
           <div class="mini-controls-row">
             <button type="button" class="mini-btn" id="mini-btn-jump" title="Nhảy phách trong bài (J)">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17c3-9 13-9 16 0"/><path d="M16 13l4 4 3-4"/></svg>
@@ -289,17 +289,18 @@
             <button type="button" class="mini-btn" id="mini-btn-prev" title="Tua về đầu bài (Z)">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
             </button>
-            <button type="button" class="mini-btn mini-btn--play" id="mini-btn-play" title="Phát / Tạm dừng (Space)">
-              <svg class="mini-i-play" viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><polygon points="7 4.5 19 12 7 19.5 7 4.5"/></svg>
-              <svg class="mini-i-pause" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" hidden><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>
+            <button type="button" class="mini-btn mini-btn--play" id="mini-btn-play" data-state="play" title="Phát / Tạm dừng (Space)">
+              <svg class="mini-i-play" viewBox="0 0 24 24" aria-hidden="true"><polygon points="7 4.5 19 12 7 19.5 7 4.5"/></svg>
+              <svg class="mini-i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>
+              <svg class="mini-i-load" viewBox="0 0 48 24" aria-hidden="true"><path pathLength="120" d="M24 12 C 30 4, 42 4, 42 12 C 42 20, 30 20, 24 12 C 18 4, 6 4, 6 12 C 6 20, 18 20, 24 12 Z"/></svg>
             </button>
             <button type="button" class="mini-btn" id="mini-btn-next" title="Chuyển bài khác (N)">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
             </button>
-            <button type="button" class="mini-pill-btn" id="mini-btn-vocal" title="Đổi chế độ giọng / Karaoke (V)">
+            <button type="button" class="mini-pill-btn" id="mini-btn-vocal" data-active="false" title="Đổi chế độ giọng / Karaoke (V)">
               <span id="mini-vocal-label">Gốc</span>
             </button>
-          </div>
+
         </div>
 
         <div class="zen-hud-top" id="zen-hud-top">
@@ -1416,7 +1417,7 @@
 
           <div class="settings-app-info">
             <span class="settings-app-info__name">Meikova Loop</span>
-            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.21</span>
+            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.22</span>
           </div>
         </div>
 
@@ -2285,7 +2286,7 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=91"></script>
+    <script type="module" src="js/main.js?v=95"></script>
     <script>
       if (
         "serviceWorker" in navigator &&

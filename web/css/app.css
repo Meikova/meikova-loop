@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 /* Mash ∞ Loop — design tokens and components. See design/ART_DIRECTION.md. */
 
 @property --pulse { syntax: "<number>"; inherits: true; initial-value: 0; }
@@ -6963,12 +6964,16 @@ body.is-mini-player .mini-player-strip {
   position: relative !important;
   inset: 0 !important;
   margin: 0 !important;
-  padding: 10px 14px !important;
+  padding: 12px 16px !important;
   box-sizing: border-box !important;
-  background: linear-gradient(135deg, #0a0d13 0%, #121820 100%) !important;
+  background:
+    radial-gradient(ellipse 80% 70% at 12% 15%, oklch(var(--acc) / 0.22), transparent 75%),
+    radial-gradient(ellipse 70% 60% at 88% 85%, oklch(var(--acc2) / 0.18), transparent 70%),
+    linear-gradient(135deg, #07090d 0%, #0d1219 50%, #111722 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-radius: 0 !important;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 32px rgba(0, 0, 0, 0.7) !important;
+  transition: background 1.4s var(--ease-in-out) !important;
 }
 
 .mini-player-strip,
@@ -6999,8 +7004,8 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   width: 360px !important;
   max-width: calc(100vw - 32px) !important;
   height: 130px !important;
-  border-radius: 14px !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 16px -2px rgba(255, 179, 138, 0.2) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 24px -2px oklch(var(--acc) / 0.35) !important;
   z-index: 99999 !important;
   pointer-events: auto !important;
 }
@@ -7014,19 +7019,19 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   }
 }
 
-/* Top Row */
+/* Top Row: Title, Artist, and Window Controls */
 .mini-top-row {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 10px !important;
+  gap: 12px !important;
   width: 100% !important;
   cursor: grab !important;
 }
 .mini-lead {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 9px !important;
   flex: 1 !important;
   min-width: 0 !important;
   cursor: grab !important;
@@ -7036,13 +7041,14 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   height: 8px !important;
   border-radius: 50% !important;
   background: var(--accent, #FFB38A) !important;
-  box-shadow: 0 0 10px var(--accent, #FFB38A) !important;
+  box-shadow: 0 0 10px var(--accent, #FFB38A), 0 0 20px oklch(var(--acc) / 0.6) !important;
   flex-shrink: 0 !important;
-  animation: mini-glow 2s infinite ease-in-out !important;
+  animation: mini-dot-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+  transition: background 1.4s ease, box-shadow 1.4s ease !important;
 }
-@keyframes mini-glow {
-  0%, 100% { opacity: 0.75; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.25); box-shadow: 0 0 14px var(--accent, #FFB38A); }
+@keyframes mini-dot-pulse {
+  0%, 100% { opacity: 0.75; transform: scale(1); box-shadow: 0 0 8px var(--accent, #FFB38A); }
+  50% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 16px var(--accent, #FFB38A), 0 0 28px oklch(var(--acc) / 0.8); }
 }
 .mini-info {
   display: flex !important;
@@ -7051,51 +7057,91 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   overflow: hidden !important;
 }
 .mini-title {
-  font-family: var(--font-display, var(--font-sans)) !important;
-  font-size: 12px !important;
+  font-family: var(--font-display, "Unbounded", system-ui, sans-serif) !important;
+  font-size: 12.5px !important;
   font-weight: 600 !important;
-  color: var(--text-bright, #fff) !important;
+  color: #ffffff !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  letter-spacing: -0.01em !important;
+  letter-spacing: -0.015em !important;
   line-height: 1.3 !important;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.15) !important;
 }
 .mini-artist {
   font-size: 10px !important;
-  color: var(--text-dim, rgba(255, 255, 255, 0.5)) !important;
+  color: var(--text-dim, rgba(255, 255, 255, 0.55)) !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  line-height: 1.2 !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0.01em !important;
 }
 .mini-top-actions {
   display: flex !important;
   align-items: center !important;
-  gap: 4px !important;
+  gap: 5px !important;
   flex-shrink: 0 !important;
 }
 .mini-icon-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 24px !important;
-  height: 24px !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  border: none !important;
-  color: var(--text-dim, rgba(255, 255, 255, 0.45)) !important;
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: var(--text-dim, rgba(255, 255, 255, 0.5)) !important;
   cursor: pointer !important;
-  transition: all 0.15s ease !important;
+  transition: all 0.16s var(--ease-out, ease) !important;
   padding: 0 !important;
 }
 .mini-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: var(--text-bright, #fff) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+.mini-icon-btn:active {
+  transform: scale(0.93) !important;
 }
 .mini-icon-btn--close:hover {
-  background: rgba(239, 68, 68, 0.2) !important;
-  color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.22) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
+}
+
+/* Specific lock toggle behavior: Stack icons in grid to eliminate repetition */
+#mini-btn-lock {
+  display: grid !important;
+  place-items: center !important;
+  position: relative !important;
+}
+#mini-btn-lock svg {
+  grid-area: 1 / 1 !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+#mini-btn-lock .mini-lock-closed {
+  display: none !important;
+}
+#mini-btn-lock .mini-lock-open {
+  display: block !important;
+}
+#mini-btn-lock[aria-pressed="true"] .mini-lock-open {
+  display: none !important;
+}
+#mini-btn-lock[aria-pressed="true"] .mini-lock-closed {
+  display: block !important;
+  color: var(--accent, #FFB38A) !important;
+  filter: drop-shadow(0 0 6px var(--accent, #FFB38A)) !important;
+}
+#mini-btn-lock[aria-pressed="true"] {
+  color: var(--accent, #FFB38A) !important;
+  background: oklch(var(--acc) / 0.15) !important;
+  border-color: oklch(var(--acc) / 0.4) !important;
+  box-shadow: 0 0 10px -2px oklch(var(--acc) / 0.4) !important;
 }
 
 /* Controls Row */
@@ -7110,55 +7156,132 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 30px !important;
-  height: 30px !important;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: 50% !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: var(--text-muted, rgba(255, 255, 255, 0.75)) !important;
   cursor: pointer !important;
-  transition: all 0.18s ease !important;
+  transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 .mini-btn:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
-  color: var(--text-bright, #fff) !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  transform: translateY(-1px) scale(1.05) !important;
 }
+.mini-btn:active,
+.mini-btn.is-active {
+  transform: scale(0.92) !important;
+  box-shadow: 0 0 10px var(--accent, #FFB38A) !important;
+}
+
+/* Mini Play Button: Tactile 3D Neon Centerpiece with Infinity Loader */
 .mini-btn--play {
-  width: 36px !important;
-  height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  position: relative !important;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
   background: var(--accent, #FFB38A) !important;
-  color: #0c0f13 !important;
-  border-color: var(--accent, #FFB38A) !important;
-  box-shadow: 0 0 14px -2px var(--accent-glow, rgba(255, 179, 138, 0.4)) !important;
+  color: var(--on-accent, #0c0f13) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 0 0 1px oklch(var(--acc) / 0.5), 0 0 20px -2px oklch(var(--acc) / 0.7), 0 0 32px -4px oklch(var(--acc) / 0.4) !important;
+  cursor: pointer !important;
+  transition: transform var(--dur-instant, 80ms) var(--ease-out), filter var(--dur-fast, 160ms) var(--ease-out), box-shadow var(--dur-base, 240ms) var(--ease-out) !important;
 }
 .mini-btn--play:hover {
+  transform: scale(1.08) !important;
   filter: brightness(1.15) !important;
-  box-shadow: 0 0 18px -1px var(--accent-glow, rgba(255, 179, 138, 0.6)) !important;
-  color: #0c0f13 !important;
+  box-shadow: 0 0 0 1px #fff, 0 0 24px -1px var(--accent, #FFB38A), 0 0 38px 2px oklch(var(--acc) / 0.55) !important;
+  color: var(--on-accent, #0c0f13) !important;
 }
+.mini-btn--play:active {
+  transform: scale(0.94) !important;
+}
+
+/* Stack Play, Pause, and Infinity Load SVGs on top of each other */
+.mini-btn--play svg {
+  grid-area: 1 / 1 !important;
+  width: 15px !important;
+  height: 15px !important;
+  fill: currentColor !important;
+}
+.mini-btn--play .mini-i-pause,
+.mini-btn--play .mini-i-load {
+  display: none !important;
+}
+
+/* State: PLAY */
+.mini-btn--play[data-state="play"] .mini-i-play {
+  display: block !important;
+}
+.mini-btn--play[data-state="play"] .mini-i-pause,
+.mini-btn--play[data-state="play"] .mini-i-load {
+  display: none !important;
+}
+
+/* State: PAUSE */
+.mini-btn--play[data-state="pause"] .mini-i-play,
+.mini-btn--play[data-state="pause"] .mini-i-load {
+  display: none !important;
+}
+.mini-btn--play[data-state="pause"] .mini-i-pause {
+  display: block !important;
+}
+
+/* State: LOAD (Hypnotic Infinity Trace Loader Animation) */
+.mini-btn--play[data-state="load"] .mini-i-play,
+.mini-btn--play[data-state="load"] .mini-i-pause {
+  display: none !important;
+}
+.mini-btn--play[data-state="load"] .mini-i-load {
+  display: block !important;
+  width: 24px !important;
+  height: 12px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 3.2 !important;
+  stroke-linecap: round !important;
+  stroke-dasharray: 26 94 !important;
+  animation: trace 1.1s linear infinite !important;
+}
+
+/* Vocal Mode Pill Button */
 .mini-pill-btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  height: 26px !important;
-  padding: 0 10px !important;
+  height: 27px !important;
+  padding: 0 11px !important;
   border-radius: 9999px !important;
   background: rgba(255, 255, 255, 0.05) !important;
   border: 1px solid rgba(255, 255, 255, 0.09) !important;
-  color: var(--text-muted, rgba(255, 255, 255, 0.7)) !important;
-  font-size: 10px !important;
+  color: var(--text-muted, rgba(255, 255, 255, 0.75)) !important;
+  font-size: 10.5px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
+  letter-spacing: 0.02em !important;
   transition: all 0.18s ease !important;
 }
 .mini-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  color: var(--text-bright, #fff) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+.mini-pill-btn:active {
+  transform: scale(0.94) !important;
+}
+.mini-pill-btn[data-active="true"] {
+  color: var(--on-accent, #000000) !important;
+  background: var(--accent, #FFB38A) !important;
   border-color: var(--accent, #FFB38A) !important;
+  box-shadow: 0 0 12px -2px var(--accent, #FFB38A) !important;
 }
 
-/* 5. Camelot DJ Sorter action button */
 .pl-action-btn--camelot:hover {
   border-color: #a855f7 !important;
   color: #d8b4fe !important;
