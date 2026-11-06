@@ -1077,3 +1077,25 @@ elay-server/public/index.html & web-client: Bổ sung nút #btn-sso-gateway và 
   - `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> `SUCCESS, Space status: BUILDING` (Exit Code 0).
 - **Các phần còn tồn đọng và cảnh báo kỹ thuật:**
   - GitHub Actions đang tự động nhận trigger `[build] [release]` từ tag `v1.0.12` để build installer Inno Setup đa nền tảng và publish GitHub Releases.
+
+
+## Session Handoff: Meikova Loop v1.0.13 (Permanent Settings Persistence, Auto-Discovery Fallback, In-Progress Cancel & Delete)
+- **Mục tiêu hoàn thành:**
+  1. *Khắc phục triệt để việc mất thiết lập cài đặt & tài khoản khi khởi động lại:*
+     - Định tuyến lại `desktop_profile` (thư mục hồ sơ trình duyệt WebView2 chứa 100% `localStorage`, token tài khoản `kiempd`, danh sách phát playlists, cấu hình âm lượng, chế độ sáng/tối) sang vị trí cố định của hệ thống: `%LOCALAPPDATA%\MeikovaLoop\desktop_profile` thay vì lưu trong `DATA_DIR / desktop_profile`.
+     - Nhờ đó, dù người dùng lưu trữ nhạc ở ổ C, D, E hay ổ cứng di động, toàn bộ cài đặt giao diện và tài khoản sẽ luôn được giữ nguyên vẹn 100% không bao giờ bị reset.
+     - Tự động di chuyển (migrate) thư mục hồ sơ cũ sang vị trí chuẩn mới ngay khi khởi động.
+  2. *Ghi nhớ thư mục lưu trữ & Tự động quét phục hồi (Auto-Discovery Fallback):*
+     - Ngoài việc lưu cấu hình vào `%LOCALAPPDATA%\MeikovaLoop\storage_config.json`, hệ thống bổ sung cơ chế Auto-Discovery Fallback: khi khởi động, nếu tệp cấu hình bị thiếu, hệ thống tự động quét các phân vùng ổ đĩa (D:, E:, F:) để tìm thư mục `*/MeikovaLoopData/library`. Nếu tìm thấy sẽ tự động liên kết lại và khôi phục tệp cấu hình, người dùng không bao giờ phải chọn lại thư mục bằng tay.
+     - Tự động sao lưu kép `settings.json` vào cả thư mục lưu trữ và `%LOCALAPPDATA%\MeikovaLoop\settings.json`.
+     - Tự động gọi `refresh()` ngay khi người dùng bấm Lưu vị trí lưu trữ mới.
+  3. *Khắc phục bài "Batch Test" & Bổ sung nút Hủy/Xóa cho tiến trình tải về:*
+     - Tìm ra nguyên nhân gốc: tệp test trong test suite trước đó đã tạo `testbatch01` mà chưa xóa triệt để, đồng thời xóa nhầm tệp `storage_config.json` của máy người dùng. Đã cô lập 100% test suite, dọn dẹp sạch toàn bộ thư mục test và bảo vệ tệp cấu hình của người dùng.
+     - Đã xóa sạch bài "Batch Test" khỏi ổ đĩa và cơ sở dữ liệu.
+     - Bổ sung nút Hủy/Xóa (`data-act="delete"`) trực tiếp trên hàng bài hát đang tải về/đang xử lý (`downloading`, `queued`, `analyzing`). Người dùng có thể bấm vào biểu tượng thùng rác để hủy tiến trình và xóa bài kẹt bất kỳ lúc nào với modal xác nhận trực quan.
+- **Lệnh kiểm tra đã chạy & Exit Code:**
+  - `python version.py --check` -> `[PASS] All project files are in 100% version synchronization` (v1.0.13, Exit Code 0).
+  - `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> `ALL TESTS PASSED WITH EXIT CODE 0` (44/44 tests, Exit Code 0).
+  - `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> Đóng gói thành công `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).
+  - `git push origin main` & `git push origin v1.0.13` -> Thành công (Exit Code 0).
+  - `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> Thành công (`Space status: BUILDING`, Exit Code 0).
