@@ -1,3 +1,37 @@
+# Session Handoff: Mini Player Layout Clipping Elimination & Desktop Shell Alignment (v1.0.21 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Truy vết & Khắc phục triệt để lỗi Card Mini Player bị lệch và cắt mép (Offset / Clipping):**
+  - **Nguyên nhân gốc rễ:**
+    - Trong `web/css/app.css`, có quy tắc CSS:
+      `body:not(.is-desktop-shell).is-mini-player .mini-player-strip { position: fixed !important; bottom: 24px !important; right: 24px !important; width: 350px !important; height: 120px !important; border-radius: 14px !important; }`
+    - Trong khi đó, `web/js/main.js` chỉ gắn `document.body.classList.add("is-desktop-app")` mà thiếu class `is-desktop-shell`.
+    - Do đó, bộ chọn `body:not(.is-desktop-shell).is-mini-player` đã bị kích hoạt ngay bên trong cửa sổ Desktop mini của PyWebView!
+    - Thuộc tính `bottom: 24px` đã nâng card lên 24px trong viewport 120px, làm mép trên cùng (chứa tên bài "Meikova Loop", trạng thái "Chưa phát" và nửa trên các nút min/expand/close) bị đẩy trồi ra ngoài đỉnh cửa sổ. Đồng thời, nó tạo ra dải đen trống 24px ở đáy cửa sổ. Thuộc tính `right: 24px` đẩy mép trái card ra ngoài khung nhìn 24px, cắt mất biểu tượng bên trái. Bo góc 14px để lộ 4 góc nền đen.
+  - **Giải pháp dứt điểm:**
+    - Cập nhật `web/css/app.css`: Loại bỏ hoàn toàn định vị fixed offset cho desktop app. Trong `body.is-mini-player`, `.mini-player-strip` luôn lấp đầy 100% viewport (`width: 100vw; height: 100vh; position: relative; inset: 0; padding: 10px 14px; box-sizing: border-box; border-radius: 0; border: 1px solid rgba(255,255,255,0.12);`).
+    - Thêm chỉ thị kéo thả native mượt mà: `-webkit-app-region: drag` cho header card, và `-webkit-app-region: no-drag` cho tất cả các nút bấm để đảm bảo không bị cản trở click.
+    - Cập nhật `web/js/main.js`: Bổ sung đồng thời cả hai class `is-desktop-app` và `is-desktop-shell` khi phát hiện `window.pywebview`.
+    - Sửa nút đóng Mini Player `#mini-btn-close`: Hỗ trợ đầy đủ fallback `hide_to_tray() -> minimize() -> close()`.
+    - Tinh chỉnh kích thước cửa sổ Mini Player trong `loopbox/desktop.py`: Tăng nhẹ từ 350x120 lên 360x130px (kèm `min_size=(320, 100)`), tạo khoảng thở thoáng đãng, cân đối thị giác cho cả 2 tầng của card.
+- [x] **Bảo đảm chuẩn Responsive Đa Thiết Bị theo Skill /meikova (meikova-ambient-ui):**
+  - Trên Web Browser thuần (không phải Desktop Shell), widget Mini Player tự động co giãn với `max-width: calc(100vw - 32px)`.
+  - Trên Mobile (< 600px), card tự động neo sát đáy màn hình có tính toán Safe Area Insets (`bottom: calc(16px + env(safe-area-inset-bottom, 0px))`, `left: 16px`, `right: 16px`, `width: calc(100vw - 32px)`).
+- [x] **Kiểm thử, Đóng gói Native & Đồng bộ Release:**
+  - Chạy toàn bộ test suite `tests/test_server_and_features.py` đạt **Exit Code 0** (ALL TESTS PASSED).
+  - Tăng phiên bản SemVer lên **v1.0.21** đồng bộ 100% 6 tệp cấu hình qua `python version.py --set 1.0.21`.
+  - Biên dịch thành công bản dựng native `dist/MeikovaLoop/MeikovaLoop.exe` (PyInstaller 66.9MB).
+  - Push commit cờ `[build]` lên GitHub repo `origin main`.
+  - Đồng bộ và trigger rebuild trên 2 Hugging Face Spaces (`m3ik18dp/meikova-loop` và `m3ik18dp/MashLoop`) với trạng thái OK.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> **Exit Code 0 (ALL TESTS PASSED)**.
+- `.\.venv\Scripts\pyinstaller.exe meikova_loop.spec --noconfirm` -> **Exit Code 0 (MeikovaLoop.exe 66.9MB built)**.
+- `git push origin main` -> **Exit Code 0 (commit aa1dc9d)**.
+- `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> **Exit Code 0 (Status OK cả 2 Spaces)**.
+
+---
+
 # Session Handoff: Mini Player Window Clamping Fix & Universal Responsive Hardening (v1.0.20 Release)
 
 ## 1. Mục tiêu hoàn thành
