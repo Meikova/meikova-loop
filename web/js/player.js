@@ -242,6 +242,7 @@ export class Player extends EventTarget {
     this.bias = () => 0; // extra appeal of handing over to a song (main.js: staying in a sample library)
     this.timer = null;
     this.userPaused = false;
+    this._startSeq = 0;
     this._pauseTransition = false;
     this.engine._onExternalPause = async () => {
       await this.pause();
@@ -289,14 +290,47 @@ export class Player extends EventTarget {
   }
 
   async start(trackId) {
-    const track = await this.loader.get(trackId);
-    this.engine.stopAll();
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
+    const seq = ++this._startSeq;
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    this.engine.stopAll(0.04);
+    this.userPaused = true;
+    this.dispatchEvent(new Event("state"));
+
+    let track;
+    try {
+      track = await this.loader.get(trackId);
+    } catch (e) {
+      if (seq === this._startSeq) {
+        this.dispatchEvent(new Event("state"));
+      }
+      throw e;
+    }
+
+    if (seq !== this._startSeq) {
+      return;
+    }
+
+    this.engine.stopAll(0.01);
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
     this.reset();
     this.userPaused = false;
     this.engine.startAnchor();
-    await this.engine.ctx.resume();
+
+    if (this.engine.ctx.state === "suspended") {
+      await this.engine.ctx.resume().catch(() => {});
+    }
+
+    if (seq !== this._startSeq) {
+      this.engine.stopAll(0.01);
+      return;
+    }
+
     if (this.engine.targetVol != null) {
       this.engine.setVolume(this.engine.targetVol);
     }
@@ -361,6 +395,7 @@ export class Player extends EventTarget {
   }
 
   stop() {
+    this._startSeq++;
     this.userPaused = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;

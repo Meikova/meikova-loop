@@ -201,6 +201,7 @@ loader.addEventListener("transitions", () => {
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7 4.5 19 12 7 19.5 7 4.5"/></svg>',
+  spinner: '<svg class="spinner-svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9" stroke-opacity="0.25"/><path d="M12 3a9 9 0 0 1 9 9"/></svg>',
   playlist: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
   out: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
   in: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
@@ -694,18 +695,45 @@ $("#btn-relink").addEventListener("click", async (e) => {
 // ----------------------------------------------------------------- transport
 
 let busy = false;
+let loadingTrackId = null;
+
+function updateTrackLoadingUI(id, isLoading) {
+  const row = document.querySelector(`.track[data-id="${id}"]`);
+  if (!row) return;
+  row.classList.toggle("is-loading", isLoading);
+  const playBtn = row.querySelector('[data-act="play"]');
+  if (playBtn) {
+    playBtn.innerHTML = isLoading ? ICON.spinner : ICON.play;
+    playBtn.title = isLoading ? "Đang nạp nhạc..." : "Phát từ bài này";
+    playBtn.classList.toggle("is-loading-btn", isLoading);
+    playBtn.disabled = isLoading;
+  }
+}
 
 async function play(id) {
+  if (loadingTrackId === id) return;
+  const prevLoading = loadingTrackId;
+  if (prevLoading && prevLoading !== id) {
+    updateTrackLoadingUI(prevLoading, false);
+  }
+  loadingTrackId = id;
   // Resume inside the click itself: browsers only unlock audio on a user gesture.
   engine.unlockAudio();
   engine.ctx.resume();
+  updateTrackLoadingUI(id, true);
   try {
     setBusy(true);
     await player.start(id);
   } catch (e) {
-    showModal({ title: "Lỗi phát nhạc", message: `Không phát được: ${e.message}` });
+    if (loadingTrackId === id) {
+      showModal({ title: "Lỗi phát nhạc", message: `Không phát được: ${e.message}` });
+    }
   } finally {
-    setBusy(false);
+    if (loadingTrackId === id) {
+      loadingTrackId = null;
+      setBusy(false);
+      updateTrackLoadingUI(id, false);
+    }
   }
 }
 
@@ -1642,10 +1670,13 @@ function trackRow(m, idx = 0, total = 0) {
   const inspectBtn = m.status === "ready"
     ? `<button type="button" data-act="inspect" aria-label="Chi tiết & tùy chọn" title="Chi tiết & tùy chọn (tải MP3, playlist...)">${ICON.inspect}</button>`
     : "";
+  const isLoading = loadingTrackId === m.id;
+  const playIcon = isLoading ? ICON.spinner : ICON.play;
+  const playTitle = isLoading ? "Đang nạp nhạc..." : "Phát từ bài này";
   const acts = m.status === "ready"
     ? `${reorderBtns}
        ${queueNextBtn}
-       <button type="button" data-act="play" aria-label="Phát ${title}" title="Phát từ bài này">${ICON.play}</button>
+       <button type="button" data-act="play" class="${isLoading ? "is-loading-btn" : ""}" ${isLoading ? "disabled" : ""} aria-label="Phát ${title}" title="${playTitle}">${playIcon}</button>
        <button type="button" data-act="toggle" aria-label="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}" title="${m.enabled === false ? "Đưa vào chuỗi" : "Bỏ khỏi chuỗi"}">${m.enabled === false ? ICON.in : ICON.out}</button>
        ${inspectBtn}`
     : m.status === "error" ? `<button type="button" data-act="retry" aria-label="Thử lại" title="Thử lại">${ICON.retry}</button>` : "";
@@ -1666,7 +1697,7 @@ function trackRow(m, idx = 0, total = 0) {
   const durHtml = (m.status === "ready" && m.duration)
     ? `<span class="track__dur" ${isTooLong ? `style="color:var(--c-warn,#f59e0b)" title="${warnTitle}"` : ""}>${fmt(m.duration)}${isTooLong ? ` ${ICON.warn}` : ""}</span>`
     : "";
-  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""}" data-id="${esc(m.id)}">
+  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""} ${isLoading ? "is-loading" : ""}" data-id="${esc(m.id)}">
     ${cb}${lead}
     <div class="track__body">
       <div class="track__top">
@@ -1761,7 +1792,7 @@ function renderLibrary() {
     }
     html = `<li class="empty">${ICON.inf}${intro}${activePlaylistId === "all" && !libSearchQuery && offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
   }
-  const currentKey = `${batchMode ? "b:" : ""}${libSortMode}:${libSearchQuery}:${player.targetNextId}:${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
+  const currentKey = `${loadingTrackId}:${batchMode ? "b:" : ""}${libSortMode}:${libSearchQuery}:${player.targetNextId}:${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
   if (html !== lastListHtml || currentKey !== lastListKey) {
     lastListHtml = html;
     lastListKey = currentKey;
@@ -1856,6 +1887,7 @@ $("#track-list").addEventListener("click", async (e) => {
     const m = byId().get(id);
     switch (actEl.dataset.act) {
       case "play":
+        if (loadingTrackId === id) return;
         await play(id);
         break;
       case "playlist":

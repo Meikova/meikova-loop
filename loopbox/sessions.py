@@ -11,6 +11,47 @@ import time
 from . import library, worker
 from .config import DATA_DIR, MAX_SESSION_TRACKS, MULTIUSER, SESSION_TTL_S
 
+
+def _transitions_cache_file():
+    from .config import DATA_DIR
+    return DATA_DIR / "transitions_cache.json"
+
+
+def _read_transitions_cache(ready: tuple, link_ver: int):
+    f = _transitions_cache_file()
+    if not f.exists():
+        return None
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+        if data.get("link_ver") == link_ver and tuple(data.get("ready", [])) == ready:
+            return data.get("assembled", {}), data.get("onward", {})
+    except Exception:
+        pass
+    return None
+
+
+def _write_transitions_cache(ready: tuple, link_ver: int, assembled: dict, onward: dict) -> None:
+    f = _transitions_cache_file()
+    try:
+        payload = json.dumps({
+            "ready": list(ready),
+            "link_ver": link_ver,
+            "assembled": assembled,
+            "onward": onward,
+        }, ensure_ascii=False)
+        f.write_text(payload, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def warmup_transitions_cache() -> None:
+    """Pre-loads or pre-computes transitions in background on server startup."""
+    try:
+        v = local()
+        v._lists()
+    except Exception:
+        pass
+
 _lock = threading.RLock()
 _sessions: dict[str, "SessionView"] = {}
 _user_sessions: dict[str, "UserSessionView"] = {}
@@ -122,8 +163,13 @@ class View:
         key = (ready, self.link_ver)
         with self._assemble_lock:
             if key != self._assembled_key:
-                self._assembled = transitions.assemble(list(ready))
-                self._onward = transitions.onward(self._assembled)
+                cached = _read_transitions_cache(ready, self.link_ver)
+                if cached is not None:
+                    self._assembled, self._onward = cached
+                else:
+                    self._assembled = transitions.assemble(list(ready))
+                    self._onward = transitions.onward(self._assembled)
+                    _write_transitions_cache(ready, self.link_ver, self._assembled, self._onward)
                 self._assembled_key = key
             return self._assembled, self._onward
 

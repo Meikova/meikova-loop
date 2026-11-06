@@ -2920,6 +2920,48 @@ dialog.pl-modal,
   vertical-align: middle;
 }
 
+
+.track.is-loading {
+  background: linear-gradient(90deg, oklch(var(--acc) / 0.12), transparent 70%);
+  position: relative;
+}
+
+.track.is-loading::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: pulse-glow 1.2s ease-in-out infinite alternate;
+}
+
+.track.is-loading .track__top .t {
+  color: var(--accent-hi);
+}
+
+.track .acts button.is-loading-btn:disabled,
+.track.is-loading .acts button[data-act="play"] {
+  opacity: 1 !important;
+  color: var(--accent);
+  cursor: wait;
+  pointer-events: none;
+}
+
+.spinner-svg {
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes pulse-glow {
+  0% { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+
 .track .acts button:disabled {
   opacity: 0.15 !important;
   pointer-events: none;

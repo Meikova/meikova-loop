@@ -1554,6 +1554,7 @@ def _on_loop_startup():
         worker.start()
         if MULTIUSER:
             worker.start_retention(AUDIO_TTL_S, sessions.in_use)
+        threading.Thread(target=sessions.warmup_transitions_cache, daemon=True, name="transitions-warmup").start()
     except Exception as e:
         logger.error(f"worker.start failed on startup: {e}")
     if "--tunnel" in sys.argv or os.environ.get("AUTO_TUNNEL") in ("1", "true", "True"):
