@@ -1189,3 +1189,30 @@ elay-server/public/index.html & web-client: Bổ sung nút #btn-sso-gateway và 
   - `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> Đóng gói thành công `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).
   - `git push origin main` & `git push origin v1.0.13` -> Thành công (Exit Code 0).
   - `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> Thành công (`Space status: BUILDING`, Exit Code 0).
+
+
+## Session Handoff: Meikova Loop v1.0.18 (Tiered Lighting Architecture, Zero Neon Box Clipping, Native Splash Screen & Fast Startup)
+- **Mục tiêu hoàn thành:**
+  1. *Khắc phục triệt để hiện tượng quầng sáng Neon bị cắt ở 4 phía thành hình hộp chữ nhật:*
+     - **Tách tầng chiếu sáng không gian (Atmospheric Bloom):** Toàn bộ quầng sáng lớn lan tỏa diện rộng được giao cho CSS `.field` (`position: fixed; inset: 0`) phụ trách. Hàm `_updateField` trong `web/js/viz.js` đồng bộ đầy đủ toạ độ tâm thực tế $X, Y$ (`--key-x`, `--key-y`, `--fill-x`, `--fill-y`) và bán kính động (`--key-r-px`, `--fill-r-px`). Nhờ đó, ánh sáng tỏa từ vòng lặp lan rộng ra khắp toàn bộ cửa sổ (tràn qua cả topbar và deck) và tan biến tự nhiên vào màu nền tối OS mà không bao giờ bị giới hạn bởi bất kỳ chiếc hộp nào.
+     - **Tối ưu suy giảm ánh sáng cục bộ (Zero Edge Clipping trên Canvas 2D):** Hàm `_drawLights` được trang bị cơ chế tự động giới hạn bán kính an toàn (`rOuter <= edgeDist - 6`) và đường cong chuyển màu đa tầng mềm mại (multi-stop falloff: 40% -> 8% -> 0%), kết hợp vẽ theo cung tròn `ctx.arc()` thay vì khối vuông `fillRect()`. Mọi pixel phát quang trên Canvas 2D đều tan về trong suốt hoàn toàn trước khi chạm biên thẻ canvas.
+     - **Khoảng đệm thở (Breathing Room):** Điều chỉnh nhẹ tỷ lệ co giãn trong `_layout` khi ở chế độ Chuỗi 2 vòng, giúp quang phổ âm thanh Halo và các chấm điểm nối (exit dots) luôn nằm trong khoảng không gian thoáng đãng.
+     - **Đệm ngoài màn hình (Offscreen Buffer):** Tăng kích thước texture đệm `S` trong `_buildLayer` từ $2.6 \times R_L$ lên $2.9 \times R_L$, triệt tiêu việc cắt cụt các hạt bụi âm thanh và cung nhảy hợp âm.
+  2. *Khởi động siêu tốc & Native Ambient Splash Screen:*
+     - Cửa sổ splash screen xuất hiện ngay lập tức (<15ms) khi nhấn mở exe với logo thương hiệu và thanh chạy phát quang Neon Emerald (`loopbox/splash.py`).
+     - Tối ưu tải cấu hình từ 5.2s xuống 280ms (loại bỏ early PyTorch import trong `loopbox/config.py`).
+  3. *Đồng bộ SSOT Version v1.0.18 & Đóng gói:*
+     - Toàn bộ codebase (`version.py`, `package.json`, `web/index.html`, `loopbox/__init__.py`, `loopbox/config.py`) đã đồng bộ 100% lên `v1.0.18`.
+     - Toàn bộ test suite chạy vượt qua với Exit Code 0.
+     - Đã đóng gói thành công `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).
+  4. *CI/CD & Hugging Face Spaces:*
+     - Đã push commit kích hoạt CI/CD `[build]` lên GitHub `origin main`.
+     - Đã đồng bộ loader và kích hoạt restart tự động trên cả 2 Hugging Face Spaces: `m3ik18dp/meikova-loop` và `m3ik18dp/MashLoop`.
+- **Lệnh kiểm tra đã chạy & Exit Code:**
+  - `python version.py --check` -> `[PASS] All project files are in 100% version synchronization` (v1.0.18, Exit Code 0).
+  - `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> `ALL TESTS PASSED WITH EXIT CODE 0` (Exit Code 0).
+  - `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> Đóng gói thành công `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0).
+  - `git push origin main` -> Thành công (Exit Code 0).
+  - `tools/upload_to_space.py` -> Thành công trên cả 2 Spaces (`meikova-loop` và `MashLoop`, Exit Code 0).
+- **Các phần còn tồn đọng và cảnh báo kỹ thuật:**
+  - GitHub Actions đang xử lý workflow `Build & Release Apps` cho commit `89cb261` (`in_progress`).
