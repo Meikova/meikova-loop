@@ -24,8 +24,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "1.0.27"
-VERSION_INFO = (1, 0, 27)
+__version__ = "1.0.28"
+VERSION_INFO = (1, 0, 28)
 APP_NAME = "Meikova Loop"
 APP_SLUG = "meikova-loop"
 APP_ID = "com.meikova.loop"

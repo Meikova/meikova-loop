@@ -2,7 +2,7 @@
 ; Package: Meikova Loop (Infinite Jukebox Audio Workstation)
 
 #define MyAppName "Meikova Loop"
-#define MyAppVersion "1.0.27"
+#define MyAppVersion "1.0.28"
 #define MyAppPublisher "Meikova Platform"
 #define MyAppURL "https://meikova.org"
 #define MyAppExeName "MeikovaLoop.exe"
