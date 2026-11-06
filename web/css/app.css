@@ -6942,6 +6942,8 @@ body.is-mini-player .layout {
 body.is-mini-player .stage {
   display: flex !important;
   flex-direction: column !important;
+  justify-content: stretch !important;
+  align-items: stretch !important;
   height: 100vh !important;
   width: 100vw !important;
   padding: 0 !important;
@@ -6956,8 +6958,11 @@ body.is-mini-player .mini-player-strip {
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  position: relative !important;
+  inset: 0 !important;
+  margin: 0 !important;
   padding: 10px 14px !important;
   box-sizing: border-box !important;
   background: linear-gradient(135deg, #0a0d13 0%, #121820 100%) !important;
@@ -6966,20 +6971,47 @@ body.is-mini-player .mini-player-strip {
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4) !important;
 }
 
+.mini-player-strip,
+.mini-top-row,
+.mini-lead,
+.mini-info {
+  -webkit-app-region: drag !important;
+}
+
+.mini-top-actions,
+.mini-controls-row,
+.mini-icon-btn,
+.mini-btn,
+.mini-pill-btn {
+  -webkit-app-region: no-drag !important;
+}
+
 /* On web browser (when NOT native desktop shell), float mini player cleanly */
-body:not(.is-desktop-shell).is-mini-player .stage {
+body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .stage {
   pointer-events: none !important;
 }
-body:not(.is-desktop-shell).is-mini-player .mini-player-strip {
+body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-strip {
   position: fixed !important;
   bottom: 24px !important;
   right: 24px !important;
-  width: 350px !important;
-  height: 120px !important;
+  left: auto !important;
+  top: auto !important;
+  width: 360px !important;
+  max-width: calc(100vw - 32px) !important;
+  height: 130px !important;
   border-radius: 14px !important;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 16px -2px rgba(255, 179, 138, 0.2) !important;
   z-index: 99999 !important;
   pointer-events: auto !important;
+}
+
+@media (max-width: 600px) {
+  body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-strip {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 16px !important;
+    left: 16px !important;
+    width: calc(100vw - 32px) !important;
+  }
 }
 
 /* Top Row */

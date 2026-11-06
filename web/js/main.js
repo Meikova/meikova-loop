@@ -1248,8 +1248,16 @@ $("#mini-btn-vocal")?.addEventListener("click", () => {
   $("#btn-vocal-mode")?.click();
 });
 $("#mini-btn-close")?.addEventListener("click", () => {
-  if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.minimize_window === "function") {
-    window.pywebview.api.minimize_window();
+  if (window.pywebview?.api) {
+    if (typeof window.pywebview.api.hide_to_tray === "function") {
+      window.pywebview.api.hide_to_tray();
+    } else if (typeof window.pywebview.api.minimize === "function") {
+      window.pywebview.api.minimize();
+    } else if (typeof window.pywebview.api.close === "function") {
+      window.pywebview.api.close();
+    }
+  } else {
+    toggleMiniPlayer();
   }
 });
 
@@ -4767,7 +4775,7 @@ function initDesktopTitlebar() {
 
   const checkDesktop = () => {
     if (window.pywebview?.api) {
-      document.body.classList.add("is-desktop-app");
+      document.body.classList.add("is-desktop-app", "is-desktop-shell");
       const titlebar = $("#desktop-titlebar");
       if (titlebar) titlebar.style.display = "flex";
 

@@ -276,6 +276,12 @@ class DesktopBridge:
         elif self._window:
             self._window.destroy()
 
+    def minimize_window(self):
+        if self._tray:
+            self._tray.handle_closing()
+        elif self._window:
+            self._window.minimize()
+
     def toggle_mini_player(self) -> bool:
         """Toggle between full desktop window and compact Always-On-Top Mini Player."""
         if not self._window:
@@ -289,7 +295,7 @@ class DesktopBridge:
                 except Exception:
                     self._normal_bounds = (100, 100, 1340, 880)
 
-                target_w, target_h = 350, 120
+                target_w, target_h = 360, 130
                 if sys.platform == "win32":
                     try:
                         import System.Drawing
@@ -311,7 +317,7 @@ class DesktopBridge:
                         pass
 
                 self._window.resize(target_w, target_h)
-                self._window.evaluate_js("document.body.classList.add('is-mini-player'); window.__onMiniPlayerChange && window.__onMiniPlayerChange(true);")
+                self._window.evaluate_js("document.body.classList.add('is-desktop-shell', 'is-desktop-app', 'is-mini-player'); window.__onMiniPlayerChange && window.__onMiniPlayerChange(true);")
             else:
                 target_w, target_h = 1340, 880
                 orig_x, orig_y = 100, 100
@@ -556,7 +562,7 @@ def main(argv=None, splash=None):
         url=f"http://127.0.0.1:{port}/",
         width=1340,
         height=880,
-        min_size=(350, 120),
+        min_size=(320, 100),
         background_color="#080a0e",
         text_select=False,
         js_api=bridge,
