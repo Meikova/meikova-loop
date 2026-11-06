@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
   <head>
-    <meta name="version" content="1.0.24" />
+    <meta name="version" content="1.0.25" />
     <meta charset="utf-8" />
     <meta
       name="viewport"
@@ -55,7 +55,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=97" />
+    <link rel="stylesheet" href="css/app.css?v=100" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -436,16 +436,75 @@
             type="button"
             class="deck__btn deck__vocal"
             id="btn-vocal-mode"
-            title="Chế độ Giọng / Karaoke Beat: Gốc -> Beat -> Acapella (V)"
+            title="Tách giọng bài hát: Gốc -> Beat -> Acapella (V)"
             data-mode="full"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="22" />
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 10v4" />
+              <path d="M6 6v12" />
+              <path d="M10 3v18" />
+              <path d="M14 8v8" />
+              <path d="M18 5v14" />
+              <path d="M22 10v4" />
             </svg>
             <span id="vocal-mode-label">Gốc</span>
           </button>
+          <div class="deck__mic-wrap">
+            <button
+              type="button"
+              class="deck__btn deck__mic"
+              id="btn-karaoke-mic"
+              title="Micro Karaoke: Bật để hát phát ra loa và thu âm (K)"
+              aria-pressed="false"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              data-active="false"
+            >
+              <span class="mic-dot" id="mic-status-dot" aria-hidden="true"></span>
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+              </svg>
+              <span id="mic-label">Mic Hát</span>
+            </button>
+            <div
+              class="mic-popover"
+              id="mic-popover"
+              hidden
+              role="dialog"
+              aria-label="Cài đặt Micro Karaoke"
+            >
+              <div class="mic-popover__head">
+                <div class="mic-popover__title-wrap">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                  <span class="mic-popover__title">Micro Karaoke</span>
+                </div>
+                <span class="mic-popover__badge mono" id="mic-gain-badge">100%</span>
+              </div>
+              <div class="mic-popover__body">
+                <div class="mic-gain-row">
+                  <div class="mic-gain-label-row">
+                    <span class="mic-gain-label">Âm lượng Micro</span>
+                    <span class="mic-gain-num mono" id="mic-gain-num">1.0x</span>
+                  </div>
+                  <input type="range" class="custom-slider" id="s-mic-gain" min="0" max="2" step="0.05" value="1.0" aria-label="Âm lượng Micro" />
+                </div>
+                <button type="button" class="btn-mic-toggle" id="btn-mic-toggle-switch">
+                  <span class="mic-toggle-dot" aria-hidden="true"></span>
+                  <span id="mic-toggle-text">Bật Micro phát ra loa</span>
+                </button>
+                <div class="mic-hint">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  <span>Khuyên dùng tai nghe để âm thanh sạch và chống hú khi mở loa to.</span>
+                </div>
+              </div>
+            </div>
+          </div>
           <button
             type="button"
             class="deck__btn"
@@ -1417,7 +1476,7 @@
 
           <div class="settings-app-info">
             <span class="settings-app-info__name">Meikova Loop</span>
-            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.24</span>
+            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.25</span>
           </div>
         </div>
 
@@ -2232,14 +2291,19 @@
 
     
     <!-- Live Mix Record Result Modal -->
-    <dialog class="consent record-modal" id="modal-record-result">
-      <div class="consent__head">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="rec-dot rec-dot--active" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px #ef4444;" aria-hidden="true"></span>
-          <span class="consent__title">Bản thu âm Live Mix</span>
+    <dialog class="consent record-modal" id="modal-record-result" aria-labelledby="modal-record-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <div class="mobile-modal__icon-badge record-modal__badge" aria-hidden="true">
+            <span class="rec-dot rec-dot--active" style="width: 9px; height: 9px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px #ef4444;" aria-hidden="true"></span>
+          </div>
+          <div class="mobile-modal__headings">
+            <h2 id="modal-record-title" class="mobile-modal__title">Bản thu âm Live Mix</h2>
+            <span class="mobile-modal__subtitle mono">LIVE SESSION // MEIKOVA LOOP</span>
+          </div>
         </div>
-        <button type="button" class="consent__close" id="btn-close-record-modal" title="Đóng">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button type="button" class="mobile-modal__close" id="btn-close-record-modal" aria-label="Đóng (Esc)" title="Đóng (Esc)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="record-modal__body">
@@ -2259,12 +2323,46 @@
         </div>
 
         <div class="record-player-wrap">
-          <audio id="rec-audio-preview" controls preload="metadata" style="width: 100%; border-radius: 8px;"></audio>
+          <audio id="rec-audio-preview" preload="metadata" style="display: none;"></audio>
+          <div class="ambient-player" id="rec-ambient-player">
+            <button type="button" class="ambient-player__btn ambient-player__btn--play" id="rec-btn-play" aria-label="Phát / Tạm dừng" title="Phát / Tạm dừng">
+              <svg class="icon-play" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <polygon points="6 3 20 12 6 21 6 3"></polygon>
+              </svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display: none;">
+                <rect x="5" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="15" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+            </button>
+            <span class="ambient-player__time mono" id="rec-time-current">00:00</span>
+            <div class="ambient-player__track" id="rec-scrubber-track">
+              <div class="ambient-player__bar-bg">
+                <div class="ambient-player__bar-fill" id="rec-progress-fill"></div>
+              </div>
+              <input type="range" class="ambient-player__range" id="rec-scrubber-range" min="0" max="100" value="0" step="0.1" aria-label="Tiến trình phát">
+            </div>
+            <span class="ambient-player__time mono" id="rec-time-total">00:00</span>
+            <button type="button" class="ambient-player__btn ambient-player__btn--mute" id="rec-btn-mute" aria-label="Bật / Tắt tiếng" title="Bật / Tắt tiếng">
+              <svg class="icon-vol-on" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+              <svg class="icon-vol-mute" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="record-tracklist-wrap">
           <div class="record-tracklist-head">
-            <span class="record-tracklist-title">Tracklist / Chapter Markers</span>
+            <span class="record-tracklist-title">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity: 0.7;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span>Tracklist / Chapter Markers</span>
+            </span>
             <button type="button" class="btn-copy-pill" id="btn-copy-tracklist">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               <span>Sao chép</span>
@@ -2286,14 +2384,14 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=95"></script>
+    <script type="module" src="js/main.js?v=97"></script>
     <script>
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
         navigator.serviceWorker
-          .register("sw.js?v=83")
+          .register("sw.js?v=84")
           .then((reg) => {
             reg.update();
           })

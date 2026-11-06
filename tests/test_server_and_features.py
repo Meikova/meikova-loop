@@ -1002,7 +1002,51 @@ if __name__ == "__main__":
     test_version_ssot_sync_and_api()
     test_download_cancel_and_storage_persistence()
     test_native_splash_and_fast_startup()
+def test_karaoke_mic_and_ambient_audio_player():
+    # 1. Verify mic.js exists and exports KaraokeMic
+    mic_path = os.path.join(ROOT_DIR, "web", "js", "mic.js")
+    assert os.path.exists(mic_path)
+    with open(mic_path, "r", encoding="utf-8") as f:
+        mic_js = f.read()
+    assert "export class KaraokeMic" in mic_js
+    assert "getUserMedia" in mic_js
+    assert "echoCancellation: true" in mic_js
+    assert "engine.master" in mic_js
+
+    # 2. Verify HTML contains Karaoke Mic and Custom Ambient Audio Player elements
+    index_path = os.path.join(ROOT_DIR, "web", "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
+        index_html = f.read()
+    assert "btn-karaoke-mic" in index_html
+    assert "mic-popover" in index_html
+    assert "s-mic-gain" in index_html
+    assert "modal-record-result" in index_html
+    assert "rec-ambient-player" in index_html
+    assert "rec-btn-play" in index_html
+    assert "rec-scrubber-range" in index_html
+    assert "rec-btn-mute" in index_html
+
+    # 3. Verify CSS contains Ambient Dark styling for Mic and Custom Player
+    css_path = os.path.join(ROOT_DIR, "web", "css", "app.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        app_css = f.read()
+    assert ".deck__mic-wrap" in app_css
+    assert ".mic-popover" in app_css
+    assert ".ambient-player" in app_css
+    assert ".record-modal__badge" in app_css
+
+    # 4. Verify main.js contains controller logic and shortcut H
+    main_path = os.path.join(ROOT_DIR, "web", "js", "main.js")
+    with open(main_path, "r", encoding="utf-8") as f:
+        main_js = f.read()
+    assert "KaraokeMic" in main_js
+    assert "karaokeMic" in main_js
+    assert 'e.key === "h"' in main_js
+    assert "toggleKaraokeMic" in main_js
+    assert "updateRecPlayerState" in main_js
+
     test_strategic_upgrades_suite()
+    test_karaoke_mic_and_ambient_audio_player()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
     os._exit(0)
 

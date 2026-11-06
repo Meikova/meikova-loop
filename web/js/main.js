@@ -3,6 +3,7 @@ import { Engine } from "./engine.js";
 import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
 import { MixRecorder } from "./recorder.js";
+import { KaraokeMic } from "./mic.js";
 import { sortHarmonicSequence } from "./harmonic.js";
 import * as theme from "./theme.js?v=55";
 import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
@@ -131,6 +132,7 @@ const engine = new Engine();
 const loader = new Loader(engine);
 const player = new Player(engine, loader);
 const recorder = new MixRecorder(engine, player);
+const karaokeMic = new KaraokeMic(engine);
 const viz = new Viz($("#viz"), player, {
   center: $("#ring-center"),
   tip: $("#viz-tip"),
@@ -1034,6 +1036,8 @@ document.addEventListener("keydown", (e) => {
     $("#btn-record")?.click();
   } else if (e.key === "v" || e.key === "V") {
     $("#btn-vocal-mode")?.click();
+  } else if (e.key === "h" || e.key === "H") {
+    toggleKaraokeMic();
   } else if (e.key === "m" || e.key === "M") {
     toggleMute();
     showHudToast(isMuted ? "Đã tắt tiếng (M)" : `Bật tiếng ${Math.round(ui.volume * 100)}% (M)`);
@@ -1131,7 +1135,19 @@ async function toggleRecording() {
     if (durEl) durEl.textContent = formatRecTime(res.duration);
     if (sizeEl) sizeEl.textContent = `${(res.size / (1024 * 1024)).toFixed(1)} MB`;
     if (tracksEl) tracksEl.textContent = String(res.trackCount);
-    if (audioPreview) audioPreview.src = res.audioUrl;
+    if (audioPreview) {
+      audioPreview.src = res.audioUrl;
+      audioPreview.currentTime = 0;
+      updateRecPlayerState(false);
+      const curTimeEl = $("#rec-time-current");
+      const totTimeEl = $("#rec-time-total");
+      const progFill = $("#rec-progress-fill");
+      const rangeEl = $("#rec-scrubber-range");
+      if (curTimeEl) curTimeEl.textContent = "00:00";
+      if (totTimeEl) totTimeEl.textContent = formatRecTime(res.duration);
+      if (progFill) progFill.style.width = "0%";
+      if (rangeEl) rangeEl.value = 0;
+    }
     if (tracklistText) tracklistText.value = res.tracklistText;
     if (downloadAudio) {
       downloadAudio.href = res.audioUrl;
@@ -1155,12 +1171,108 @@ async function toggleRecording() {
   }
 }
 
+// ------------------------------------------------------- Custom Ambient Audio Player
+function updateRecPlayerState(isPlaying) {
+  const playBtn = $("#rec-btn-play");
+  if (!playBtn) return;
+  const playIcon = playBtn.querySelector(".icon-play");
+  const pauseIcon = playBtn.querySelector(".icon-pause");
+  if (playIcon) playIcon.style.display = isPlaying ? "none" : "block";
+  if (pauseIcon) pauseIcon.style.display = isPlaying ? "block" : "none";
+  playBtn.setAttribute("aria-label", isPlaying ? "Tạm dừng" : "Phát");
+}
+
+function updateRecMuteState(isMuted) {
+  const muteBtn = $("#rec-btn-mute");
+  if (!muteBtn) return;
+  const volOn = muteBtn.querySelector(".icon-vol-on");
+  const volMute = muteBtn.querySelector(".icon-vol-mute");
+  if (volOn) volOn.style.display = isMuted ? "none" : "block";
+  if (volMute) volMute.style.display = isMuted ? "block" : "none";
+  muteBtn.setAttribute("aria-label", isMuted ? "Bật tiếng" : "Tắt tiếng");
+}
+
+const recAudioEl = $("#rec-audio-preview");
+const recPlayBtn = $("#rec-btn-play");
+const recMuteBtn = $("#rec-btn-mute");
+const recRange = $("#rec-scrubber-range");
+const recProgressFill = $("#rec-progress-fill");
+const recCurTime = $("#rec-time-current");
+const recTotalTime = $("#rec-time-total");
+
+if (recPlayBtn && recAudioEl) {
+  recPlayBtn.addEventListener("click", () => {
+    if (recAudioEl.paused) {
+      recAudioEl.play().catch(() => {});
+    } else {
+      recAudioEl.pause();
+    }
+  });
+}
+
+if (recMuteBtn && recAudioEl) {
+  recMuteBtn.addEventListener("click", () => {
+    recAudioEl.muted = !recAudioEl.muted;
+    updateRecMuteState(recAudioEl.muted);
+  });
+}
+
+if (recAudioEl) {
+  recAudioEl.addEventListener("play", () => updateRecPlayerState(true));
+  recAudioEl.addEventListener("pause", () => updateRecPlayerState(false));
+  recAudioEl.addEventListener("ended", () => {
+    updateRecPlayerState(false);
+    if (recRange) recRange.value = 0;
+    if (recProgressFill) recProgressFill.style.width = "0%";
+    if (recCurTime) recCurTime.textContent = "00:00";
+  });
+  recAudioEl.addEventListener("timeupdate", () => {
+    const cur = recAudioEl.currentTime || 0;
+    const dur = recAudioEl.duration || 0;
+    if (recCurTime) recCurTime.textContent = formatRecTime(cur);
+    if (dur > 0) {
+      const pct = Math.min(100, Math.max(0, (cur / dur) * 100));
+      if (recProgressFill) recProgressFill.style.width = `${pct}%`;
+      if (recRange) recRange.value = pct;
+    }
+  });
+  recAudioEl.addEventListener("loadedmetadata", () => {
+    if (recAudioEl.duration && isFinite(recAudioEl.duration) && recTotalTime) {
+      recTotalTime.textContent = formatRecTime(recAudioEl.duration);
+    }
+  });
+}
+
+if (recRange && recAudioEl) {
+  recRange.addEventListener("input", () => {
+    const dur = recAudioEl.duration;
+    if (dur && isFinite(dur)) {
+      const target = (parseFloat(recRange.value) / 100) * dur;
+      recAudioEl.currentTime = target;
+      if (recProgressFill) recProgressFill.style.width = `${recRange.value}%`;
+      if (recCurTime) recCurTime.textContent = formatRecTime(target);
+    }
+  });
+}
+
 $("#btn-record")?.addEventListener("click", toggleRecording);
 $("#zen-btn-record")?.addEventListener("click", toggleRecording);
-$("#btn-close-record-modal")?.addEventListener("click", () => {
-  const audioPreview = $("#rec-audio-preview");
-  if (audioPreview) audioPreview.pause();
+
+const closeRecordModal = () => {
+  if (recAudioEl) {
+    recAudioEl.pause();
+    recAudioEl.currentTime = 0;
+    updateRecPlayerState(false);
+  }
   $("#modal-record-result")?.close();
+};
+
+$("#btn-close-record-modal")?.addEventListener("click", closeRecordModal);
+$("#modal-record-result")?.addEventListener("close", () => {
+  if (recAudioEl && !recAudioEl.paused) {
+    recAudioEl.pause();
+    updateRecPlayerState(false);
+  }
 });
 
 // Vocal Karaoke Mode Toggle
@@ -1179,12 +1291,82 @@ $("#btn-vocal-mode")?.addEventListener("click", () => {
   if (label) label.textContent = VOCAL_LABELS[nextMode] || nextMode;
 
   if (nextMode === "instrumental") {
-    showHudToast("Chế độ Karaoke: Lọc bỏ giọng ca sĩ, giữ Beat");
+    showHudToast("Chế độ Karaoke: Lọc bỏ giọng ca sĩ, giữ Beat (V)");
   } else if (nextMode === "acapella") {
-    showHudToast("Chế độ Acapella: Giữ giọng ca sĩ solo");
+    showHudToast("Chế độ Acapella: Giữ giọng ca sĩ solo (V)");
   } else {
-    showHudToast("Chế độ Full Mix nguyên bản");
+    showHudToast("Chế độ Full Mix nguyên bản (V)");
   }
+});
+
+// Karaoke Live Microphone Controller
+const micBtn = $("#btn-karaoke-mic");
+const micPopover = $("#mic-popover");
+const micToggleBtn = $("#btn-mic-toggle-switch");
+const micToggleText = $("#mic-toggle-text");
+const micLabel = $("#mic-label");
+const micSlider = $("#s-mic-gain");
+const micBadge = $("#mic-gain-badge");
+const micNum = $("#mic-gain-num");
+
+function updateMicUI(isActive) {
+  if (micBtn) {
+    micBtn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    micBtn.dataset.active = isActive ? "true" : "false";
+  }
+  if (micToggleBtn) {
+    micToggleBtn.classList.toggle("is-active", isActive);
+  }
+  if (micToggleText) {
+    micToggleText.textContent = isActive ? "Tắt Micro Karaoke" : "Bật Micro phát ra loa";
+  }
+  if (micLabel) {
+    micLabel.textContent = isActive ? "Đang Bật" : "Mic Hát";
+  }
+}
+
+async function toggleKaraokeMic() {
+  try {
+    const active = await karaokeMic.toggle();
+    updateMicUI(active);
+    if (active) {
+      showHudToast("Đã bật Micro Karaoke · Tiếng hát phát ra loa & thu âm (H)");
+    } else {
+      showHudToast("Đã tắt Micro Karaoke");
+    }
+  } catch (err) {
+    console.error("Mic error:", err);
+    showHudToast("Không thể mở Micro: " + (err.message || "Vui lòng cấp quyền"));
+    updateMicUI(false);
+  }
+}
+
+if (micBtn && micPopover) {
+  micBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isHidden = micPopover.hidden;
+    micPopover.hidden = !isHidden;
+    micBtn.setAttribute("aria-expanded", !isHidden);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!micPopover.hidden && !e.target.closest("#mic-popover, #btn-karaoke-mic")) {
+      micPopover.hidden = true;
+      micBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+micToggleBtn?.addEventListener("click", () => {
+  toggleKaraokeMic();
+});
+
+micSlider?.addEventListener("input", () => {
+  const val = parseFloat(micSlider.value);
+  karaokeMic.setVolume(val);
+  const pct = Math.round(val * 100);
+  if (micBadge) micBadge.textContent = `${pct}%`;
+  if (micNum) micNum.textContent = `${val.toFixed(1)}x`;
 });
 
 // Mini Player Controls & Toggle

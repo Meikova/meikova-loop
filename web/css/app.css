@@ -487,6 +487,8 @@ body.is-zen .desktop-titlebar {
   padding: var(--space-4) var(--space-5) var(--space-4);
   min-width: 0;
   min-height: 0;
+  container-type: inline-size;
+  container-name: stage;
 }
 
 .readout {
@@ -720,14 +722,18 @@ body.is-zen .desktop-titlebar {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 6px 8px;
-  border: 1px dashed var(--line);
+  padding: 6px 10px;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
   border-radius: var(--round);
-  background: oklch(0.195 var(--gc) var(--gh) / 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  max-width: 100%;
+  background: oklch(0.195 var(--gc) var(--gh) / 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 24px -4px oklch(var(--acc) / 0.16);
+  max-width: calc(100% - 16px);
   box-sizing: border-box;
+  flex-shrink: 0;
+  transition: gap var(--dur-fast) var(--ease-out), padding var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 
 .deck__btn {
@@ -735,13 +741,15 @@ body.is-zen .desktop-titlebar {
   align-items: center;
   gap: 8px;
   min-height: var(--tap);
-  padding: 0 16px;
+  padding: 0 14px;
   border: 1px solid transparent;
   border-radius: var(--round);
   background: none;
   color: var(--text-muted);
   font-size: var(--step--1);
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
 }
@@ -779,6 +787,7 @@ body.is-zen .desktop-titlebar {
   background: var(--accent);
   color: var(--on-accent);
   box-shadow: var(--glow);
+  flex-shrink: 0;
   transition: transform var(--dur-instant) var(--ease-out), background-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-base) var(--ease-out);
 }
@@ -817,13 +826,14 @@ body.is-zen .desktop-titlebar {
   margin-left: 4px;
   border-left: 1px solid var(--line-soft);
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .deck__vol svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; overflow: visible; }
 
-.deck__vol input { width: 92px; }
+.deck__vol input { width: 92px; flex-shrink: 0; }
 
-.deck__vol em { font-size: var(--step--2); min-width: 4.2ch; text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.deck__vol em { font-size: var(--step--2); min-width: 4.2ch; text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
 /* Quick Mute Button */
 .btn-mute {
@@ -1173,6 +1183,113 @@ body.is-night .topbar {
   border: 1px solid oklch(var(--acc) / 0.35);
 }
 
+
+/* ------------------------------------------------------------- Deck Responsive Engine */
+
+/* Container Queries: Stage-driven fluid adaptation */
+@container stage (max-width: 1180px) {
+  .deck {
+    gap: 4px;
+    padding: 5px 8px;
+  }
+  .deck__btn span:not(.rec-dot):not(.mic-dot) {
+    display: none !important;
+  }
+  .deck__record .rec-dot {
+    display: inline-block !important;
+  }
+  .deck__btn {
+    padding: 0 10px;
+    min-width: 38px;
+    height: 42px;
+  }
+  .deck__vol input {
+    width: 68px;
+  }
+  .deck__vol em {
+    display: none !important;
+  }
+}
+
+@container stage (max-width: 740px) {
+  .deck {
+    gap: 3px;
+    padding: 4px 6px;
+    max-width: calc(100% - 10px);
+  }
+  .deck__btn {
+    padding: 0 8px;
+    min-width: 36px;
+    height: 40px;
+  }
+  .deck__btn svg {
+    width: 19px;
+    height: 19px;
+  }
+  .deck__vol input {
+    display: none !important;
+  }
+  .deck__vol em,
+  .deck__vol .sr {
+    display: none !important;
+  }
+  .deck__vol {
+    padding: 0 6px 0 4px;
+    margin-left: 2px;
+  }
+  .deck__vol .btn-mute {
+    width: 34px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@container stage (max-width: 480px) {
+  .deck {
+    gap: 2px;
+    padding: 3px 5px;
+    max-width: calc(100% - 6px);
+  }
+  .deck__play {
+    width: 46px;
+    height: 46px;
+  }
+  .deck__play svg {
+    width: 20px;
+    height: 20px;
+  }
+  .deck__btn {
+    padding: 0 6px;
+    min-width: 34px;
+    height: 38px;
+  }
+  .deck__btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@container stage (max-width: 370px) {
+  .deck {
+    gap: 1px;
+    padding: 2px 4px;
+  }
+  .deck__play {
+    width: 42px;
+    height: 42px;
+  }
+  .deck__btn {
+    padding: 0 4px;
+    min-width: 30px;
+    height: 36px;
+  }
+  .deck__btn svg {
+    width: 16px;
+    height: 16px;
+  }
+}
 
 /* Setlist: the session as a chain of small linked loops. */
 .setlist {
@@ -4396,6 +4513,53 @@ button.dl-card {
 
 /* .kinds auto-fills columns dynamically across all viewports */
 
+/* Floating Deck Dual-Layer Responsive Fallbacks */
+@media (max-width: 1400px) {
+  .layout:not(.is-zen) .stage .deck__btn span:not(.rec-dot):not(.mic-dot) {
+    display: none !important;
+  }
+  .layout:not(.is-zen) .stage .deck__record .rec-dot {
+    display: inline-block !important;
+  }
+  .layout:not(.is-zen) .stage .deck__btn {
+    padding: 0 10px;
+    min-width: 38px;
+  }
+  .layout:not(.is-zen) .stage .deck__vol input {
+    width: 68px;
+  }
+  .layout:not(.is-zen) .stage .deck__vol em {
+    display: none !important;
+  }
+  .layout:not(.is-zen) .stage .deck {
+    gap: 4px;
+    padding: 5px 8px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .stage .deck__btn span:not(.rec-dot):not(.mic-dot) {
+    display: none !important;
+  }
+  .stage .deck__record .rec-dot {
+    display: inline-block !important;
+  }
+  .stage .deck__btn {
+    padding: 0 8px;
+    min-width: 36px;
+  }
+  .stage .deck__vol input {
+    width: 60px;
+  }
+  .stage .deck__vol em {
+    display: none !important;
+  }
+  .stage .deck {
+    gap: 4px;
+    padding: 4px 6px;
+  }
+}
+
 @media (max-width: 768px) {
   #btn-shortcuts-modal { display: none !important; }
   #btn-mini { display: none !important; }
@@ -4409,11 +4573,12 @@ button.dl-card {
     padding: 0 8px;
     height: 32px;
   }
-  .deck__btn span:not(.rec-dot) { display: none !important; }
-  .deck__record .rec-dot { display: inline-block !important; }
-  .deck__btn { padding: 0 10px; }
-  .deck__vol input { width: 68px; }
-  .deck__vol em { display: none; }
+  .deck__btn span:not(.rec-dot):not(.mic-dot) { display: none !important; }
+  .deck__record .rec-dot, .deck__mic .mic-dot { display: inline-block !important; }
+  .deck__btn { padding: 0 8px; min-width: 36px; }
+  .deck__vol input { width: 56px; }
+  .deck__vol em { display: none !important; }
+  .deck { gap: 3px; padding: 4px 6px; max-width: calc(100% - 10px); }
 }
 
 @media (max-width: 600px) {
@@ -4517,8 +4682,11 @@ button.dl-card {
     width: 19px;
     height: 19px;
   }
-  .deck__btn span {
+  .deck__btn span:not(.rec-dot):not(.mic-dot) {
     display: none !important;
+  }
+  .deck__record .rec-dot {
+    display: inline-block !important;
   }
   .deck__vol {
     padding: 0 8px 0 6px;
@@ -6745,16 +6913,33 @@ dialog.tunnel-modal,
   opacity: 0.6;
 }
 
-/* Record Result Modal */
+/* Record Result Modal - Meikova Ambient Dark Standard */
 .record-modal {
-  width: min(92vw, 480px) !important;
-  padding: 18px 20px !important;
+  width: min(92vw, 490px) !important;
+  padding: 18px 22px !important;
+  background: oklch(0.13 var(--gc, 0.03) var(--gh, 260) / 0.94) !important;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.09)) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 32px -8px var(--accent-glow, rgba(255, 179, 138, 0.2)) !important;
+  backdrop-filter: blur(16px) !important;
+}
+.record-modal__badge {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border: 1px solid rgba(239, 68, 68, 0.28) !important;
+  color: #ef4444 !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 9px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
 }
 .record-modal__body {
   display: flex !important;
   flex-direction: column !important;
-  gap: 14px !important;
-  margin-top: 14px !important;
+  gap: 13px !important;
+  margin-top: 12px !important;
 }
 .record-meta-row {
   display: grid !important;
@@ -6764,24 +6949,133 @@ dialog.tunnel-modal,
 .record-meta-item {
   display: flex !important;
   flex-direction: column !important;
-  gap: 4px !important;
+  gap: 3px !important;
   padding: 8px 10px !important;
   background: var(--ink-2, rgba(255, 255, 255, 0.03)) !important;
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.07)) !important;
-  border-radius: 8px !important;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08)) !important;
+  border-radius: 10px !important;
   text-align: center !important;
 }
 .record-meta-label {
-  font-size: 10px !important;
+  font-size: 9.5px !important;
+  font-weight: 500 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-  color: var(--text-dim, rgba(255, 255, 255, 0.45)) !important;
+  letter-spacing: 0.06em !important;
+  color: var(--text-dim, rgba(255, 255, 255, 0.5)) !important;
 }
 .record-meta-val {
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  color: var(--text, #fff) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--accent) !important;
+  letter-spacing: -0.01em !important;
 }
+
+/* Custom Ambient Audio Player */
+.record-player-wrap {
+  width: 100% !important;
+}
+.ambient-player {
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+  padding: 8px 12px !important;
+  background: var(--ink-2, rgba(255, 255, 255, 0.035)) !important;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.09)) !important;
+  border-radius: 12px !important;
+  position: relative !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+.ambient-player__btn {
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.ambient-player__btn--play {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  background: var(--accent) !important;
+  color: #0c0f13 !important;
+  box-shadow: 0 0 12px -2px var(--accent-glow, rgba(255, 179, 138, 0.45)) !important;
+}
+.ambient-player__btn--play:hover {
+  filter: brightness(1.12) !important;
+  transform: scale(1.05) !important;
+  box-shadow: 0 0 16px -1px var(--accent-glow, rgba(255, 179, 138, 0.6)) !important;
+}
+.ambient-player__btn--play:active {
+  transform: scale(0.96) !important;
+}
+.ambient-player__btn--mute {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--text-dim, rgba(255, 255, 255, 0.65)) !important;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08)) !important;
+}
+.ambient-player__btn--mute:hover {
+  color: var(--text, #fff) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+.ambient-player__time {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace) !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--text-dim, rgba(255, 255, 255, 0.6)) !important;
+  min-width: 38px !important;
+  text-align: center !important;
+  user-select: none !important;
+}
+.ambient-player__track {
+  flex: 1 !important;
+  height: 24px !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+.ambient-player__bar-bg {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 5px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  transition: height 0.15s ease !important;
+}
+.ambient-player__track:hover .ambient-player__bar-bg {
+  height: 7px !important;
+}
+.ambient-player__bar-fill {
+  width: 0% !important;
+  height: 100% !important;
+  background: var(--accent) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 0 10px var(--accent-glow, rgba(255, 179, 138, 0.45)) !important;
+}
+.ambient-player__range {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+  z-index: 2 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
 .record-tracklist-wrap {
   display: flex !important;
   flex-direction: column !important;
@@ -6793,19 +7087,22 @@ dialog.tunnel-modal,
   justify-content: space-between !important;
 }
 .record-tracklist-title {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
   font-size: 11px !important;
   font-weight: 600 !important;
   color: var(--text-muted, rgba(255, 255, 255, 0.7)) !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.05em !important;
 }
 .record-tracklist-area {
   width: 100% !important;
-  background: var(--ink-1, #0c0f13) !important;
+  background: rgba(0, 0, 0, 0.28) !important;
   border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08)) !important;
-  border-radius: 8px !important;
-  padding: 8px 10px !important;
-  color: var(--text-muted, #94a3b8) !important;
+  border-radius: 9px !important;
+  padding: 9px 11px !important;
+  color: var(--text-muted, #cbd5e1) !important;
   font-size: 11px !important;
   line-height: 1.5 !important;
   resize: vertical !important;
@@ -6813,6 +7110,21 @@ dialog.tunnel-modal,
   max-height: 180px !important;
   outline: none !important;
   box-sizing: border-box !important;
+  scrollbar-width: thin !important;
+}
+.record-tracklist-area::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+.record-tracklist-area::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.record-tracklist-area::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 999px !important;
+}
+.record-tracklist-area::-webkit-scrollbar-thumb:hover {
+  background: var(--accent) !important;
 }
 .record-tracklist-area:focus {
   border-color: var(--accent) !important;
@@ -6828,23 +7140,28 @@ dialog.tunnel-modal,
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 7px !important;
-  padding: 9px 14px !important;
-  border-radius: 8px !important;
+  gap: 8px !important;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
   text-decoration: none !important;
-  transition: all 0.2s ease !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .btn-rec-action--primary {
   background: var(--accent) !important;
   color: #0c0f13 !important;
   border: 1px solid var(--accent) !important;
+  box-shadow: 0 2px 10px -2px var(--accent-glow, rgba(255, 179, 138, 0.35)) !important;
 }
 .btn-rec-action--primary:hover {
   filter: brightness(1.1) !important;
-  box-shadow: 0 0 14px -2px var(--accent-glow, rgba(255, 179, 138, 0.4)) !important;
+  box-shadow: 0 4px 16px -2px var(--accent-glow, rgba(255, 179, 138, 0.5)) !important;
+  transform: translateY(-1px) !important;
+}
+.btn-rec-action--primary:active {
+  transform: translateY(0) !important;
 }
 .btn-rec-action--secondary {
   background: var(--ink-2, rgba(255, 255, 255, 0.04)) !important;
@@ -6854,6 +7171,10 @@ dialog.tunnel-modal,
 .btn-rec-action--secondary:hover {
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px) !important;
+}
+.btn-rec-action--secondary:active {
+  transform: translateY(0) !important;
 }
 
 /* 2. Vocal / Beat Karaoke Pill */
@@ -6870,6 +7191,176 @@ dialog.tunnel-modal,
   border-color: rgba(168, 85, 247, 0.6) !important;
   background: rgba(168, 85, 247, 0.12) !important;
   color: #d8b4fe !important;
+}
+
+/* Karaoke Live Microphone Deck Controls */
+.deck__mic-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.deck__mic {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.mic-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim, rgba(255, 255, 255, 0.4));
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.deck__mic[data-active="true"] {
+  border-color: rgba(239, 68, 68, 0.6) !important;
+  background: rgba(239, 68, 68, 0.14) !important;
+  color: #fca5a5 !important;
+  box-shadow: 0 0 16px -2px rgba(239, 68, 68, 0.45) !important;
+}
+
+.deck__mic[data-active="true"] .mic-dot {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+/* Mic Settings Popover */
+.mic-popover {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: oklch(0.14 var(--gc, 0.03) var(--gh, 260) / 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px;
+  min-width: 260px;
+  max-width: 290px;
+  width: max-content;
+  box-shadow: 0 18px 44px -6px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 20px -4px rgba(239, 68, 68, 0.2);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: popover-up var(--dur-fast) var(--ease-spring);
+}
+
+.mic-popover[hidden] {
+  display: none;
+}
+
+.mic-popover__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding-bottom: 8px;
+}
+
+.mic-popover__title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, rgba(255, 255, 255, 0.7));
+}
+
+.mic-popover__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.mic-popover__body {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.mic-gain-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mic-gain-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-dim, rgba(255, 255, 255, 0.6));
+}
+
+.mic-gain-num {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-mic-toggle {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.1));
+  color: var(--text, #fff);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-mic-toggle:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-mic-toggle.is-active {
+  background: rgba(239, 68, 68, 0.16) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  color: #fca5a5 !important;
+  box-shadow: 0 0 12px -2px rgba(239, 68, 68, 0.4) !important;
+}
+
+.mic-toggle-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mic-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-dim, rgba(255, 255, 255, 0.45));
+  line-height: 1.4;
+  padding-top: 2px;
+}
+
+.mic-hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.6;
 }
 
 /* 3. Topbar Mini button */

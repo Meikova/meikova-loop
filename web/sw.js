@@ -15,6 +15,8 @@ const STATIC_ASSETS = [
   "/js/theme.js",
   "/js/graph.js",
   "/js/mediasession.js",
+  "/js/recorder.js",
+  "/js/mic.js",
   "/vendor/signalsmith-stretch-1.3.2.mjs"
 ];
 
