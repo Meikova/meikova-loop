@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
   <head>
-    <meta name="version" content="1.0.18" />
+    <meta name="version" content="1.0.19" />
     <meta charset="utf-8" />
     <meta
       name="viewport"
@@ -72,6 +72,9 @@
       </div>
       <div class="desktop-titlebar__drag pywebview-drag-region"></div>
       <div class="desktop-titlebar__controls">
+        <button type="button" class="dt-btn dt-btn--mini" id="dt-btn-mini" title="Chế độ Mini Player luôn nổi (M)">
+          <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx="2"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" fill-opacity="0.3"/></svg>
+        </button>
         <button type="button" class="dt-btn dt-btn--min" id="dt-btn-min" title="Thu nhỏ (Minimize)">
           <svg viewBox="0 0 11 11" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg>
         </button>
@@ -107,6 +110,29 @@
       </div>
 
       <div class="topbar__end">
+        <button
+          type="button"
+          class="btn-mini-pill"
+          id="btn-mini"
+          aria-label="Chế độ Mini Player luôn nổi (M)"
+          title="Chế độ Mini Player luôn nổi (M)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <rect x="12" y="12" width="7" height="7" rx="1.5" fill="currentColor" fill-opacity="0.25"/>
+          </svg>
+          <span>Mini</span>
+        </button>
         <button
           type="button"
           class="btn-topbar-zen"
@@ -230,6 +256,32 @@
 
     <main class="layout">
       <section class="stage" aria-label="Sân khấu">
+        <!-- Compact Mini Player Bar (Visible only when body.is-mini-player) -->
+        <div id="mini-player-strip" class="mini-player-strip pywebview-drag-region">
+          <div class="mini-lead pywebview-drag-region">
+            <span class="mini-dot" aria-hidden="true"></span>
+            <div class="mini-info pywebview-drag-region">
+              <span class="mini-title" id="mini-title">Meikova Loop</span>
+              <span class="mini-artist" id="mini-artist">Chưa phát</span>
+            </div>
+          </div>
+          <div class="mini-controls">
+            <button type="button" class="mini-btn" id="mini-btn-prev" title="Bài trước (Z)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+            </button>
+            <button type="button" class="mini-btn mini-btn--play" id="mini-btn-play" title="Phát / Tạm dừng (Space)">
+              <svg class="mini-i-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="7 4.5 19 12 7 19.5 7 4.5"/></svg>
+              <svg class="mini-i-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" hidden><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>
+            </button>
+            <button type="button" class="mini-btn" id="mini-btn-next" title="Chuyển bài khác (N)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+            </button>
+            <button type="button" class="mini-btn mini-btn--expand" id="mini-btn-expand" title="Phóng to giao diện đầy đủ (M)">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+          </div>
+        </div>
+
         <div class="zen-hud-top" id="zen-hud-top">
           <p class="readout readout--tl" id="ro-tl">
             <b>MEIKOVA ∞ LOOP</b> // chưa phát
@@ -250,6 +302,14 @@
             <p class="readout readout--tr" id="ro-tr">
               <span class="mono">∞ 0:00</span>
             </p>
+            <button type="button" class="zen-tool-btn zen-tool-btn--rec" id="zen-btn-record" title="Thu âm Live Mix (R)">
+              <span class="rec-dot rec-dot--zen" aria-hidden="true"></span>
+              <span id="zen-rec-label">REC</span>
+            </button>
+            <button type="button" class="zen-tool-btn" id="btn-zen-mini" title="Chế độ Mini Player luôn nổi (M)">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="12" y="12" width="7" height="7" rx="1" fill="currentColor" fill-opacity="0.3"/></svg>
+              <span>Mini</span>
+            </button>
             <button type="button" class="zen-exit-btn" id="btn-zen-exit" title="Thoát toàn màn hình (Esc hoặc F)" aria-label="Thoát toàn màn hình">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -340,6 +400,30 @@
               <circle cx="17" cy="12" r="4" />
             </svg>
             <span>Bài khác</span>
+          </button>
+          <button
+            type="button"
+            class="deck__btn deck__record"
+            id="btn-record"
+            title="Thu âm Live Mix toàn bộ phiên Mashup (R)"
+            aria-pressed="false"
+          >
+            <span class="rec-dot" aria-hidden="true"></span>
+            <span id="record-label">Thu âm</span>
+          </button>
+          <button
+            type="button"
+            class="deck__btn deck__vocal"
+            id="btn-vocal-mode"
+            title="Chế độ Giọng / Karaoke Beat: Gốc -> Beat -> Acapella (V)"
+            data-mode="full"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+            </svg>
+            <span id="vocal-mode-label">Gốc</span>
           </button>
           <button
             type="button"
@@ -763,6 +847,9 @@
               </button>
               <button type="button" class="pl-action-btn" id="pl-share-btn" title="Sao chép link chia sẻ playlist">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+              <button type="button" class="pl-action-btn pl-action-btn--camelot" id="pl-sort-camelot-btn" title="Sắp xếp danh sách thông minh theo hòa âm Camelot Wheel & BPM DJ">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
               </button>
               <button type="button" class="pl-action-btn pl-action-btn--del" id="pl-delete-btn" title="Xoá playlist này">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -1309,7 +1396,7 @@
 
           <div class="settings-app-info">
             <span class="settings-app-info__name">Meikova Loop</span>
-            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.18</span>
+            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.19</span>
           </div>
         </div>
 
@@ -2118,6 +2205,62 @@
               <button id="btnCopyTunnelInstallCmd" class="btn-copy-pill btn-copy-cmd" type="button">Sao chép</button>
             </div>
           </div>
+        </div>
+      </div>
+    </dialog>
+
+    
+    <!-- Live Mix Record Result Modal -->
+    <dialog class="consent record-modal" id="modal-record-result">
+      <div class="consent__head">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="rec-dot rec-dot--active" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px #ef4444;" aria-hidden="true"></span>
+          <span class="consent__title">Bản thu âm Live Mix</span>
+        </div>
+        <button type="button" class="consent__close" id="btn-close-record-modal" title="Đóng">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="record-modal__body">
+        <div class="record-meta-row">
+          <div class="record-meta-item">
+            <span class="record-meta-label">Thời lượng</span>
+            <span class="record-meta-val mono" id="rec-res-duration">00:00</span>
+          </div>
+          <div class="record-meta-item">
+            <span class="record-meta-label">Dung lượng</span>
+            <span class="record-meta-val mono" id="rec-res-size">0.0 MB</span>
+          </div>
+          <div class="record-meta-item">
+            <span class="record-meta-label">Số bài mix</span>
+            <span class="record-meta-val mono" id="rec-res-tracks">0</span>
+          </div>
+        </div>
+
+        <div class="record-player-wrap">
+          <audio id="rec-audio-preview" controls preload="metadata" style="width: 100%; border-radius: 8px;"></audio>
+        </div>
+
+        <div class="record-tracklist-wrap">
+          <div class="record-tracklist-head">
+            <span class="record-tracklist-title">Tracklist / Chapter Markers</span>
+            <button type="button" class="btn-copy-pill" id="btn-copy-tracklist">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Sao chép</span>
+            </button>
+          </div>
+          <textarea id="rec-tracklist-text" class="record-tracklist-area mono" readonly rows="5" spellcheck="false"></textarea>
+        </div>
+
+        <div class="record-actions-row">
+          <a id="btn-download-rec-audio" class="btn-rec-action btn-rec-action--primary" download="MeikovaLoop-LiveMix.webm">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Tải tệp âm thanh (.webm)</span>
+          </a>
+          <button type="button" id="btn-download-rec-tracklist" class="btn-rec-action btn-rec-action--secondary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Tải Tracklist (.txt)</span>
+          </button>
         </div>
       </div>
     </dialog>

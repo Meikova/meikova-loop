@@ -913,6 +913,61 @@ def test_native_splash_and_fast_startup():
     assert config.DOWNLOAD_WORKERS >= 2
 
 
+def test_strategic_upgrades_suite():
+    """Verify 5 strategic upgrades: Recorder, Vocal Stem DSP, Mini Player, Camelot DJ Sorter, Media Keys."""
+    from loopbox import desktop
+    import pathlib
+
+    # 1. Desktop bridge mini player & media keys constants
+    bridge = desktop.DesktopBridge(None)
+    assert hasattr(bridge, "toggle_mini_player")
+    assert hasattr(bridge, "is_mini_player")
+    assert bridge.is_mini_player() is False
+    assert desktop.VK_MEDIA_PLAY_PAUSE == 0xB3
+    assert desktop.VK_MEDIA_NEXT_TRACK == 0xB0
+    assert desktop.VK_MEDIA_PREV_TRACK == 0xB1
+    assert desktop.VK_MEDIA_STOP == 0xB2
+
+    # 2. Frontend files existence and integrity
+    root = pathlib.Path(__file__).parent.parent
+    rec_js = (root / "web" / "js" / "recorder.js").read_text(encoding="utf-8")
+    assert "class MixRecorder" in rec_js
+    assert "addTrackMarker" in rec_js
+    assert "downloadTracklist" in rec_js
+
+    harm_js = (root / "web" / "js" / "harmonic.js").read_text(encoding="utf-8")
+    assert "sortHarmonicSequence" in harm_js
+    assert "camelotDistance" in harm_js
+
+    eng_js = (root / "web" / "js" / "engine.js").read_text(encoding="utf-8")
+    assert "vocalFilter" in eng_js
+    assert "setVocalMode" in eng_js
+
+    plyr_js = (root / "web" / "js" / "player.js").read_text(encoding="utf-8")
+    assert "setVocalMode" in plyr_js
+    assert "this.vocalMode" in plyr_js
+
+    main_js = (root / "web" / "js" / "main.js").read_text(encoding="utf-8")
+    assert "MixRecorder" in main_js
+    assert "sortHarmonicSequence" in main_js
+    assert "toggleMiniPlayer" in main_js
+    assert "__onMediaKey" in main_js
+    assert "__onMiniPlayerChange" in main_js
+
+    html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'id="modal-record-result"' in html
+    assert 'id="btn-record"' in html
+    assert 'id="btn-vocal-mode"' in html
+    assert 'id="mini-player-strip"' in html
+    assert 'id="pl-sort-camelot-btn"' in html
+
+    css = (root / "web" / "css" / "app.css").read_text(encoding="utf-8")
+    assert "is-mini-player" in css
+    assert "deck__record" in css
+    assert "rec-dot" in css
+    print("test_strategic_upgrades_suite passed!")
+
+
 if __name__ == "__main__":
     test_ip_extraction()
     test_qr_api()
@@ -947,6 +1002,7 @@ if __name__ == "__main__":
     test_version_ssot_sync_and_api()
     test_download_cancel_and_storage_persistence()
     test_native_splash_and_fast_startup()
+    test_strategic_upgrades_suite()
     print("ALL TESTS PASSED WITH EXIT CODE 0")
     os._exit(0)
 

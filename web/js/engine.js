@@ -80,7 +80,16 @@ export class Engine {
 
     this.eqMode = "flat";
     this.nightMode = false;
-    this.master.connect(this.eqLow).connect(this.eqMid).connect(this.eqHigh).connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
+
+    // Vocal / Karaoke DSP Filter for tracks without pre-separated Demucs stems
+    this.vocalFilter = this.ctx.createBiquadFilter();
+    this.vocalFilter.type = "peaking";
+    this.vocalFilter.frequency.value = 1800;
+    this.vocalFilter.Q.value = 1.4;
+    this.vocalFilter.gain.value = 0;
+    this.vocalMode = "full"; // "full" | "instrumental" (karaoke) | "acapella"
+
+    this.master.connect(this.eqLow).connect(this.eqMid).connect(this.eqHigh).connect(this.vocalFilter).connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
 
     this.voices = new Set();
     this._bgAudio = null;
@@ -125,6 +134,26 @@ export class Engine {
     this.master.gain.cancelScheduledValues(now);
     this.master.gain.setValueAtTime(cur, now);
     this.master.gain.linearRampToValueAtTime(targetVol, now + Math.max(0.05, duration));
+  }
+
+  setVocalMode(mode = "full") {
+    this.vocalMode = mode;
+    const now = this.ctx.currentTime;
+    if (this.vocalFilter) {
+      this.vocalFilter.gain.cancelScheduledValues(now);
+      if (mode === "instrumental") {
+        this.vocalFilter.gain.linearRampToValueAtTime(-18, now + 0.12);
+      } else if (mode === "acapella") {
+        this.vocalFilter.gain.linearRampToValueAtTime(5, now + 0.12);
+      } else {
+        this.vocalFilter.gain.linearRampToValueAtTime(0, now + 0.12);
+      }
+    }
+    for (const v of this.voices) {
+      if (v.hasVocals) {
+        v.vocals(now, mode, 0.12);
+      }
+    }
   }
 
   setEqPreset(preset) {
@@ -731,6 +760,9 @@ export class Voice {
     if (this.stopWhen != null) s.stop(this.stopWhen);
     this.voc = s;
     this.hasVocals = true;
+    if (this.engine.vocalMode && this.engine.vocalMode !== "full") {
+      this.vocals(when, this.engine.vocalMode, 0.05);
+    }
   }
 
   // A loop of [from, to] s of the track: from `when` (the read head reaching

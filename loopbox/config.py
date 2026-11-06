@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.0.18"
+APP_VERSION = "1.0.19"
 ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 def _load_env_file() -> None:

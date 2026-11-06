@@ -276,6 +276,56 @@ class DesktopBridge:
         elif self._window:
             self._window.destroy()
 
+    def toggle_mini_player(self) -> bool:
+        """Toggle between full desktop window and compact Always-On-Top Mini Player."""
+        if not self._window:
+            return False
+        self._is_mini = getattr(self, "_is_mini", False)
+        self._is_mini = not self._is_mini
+        try:
+            if self._is_mini:
+                try:
+                    self._normal_bounds = (self._window.x, self._window.y, self._window.width, self._window.height)
+                except Exception:
+                    self._normal_bounds = (100, 100, 1200, 800)
+                self._window.resize(340, 130)
+                if sys.platform == "win32":
+                    try:
+                        HWND_TOPMOST = -1
+                        SWP_NOMOVE = 0x0002
+                        SWP_NOSIZE = 0x0001
+                        hwnd = self._window.native.Handle.ToInt64()
+                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                    except Exception:
+                        pass
+                self._window.evaluate_js("document.body.classList.add('is-mini-player'); window.__onMiniPlayerChange && window.__onMiniPlayerChange(true);")
+            else:
+                if getattr(self, "_normal_bounds", None):
+                    x, y, w, h = self._normal_bounds
+                    self._window.resize(max(800, w), max(500, h))
+                    try:
+                        self._window.move(x, y)
+                    except Exception:
+                        pass
+                else:
+                    self._window.resize(1200, 800)
+                if sys.platform == "win32":
+                    try:
+                        HWND_NOTOPMOST = -2
+                        SWP_NOMOVE = 0x0002
+                        SWP_NOSIZE = 0x0001
+                        hwnd = self._window.native.Handle.ToInt64()
+                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                    except Exception:
+                        pass
+                self._window.evaluate_js("document.body.classList.remove('is-mini-player'); window.__onMiniPlayerChange && window.__onMiniPlayerChange(false);")
+        except Exception as ex:
+            logger.debug("toggle_mini_player notice: %s", ex)
+        return self._is_mini
+
+    def is_mini_player(self) -> bool:
+        return getattr(self, "_is_mini", False)
+
 
 def _is_server_alive(port: int) -> bool:
     try:
@@ -285,6 +335,40 @@ def _is_server_alive(port: int) -> bool:
     except Exception:
         return False
 
+
+
+VK_MEDIA_NEXT_TRACK = 0xB0
+VK_MEDIA_PREV_TRACK = 0xB1
+VK_MEDIA_STOP = 0xB2
+VK_MEDIA_PLAY_PAUSE = 0xB3
+
+
+def _media_keys_loop(bridge):
+    if sys.platform != "win32":
+        return
+    try:
+        user32 = ctypes.windll.user32
+        for vk in (VK_MEDIA_PLAY_PAUSE, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP):
+            user32.GetAsyncKeyState(vk)
+        while True:
+            time.sleep(0.04)  # 25Hz polling, <0.01% CPU
+            try:
+                if user32.GetAsyncKeyState(VK_MEDIA_PLAY_PAUSE) & 1:
+                    if bridge._window:
+                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('play_pause');")
+                if user32.GetAsyncKeyState(VK_MEDIA_NEXT_TRACK) & 1:
+                    if bridge._window:
+                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('next');")
+                if user32.GetAsyncKeyState(VK_MEDIA_PREV_TRACK) & 1:
+                    if bridge._window:
+                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('previous');")
+                if user32.GetAsyncKeyState(VK_MEDIA_STOP) & 1:
+                    if bridge._window:
+                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('stop');")
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("Media keys loop notice: %s", e)
 
 def _wait_for_server(port: int, timeout: float = 15.0, splash=None) -> bool:
     t0 = time.time()
@@ -548,6 +632,7 @@ def main(argv=None, splash=None):
             if desktop_tray:
                 desktop_tray.setup()
             threading.Thread(target=_volume_sync_loop, name="volume-sync", daemon=True).start()
+            threading.Thread(target=_media_keys_loop, args=(bridge,), name="media-keys", daemon=True).start()
             init_v = bridge.get_system_volume()
             window.evaluate_js(f"window.__onSystemVolume && window.__onSystemVolume({init_v:.3f});")
         except Exception:

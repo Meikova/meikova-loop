@@ -2,6 +2,8 @@ import { api, currentUser, hooks, isMobile, Loader, ready, resetSession, session
 import { Engine } from "./engine.js";
 import { setupMediaSession } from "./mediasession.js";
 import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
+import { MixRecorder } from "./recorder.js";
+import { sortHarmonicSequence } from "./harmonic.js";
 import * as theme from "./theme.js?v=55";
 import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
 
@@ -128,6 +130,7 @@ window.alert = (msg) => {
 const engine = new Engine();
 const loader = new Loader(engine);
 const player = new Player(engine, loader);
+const recorder = new MixRecorder(engine, player);
 const viz = new Viz($("#viz"), player, {
   center: $("#ring-center"),
   tip: $("#viz-tip"),
@@ -1025,6 +1028,12 @@ document.addEventListener("keydown", (e) => {
     showHudToast("Chế độ: Tự do (3)");
   } else if (e.key === "t" || e.key === "T") {
     if (timerBtn) timerBtn.click();
+  } else if ((e.key === "m" || e.key === "M") && (e.shiftKey || e.altKey)) {
+    toggleMiniPlayer();
+  } else if (e.key === "r" || e.key === "R") {
+    $("#btn-record")?.click();
+  } else if (e.key === "v" || e.key === "V") {
+    $("#btn-vocal-mode")?.click();
   } else if (e.key === "m" || e.key === "M") {
     toggleMute();
     showHudToast(isMuted ? "Đã tắt tiếng (M)" : `Bật tiếng ${Math.round(ui.volume * 100)}% (M)`);
@@ -1056,8 +1065,184 @@ document.addEventListener("keydown", (e) => {
     $("#btn-shortcuts-modal")?.click();
   }
 });
+
+// ==========================================================================
+// STRATEGIC FEATURES: RECORDER, VOCAL KARAOKE, MINI PLAYER, MEDIA KEYS
+// ==========================================================================
+
+let recTimerInterval = null;
+
+function formatRecTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+async function toggleRecording() {
+  const btn = $("#btn-record");
+  const zenBtn = $("#zen-btn-record");
+  const label = $("#record-label");
+  const zenLabel = $("#zen-rec-label");
+
+  if (!recorder.isRecording) {
+    const ok = recorder.start();
+    if (!ok) {
+      showHudToast("Không thể bắt đầu thu âm (MediaRecorder không khả dụng)");
+      return;
+    }
+    if (player.cur?.track) {
+      recorder.addTrackMarker(player.cur.track.name || player.cur.track.title, player.cur.track.bpm, player.cur.track.camelot);
+    }
+    btn?.setAttribute("aria-pressed", "true");
+    zenBtn?.classList.add("is-recording");
+    showHudToast("Đang thu âm Live Mix toàn bộ phiên Mashup...");
+
+    recTimerInterval = setInterval(() => {
+      const dur = recorder.getDuration();
+      const timeStr = formatRecTime(dur);
+      if (label) label.textContent = `Thu (${timeStr})`;
+      if (zenLabel) zenLabel.textContent = `REC ${timeStr}`;
+    }, 1000);
+  } else {
+    clearInterval(recTimerInterval);
+    recTimerInterval = null;
+    if (label) label.textContent = "Thu âm";
+    if (zenLabel) zenLabel.textContent = "REC";
+    btn?.setAttribute("aria-pressed", "false");
+    zenBtn?.classList.remove("is-recording");
+    showHudToast("Đang kết xuất tệp thu âm Live Mix...");
+
+    const res = await recorder.stop();
+    if (!res) {
+      showHudToast("Bản thu âm trống");
+      return;
+    }
+
+    const durEl = $("#rec-res-duration");
+    const sizeEl = $("#rec-res-size");
+    const tracksEl = $("#rec-res-tracks");
+    const audioPreview = $("#rec-audio-preview");
+    const tracklistText = $("#rec-tracklist-text");
+    const downloadAudio = $("#btn-download-rec-audio");
+    const downloadTracklist = $("#btn-download-rec-tracklist");
+    const copyTracklist = $("#btn-copy-tracklist");
+    const modal = $("#modal-record-result");
+
+    if (durEl) durEl.textContent = formatRecTime(res.duration);
+    if (sizeEl) sizeEl.textContent = `${(res.size / (1024 * 1024)).toFixed(1)} MB`;
+    if (tracksEl) tracksEl.textContent = String(res.trackCount);
+    if (audioPreview) audioPreview.src = res.audioUrl;
+    if (tracklistText) tracklistText.value = res.tracklistText;
+    if (downloadAudio) {
+      downloadAudio.href = res.audioUrl;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadAudio.download = `MeikovaLoop-LiveMix-${dateStr}.webm`;
+    }
+    if (downloadTracklist) {
+      downloadTracklist.onclick = () => recorder.downloadTracklist();
+    }
+    if (copyTracklist) {
+      copyTracklist.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(res.tracklistText);
+          showHudToast("Đã sao chép Tracklist vào clipboard!");
+        } catch (_) {}
+      };
+    }
+    if (modal && typeof modal.showModal === "function") {
+      modal.showModal();
+    }
+  }
+}
+
+$("#btn-record")?.addEventListener("click", toggleRecording);
+$("#zen-btn-record")?.addEventListener("click", toggleRecording);
+$("#btn-close-record-modal")?.addEventListener("click", () => {
+  const audioPreview = $("#rec-audio-preview");
+  if (audioPreview) audioPreview.pause();
+  $("#modal-record-result")?.close();
+});
+
+// Vocal Karaoke Mode Toggle
+const VOCAL_MODES = ["full", "instrumental", "acapella"];
+const VOCAL_LABELS = { full: "Gốc", instrumental: "Beat", acapella: "Solo" };
+
+$("#btn-vocal-mode")?.addEventListener("click", () => {
+  const btn = $("#btn-vocal-mode");
+  const label = $("#vocal-mode-label");
+  const curMode = player.vocalMode || "full";
+  const nextIdx = (VOCAL_MODES.indexOf(curMode) + 1) % VOCAL_MODES.length;
+  const nextMode = VOCAL_MODES[nextIdx];
+
+  player.setVocalMode(nextMode);
+  if (btn) btn.dataset.mode = nextMode;
+  if (label) label.textContent = VOCAL_LABELS[nextMode] || nextMode;
+
+  if (nextMode === "instrumental") {
+    showHudToast("Chế độ Karaoke: Lọc bỏ giọng ca sĩ, giữ Beat");
+  } else if (nextMode === "acapella") {
+    showHudToast("Chế độ Acapella: Giữ giọng ca sĩ solo");
+  } else {
+    showHudToast("Chế độ Full Mix nguyên bản");
+  }
+});
+
+// Mini Player Controls & Toggle
+export function toggleMiniPlayer() {
+  if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.toggle_mini_player === "function") {
+    window.pywebview.api.toggle_mini_player();
+  } else {
+    const isMini = document.body.classList.toggle("is-mini-player");
+    window.__onMiniPlayerChange && window.__onMiniPlayerChange(isMini);
+  }
+}
+
+window.__onMiniPlayerChange = (isMini) => {
+  if (isMini) {
+    document.body.classList.add("is-mini-player");
+    showHudToast("Đã bật chế độ Mini Player luôn nổi");
+  } else {
+    document.body.classList.remove("is-mini-player");
+    showHudToast("Đã trở về giao diện đầy đủ");
+  }
+  renderTransport();
+};
+
+window.__onMediaKey = (action) => {
+  if (action === "play_pause") {
+    $("#btn-play")?.click();
+  } else if (action === "next") {
+    $("#btn-next")?.click();
+  } else if (action === "previous") {
+    player.seek(0);
+    showHudToast("Tua về đầu bài");
+  } else if (action === "stop") {
+    player.pause();
+    showHudToast("Tạm dừng");
+  }
+};
+
+$("#btn-mini")?.addEventListener("click", toggleMiniPlayer);
+$("#dt-btn-mini")?.addEventListener("click", toggleMiniPlayer);
+$("#btn-zen-mini")?.addEventListener("click", toggleMiniPlayer);
+$("#mini-btn-expand")?.addEventListener("click", toggleMiniPlayer);
+$("#mini-btn-prev")?.addEventListener("click", () => {
+  player.seek(0);
+  showHudToast("Tua về đầu bài");
+});
+$("#mini-btn-play")?.addEventListener("click", () => {
+  $("#btn-play")?.click();
+});
+$("#mini-btn-next")?.addEventListener("click", () => {
+  $("#btn-next")?.click();
+});
+
+
 player.addEventListener("state", renderTransport);
 player.addEventListener("track", () => {
+  if (typeof recorder !== "undefined" && recorder.isRecording && player.cur?.track) {
+    recorder.addTrackMarker(player.cur.track.name || player.cur.track.title, player.cur.track.bpm, player.cur.track.camelot);
+  }
   enteredSong();
   renderLibrary();
   renderExits();
@@ -1227,6 +1412,30 @@ function renderTransport() {
   if (dtNow) {
     const curMeta = player.cur ? metas.find((m) => m.id === player.cur.id) : null;
     dtNow.textContent = curMeta ? `• ${curMeta.title || curMeta.name || "Đang phát"}` : "";
+  }
+
+  // Sync Mini Player UI
+  const miniPlay = $("#mini-btn-play");
+  if (miniPlay) {
+    const isPlaying = player.cur && player.playing;
+    const playSvg = miniPlay.querySelector(".mini-i-play");
+    const pauseSvg = miniPlay.querySelector(".mini-i-pause");
+    if (playSvg && pauseSvg) {
+      playSvg.hidden = isPlaying;
+      pauseSvg.hidden = !isPlaying;
+    }
+  }
+  const curMetaMini = player.cur ? metas.find((m) => m.id === player.cur.id) : null;
+  const miniTitle = $("#mini-title");
+  if (miniTitle) {
+    miniTitle.textContent = curMetaMini ? (curMetaMini.title || curMetaMini.name || "Meikova Loop") : "Meikova Loop";
+  }
+  const miniArtist = $("#mini-artist");
+  if (miniArtist) {
+    const artistStr = curMetaMini ? (curMetaMini.artist || curMetaMini.artists || "Đang phát") : "Chưa phát";
+    const bpmStr = curMetaMini?.bpm ? ` • ${Math.round(curMetaMini.bpm)} BPM` : "";
+    const camStr = curMetaMini?.camelot ? ` (${curMetaMini.camelot})` : "";
+    miniArtist.textContent = `${artistStr}${bpmStr}${camStr}`;
   }
 }
 
@@ -2260,6 +2469,21 @@ $("#pl-share-btn")?.addEventListener("click", async () => {
       cancelText: "Đóng",
     });
   }
+});
+
+$("#pl-sort-camelot-btn")?.addEventListener("click", async () => {
+  if (activePlaylistId === "all") return;
+  const pl = getPlaylist(activePlaylistId);
+  if (!pl || pl.trackIds.length <= 1) {
+    showHudToast("Playlist cần tối thiểu 2 bài để sắp xếp hòa âm Camelot");
+    return;
+  }
+  const trackMetas = pl.trackIds.map((id) => metas.find((m) => m.id === id) || { id });
+  const sorted = sortHarmonicSequence(trackMetas);
+  pl.trackIds = sorted.map((t) => t.id);
+  savePlaylists();
+  renderLibrary();
+  showHudToast(`Đã sắp xếp ${sorted.length} bài theo vòng hòa âm Camelot Wheel & BPM!`);
 });
 
 $("#pl-delete-btn")?.addEventListener("click", async () => {

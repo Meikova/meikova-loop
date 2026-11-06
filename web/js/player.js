@@ -244,6 +244,7 @@ export class Player extends EventTarget {
     this.userPaused = false;
     this._startSeq = 0;
     this._pauseTransition = false;
+    this.vocalMode = "full";
     this.engine._onExternalPause = async () => {
       await this.pause();
     };
@@ -474,6 +475,16 @@ export class Player extends EventTarget {
     this.dispatchEvent(new CustomEvent("lock-change", { detail: { locked: !isLocked } }));
     this.dispatchEvent(new Event("state"));
     return !isLocked;
+  }
+
+  setVocalMode(mode = "full") {
+    this.vocalMode = mode;
+    if (this.engine && typeof this.engine.setVocalMode === "function") {
+      this.engine.setVocalMode(mode);
+    }
+    this.dispatchEvent(new CustomEvent("vocal-mode", { detail: { mode } }));
+    this.dispatchEvent(new Event("state"));
+    return this.vocalMode;
   }
 
   setTargetNext(id) {
