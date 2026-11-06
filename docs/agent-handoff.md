@@ -52,3 +52,12 @@
   3. Cải tiến `web/js/mic.js`: Tự động fallback về `{ audio: true }` nếu driver âm thanh của thiết bị từ chối các ràng buộc xử lý số tín hiệu (DSP constraints).
   4. Cải tiến `web/js/main.js`: Thông báo lỗi tiếng Việt rõ ràng, chỉ dẫn người dùng mở quyền trong Windows Settings khi cần.
   5. Nâng phiên bản SSOT lên **v1.0.26** và đồng bộ toàn bộ codebase.
+
+### 7. Responsive Polish: Record Button SVG & Fullscreen Zen Mode Deck
+- **Nút thu âm bị teo nhỏ mất SVG:**
+  - Bổ sung biểu tượng SVG chuẩn vector optical-centered (`<svg class="deck__rec-icon"><circle cx="12" cy="12" r="8"/><circle class="deck__rec-core" cx="12" cy="12" r="3.5"/></svg>`) cho cả `#btn-record` trên Floating Deck lẫn `#zen-btn-record` trên Zen HUD.
+  - Thiết lập `min-width: 38px !important; flex-shrink: 0 !important;` giúp nút khi ẩn text nhãn vẫn duy trì hình dáng bo tròn chuẩn 38px hoàn toàn cân đối với các nút bên cạnh.
+  - Trạng thái `[aria-pressed="true"]`: nhân SVG `deck__rec-core` và viền ngoài phát quang đỏ rực `#ef4444` kèm animation nhịp đập `rec-pulse`.
+- **Tràn âm lượng trong Chế độ Toàn màn hình (Zen Mode):**
+  - Loại bỏ hoàn toàn selector loại trừ `:not(.is-zen)` khỏi `@media (max-width: 1680px)`.
+  - Thêm quy tắc riêng cho `body.is-zen .deck`: luôn ẩn text nhãn và ẩn số `em` âm lượng, đưa Deck về dạng pill icon-only siêu gọn (~540px), căn giữa tuyệt đối với `padding: 5px 16px 5px 10px` và `max-width: calc(100vw - 32px)`, loại bỏ 100% hiện tượng tràn slider qua mép cong.

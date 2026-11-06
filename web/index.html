@@ -55,7 +55,7 @@
       document.documentElement.classList.add("js");
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=102" />
+    <link rel="stylesheet" href="css/app.css?v=103" />
   </head>
   <body>
     <div class="field" aria-hidden="true"></div>
@@ -324,7 +324,10 @@
               <span class="mono">∞ 0:00</span>
             </p>
             <button type="button" class="zen-tool-btn zen-tool-btn--rec" id="zen-btn-record" title="Thu âm Live Mix (R)">
-              <span class="rec-dot rec-dot--zen" aria-hidden="true"></span>
+              <svg class="deck__rec-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="8" />
+                <circle class="deck__rec-core" cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
+              </svg>
               <span id="zen-rec-label">REC</span>
             </button>
             <button type="button" class="zen-tool-btn" id="btn-zen-mini" title="Chế độ Mini Player luôn nổi (M)">
@@ -429,7 +432,10 @@
             title="Thu âm Live Mix toàn bộ phiên Mashup (R)"
             aria-pressed="false"
           >
-            <span class="rec-dot" aria-hidden="true"></span>
+            <svg class="deck__rec-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="8" />
+              <circle class="deck__rec-core" cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
+            </svg>
             <span id="record-label">Thu âm</span>
           </button>
           <button
@@ -2384,7 +2390,7 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=98"></script>
+    <script type="module" src="js/main.js?v=99"></script>
     <script>
       if (
         "serviceWorker" in navigator &&

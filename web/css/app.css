@@ -4517,26 +4517,27 @@ button.dl-card {
 
 /* Floating Deck Dual-Layer Responsive Fallbacks */
 @media (max-width: 1680px) {
-  .layout:not(.is-zen) .stage .deck__btn span:not(.rec-dot):not(.mic-dot) {
+  .stage .deck__btn span:not(.rec-dot):not(.mic-dot) {
     display: none !important;
   }
-  .layout:not(.is-zen) .stage .deck__record .rec-dot,
-  .layout:not(.is-zen) .stage .deck__mic .mic-dot {
+  .stage .deck__record .rec-dot,
+  .stage .deck__mic .mic-dot {
     display: inline-block !important;
   }
-  .layout:not(.is-zen) .stage .deck__btn {
+  .stage .deck__btn {
     padding: 0 10px;
     min-width: 38px;
   }
-  .layout:not(.is-zen) .stage .deck__vol input {
+  .stage .deck__vol input {
     width: 64px;
   }
-  .layout:not(.is-zen) .stage .deck__vol em {
+  .stage .deck__vol em {
     display: none !important;
   }
-  .layout:not(.is-zen) .stage .deck {
+  .stage .deck {
     gap: 4px;
-    padding: 5px 12px 5px 8px;
+    padding: 5px 14px 5px 8px;
+    max-width: calc(100% - 24px);
   }
 }
 
@@ -5025,8 +5026,25 @@ body.is-zen .deck {
   left: 50% !important;
   transform: translateX(-50%) !important;
   z-index: 10 !important;
+  gap: 4px !important;
+  padding: 5px 16px 5px 10px !important;
+  max-width: calc(100vw - 32px) !important;
   box-shadow: 0 16px 48px -8px oklch(0 0 0 / 0.8), 0 0 calc(24px * var(--glow-mult, 1)) -4px oklch(var(--acc) / calc(0.3 * var(--glow-mult, 1)));
   transition: opacity 0.4s var(--ease-out), transform 0.3s var(--ease-spring);
+}
+body.is-zen .deck__btn span:not(.rec-dot):not(.mic-dot) {
+  display: none !important;
+}
+body.is-zen .deck__btn {
+  padding: 0 10px !important;
+  min-width: 38px !important;
+  height: 42px !important;
+}
+body.is-zen .deck__vol input {
+  width: 64px !important;
+}
+body.is-zen .deck__vol em {
+  display: none !important;
 }
 
 body.is-zen .next {
@@ -6870,15 +6888,39 @@ dialog.tunnel-modal,
 .deck__record {
   display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 7px !important;
   position: relative !important;
+  min-width: 38px !important;
+  flex-shrink: 0 !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
+.deck__record .deck__rec-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+  stroke: currentColor;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.deck__record .deck__rec-core {
+  fill: currentColor;
+  transition: fill 0.25s ease, opacity 0.25s ease;
+}
 .deck__record[aria-pressed="true"] {
-  border-color: rgba(239, 68, 68, 0.6) !important;
-  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  background: rgba(239, 68, 68, 0.15) !important;
   color: #fca5a5 !important;
   box-shadow: 0 0 16px -2px rgba(239, 68, 68, 0.45) !important;
+}
+.deck__record[aria-pressed="true"] .deck__rec-icon {
+  stroke: #ef4444 !important;
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+}
+.deck__record[aria-pressed="true"] .deck__rec-core {
+  fill: #ef4444 !important;
+  animation: rec-pulse 1.2s infinite ease-in-out;
 }
 .rec-dot {
   width: 7px;
@@ -6903,10 +6945,25 @@ dialog.tunnel-modal,
 .zen-tool-btn--rec {
   gap: 6px !important;
 }
+.zen-tool-btn--rec .deck__rec-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
 .zen-tool-btn--rec.is-recording {
   border-color: rgba(239, 68, 68, 0.5) !important;
   background: rgba(239, 68, 68, 0.15) !important;
   color: #fca5a5 !important;
+}
+.zen-tool-btn--rec.is-recording .deck__rec-icon {
+  stroke: #ef4444 !important;
+  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8));
+}
+.zen-tool-btn--rec.is-recording .deck__rec-core {
+  fill: #ef4444 !important;
+  animation: rec-pulse 1.2s infinite ease-in-out;
 }
 .rec-dot--zen {
   width: 6px;
