@@ -6904,8 +6904,11 @@ dialog.tunnel-modal,
   stroke: currentColor;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.deck__record .deck__rec-core {
+.deck__record .deck__rec-core,
+.zen-tool-btn--rec .deck__rec-core {
   fill: currentColor;
+  transform-box: fill-box;
+  transform-origin: center;
   transition: fill 0.25s ease, opacity 0.25s ease;
 }
 .deck__record[aria-pressed="true"] {
@@ -6916,11 +6919,12 @@ dialog.tunnel-modal,
 }
 .deck__record[aria-pressed="true"] .deck__rec-icon {
   stroke: #ef4444 !important;
-  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.85));
 }
-.deck__record[aria-pressed="true"] .deck__rec-core {
+.deck__record[aria-pressed="true"] .deck__rec-core,
+.zen-tool-btn--rec.is-recording .deck__rec-core {
   fill: #ef4444 !important;
-  animation: rec-pulse 1.2s infinite ease-in-out;
+  animation: rec-pulse 1.1s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
 .rec-dot {
   width: 7px;
@@ -6936,11 +6940,17 @@ dialog.tunnel-modal,
   background: #ef4444 !important;
   opacity: 1 !important;
   box-shadow: 0 0 8px #ef4444, 0 0 16px rgba(239, 68, 68, 0.8) !important;
-  animation: rec-pulse 1.2s infinite ease-in-out;
+  animation: rec-pulse 1.1s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes rec-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.35); opacity: 0.55; }
+  0%, 100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.72);
+    opacity: 0.22;
+  }
 }
 .zen-tool-btn--rec {
   gap: 6px !important;
@@ -6959,11 +6969,7 @@ dialog.tunnel-modal,
 }
 .zen-tool-btn--rec.is-recording .deck__rec-icon {
   stroke: #ef4444 !important;
-  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8));
-}
-.zen-tool-btn--rec.is-recording .deck__rec-core {
-  fill: #ef4444 !important;
-  animation: rec-pulse 1.2s infinite ease-in-out;
+  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.85));
 }
 .rec-dot--zen {
   width: 6px;

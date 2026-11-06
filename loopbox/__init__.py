@@ -1,4 +1,4 @@
-__version__ = "1.0.26"
+__version__ = "1.0.27"
 """Meikova Loop (package name: loopbox): an Infinite-Jukebox style player that analyses YouTube audio locally
 and chains the songs of a local library into one endless stream."""
 import sys

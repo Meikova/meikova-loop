@@ -57,7 +57,19 @@
 - **Nút thu âm bị teo nhỏ mất SVG:**
   - Bổ sung biểu tượng SVG chuẩn vector optical-centered (`<svg class="deck__rec-icon"><circle cx="12" cy="12" r="8"/><circle class="deck__rec-core" cx="12" cy="12" r="3.5"/></svg>`) cho cả `#btn-record` trên Floating Deck lẫn `#zen-btn-record` trên Zen HUD.
   - Thiết lập `min-width: 38px !important; flex-shrink: 0 !important;` giúp nút khi ẩn text nhãn vẫn duy trì hình dáng bo tròn chuẩn 38px hoàn toàn cân đối với các nút bên cạnh.
-  - Trạng thái `[aria-pressed="true"]`: nhân SVG `deck__rec-core` và viền ngoài phát quang đỏ rực `#ef4444` kèm animation nhịp đập `rec-pulse`.
+  - Trạng thái `[aria-pressed="true"]`: nhân SVG `deck__rec-core` và viền ngoài phát quang đỏ rực `#ef4444`.
 - **Tràn âm lượng trong Chế độ Toàn màn hình (Zen Mode):**
   - Loại bỏ hoàn toàn selector loại trừ `:not(.is-zen)` khỏi `@media (max-width: 1680px)`.
   - Thêm quy tắc riêng cho `body.is-zen .deck`: luôn ẩn text nhãn và ẩn số `em` âm lượng, đưa Deck về dạng pill icon-only siêu gọn (~540px), căn giữa tuyệt đối với `padding: 5px 16px 5px 10px` và `max-width: calc(100vw - 32px)`, loại bỏ 100% hiện tượng tràn slider qua mép cong.
+
+### 8. Fix Dấu chấm REC lệch tâm & Cấp quyền Microphone WebView2 Triệt để (v1.0.27)
+- **Dấu chấm ghi âm bị chạy lệch tâm (chạy ra chạy vào):**
+  - *Nguyên nhân:* Phần tử SVG `<circle>` có `transform-origin` mặc định là `(0, 0)` (góc trên bên trái viewport `0 0 24 24`). Khi chạy animation `scale(1.35)`, tâm hình tròn bị tịnh tiến chéo về `(16.2, 16.2)` làm dấu chấm lệch hẳn ra mép vòng ngoài.
+  - *Khắc phục:* Thiết lập `transform-box: fill-box; transform-origin: center;` cho `.deck__rec-core`, khóa cứng tâm phóng to thu nhỏ tại `(12, 12)`. Tinh chỉnh nhịp đập `@keyframes rec-pulse` 1.1s cubic-bezier êm ái (`scale(1.15)` độ sáng 100% thu về `scale(0.72)` độ mờ 22%), mô phỏng chuẩn xác đèn beacon ghi âm phòng thu chuyên nghiệp.
+- **Microphone Permission Denied trên Desktop WebView2:**
+  - *Nguyên nhân:* PyWebView trong `edgechromium.py` gán cứng `props.AdditionalBrowserArguments = '--disable-features=ElasticOverscroll'`, vô hiệu hóa biến môi trường `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` của Chromium.
+  - *Khắc phục (3 lớp phòng thủ toàn diện):*
+    1. Monkeypatch `EdgeChrome.__init__` trong `loopbox/desktop.py` & `meikova_loop_app.py` để trực tiếp chèn `--use-fake-ui-for-media-stream`, `--enable-features=AudioServiceOutOfProcess`, `--autoplay-policy=no-user-gesture-required` vào `CreationProperties.AdditionalBrowserArguments`.
+    2. Cấp quyền chủ động trên Profile WebView2 qua `core_wv.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Microphone, origin, CoreWebView2PermissionState.Allow)` cho các origin `http://127.0.0.1:{port}` và `http://localhost:{port}`.
+    3. Duy trì hook `core_wv.PermissionRequested` auto-grant `args.State = Allow` và `args.SavesInProfile = True`.
+  - Bump phiên bản SSOT lên **v1.0.27** qua `version.py --bump patch`.

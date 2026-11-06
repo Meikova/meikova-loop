@@ -28,6 +28,32 @@ if sys.platform == "win32":
 import uvicorn
 import webview
 
+# Patch WebView2 EdgeChrome to ensure media stream arguments are passed directly
+if sys.platform == "win32":
+    try:
+        import webview.platforms.edgechromium as ec
+        _orig_ec_init = ec.EdgeChrome.__init__
+        def _patched_ec_init(self, form, window, cache_dir):
+            _orig_ec_init(self, form, window, cache_dir)
+            try:
+                flags = [
+                    "--use-fake-ui-for-media-stream",
+                    "--enable-features=AudioServiceOutOfProcess",
+                    "--autoplay-policy=no-user-gesture-required",
+                ]
+                props = self.webview.CreationProperties
+                cur = (props.AdditionalBrowserArguments or "").strip()
+                for f in flags:
+                    if f not in cur:
+                        cur += " " + f
+                props.AdditionalBrowserArguments = cur.strip()
+                logger.info("Patched WebView2 CreationProperties.AdditionalBrowserArguments: %s", props.AdditionalBrowserArguments)
+            except Exception as ex_args:
+                logger.debug("Failed to patch AdditionalBrowserArguments: %s", ex_args)
+        ec.EdgeChrome.__init__ = _patched_ec_init
+    except Exception as ex_ec:
+        logger.debug("EdgeChrome patch notice: %s", ex_ec)
+
 try:
     from .config import ANCHOR_DIR, DATA_DIR, PORT as DEFAULT_PORT, HOST as DEFAULT_HOST, WEB_DIR
 except (ImportError, ValueError):
@@ -689,7 +715,7 @@ def main(argv=None, splash=None):
                                 from webview.util import interop_dll_path
                                 import clr
                                 clr.AddReference(interop_dll_path("Microsoft.Web.WebView2.Core.dll"))
-                                from Microsoft.Web.WebView2.Core import CoreWebView2PermissionState
+                                from Microsoft.Web.WebView2.Core import CoreWebView2PermissionState, CoreWebView2PermissionKind
                                 def _on_perm_req(sender, args):
                                     try:
                                         args.State = CoreWebView2PermissionState.Allow
@@ -698,7 +724,27 @@ def main(argv=None, splash=None):
                                     except Exception as p_err:
                                         logger.debug("PermissionRequested handler notice: %s", p_err)
                                 core_wv.PermissionRequested += _on_perm_req
-                                logger.info("WebView2 PermissionRequested handler attached successfully.")
+
+                                # Pre-grant Microphone permission directly on the profile
+                                if hasattr(core_wv, "Profile") and core_wv.Profile:
+                                    target_origins = [
+                                        f"http://127.0.0.1:{port}",
+                                        f"http://localhost:{port}",
+                                        "http://127.0.0.1:8765",
+                                        "http://localhost:8765",
+                                    ]
+                                    for orig in target_origins:
+                                        try:
+                                            core_wv.Profile.SetPermissionStateAsync(
+                                                CoreWebView2PermissionKind.Microphone,
+                                                orig,
+                                                CoreWebView2PermissionState.Allow
+                                            )
+                                            logger.info("Pre-granted Microphone permission on profile for %s", orig)
+                                        except Exception as p_set_err:
+                                            logger.debug("SetPermissionStateAsync notice for %s: %s", orig, p_set_err)
+
+                                logger.info("WebView2 PermissionRequested and Profile permissions configured successfully.")
                             except Exception as ex:
                                 logger.debug("Failed to attach PermissionRequested: %s", ex)
 
