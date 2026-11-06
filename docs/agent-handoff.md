@@ -37,3 +37,9 @@
   2. Bổ sung @media (max-width: 1680px) đa tầng fallback tự động thu gọn text nhãn thành icon-only, giúp Deck thu nhỏ về ~550px cực kỳ thoáng đãng.
   3. Thu gọn slider âm lượng từ 92px xuống 72px và ẩn chữ 70% (em) trên các màn hình có chiều rộng stage dưới 1480px.
   4. Tăng khoảng đệm an toàn bên phải của .deck (padding: 6px 14px 6px 12px;) để thanh volume không bao giờ chạm vào góc bo tròn 9999px.
+
+### 5. Native Windows Build (PyInstaller)
+- File thực thi: `dist/MeikovaLoop/MeikovaLoop.exe`
+- Dung lượng: ~67 MB
+- Đóng gói đầy đủ Web assets (v=101, CSS responsive fix, Karaoke Mic engine).
+- Trạng thái: Build hoàn tất thành công (Exit Code 0).
