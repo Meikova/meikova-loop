@@ -7165,7 +7165,7 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   cursor: pointer !important;
   transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
-.mini-btn:hover {
+.mini-btn:not(.mini-btn--play):hover {
   background: rgba(255, 255, 255, 0.1) !important;
   color: #ffffff !important;
   border-color: rgba(255, 255, 255, 0.22) !important;
@@ -7177,7 +7177,7 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   box-shadow: 0 0 10px var(--accent, #FFB38A) !important;
 }
 
-/* Mini Play Button: Tactile 3D Neon Centerpiece with Infinity Loader */
+/* Mini Play Button: Tactile 3D Neon Centerpiece with Infinity Loader (Always Neon Bright, Never Dark On Hover) */
 .mini-btn--play {
   display: grid !important;
   place-items: center !important;
@@ -7187,19 +7187,24 @@ body:not(.is-desktop-shell):not(.is-desktop-app).is-mini-player .mini-player-str
   border-radius: 50% !important;
   background: var(--accent, #FFB38A) !important;
   color: var(--on-accent, #0c0f13) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
   box-shadow: 0 0 0 1px oklch(var(--acc) / 0.5), 0 0 20px -2px oklch(var(--acc) / 0.7), 0 0 32px -4px oklch(var(--acc) / 0.4) !important;
   cursor: pointer !important;
   transition: transform var(--dur-instant, 80ms) var(--ease-out), filter var(--dur-fast, 160ms) var(--ease-out), box-shadow var(--dur-base, 240ms) var(--ease-out) !important;
 }
 .mini-btn--play:hover {
+  background: var(--accent, #FFB38A) !important;
+  color: var(--on-accent, #0c0f13) !important;
   transform: scale(1.08) !important;
   filter: brightness(1.15) !important;
-  box-shadow: 0 0 0 1px #fff, 0 0 24px -1px var(--accent, #FFB38A), 0 0 38px 2px oklch(var(--acc) / 0.55) !important;
-  color: var(--on-accent, #0c0f13) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 26px -1px var(--accent, #FFB38A), 0 0 42px 2px oklch(var(--acc) / 0.65) !important;
 }
 .mini-btn--play:active {
+  background: var(--accent, #FFB38A) !important;
+  color: var(--on-accent, #0c0f13) !important;
   transform: scale(0.94) !important;
+  filter: brightness(0.95) !important;
 }
 
 /* Stack Play, Pause, and Infinity Load SVGs on top of each other */
