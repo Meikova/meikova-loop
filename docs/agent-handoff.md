@@ -1,3 +1,37 @@
+# Session Handoff: Mini Player Visual Polish, Infinity Loading Trace & Repeated Icon Fix (v1.0.22 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Khắc phục triệt để lỗi Icon bị lặp (Repeated Icons):**
+  - **Nguyên nhân gốc rễ:**
+    - Cả hai nút `#mini-btn-lock` và `#mini-btn--play` đều chứa nhiều phần tử `<svg>` bên trong một container `display: inline-flex`.
+    - Do thiếu quy tắc toàn cục `[hidden] { display: none !important; }`, các thuộc tính ẩn HTML không áp dụng được lên các SVG con trong một số phiên bản WebView2/Chrome.
+    - Kết quả: Nút Lock hiển thị cả 2 ổ khóa mở và đóng cạnh nhau (`🔓🔒`); nút Play hiển thị cả icon tam giác play và hai vạch pause cạnh nhau (`▶ ❚❚`).
+  - **Giải pháp dứt điểm:**
+    - Chuyển `#mini-btn-play` và `#mini-btn-lock` sang cơ chế `display: grid; place-items: center;` với `svg { grid-area: 1 / 1; }` (xếp chồng đồng tâm, triệt tiêu hoàn toàn khả năng bị dàn hàng ngang).
+    - Thêm quy tắc toàn cục `[hidden] { display: none !important; }`.
+    - Điều khiển hiển thị chuẩn xác qua trạng thái dữ liệu `data-state="play" | "pause" | "load"` và `aria-pressed="true" | "false"`.
+- [x] **Tích hợp Hiệu ứng Vô cực $\infty$ chạy trong nút Play khi load bài:**
+  - Bổ sung SVG đường dẫn vô cực `.mini-i-load` (`pathLength="120"`, đường cong lemniscate chuẩn Meikova) vào bên trong `#mini-btn-play`.
+  - Khi click hoặc khi `player` đang nạp bài (`busy = true`), `miniPlay.dataset.state = "load"` lập tức kích hoạt hoạt ảnh `@keyframes trace 1.1s linear infinite`, vẽ tia sáng phát quang chạy liên tục quanh hai vòng lặp $\infty$.
+- [x] **Nâng cấp Toàn diện Hiệu ứng Thẩm mỹ (Ambient Aura Glow & Tactile Feel):**
+  - **Nền đa tầng sống động (Dynamic Dual-Aura):** Kết hợp hai quầng sáng radial glow tự động đổi sắc màu theo tông bài hát (`--acc` và `--acc2`) trên nền tối sâu `#07090d`, tạo chiều sâu không gian huyền ảo.
+  - **Đèn Status Neon Pulse (`.mini-dot`):** Đèn LED nhịp thở phát quang neon sống động (`box-shadow: 0 0 16px var(--accent)`).
+  - **Nút Play/Pause Neon 3D:** Viên ngọc neon phát sáng đa tầng hào quang, hiệu ứng hover nhấc nổi `transform: scale(1.08)` và nhún nhấn `active scale(0.94)`.
+  - **Các nút điều khiển phụ & Pill Karaoke:** Hiệu ứng hover nhấc nhẹ, gợn sóng phát quang khi click (`.is-active`), pill đổi giọng chuyển sang neon sáng rực khi bật chế độ Beat / Solo.
+- [x] **Kiểm thử, Đóng gói Native & Đồng bộ Release:**
+  - Chạy toàn bộ test suite `tests/test_server_and_features.py` đạt **Exit Code 0** (ALL TESTS PASSED).
+  - Tăng phiên bản SemVer lên **v1.0.22** đồng bộ 100% 6 tệp cấu hình qua `python version.py --set 1.0.22`.
+  - Sao chép trực tiếp tài nguyên tĩnh mới nhất vào `dist/MeikovaLoop/_internal/web` để người dùng trải nghiệm ngay lập tức.
+  - Push commit cờ `[build]` lên GitHub repo `origin main`.
+  - Đồng bộ và trigger rebuild trên 2 Hugging Face Spaces (`m3ik18dp/meikova-loop` và `m3ik18dp/MashLoop`) với trạng thái OK.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> **Exit Code 0 (ALL TESTS PASSED)**.
+- `git push origin main` -> **Exit Code 0 (commit 987b7e2)**.
+- `.\.venv\Scripts\python.exe tools/upload_to_space.py` -> **Exit Code 0 (Status OK cả 2 Spaces)**.
+
+---
+
 # Session Handoff: Mini Player Layout Clipping Elimination & Desktop Shell Alignment (v1.0.21 Release)
 
 ## 1. Mục tiêu hoàn thành
