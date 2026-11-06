@@ -1,3 +1,38 @@
+# Session Handoff: Mini Player Window Clamping Fix & Universal Responsive Hardening (v1.0.20 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Truy vết & Khắc phục triệt để lỗi Cửa sổ Mini Player bị kẹt kích thước lớn (960x620):**
+  - **Nguyên nhân gốc rễ:**
+    - Trong loopbox/desktop.py, webview.create_window được khởi tạo với tham số min_size=(960, 620).
+    - Trên Windows (.NET WinForms / WebView2), PyWebView gán self.MinimumSize = Size(960 * scale, 620 * scale).
+    - Thông điệp Win32 WM_GETMINMAXINFO của Form bị ép cứng giới hạn tối thiểu 960x620, dẫn đến khi gọi window.resize(340, 130) hoặc Win32 SetWindowPos, hệ điều hành từ chối thu nhỏ cửa sổ dưới ngưỡng 960x620, tạo ra khoảng đen trống khổng lồ như hình chụp thực tế.
+  - **Giải pháp dứt điểm:**
+    - Cập nhật min_size=(350, 120) trực tiếp tại webview.create_window.
+    - Trong DesktopBridge.toggle_mini_player: Điều chỉnh động self._window.native.MinimumSize và gọi SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, phys_w, phys_h, SWP_NOMOVE | SWP_SHOWWINDOW) với cờ SWP_SHOWWINDOW.
+    - Khi khôi phục về cửa sổ bình thường: Khôi phục lại đúng vị trí và kích thước cửa sổ ban đầu (self._normal_bounds).
+- [x] **Tái thiết kế Giao diện Mini Player 2 tầng (2-Tier Ambient Compact Card):**
+  - Tầng 1 (Header kéo thả): Đèn neon phát quang động (.mini-dot), Tên bài/Nghệ sĩ cuộn gọn (.mini-info), Bộ 3 nút điều khiển phụ: Khoá bài (#mini-btn-lock), Phóng to (#mini-btn-expand), Thu nhỏ vào khay (#mini-btn-close).
+  - Tầng 2 (Playback Controls): Nhảy phách (#mini-btn-jump), Tua đầu (#mini-btn-prev), Play/Pause phát quang neon 36px (#mini-btn-play), Chuyển bài (#mini-btn-next), Pill đổi chế độ giọng / Karaoke (#mini-btn-vocal).
+  - Phân lập môi trường Desktop Shell và Web: Trên Desktop, cửa sổ thu gọn đúng 350x120px; trên Web Browser / Mobile, widget nổi ở góc dưới bên phải màn hình kèm hiệu ứng đổ bóng Ambient Dark.
+- [x] **Tuân thủ Toàn diện Chuẩn Responsive Đa Thiết bị theo Skill /meikova (meikova-ambient-ui):**
+  - Bổ sung quy tắc chống nuốt thẻ icon trên mobile: .deck__btn span:not(.rec-dot) { display: none !important; } và .deck__record .rec-dot { display: inline-block !important; } để chấm đỏ REC không bị ẩn trên màn hình nhỏ (<768px).
+  - Ẩn nút Mini Player trên Topbar di động (#btn-mini { display: none !important; } trên <600px).
+  - Đảm bảo Touch Target Size đạt chuẩn 44x44px của Apple HIG & WCAG 2.5.5 cho tất cả nút bấm mới qua pseudo-element ::after (inset: -7px).
+  - Hộp thoại #modal-record-result tự động co giãn (width: calc(100vw - 20px)), xếp dọc các nút tải (lex-direction: column), và áp dụng đầy đủ Safe Area Insets (env(safe-area-inset-top), env(safe-area-inset-bottom)).
+- [x] **Kiểm thử, Đóng gói Native & Đồng bộ Release:**
+  - Chạy toàn bộ test suite 	ests/test_server_and_features.py đạt **Exit Code 0**.
+  - Đẩy phiên bản SemVer lên **v1.0.20** qua ersion.py.
+  - Đóng gói thành công dist/MeikovaLoop/MeikovaLoop.exe (66.9MB).
+  - Push git [build] lên origin main và restart cả 2 Spaces Hugging Face.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- .\.venv\Scripts\python.exe tests/test_server_and_features.py -> **Exit Code 0 (ALL TESTS PASSED)**.
+- .\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec -> **Exit Code 0 (MeikovaLoop.exe built)**.
+- git push origin main -> **Exit Code 0 (commit 14adfde)**.
+- .\.venv\Scripts\python.exe tools/upload_to_space.py -> **Exit Code 0 (Status OK)**.
+
+---
+
 # Session Handoff: 5 Strategic Upgrades Suite Deployment & Desktop Build (v1.0.19 Release)
 
 ## 1. Mục tiêu hoàn thành
