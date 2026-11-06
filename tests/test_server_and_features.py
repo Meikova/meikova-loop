@@ -367,36 +367,45 @@ def test_track_cancellation_on_delete():
     from loopbox import library, worker, sessions, server
     client = TestClient(app)
     test_id = "testcanc001"
-    library.create(test_id, source="test", url="http://example.com", title="Test Cancel", status="queued", stage="queued")
-    assert library.is_cancelled(test_id) is False
-    worker.enqueue_ingest(test_id)
-    assert test_id in worker._ingesting
-
-    # Test sessions.in_use signatures
-    assert isinstance(sessions.in_use(), set)
-    assert isinstance(sessions.in_use(test_id), bool)
-
-    # Test delete under MULTIUSER = True (Space environment)
-    orig_multi = server.MULTIUSER
+    test_id2 = "testcanc002"
+    orig_submit = worker._submit_pipeline
+    worker._submit_pipeline = lambda tid: None
     try:
-        server.MULTIUSER = True
-        res = client.delete(f"/api/tracks/{test_id}")
-        assert res.status_code == 200
-        assert library.is_cancelled(test_id) is True
-        assert test_id not in worker._ingesting
+        library.create(test_id, source="test", url="http://example.com", title="Test Cancel", status="queued", stage="queued")
+        assert library.is_cancelled(test_id) is False
+        worker.enqueue_ingest(test_id)
+        assert test_id in worker._ingesting
 
-        # Test batch delete under MULTIUSER = True
-        test_id2 = "testcanc002"
-        library.create(test_id2, source="test", url="http://example.com", title="Test Cancel 2", status="queued", stage="queued")
-        worker.enqueue_ingest(test_id2)
-        res_batch = client.post("/api/tracks/batch", json={"action": "delete", "ids": [test_id2]})
-        assert res_batch.status_code == 200
-        assert library.is_cancelled(test_id2) is True
-        assert test_id2 not in worker._ingesting
-        library.clear_cancelled(test_id2)
+        # Test sessions.in_use signatures
+        assert isinstance(sessions.in_use(), set)
+        assert isinstance(sessions.in_use(test_id), bool)
+
+        # Test delete under MULTIUSER = True (Space environment)
+        orig_multi = server.MULTIUSER
+        try:
+            server.MULTIUSER = True
+            res = client.delete(f"/api/tracks/{test_id}")
+            assert res.status_code == 200
+            assert library.is_cancelled(test_id) is True
+            assert test_id not in worker._ingesting
+
+            # Test batch delete under MULTIUSER = True
+            library.create(test_id2, source="test", url="http://example.com", title="Test Cancel 2", status="queued", stage="queued")
+            worker.enqueue_ingest(test_id2)
+            res_batch = client.post("/api/tracks/batch", json={"action": "delete", "ids": [test_id2]})
+            assert res_batch.status_code == 200
+            assert library.is_cancelled(test_id2) is True
+            assert test_id2 not in worker._ingesting
+        finally:
+            server.MULTIUSER = orig_multi
+            library.clear_cancelled(test_id)
+            library.clear_cancelled(test_id2)
+            library.delete(test_id)
+            library.delete(test_id2)
     finally:
-        server.MULTIUSER = orig_multi
-        library.clear_cancelled(test_id)
+        worker._submit_pipeline = orig_submit
+        library.delete(test_id)
+        library.delete(test_id2)
 
 def test_max_duration_guard_and_frontend_limits():
     """Verify backend max duration is 15 minutes and frontend guards protect against Web Audio OOM."""
@@ -787,17 +796,22 @@ def test_parallel_download_and_hardware_aware_analysis():
     an_pool = worker._pool("analyze")
     assert dl_pool is not an_pool
 
-    # 3. Two-stage ingest registration & cancellation
+    # 3. Two-stage ingest registration & cancellation (mocked pipeline to protect live library)
     tid_test = "testbatch01"
-    library.create(tid_test, source="test", url="http://example.com", title="Batch Test", status="queued", stage="queued")
-    worker.enqueue_ingest(tid_test)
-    assert tid_test in worker._ingesting
-    # Cancel cleans up
-    worker.cancel(tid_test)
-    assert tid_test not in worker._ingesting
-    assert library.is_cancelled(tid_test) is True
-    library.clear_cancelled(tid_test)
-    library.delete(tid_test)
+    orig_submit = worker._submit_pipeline
+    worker._submit_pipeline = lambda tid: None
+    try:
+        library.create(tid_test, source="test", url="http://example.com", title="Batch Test", status="queued", stage="queued")
+        worker.enqueue_ingest(tid_test)
+        assert tid_test in worker._ingesting
+        # Cancel cleans up
+        worker.cancel(tid_test)
+        assert tid_test not in worker._ingesting
+        assert library.is_cancelled(tid_test) is True
+    finally:
+        worker._submit_pipeline = orig_submit
+        library.clear_cancelled(tid_test)
+        library.delete(tid_test)
 
 
 def test_storage_migration_move_and_cleanup():
@@ -862,6 +876,8 @@ def test_download_cancel_and_storage_persistence():
     client = TestClient(app)
     # Test cancelling an in-progress / downloading track
     tid = "testdlcan01"
+    orig_submit = worker._submit_pipeline
+    worker._submit_pipeline = lambda t: None
     try:
         library.create(tid, source="test", url="http://example.com/fake", title="Fake Stuck Track", status="downloading", stage="downloading")
         worker.enqueue_ingest(tid)
@@ -874,6 +890,7 @@ def test_download_cancel_and_storage_persistence():
         assert library.is_cancelled(tid) is True
         assert library.read_meta(tid) is None
     finally:
+        worker._submit_pipeline = orig_submit
         library.clear_cancelled(tid)
         library.delete(tid)
 

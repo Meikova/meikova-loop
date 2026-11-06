@@ -1697,7 +1697,7 @@ function trackRow(m, idx = 0, total = 0) {
   const durHtml = (m.status === "ready" && m.duration)
     ? `<span class="track__dur" ${isTooLong ? `style="color:var(--c-warn,#f59e0b)" title="${warnTitle}"` : ""}>${fmt(m.duration)}${isTooLong ? ` ${ICON.warn}` : ""}</span>`
     : "";
-  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""} ${isLoading ? "is-loading" : ""}" data-id="${esc(m.id)}">
+  return `<li class="track ${playing ? "playing" : ""} ${m.enabled === false ? "off" : ""} ${isSelected ? "selected" : ""} ${isQueued ? "queued-next" : ""} ${isLoading ? "is-loading" : ""} ${m.status !== "ready" ? `status-${m.status}` : ""}" data-id="${esc(m.id)}" data-status="${esc(m.status || "ready")}">
     ${cb}${lead}
     <div class="track__body">
       <div class="track__top">

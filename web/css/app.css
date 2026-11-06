@@ -2883,6 +2883,14 @@ dialog.pl-modal,
     color: var(--text);
   }
   /* Secondary actions are gently visible when idle, full brightness on hover */
+  
+.track:not([data-status="ready"]) .acts button,
+.track.status-error .acts button,
+.track.status-queued .acts button,
+.track.status-downloading .acts button {
+  display: inline-flex !important;
+}
+
   .track:not(:hover):not(:focus-within) .acts button:not([data-act="play"]):not([data-active="true"]) {
     opacity: 0.45;
   }
