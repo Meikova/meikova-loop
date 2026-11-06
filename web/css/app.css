@@ -517,6 +517,7 @@ body.is-zen .desktop-titlebar {
   width: 100%;
   height: 100%;
   min-height: 280px;
+  z-index: 1;
 }
 
 .canvas-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
@@ -719,6 +720,8 @@ body.is-zen .desktop-titlebar {
 
 /* The deck: one floating pill, like Aether's single control. */
 .deck {
+  position: relative;
+  z-index: 30;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -911,6 +914,11 @@ body.is-night .topbar {
   align-items: center;
 }
 
+.deck__timer-wrap.is-open,
+.deck__timer-wrap:has(.timer-popover:not([hidden])) {
+  z-index: 60;
+}
+
 .deck__timer[data-active="true"] {
   color: var(--accent);
   border-color: oklch(var(--acc) / 0.5);
@@ -1027,6 +1035,11 @@ body.is-night .topbar {
 .deck__eq-wrap {
   position: relative;
   display: inline-flex;
+}
+
+.deck__eq-wrap.is-open,
+.deck__eq-wrap:has(.eq-popover:not([hidden])) {
+  z-index: 60;
 }
 
 .deck__eq[data-active="true"] {
@@ -4507,7 +4520,7 @@ button.dl-card {
   .readout { top: var(--space-3); }
   .readout--tl { left: var(--space-4); }
   .readout--tr { right: var(--space-4); }
-  .deck { position: sticky; bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px)); z-index: 5; }
+  .deck { position: sticky; bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px)); z-index: 30; }
   .panel { border-left: 0; border-top: 1px solid var(--line-soft); padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--space-4)); }
   .panel__head { position: relative; top: auto; z-index: 2; }
   .tab { overflow: visible; }
@@ -4725,6 +4738,12 @@ button.dl-card {
     max-width: calc(100vw - 16px);
     animation: popover-up-mobile var(--dur-fast) var(--ease-spring);
   }
+  .mic-popover {
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 246px;
+    max-width: calc(100vw - 16px);
+  }
   .readout { max-width: 46%; }
   .kinds { grid-template-columns: 1fr; }
   .kind { display: grid; grid-template-columns: 40px 1fr; align-items: center; }
@@ -4759,6 +4778,11 @@ button.dl-card {
     right: -8px;
     min-width: 228px;
     padding: 10px;
+  }
+  .mic-popover {
+    min-width: 228px;
+    padding: 10px;
+    max-width: calc(100vw - 10px);
   }
   .eq-opt {
     height: 36px;
@@ -4910,6 +4934,7 @@ body.is-zen .canvas-wrap {
   height: 100vh !important;
   height: 100dvh !important;
   max-height: 100vh !important;
+  z-index: 1 !important;
 }
 
 body.is-zen .canvas-wrap canvas {
@@ -5025,7 +5050,7 @@ body.is-zen .deck {
   bottom: max(env(safe-area-inset-bottom, 0px) + 24px, 24px) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  z-index: 10 !important;
+  z-index: 30 !important;
   gap: 4px !important;
   padding: 5px 16px 5px 10px !important;
   max-width: calc(100vw - 32px) !important;
@@ -7265,6 +7290,11 @@ dialog.tunnel-modal,
   display: inline-flex;
 }
 
+.deck__mic-wrap.is-open,
+.deck__mic-wrap:has(.mic-popover:not([hidden])) {
+  z-index: 60;
+}
+
 .deck__mic {
   position: relative !important;
   display: inline-flex !important;
@@ -7301,21 +7331,22 @@ dialog.tunnel-modal,
   bottom: calc(100% + 14px);
   left: 50%;
   transform: translateX(-50%);
-  background: oklch(0.14 var(--gc, 0.03) var(--gh, 260) / 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: oklch(0.13 var(--gc, 0.012) var(--gh, 40) / 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 14px;
   min-width: 260px;
   max-width: 290px;
   width: max-content;
-  box-shadow: 0 18px 44px -6px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 20px -4px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 24px -4px rgba(239, 68, 68, 0.25);
   z-index: 100;
   display: flex;
   flex-direction: column;
   gap: 12px;
   animation: popover-up var(--dur-fast) var(--ease-spring);
+  pointer-events: auto;
 }
 
 .mic-popover[hidden] {
@@ -7482,6 +7513,7 @@ body.is-mini-player .next,
 body.is-mini-player .setlist,
 body.is-mini-player .panel__resizer,
 body.is-mini-player #hud-toast-wrap,
+body.is-mini-player #mic-popover,
 body.is-mini-player #timer-popover,
 body.is-mini-player #eq-popover {
   display: none !important;

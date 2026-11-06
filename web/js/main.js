@@ -921,12 +921,34 @@ if (eqBtn && eqPopover) {
     const isHidden = eqPopover.hidden;
     eqPopover.hidden = !isHidden;
     eqBtn.setAttribute("aria-expanded", !isHidden);
+    eqBtn.closest(".deck__eq-wrap")?.classList.toggle("is-open", !isHidden);
+    if (!isHidden) {
+      if (typeof timerPopover !== "undefined" && timerPopover) {
+        timerPopover.hidden = true;
+        timerBtn?.setAttribute("aria-expanded", "false");
+        timerBtn?.closest(".deck__timer-wrap")?.classList.remove("is-open");
+      }
+      if (typeof micPopover !== "undefined" && micPopover) {
+        micPopover.hidden = true;
+        micBtn?.setAttribute("aria-expanded", "false");
+        micBtn?.closest(".deck__mic-wrap")?.classList.remove("is-open");
+      }
+    }
   });
 
   document.addEventListener("click", (e) => {
     if (!eqPopover.hidden && !e.target.closest("#eq-popover, #btn-eq")) {
       eqPopover.hidden = true;
       eqBtn.setAttribute("aria-expanded", "false");
+      eqBtn.closest(".deck__eq-wrap")?.classList.remove("is-open");
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !eqPopover.hidden) {
+      eqPopover.hidden = true;
+      eqBtn.setAttribute("aria-expanded", "false");
+      eqBtn.closest(".deck__eq-wrap")?.classList.remove("is-open");
     }
   });
 
@@ -947,12 +969,34 @@ if (timerBtn && timerPopover) {
     const isHidden = timerPopover.hidden;
     timerPopover.hidden = !isHidden;
     timerBtn.setAttribute("aria-expanded", !isHidden);
+    timerBtn.closest(".deck__timer-wrap")?.classList.toggle("is-open", !isHidden);
+    if (!isHidden) {
+      if (typeof eqPopover !== "undefined" && eqPopover) {
+        eqPopover.hidden = true;
+        eqBtn?.setAttribute("aria-expanded", "false");
+        eqBtn?.closest(".deck__eq-wrap")?.classList.remove("is-open");
+      }
+      if (typeof micPopover !== "undefined" && micPopover) {
+        micPopover.hidden = true;
+        micBtn?.setAttribute("aria-expanded", "false");
+        micBtn?.closest(".deck__mic-wrap")?.classList.remove("is-open");
+      }
+    }
   });
 
   document.addEventListener("click", (e) => {
     if (!timerPopover.hidden && !e.target.closest("#timer-popover, #btn-timer")) {
       timerPopover.hidden = true;
       timerBtn.setAttribute("aria-expanded", "false");
+      timerBtn.closest(".deck__timer-wrap")?.classList.remove("is-open");
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !timerPopover.hidden) {
+      timerPopover.hidden = true;
+      timerBtn.setAttribute("aria-expanded", "false");
+      timerBtn.closest(".deck__timer-wrap")?.classList.remove("is-open");
     }
   });
 
@@ -1353,12 +1397,34 @@ if (micBtn && micPopover) {
     const isHidden = micPopover.hidden;
     micPopover.hidden = !isHidden;
     micBtn.setAttribute("aria-expanded", !isHidden);
+    micBtn.closest(".deck__mic-wrap")?.classList.toggle("is-open", !isHidden);
+    if (!isHidden) {
+      if (typeof eqPopover !== "undefined" && eqPopover) {
+        eqPopover.hidden = true;
+        eqBtn?.setAttribute("aria-expanded", "false");
+        eqBtn?.closest(".deck__eq-wrap")?.classList.remove("is-open");
+      }
+      if (typeof timerPopover !== "undefined" && timerPopover) {
+        timerPopover.hidden = true;
+        timerBtn?.setAttribute("aria-expanded", "false");
+        timerBtn?.closest(".deck__timer-wrap")?.classList.remove("is-open");
+      }
+    }
   });
 
   document.addEventListener("click", (e) => {
     if (!micPopover.hidden && !e.target.closest("#mic-popover, #btn-karaoke-mic")) {
       micPopover.hidden = true;
       micBtn.setAttribute("aria-expanded", "false");
+      micBtn.closest(".deck__mic-wrap")?.classList.remove("is-open");
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !micPopover.hidden) {
+      micPopover.hidden = true;
+      micBtn.setAttribute("aria-expanded", "false");
+      micBtn.closest(".deck__mic-wrap")?.classList.remove("is-open");
     }
   });
 }
