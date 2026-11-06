@@ -1236,6 +1236,22 @@ $("#mini-btn-play")?.addEventListener("click", () => {
 $("#mini-btn-next")?.addEventListener("click", () => {
   $("#btn-next")?.click();
 });
+$("#mini-btn-jump")?.addEventListener("click", () => {
+  $("#btn-jump")?.click();
+});
+$("#mini-btn-lock")?.addEventListener("click", () => {
+  player.toggleLoopLock();
+  applySettings();
+  renderTransport();
+});
+$("#mini-btn-vocal")?.addEventListener("click", () => {
+  $("#btn-vocal-mode")?.click();
+});
+$("#mini-btn-close")?.addEventListener("click", () => {
+  if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.minimize_window === "function") {
+    window.pywebview.api.minimize_window();
+  }
+});
 
 
 player.addEventListener("state", renderTransport);
@@ -1436,6 +1452,22 @@ function renderTransport() {
     const bpmStr = curMetaMini?.bpm ? ` • ${Math.round(curMetaMini.bpm)} BPM` : "";
     const camStr = curMetaMini?.camelot ? ` (${curMetaMini.camelot})` : "";
     miniArtist.textContent = `${artistStr}${bpmStr}${camStr}`;
+  }
+
+  const miniVocalLabel = $("#mini-vocal-label");
+  if (miniVocalLabel) {
+    miniVocalLabel.textContent = VOCAL_LABELS[player.vocalMode || "full"] || "Gốc";
+  }
+
+  const miniLock = $("#mini-btn-lock");
+  if (miniLock) {
+    const isLocked = player.settings.mode === "single";
+    const openSvg = miniLock.querySelector(".mini-lock-open");
+    const closedSvg = miniLock.querySelector(".mini-lock-closed");
+    if (openSvg && closedSvg) {
+      openSvg.hidden = isLocked;
+      closedSvg.hidden = !isLocked;
+    }
   }
 }
 

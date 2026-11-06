@@ -287,37 +287,65 @@ class DesktopBridge:
                 try:
                     self._normal_bounds = (self._window.x, self._window.y, self._window.width, self._window.height)
                 except Exception:
-                    self._normal_bounds = (100, 100, 1200, 800)
-                self._window.resize(340, 130)
+                    self._normal_bounds = (100, 100, 1340, 880)
+
+                target_w, target_h = 350, 120
                 if sys.platform == "win32":
                     try:
+                        import System.Drawing
+                        if hasattr(self._window.native, "MinimumSize"):
+                            scale = getattr(self._window.native, "_scale", 1.0)
+                            self._window.native.MinimumSize = System.Drawing.Size(int(300 * scale), int(80 * scale))
+                    except Exception:
+                        pass
+                    try:
+                        hwnd = self._window.native.Handle.ToInt64()
+                        scale = getattr(self._window.native, "_scale", 1.0)
+                        phys_w = int(target_w * scale)
+                        phys_h = int(target_h * scale)
                         HWND_TOPMOST = -1
                         SWP_NOMOVE = 0x0002
-                        SWP_NOSIZE = 0x0001
-                        hwnd = self._window.native.Handle.ToInt64()
-                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                        SWP_SHOWWINDOW = 0x0040
+                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, phys_w, phys_h, SWP_NOMOVE | SWP_SHOWWINDOW)
                     except Exception:
                         pass
+
+                self._window.resize(target_w, target_h)
                 self._window.evaluate_js("document.body.classList.add('is-mini-player'); window.__onMiniPlayerChange && window.__onMiniPlayerChange(true);")
             else:
+                target_w, target_h = 1340, 880
+                orig_x, orig_y = 100, 100
                 if getattr(self, "_normal_bounds", None):
-                    x, y, w, h = self._normal_bounds
-                    self._window.resize(max(800, w), max(500, h))
-                    try:
-                        self._window.move(x, y)
-                    except Exception:
-                        pass
-                else:
-                    self._window.resize(1200, 800)
+                    orig_x, orig_y, w, h = self._normal_bounds
+                    target_w = max(960, w)
+                    target_h = max(620, h)
+
                 if sys.platform == "win32":
                     try:
-                        HWND_NOTOPMOST = -2
-                        SWP_NOMOVE = 0x0002
-                        SWP_NOSIZE = 0x0001
-                        hwnd = self._window.native.Handle.ToInt64()
-                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                        import System.Drawing
+                        if hasattr(self._window.native, "MinimumSize"):
+                            scale = getattr(self._window.native, "_scale", 1.0)
+                            self._window.native.MinimumSize = System.Drawing.Size(int(350 * scale), int(120 * scale))
                     except Exception:
                         pass
+                    try:
+                        hwnd = self._window.native.Handle.ToInt64()
+                        scale = getattr(self._window.native, "_scale", 1.0)
+                        phys_w = int(target_w * scale)
+                        phys_h = int(target_h * scale)
+                        phys_x = int(orig_x * scale)
+                        phys_y = int(orig_y * scale)
+                        HWND_NOTOPMOST = -2
+                        SWP_SHOWWINDOW = 0x0040
+                        ctypes.windll.user32.SetWindowPos(hwnd, HWND_NOTOPMOST, phys_x, phys_y, phys_w, phys_h, SWP_SHOWWINDOW)
+                    except Exception:
+                        pass
+
+                self._window.resize(target_w, target_h)
+                try:
+                    self._window.move(orig_x, orig_y)
+                except Exception:
+                    pass
                 self._window.evaluate_js("document.body.classList.remove('is-mini-player'); window.__onMiniPlayerChange && window.__onMiniPlayerChange(false);")
         except Exception as ex:
             logger.debug("toggle_mini_player notice: %s", ex)
@@ -528,7 +556,7 @@ def main(argv=None, splash=None):
         url=f"http://127.0.0.1:{port}/",
         width=1340,
         height=880,
-        min_size=(960, 620),
+        min_size=(350, 120),
         background_color="#080a0e",
         text_select=False,
         js_api=bridge,
