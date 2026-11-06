@@ -29,3 +29,11 @@
 ### 3. Tồn đọng & Lưu ý kỹ thuật
 - Khi chạy trên trình duyệt web, người dùng cần cho phép quyền truy cập Microphone khi được hỏi.
 - Khi sử dụng loa ngoài công suất lớn, khuyến cáo người dùng đeo tai nghe hoặc duy trì khoảng cách giữa mic và loa để thuật toán Echo Cancellation hoạt động tối ưu nhất.
+
+### 4. Hotfix: Tràn thanh âm lượng ngoài viền Deck
+- **Nguyên nhân gốc rễ:** Sau khi bổ sung nút Mic Hát, tổng chiều rộng của Deck khi mở đủ text nhãn tăng lên ~1220px. Trên các màn hình laptop scaling 125% (viewport logic ~1536px), sau khi mở thư viện bên phải ~400px thì stage chỉ còn ~1136px - 1230px, khiến breakpoint cũ (1180px) chưa kích hoạt, làm các phần tử con không thu gọn và bị tràn đâm xuyên qua đường viền bo cong pill của Deck.
+- **Giải pháp xử lý triệt để:**
+  1. Nâng breakpoint Container Query @container stage từ 1180px lên 1480px.
+  2. Bổ sung @media (max-width: 1680px) đa tầng fallback tự động thu gọn text nhãn thành icon-only, giúp Deck thu nhỏ về ~550px cực kỳ thoáng đãng.
+  3. Thu gọn slider âm lượng từ 92px xuống 72px và ẩn chữ 70% (em) trên các màn hình có chiều rộng stage dưới 1480px.
+  4. Tăng khoảng đệm an toàn bên phải của .deck (padding: 6px 14px 6px 12px;) để thanh volume không bao giờ chạm vào góc bo tròn 9999px.
