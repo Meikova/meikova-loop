@@ -14,7 +14,7 @@ if env_file.exists():
 
 TOKEN = os.environ.get("HF_TOKEN")
 
-REPO_ID = "m3ik18dp/meikova-loop"
+REPOS = ["m3ik18dp/meikova-loop", "m3ik18dp/MashLoop"]
 
 api = HfApi()
 
@@ -26,24 +26,24 @@ ALLOW_PATTERNS = [
 ]
 
 if __name__ == "__main__":
-    print(f"Uploading clean loader files to Hugging Face Space: {REPO_ID}...")
-    try:
-        commit_info = api.upload_folder(
-            folder_path=".",
-            repo_id=REPO_ID,
-            repo_type="space",
-            token=TOKEN,
-            commit_message="feat: update loader files on Hugging Face Spaces",
-            allow_patterns=ALLOW_PATTERNS
-        )
-        print("SUCCESS")
-        print(commit_info)
-        print("Triggering Space rebuild...")
+    for repo_id in REPOS:
+        print(f"Uploading clean loader files to Hugging Face Space: {repo_id}...")
         try:
-            res = api.restart_space(REPO_ID, token=TOKEN)
-            print(f"Space status: {res.stage}")
-        except Exception as rex:
-            print(f"Space auto-restarts on commit ({rex})")
-    except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
+            commit_info = api.upload_folder(
+                folder_path=".",
+                repo_id=repo_id,
+                repo_type="space",
+                token=TOKEN,
+                commit_message="feat: update loader files on Hugging Face Spaces",
+                allow_patterns=ALLOW_PATTERNS
+            )
+            print(f"SUCCESS: {repo_id}")
+            print(commit_info)
+            print(f"Triggering Space rebuild: {repo_id}...")
+            try:
+                res = api.restart_space(repo_id, token=TOKEN)
+                print(f"Space status ({repo_id}): {getattr(getattr(res, 'runtime', None), 'stage', 'OK')}")
+            except Exception as rex:
+                print(f"Space auto-restarts on commit ({rex})")
+        except Exception as e:
+            print(f"ERROR ({repo_id}): {e}", file=sys.stderr)
