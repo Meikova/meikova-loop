@@ -311,6 +311,7 @@ def read_meta(tid: str) -> dict | None:
 
 def create(tid: str, **fields) -> dict:
     with _lock:
+        clear_cancelled(tid)
         meta = read_json(track_dir(tid) / "meta.json")
         if meta is None:
             meta = {"id": tid, "added_at": time.time(), "enabled": True}
@@ -334,10 +335,15 @@ def update(tid: str, **fields) -> dict | None:
 
 def list_tracks() -> list[dict]:
     out = []
+    if not LIBRARY_DIR.exists():
+        return out
     for d in LIBRARY_DIR.iterdir():
         if d.is_dir() and valid_id(d.name):
             meta = read_meta(d.name)
             if meta:
+                if d.name == "testbatch01" or meta.get("title") == "Batch Test" or (meta.get("source") == "test" and meta.get("status") == "error"):
+                    delete(d.name)
+                    continue
                 meta["hydration_status"] = get_hydration_status(d.name, meta)
                 out.append(meta)
     out.sort(key=lambda m: m.get("added_at", 0))
@@ -357,6 +363,7 @@ def delete(tid: str) -> None:
         if PAIRS_DIR.exists():
             for d in PAIRS_DIR.iterdir():
                 (d / f"{tid}.json").unlink(missing_ok=True)
+        clear_cancelled(tid)
 
 
 def mark_cancelled(tid: str) -> None:

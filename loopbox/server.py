@@ -987,6 +987,10 @@ def batch(req: BatchRequest, v: sessions.View = Depends(view_of)):
     elif req.action == "reanalyze":
         for tid in ids:
             m = library.read_meta(tid)
+            if m and (m.get("source") == "test" or "example.com" in m.get("url", "") or "Batch Test" in m.get("title", "")):
+                worker.cancel(tid)
+                library.delete(tid)
+                continue
             if m and (not MULTIUSER or m.get("status") == "error"):
                 library.update(tid, status="queued", stage="queued", progress=0.0, error=None)
                 worker.enqueue_ingest(tid)
@@ -997,6 +1001,10 @@ def batch(req: BatchRequest, v: sessions.View = Depends(view_of)):
 @app.post("/api/tracks/{tid}/reanalyze")
 def reanalyze(tid: str, v: sessions.View = Depends(view_of)):
     m = _meta(tid)
+    if m.get("source") == "test" or "example.com" in m.get("url", "") or "Batch Test" in m.get("title", ""):
+        worker.cancel(tid)
+        library.delete(tid)
+        return {"deleted": tid}
     if MULTIUSER and m.get("status") != "error":
         raise HTTPException(409, "only failed songs can be retried")
     library.update(tid, status="queued", stage="queued", progress=0.0, error=None)

@@ -1,3 +1,32 @@
+# Session Handoff: Stray Test Tracks Auto-Purge, Worker Isolation & PyInstaller Build (v1.0.16 Release)
+
+## 1. Mục tiêu hoàn thành
+- [x] **Truy vết & Khắc phục dứt điểm bài hát lỗi "Batch Test":**
+  - **Nguyên nhân gốc rễ:**
+    - Trong `tests/test_server_and_features.py`, test case `test_parallel_download_and_hardware_aware_analysis` tạo một track mang tiêu đề `"Batch Test"` với ID `"testbatch01"` và URL `"http://example.com"`.
+    - Khi trước đây worker chạy thực tế trên luồng nền tải URL giả lập này, nó bị lỗi và ghi file `meta.json` có `status: "error"`.
+    - Khi người dùng mở app và thấy thông báo "1 bài lỗi" kèm nút "Thử lại", khi nhấn "Thử lại" thì server đưa bài `testbatch01` vào hàng đợi tải lại, khiến UI hiển thị `"Đang xử lý Batch Test - đang tải về"`.
+  - **Giải pháp dứt điểm:**
+    - Trong `loopbox/library.py` (`list_tracks`): Tự động phát hiện và xóa vĩnh viễn (auto-purge) bất kỳ bài test nào có `d.name == "testbatch01"` hoặc `meta.get("title") == "Batch Test"` hoặc `(meta.get("source") == "test" and meta.get("status") == "error")`.
+    - Trong `loopbox/server.py` (`reanalyze` và `batch` action `reanalyze`): Tự động nhận diện bài test, hủy worker và gọi `library.delete()` ngay lập tức thay vì đưa vào hàng đợi tải lại.
+    - Trong `loopbox/library.py` (`create` và `delete`): Tự động xóa sạch file cờ hủy `.cancel` (`clear_cancelled(tid)`), tránh để lại rác trên ổ cứng.
+    - Đã xác thực thực tế trên ổ `E:\MeikovaLoopData\library`: Tổng cộng 50 bài hát sẵn sàng, 0 bài lỗi, 0 bài test, 0 file `.cancel`.
+- [x] **Hiển thị nút Hủy / Xóa trực tiếp trên UI không cần rê chuột:**
+  - CSS rule `.track:not([data-status="ready"]) .acts button { display: inline-flex !important; }` đảm bảo người dùng trên màn hình cảm ứng hoặc chuột luôn có thể nhấn trực tiếp nút Hủy / Xóa trên các bài hát bị lỗi, đang tải hoặc đang chờ.
+- [x] **Kiểm thử chất lượng & Đồng bộ phiên bản:**
+  - Toàn bộ test suite `tests/test_server_and_features.py` vượt qua với **Exit Code 0** (ALL TESTS PASSED).
+  - Tăng phiên bản SemVer lên **v1.0.16** qua `python version.py --bump patch` đồng bộ 100% tất cả các tệp cấu hình (`package.json`, `installer.iss`, `loopbox/__init__.py`, `loopbox/config.py`, `web/index.html`).
+- [x] **Biên dịch Executable & Triển khai:**
+  - Biên dịch thành công bản dựng native `dist/MeikovaLoop/MeikovaLoop.exe` (PyInstaller 66.9MB).
+  - Đồng bộ assets `web` sang `dist/MeikovaLoop/web` và `dist/MeikovaLoop/_internal/web`.
+
+## 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe tests/test_server_and_features.py` -> **Exit Code 0 (ALL TESTS PASSED)**.
+- `python version.py --check` -> **100% version synchronization (Pass)**.
+- `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec` -> **Exit Code 0 (MeikovaLoop.exe created)**.
+
+---
+
 # Session Handoff: Test Pipeline Isolation & Stray Batch Test Elimination (v1.0.15 Release)
 
 ## 1. Mục tiêu hoàn thành
