@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="vi">
   <head>
-    <meta name="version" content="1.0.29" />
+    <meta name="version" content="1.0.30" />
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
     />
-    <title>Meikova Loop — Infinite Soundscape</title>
+    <title>Meikova Loop</title>
     <meta
       name="description"
       content="Meikova Loop: DJ mashup · hòa trộn nhạc · tách stem — Infinite Soundscape."
@@ -53,15 +53,33 @@
     />
     <script>
       document.documentElement.classList.add("js");
+      const isDesktopShell = location.search.includes("platform=desktop") ||
+                             Boolean(window.pywebview) ||
+                             navigator.userAgent.includes("pywebview");
+      if (isDesktopShell) {
+        document.documentElement.classList.add("is-desktop-shell", "is-desktop-app");
+        window.__isDesktopShell = true;
+      }
+      if (location.search.includes("mode=satellite")) {
+        document.documentElement.classList.add("is-satellite-mode");
+      }
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=105" />
+    <link rel="stylesheet" href="css/app.css?v=175" />
   </head>
   <body>
+    <script>
+      if (window.__isDesktopShell || location.search.includes("platform=desktop") || window.pywebview) {
+        document.body.classList.add("is-desktop-shell", "is-desktop-app");
+      }
+      if (location.search.includes("mode=satellite")) {
+        document.body.classList.add("is-satellite-mode");
+      }
+    </script>
     <div class="field" aria-hidden="true"></div>
 
-    <!-- Desktop Frameless Custom Titlebar (Hidden on Web & Mobile) -->
-    <div id="desktop-titlebar" class="desktop-titlebar pywebview-drag-region" style="display: none;">
+    <!-- Desktop Frameless Custom Titlebar (Hidden on Web & Mobile, auto-visible on Desktop Shell) -->
+    <div id="desktop-titlebar" class="desktop-titlebar pywebview-drag-region">
       <div class="desktop-titlebar__lead pywebview-drag-region">
         <svg class="desktop-titlebar__logo" viewBox="0 0 100 100" width="16" height="16" aria-hidden="true" fill="var(--accent, #FFB38A)">
           <path fill-rule="evenodd" d="M46 24C29 13 9 25 9 44C9 61 25 72 40 66L64 52C71 48 79 52 79 60C79 68 69 72 63 67L55 76C71 90 92 78 92 60C92 42 74 32 59 41L35 55C28 59 21 53 21 45C21 35 32 30 40 36Z"/>
@@ -72,9 +90,6 @@
       </div>
       <div class="desktop-titlebar__drag pywebview-drag-region"></div>
       <div class="desktop-titlebar__controls">
-        <button type="button" class="dt-btn dt-btn--mini" id="dt-btn-mini" title="Chế độ Mini Player luôn nổi (M)">
-          <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx="2"/><rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" fill-opacity="0.3"/></svg>
-        </button>
         <button type="button" class="dt-btn dt-btn--min" id="dt-btn-min" title="Thu nhỏ (Minimize)">
           <svg viewBox="0 0 11 11" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg>
         </button>
@@ -153,7 +168,7 @@
           >
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
           </svg>
-          <span class="zen-label">Toàn màn hình</span>
+          <span class="zen-label">Toàn cảnh</span>
         </button>
         <button
           type="button"
@@ -205,6 +220,58 @@
         </button>
         <button
           type="button"
+          class="btn-sync-pill"
+          id="btn-stage-sync-modal"
+          aria-label="Đồng bộ Ánh sáng & Màn hình Vệ tinh"
+          title="Đồng bộ Ánh sáng & Màn hình Vệ tinh (S)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41"/>
+          </svg>
+          <span>Sân khấu</span>
+          <span class="sync-count-badge mono" id="stage-sync-badge" hidden>0</span>
+        </button>
+        <button
+          type="button"
+          class="btn-sync-pill btn-cluster-pill"
+          id="btn-nav-cluster"
+          aria-label="Liên kết Cụm Loa (Meikova Cluster Link / PartyBoost)"
+          title="Liên kết Cụm Loa · PartyBoost &amp; Stereo Pair"
+          aria-pressed="false"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="7" height="16" rx="1.8"/>
+            <rect x="14" y="4" width="7" height="16" rx="1.8"/>
+            <circle cx="6.5" cy="14.5" r="1.5"/>
+            <circle cx="17.5" cy="14.5" r="1.5"/>
+            <path d="M10 9h4M10 15h4"/>
+          </svg>
+          <span>Cụm Loa</span>
+          <span class="sync-count-badge mono" id="cluster-count-badge" hidden>0</span>
+        </button>
+        <button
+          type="button"
           class="btn-shortcuts"
           id="btn-shortcuts-modal"
           aria-label="Phím tắt & Trợ giúp"
@@ -250,11 +317,50 @@
           </svg>
           <span class="auth-btn-label" id="auth-btn-label">Tài khoản</span>
         </button>
-        <a class="to-panel" href="#panel">Thư viện</a>
+        <button
+          type="button"
+          class="btn-topbar-panel"
+          id="btn-topbar-panel"
+          aria-label="Ẩn hoặc hiện thư viện"
+          title="Ẩn / Hiện thư viện (B hoặc \)"
+          aria-pressed="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
+          <span>Thư viện</span>
+        </button>
       </div>
     </header>
 
     <main class="layout">
+      <!-- Floating Docked Handle on Right Edge to Re-expand Library Panel when Collapsed -->
+      <button
+        type="button"
+        class="btn-panel-expand"
+        id="btn-panel-expand"
+        title="Mở bảng điều khiển (B / \)"
+        aria-label="Mở bảng điều khiển"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="11 17 6 12 11 7" />
+          <polyline points="18 17 13 12 18 7" />
+        </svg>
+        <span class="btn-panel-expand__label">Thư viện</span>
+      </button>
+
       <section class="stage" aria-label="Sân khấu">
         <!-- Compact Mini Player Bar (Visible only when body.is-mini-player) -->
         <div id="mini-player-strip" class="mini-player-strip pywebview-drag-region">
@@ -323,6 +429,14 @@
             <p class="readout readout--tr" id="ro-tr">
               <span class="mono">∞ 0:00</span>
             </p>
+            <button type="button" class="zen-tool-btn" id="zen-btn-lyrics" title="Bật / Tắt lời bài hát đồng bộ (C)" aria-pressed="true">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+              <span>Lời</span>
+            </button>
+            <button type="button" class="zen-tool-btn" id="zen-btn-setlist" title="Xuất danh sách Setlist / M3U8 (X)">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span>Setlist</span>
+            </button>
             <button type="button" class="zen-tool-btn zen-tool-btn--rec" id="zen-btn-record" title="Thu âm Live Mix (R)">
               <svg class="deck__rec-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="8" />
@@ -340,6 +454,35 @@
           </div>
         </div>
 
+        <!-- Floating Cluster Member Banner (Option 2 Default + 1-Click Option 1 Full Stage Mirror) -->
+        <div class="cluster-member-banner" id="cluster-member-banner" hidden role="status" aria-live="polite">
+          <div class="cluster-banner__lead">
+            <span class="status-dot tunnel-dot tunnel-dot--running" aria-hidden="true"></span>
+            <div class="cluster-banner__texts">
+              <span class="cluster-banner__title" id="cluster-banner-title">Đang trong Cụm Loa</span>
+              <span class="cluster-banner__sub mono" id="cluster-banner-sub">Đồng bộ âm thanh Zero-Echo</span>
+            </div>
+            <span class="cluster-banner__ch mono" id="cluster-banner-channel" data-channel="stereo">STEREO · L+R</span>
+          </div>
+          <div class="cluster-banner__actions">
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--unlock" id="btn-cluster-audio-unlock" hidden title="Chạm để mở khóa âm thanh trình duyệt">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              <span>Bật tiếng</span>
+            </button>
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--mirror" id="btn-cluster-stage-mirror" aria-pressed="false" title="Phóng to toàn cảnh vòng vô cực đồng bộ 1:1 với Chủ tọa">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+              <span id="cluster-stage-mirror-text">Toàn cảnh</span>
+            </button>
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--icon" id="btn-cluster-banner-config" title="Mở bảng điều khiển Cụm Loa" aria-label="Cấu hình Cụm Loa">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.8"/><rect x="14" y="4" width="7" height="16" rx="1.8"/><path d="M10 9h4M10 15h4"/></svg>
+            </button>
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--leave" id="btn-cluster-leave" title="Ngắt liên kết cụm và quay về phát độc lập">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>Rời cụm</span>
+            </button>
+          </div>
+        </div>
+
         <div class="canvas-wrap" id="canvas-wrap">
           <canvas
             id="viz"
@@ -359,14 +502,85 @@
             </button>
           </div>
           <div class="tip" id="viz-tip" role="status" hidden></div>
+
+          <!-- Satellite Live Audio Resonance Pill & Popover (Visible on Satellite Mode) -->
+          <div class="sat-audio-wrap" id="sat-audio-wrap">
+            <button
+              type="button"
+              class="sat-audio-pill"
+              id="btn-sat-audio"
+              aria-pressed="false"
+              title="Bật / Tắt phát âm thanh cộng hưởng trực tiếp từ máy chính ra loa vệ tinh"
+            >
+              <span class="sat-audio-dot" id="sat-audio-dot" aria-hidden="true"></span>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              </svg>
+              <span id="sat-audio-label">Loa Vệ tinh: Tắt</span>
+            </button>
+            <button
+              type="button"
+              class="sat-audio-cfg-btn"
+              id="btn-sat-audio-cfg"
+              aria-label="Cấu hình âm lượng & độ trễ loa vệ tinh"
+              title="Cấu hình âm lượng & độ trễ đồng pha loa vệ tinh"
+              aria-expanded="false"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            <div class="sat-audio-popover" id="sat-audio-popover" hidden role="dialog" aria-label="Cài đặt Loa Vệ tinh">
+              <div class="mic-popover__head">
+                <div class="mic-popover__title-wrap">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                  <span class="mic-popover__title">Cộng hưởng Loa Vệ tinh</span>
+                </div>
+                <span class="mic-popover__badge mono" id="sat-audio-state-badge">Tắt</span>
+              </div>
+              <div class="mic-popover__body">
+                <div class="mic-gain-row">
+                  <div class="mic-gain-label-row">
+                    <span class="mic-gain-label">Âm lượng riêng Vệ tinh</span>
+                    <span class="mic-gain-num mono" id="sat-vol-num">100%</span>
+                  </div>
+                  <input type="range" class="custom-slider" id="s-sat-local-vol" min="0" max="1.5" step="0.05" value="1.0" aria-label="Âm lượng Loa Vệ tinh" />
+                </div>
+                <div class="mic-gain-row">
+                  <div class="mic-gain-label-row">
+                    <span class="mic-gain-label">Vi chỉnh đồng pha · <small class="mono" id="sat-ntp-rtt-badge">NTP Auto</small></span>
+                    <span class="mic-gain-num mono" id="sat-lat-num">0ms</span>
+                  </div>
+                  <input type="range" class="custom-slider" id="s-sat-local-lat" min="-50" max="50" step="2" value="0" aria-label="Vi chỉnh đồng pha âm thanh vệ tinh" />
+                </div>
+                <button type="button" class="btn-mic-toggle" id="btn-sat-audio-switch">
+                  <span class="mic-toggle-dot" aria-hidden="true"></span>
+                  <span id="sat-audio-switch-text">Bật Loa Vệ tinh</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ambient Realtime Synced Lyrics Overlay -->
+          <div class="ambient-lyrics" id="ambient-lyrics" aria-live="off" hidden>
+            <p class="ambient-lyrics__prev" id="lyric-line-prev"></p>
+            <p class="ambient-lyrics__cur" id="lyric-line-cur"></p>
+            <p class="ambient-lyrics__next" id="lyric-line-next"></p>
+          </div>
         </div>
 
         <p class="next" id="next-info" aria-live="polite"></p>
 
         <div class="deck" role="group" aria-label="Điều khiển phát">
-          <button
-            type="button"
-            class="deck__btn deck__lock"
+          <div class="deck__row deck__row--primary">
+            <button
+              type="button"
+              class="deck__btn deck__lock"
             id="btn-lock"
             title="Khoá lặp bài này mãi (L)"
             aria-pressed="false"
@@ -425,6 +639,22 @@
             </svg>
             <span>Bài khác</span>
           </button>
+          <button
+            type="button"
+            class="deck__btn"
+            id="btn-kho"
+            title="Sang kho / playlist khác (K)"
+            aria-pressed="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 9 12 4.5 20.5 9 12 13.5z" />
+              <path d="M3.5 13 12 17.5 20.5 13" />
+              <path d="M3.5 17 12 21.5 20.5 17" opacity=".55" />
+            </svg>
+            <span>Kho / PL</span>
+          </button>
+        </div>
+        <div class="deck__row deck__row--secondary">
           <button
             type="button"
             class="deck__btn deck__record"
@@ -511,20 +741,6 @@
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            class="deck__btn"
-            id="btn-kho"
-            title="Sang kho / playlist khác (K)"
-            aria-pressed="false"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3.5 9 12 4.5 20.5 9 12 13.5z" />
-              <path d="M3.5 13 12 17.5 20.5 13" />
-              <path d="M3.5 17 12 21.5 20.5 17" opacity=".55" />
-            </svg>
-            <span>Kho / PL</span>
-          </button>
           <div class="deck__timer-wrap">
             <button
               type="button"
@@ -705,12 +921,27 @@
             <em id="v-vol" class="mono"></em>
           </div>
         </div>
+      </div>
 
         <ol
           class="setlist"
           id="history"
           aria-label="Các bài đã phát trong phiên này"
         ></ol>
+        <button
+          type="button"
+          class="btn-setlist-pill"
+          id="btn-export-setlist"
+          title="Xem và xuất danh sách Setlist / M3U8 đã phát (X)"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span>Xuất Setlist</span>
+        </button>
       </section>
 
       <aside class="panel" id="panel" aria-label="Thư viện và tinh chỉnh">
@@ -747,6 +978,18 @@
               <span>Tinh chỉnh</span>
             </button>
           </div>
+          <button
+            type="button"
+            class="btn-panel-collapse"
+            id="btn-panel-collapse"
+            title="Thu gọn bảng điều khiển (B / \)"
+            aria-label="Thu gọn bảng điều khiển"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="13 17 18 12 13 7" />
+              <polyline points="6 17 11 12 6 7" />
+            </svg>
+          </button>
         </div>
 
         <div id="tab-library" class="tab on" role="tabpanel">
@@ -815,7 +1058,7 @@
           <div id="search-results" class="results" aria-live="polite"></div>
           <p id="worker" class="worker" aria-live="polite"></p>
           <div class="shelf-head">
-            <h2 class="label">Các vòng trong thư viện</h2>
+            <h2 class="label">Kho bài</h2>
             <div class="shelf-head__actions">
               <span id="lib-count" class="mono"></span>
               <button type="button" class="btn-create-pl" id="btn-batch-toggle" title="Chọn nhiều bài để quản lý theo lô">
@@ -1075,6 +1318,26 @@
               <input id="s-glow" type="range" min="0" max="2" step="0.05" value="1" />
               <small>Chỉnh độ rực rỡ neon của nút bấm, viền và ánh sáng phòng</small>
             </label>
+            <fieldset class="choices" style="margin-top: var(--space-2)">
+              <label class="choice">
+                <input id="s-beat-pulse" type="checkbox" checked />
+                <span><b>Nhịp đập theo nhạc</b>vòng vô cực co giãn theo từng phách và âm trầm</span>
+              </label>
+              <label class="choice">
+                <input id="s-lyrics" type="checkbox" checked />
+                <span><b>Lời bài hát đồng bộ (LRCLIB)</b>hiển thị câu hát chạy theo từng phách nhảy trên sân khấu &amp; vệ tinh (Phím tắt: C)</span>
+              </label>
+            </fieldset>
+            <div class="settings-quick-actions" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: var(--space-2);">
+              <button type="button" class="btn-create-pl" id="btn-open-lyrics-editor" title="Xem hoặc dán lời bài hát LRC cho bài đang phát">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <span>Chỉnh lời bài hát (LRC)</span>
+              </button>
+              <button type="button" class="btn-create-pl" id="btn-open-setlist-modal" title="Xuất danh sách Setlist & M3U8 các bài đã phát trong phiên (Phím tắt: X)">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Xuất Setlist / M3U8</span>
+              </button>
+            </div>
           </section>
 
           <section class="group" aria-labelledby="g-size">
@@ -1482,7 +1745,7 @@
 
           <div class="settings-app-info">
             <span class="settings-app-info__name">Meikova Loop</span>
-            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.29</span>
+            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.30</span>
           </div>
         </div>
 
@@ -1761,11 +2024,11 @@
         <div class="platform-tabs" role="tablist" aria-label="Hướng dẫn cài đặt theo nền tảng">
           <button type="button" class="platform-tab is-active" data-platform-tab="desktop" role="tab" aria-selected="true">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            <span>Máy tính (Desktop)</span>
+            <span>Máy tính <small class="platform-tab__sub">(Desktop)</small></span>
           </button>
           <button type="button" class="platform-tab" data-platform-tab="ios" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.84.94-2.91-1 .04-2.18.67-2.88 1.49-.6.69-1.13 1.79-.99 2.85 1.11.09 2.24-.59 2.93-1.43z"/></svg>
-            <span>iOS (iPhone / iPad)</span>
+            <span>iOS <small class="platform-tab__sub">(iPhone / iPad)</small></span>
           </button>
           <button type="button" class="platform-tab" data-platform-tab="android" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4111 13.8533 8.0805 12 8.0805c-1.8534 0-3.5902.3306-5.1368.8692L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
@@ -1917,6 +2180,10 @@
               <dd>Khóa lặp bài (Loop Lock)</dd>
             </div>
             <div class="shortcut-row">
+              <dt><kbd>B</kbd> / <kbd>\</kbd></dt>
+              <dd>Thu gọn / Mở bảng điều khiển</dd>
+            </div>
+            <div class="shortcut-row">
               <dt><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></dt>
               <dd>Chế độ Chuỗi / Đơn / Tự do</dd>
             </div>
@@ -1945,6 +2212,18 @@
             <div class="shortcut-row">
               <dt><kbd>F</kbd></dt>
               <dd>Toàn màn hình Visualizer (Zen)</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>R</kbd></dt>
+              <dd>Thu âm Live Mix</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>C</kbd></dt>
+              <dd>Bật / Tắt lời bài hát đồng bộ</dd>
+            </div>
+            <div class="shortcut-row">
+              <dt><kbd>X</kbd></dt>
+              <dd>Xuất Setlist / M3U8 phiên nghe</dd>
             </div>
             <div class="shortcut-row">
               <dt><kbd>Esc</kbd></dt>
@@ -2206,6 +2485,319 @@
       </div>
     </dialog>
 
+    <!-- Modal: Meikova Continuum Stage & Light Sync -->
+    <dialog class="consent stage-sync-modal" id="modalStageSync" aria-labelledby="modalStageSyncTitle">
+        <div class="tunnel-modal__head">
+          <div class="tunnel-modal__title-wrap">
+            <div class="tunnel-modal__icon-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41"/>
+              </svg>
+            </div>
+            <div class="tunnel-modal__headings">
+              <h2 id="modalStageSyncTitle">Đồng bộ Ánh sáng &amp; Vệ tinh</h2>
+              <span class="tunnel-modal__subtitle mono">MEIKOVA CONTINUUM // SATELLITE &amp; LIGHTS</span>
+            </div>
+          </div>
+          <button type="button" class="tunnel-modal__close" id="btnCloseStageSync" aria-label="Đóng" title="Đóng">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="sync-tab-nav">
+          <button type="button" class="sync-tab-btn is-active" id="tab-btn-sat">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            <span>Màn hình Vệ tinh</span>
+          </button>
+          <button type="button" class="sync-tab-btn" id="tab-btn-lights">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6m-4 4h2M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"/></svg>
+            <span>Đèn &amp; <small class="sync-tab__sub">Bàn phím </small>RGB</span>
+          </button>
+        </div>
+
+        <!-- Tab 1: Satellite Screen -->
+        <div class="sync-tab-pane" id="pane-sat">
+          <div class="mobile-modal__qr-card sync-qr-card">
+            <div class="mobile-modal__qr-frame">
+              <img id="sync-qr-img" src="" alt="Mã QR Màn hình Vệ tinh" width="112" height="112" />
+            </div>
+            <div class="mobile-modal__qr-info">
+              <div class="mobile-modal__qr-heading">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                <strong>Quét mã kết nối Vệ tinh</strong>
+              </div>
+              <p class="mobile-modal__qr-desc">
+                Dùng điện thoại, iPad hoặc TV quét mã để biến thành màn hình ánh sáng 60 FPS hòa sắc theo từng nốt nhạc.
+              </p>
+              <div class="sync-telemetry-badge">
+                <span class="status-dot tunnel-dot tunnel-dot--running" aria-hidden="true"></span>
+                <span id="sync-sat-connected-status" class="mono">Thiết bị vệ tinh kết nối: 0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tunnel-field-label">SATELLITE URL</div>
+          <div class="tunnel-url-row">
+            <input type="text" id="sync-satellite-url-input" class="tunnel-url-input mono" readonly spellcheck="false" value="Đang tải URL..." />
+            <span id="sync-satellite-url" style="display:none;"></span>
+            <button type="button" class="btn-copy-pill" id="btn-copy-sat-url" title="Sao chép liên kết">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Sao chép</span>
+            </button>
+            <button type="button" class="btn-copy-pill" id="btn-open-sat-test" title="Mở thử trên tab mới">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>Mở thử</span>
+            </button>
+          </div>
+
+          <div class="sync-toggle-row" style="margin-top: 14px;">
+            <div class="sync-toggle-info">
+              <span class="sync-toggle-title">Cộng hưởng Âm thanh Vệ tinh (Multi-room Audio)</span>
+              <span class="sync-toggle-desc" id="sat-audio-status-desc">Truyền trực tiếp bản phối Live Mix (DJ Blend, EQ, Karaoke) sang loa thiết bị vệ tinh</span>
+            </div>
+            <button type="button" class="tunnel-toggle-switch" id="btn-toggle-sat-audio" aria-pressed="false" aria-label="Bật/Tắt truyền âm thanh sang vệ tinh">
+              <span class="switch-handle"></span>
+            </button>
+          </div>
+          <div class="sync-form-row" style="margin-top: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label class="sync-form-label" for="s-sat-latency" style="margin: 0;">Bù trễ đồng pha loa chính &amp; vệ tinh <small class="sync-tab__sub">(Zero-Echo Align)</small>:</label>
+              <span class="mono" id="v-sat-latency" style="font-size: 12px; color: var(--accent);">45ms</span>
+            </div>
+            <input type="range" class="custom-slider" id="s-sat-latency" min="15" max="150" step="5" value="45" aria-label="Bù trễ đồng pha âm thanh" />
+          </div>
+        </div>
+
+        <!-- Tab 2: RGB Lights & Keyboard (100% Dynamic Discovery & Manual Connect) -->
+        <div class="sync-tab-pane" id="pane-lights" hidden>
+          <div class="lights-discovery-bar">
+            <div class="lights-discovery-meta">
+              <div class="lights-discovery-title-row">
+                <span class="sync-toggle-title">Thiết bị Ánh sáng &amp; RGB khả dụng</span>
+                <span class="lights-count-pill mono" id="lights-active-badge">0 thiết bị</span>
+              </div>
+              <span class="sync-toggle-desc" id="lights-discovery-sub">Tự động nhận diện phần cứng RGB trên máy &amp; đèn thông minh trong mạng LAN</span>
+            </div>
+            <button type="button" class="btn-copy-pill btn-scan-lights" id="btn-scan-lights" title="Quét lại phần cứng &amp; mạng LAN">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                <path d="M16 16h5v5"/>
+              </svg>
+              <span id="btn-scan-lights-text">Quét thiết bị</span>
+            </button>
+          </div>
+
+          <div class="lights-devices-list" id="lights-devices-list" role="region" aria-label="Danh sách thiết bị ánh sáng">
+            <!-- Dynamically populated by stage_sync.js from /api/lights/status -->
+          </div>
+
+          <div class="lights-manual-card">
+            <div class="lights-manual-head">
+              <div class="lights-manual-title-wrap">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>Kết nối thiết bị thủ công</span>
+              </div>
+              <span class="lights-manual-hint mono" id="lights-proto-hint">UDP DDP · Đa vùng</span>
+            </div>
+
+            <div class="lights-proto-pills" id="lights-proto-pills" role="radiogroup" aria-label="Giao thức thiết bị ánh sáng">
+              <button type="button" class="lights-proto-pill is-active" data-proto="wled_ddp" data-port="4048" data-leds="60" data-hint="WLED ESP32/ESP8266 · UDP DDP">WLED Wi-Fi</button>
+              <button type="button" class="lights-proto-pill" data-proto="openrgb" data-port="6742" data-leds="32" data-hint="OpenRGB SDK · Bàn phím / Chuột / Mainboard">OpenRGB SDK</button>
+              <button type="button" class="lights-proto-pill" data-proto="wiz_udp" data-port="38899" data-leds="1" data-hint="Đèn thông minh Philips WiZ · UDP 38899">Philips WiZ</button>
+              <button type="button" class="lights-proto-pill" data-proto="yeelight" data-port="55443" data-leds="1" data-hint="Đèn Yeelight / Xiaomi · LAN Control">Yeelight</button>
+              <button type="button" class="lights-proto-pill" data-proto="govee_lan" data-port="4003" data-leds="1" data-hint="Đèn Govee Wi-Fi · LAN API UDP 4003">Govee LAN</button>
+            </div>
+
+            <div class="lights-manual-grid">
+              <div class="lights-field lights-field--ip">
+                <label class="sync-form-label" for="input-wled-ip">Địa chỉ IP / Host</label>
+                <input type="text" class="sync-input mono" id="input-wled-ip" placeholder="192.168.1.50" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="lights-field lights-field--port">
+                <label class="sync-form-label" for="input-light-port">Cổng</label>
+                <input type="number" class="sync-input mono" id="input-light-port" value="4048" min="1" max="65535" />
+              </div>
+              <div class="lights-field lights-field--leds" id="field-light-leds">
+                <label class="sync-form-label" for="input-light-leds">Số LED</label>
+                <input type="number" class="sync-input mono" id="input-light-leds" value="60" min="1" max="2000" />
+              </div>
+              <div class="lights-field lights-field--name">
+                <label class="sync-form-label" for="input-light-name">Tên gợi nhớ (tùy chọn)</label>
+                <input type="text" class="sync-input" id="input-light-name" placeholder="Ví dụ: LED bàn làm việc, Phím cơ..." autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="lights-field lights-field--action">
+                <button type="button" class="btn-add-light-device" id="btn-add-light-device">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12h14"/><path d="M12 5v14"/>
+                  </svg>
+                  <span>Kết nối</span>
+                </button>
+              </div>
+            </div>
+            <div class="lights-manual-feedback" id="lights-manual-feedback" hidden></div>
+          </div>
+
+          <div class="sync-color-test-section">
+            <span class="sync-form-label">Thử nghiệm nhấp nháy màu đèn trên các thiết bị đang bật:</span>
+            <div class="color-test-group">
+              <button type="button" class="color-pill-btn" data-color="255,50,50"><span class="color-dot-indicator" style="background:#ef4444; color:#ef4444;"></span> Đỏ</button>
+              <button type="button" class="color-pill-btn" data-color="50,220,100"><span class="color-dot-indicator" style="background:#10b981; color:#10b981;"></span> Lục</button>
+              <button type="button" class="color-pill-btn" data-color="50,150,255"><span class="color-dot-indicator" style="background:#3b82f6; color:#3b82f6;"></span> Lam</button>
+              <button type="button" class="color-pill-btn" data-color="255,140,40"><span class="color-dot-indicator" style="background:#f59e0b; color:#f59e0b;"></span> Cam</button>
+              <button type="button" class="color-pill-btn" data-color="200,80,255"><span class="color-dot-indicator" style="background:#a855f7; color:#a855f7;"></span> Tím</button>
+            </div>
+          </div>
+        </div>
+      </dialog>
+
+    <!-- Modal: Meikova Cluster Link (PartyBoost & Stereo Pair Multi-Speaker System) -->
+    <dialog class="consent stage-sync-modal cluster-link-modal" id="modalClusterLink" aria-labelledby="modalClusterLinkTitle">
+      <div class="tunnel-modal__head">
+        <div class="tunnel-modal__title-wrap">
+          <div class="tunnel-modal__icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="7" height="16" rx="1.8"/>
+              <rect x="14" y="4" width="7" height="16" rx="1.8"/>
+              <circle cx="6.5" cy="14.5" r="1.5"/>
+              <circle cx="17.5" cy="14.5" r="1.5"/>
+              <path d="M10 9h4M10 15h4"/>
+            </svg>
+          </div>
+          <div class="tunnel-modal__headings">
+            <h2 id="modalClusterLinkTitle">Liên kết Cụm Loa (PartyBoost)</h2>
+            <span class="tunnel-modal__subtitle mono">MEIKOVA CLUSTER LINK // MULTI-SPEAKER MESH</span>
+          </div>
+        </div>
+        <button type="button" class="tunnel-modal__close" id="btnCloseClusterLink" aria-label="Đóng" title="Đóng">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="sync-tab-pane cluster-modal-body">
+        <!-- Master Cluster Enable Switch -->
+        <div class="sync-toggle-row cluster-hero-card">
+          <div class="sync-toggle-info">
+            <div class="lights-discovery-title-row">
+              <span class="sync-toggle-title">Hợp nhất thành Hệ thống Cụm Loa</span>
+              <span class="lights-count-pill mono" id="cluster-modal-status-pill">Độc lập từng máy</span>
+            </div>
+            <span class="sync-toggle-desc">Khi tắt, các máy phát nhạc độc lập. Khi bật, toàn bộ thiết bị trong cụm phát đồng bộ tuyệt đối (Zero-Echo NTP Sync) từ máy Chủ tọa.</span>
+          </div>
+          <button type="button" class="tunnel-toggle-switch" id="btn-cluster-master-toggle" aria-pressed="false" aria-label="Bật/Tắt Hợp nhất Cụm Loa">
+            <span class="switch-handle"></span>
+          </button>
+        </div>
+
+        <!-- Remote Server Bridge Indicator (when connected to another MashLoop server on LAN) -->
+        <div class="cluster-remote-bridge-bar" id="cluster-remote-bridge-bar" hidden>
+          <span class="mono" id="cluster-remote-bridge-text">Đang nối trực tiếp tới Cụm Loa LAN</span>
+          <button type="button" class="btn-copy-pill" id="btn-disconnect-remote-bridge">Ngắt về máy này</button>
+        </div>
+
+        <!-- Acoustic Mode Selector: Party Mode (All Stereo) vs Stereo Pair (Left / Right) -->
+        <div class="cluster-mode-switch" role="radiogroup" aria-label="Chế độ âm thanh Cụm Loa">
+          <button type="button" class="cluster-mode-card is-active" id="btn-cluster-mode-party" aria-pressed="true">
+            <div class="cluster-mode-card__head">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+              </svg>
+              <strong>Chế độ Tiệc tùng (Party Stereo)</strong>
+            </div>
+            <span class="cluster-mode-card__desc">Tất cả các máy cùng phát đầy đủ 2 kênh Stereo (L+R) cộng hưởng công suất lớn.</span>
+          </button>
+          <button type="button" class="cluster-mode-card" id="btn-cluster-mode-stereo" aria-pressed="false">
+            <div class="cluster-mode-card__head">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="4" width="8" height="16" rx="1.8"/>
+                <rect x="14" y="4" width="8" height="16" rx="1.8"/>
+                <circle cx="6" cy="14" r="1.5"/>
+                <circle cx="18" cy="14" r="1.5"/>
+              </svg>
+              <strong>Ghép đôi Trái / Phải (Stereo Pair)</strong>
+            </div>
+            <span class="cluster-mode-card__desc">Tách kênh âm thanh vòm thực thụ: Máy 1 phát kênh Trái (L), Máy 2 phát kênh Phải (R).</span>
+          </button>
+        </div>
+
+        <!-- Master Volume & Zero-Echo Acoustic Alignment -->
+        <div class="cluster-sliders-grid">
+          <div class="sync-form-row">
+            <div class="cluster-slider-head">
+              <label class="sync-form-label" for="s-cluster-master-vol">Âm lượng Tổng toàn Cụm</label>
+              <span class="mono" id="v-cluster-master-vol" style="font-size: 12px; color: var(--accent);">100%</span>
+            </div>
+            <input type="range" class="custom-slider" id="s-cluster-master-vol" min="0" max="1.5" step="0.05" value="1.0" aria-label="Âm lượng tổng toàn cụm" />
+          </div>
+          <div class="sync-form-row">
+            <div class="cluster-slider-head">
+              <label class="sync-form-label" for="s-cluster-align-ms">Đồng pha Âm học (Zero-Echo)</label>
+              <span class="mono" id="v-cluster-align-ms" style="font-size: 12px; color: var(--accent);">45ms</span>
+            </div>
+            <input type="range" class="custom-slider" id="s-cluster-align-ms" min="15" max="150" step="5" value="45" aria-label="Bù trễ đồng pha loa chính" />
+          </div>
+        </div>
+
+        <!-- Device Name Customization -->
+        <div class="cluster-identity-row">
+          <label class="sync-form-label" for="input-cluster-device-name">Tên định danh loa của máy này:</label>
+          <div class="cluster-identity-input-wrap">
+            <input type="text" class="sync-input" id="input-cluster-device-name" placeholder="Ví dụ: Loa bàn DJ, Laptop Phòng khách..." maxlength="48" autocomplete="off" spellcheck="false" />
+            <button type="button" class="btn-copy-pill" id="btn-save-cluster-name">Đổi tên</button>
+          </div>
+        </div>
+
+        <!-- Connected Speakers Roster -->
+        <div class="lights-discovery-bar" style="margin-top: 4px;">
+          <div class="lights-discovery-meta">
+            <div class="lights-discovery-title-row">
+              <span class="sync-toggle-title">Danh sách Loa &amp; Trạm phát kết nối</span>
+              <span class="lights-count-pill mono" id="cluster-nodes-count-badge">0/0 trong cụm</span>
+            </div>
+            <span class="sync-toggle-desc">Tùy chỉnh kênh Trái (L) / Stereo / Phải (R), âm lượng riêng hoặc nhường quyền Chủ tọa cho từng máy</span>
+          </div>
+        </div>
+
+        <div class="lights-devices-list cluster-nodes-list" id="cluster-nodes-list" role="region" aria-label="Danh sách các loa trong cụm">
+          <!-- Populated dynamically by stage_sync.js -->
+        </div>
+
+        <!-- Multi-Server LAN Discovery & Manual IP Link (Scenario B) -->
+        <div class="lights-manual-card cluster-lan-card">
+          <div class="lights-manual-head">
+            <div class="lights-manual-title-wrap">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M3.6 9h16.8M3.6 15h16.8"/>
+              </svg>
+              <span>Liên kết Máy chủ MashLoop độc lập khác trong LAN</span>
+            </div>
+            <span class="lights-manual-hint mono">UDP 8766 · Multi-Backend</span>
+          </div>
+          <div class="cluster-lan-peers-list" id="cluster-lan-peers-list">
+            <div class="cluster-lan-empty">Đang dò tìm các máy chủ MashLoop khác trong mạng nội bộ...</div>
+          </div>
+          <div class="cluster-manual-peer-row">
+            <input type="text" class="sync-input mono" id="input-cluster-peer-ip" placeholder="Nhập IP:Port máy chính (ví dụ: 192.168.1.25:8765)" autocomplete="off" spellcheck="false" />
+            <button type="button" class="btn-add-light-device" id="btn-add-cluster-peer">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12h14"/><path d="M12 5v14"/>
+              </svg>
+              <span>Nối Cụm</span>
+            </button>
+          </div>
+          <div class="lights-manual-feedback" id="cluster-peer-feedback" hidden></div>
+        </div>
+      </div>
+    </dialog>
+
     <!-- Modal: Cloudflare Quick Tunnel (Multiplatform One-Click WAN) -->
     <dialog class="consent tunnel-modal" id="modalTunnel" aria-labelledby="modalTunnelTitle">
       <div class="tunnel-modal__head">
@@ -2390,14 +2982,124 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=100"></script>
+    <!-- Setlist & M3U8 Session Exporter Modal -->
+    <dialog class="consent record-modal" id="modal-setlist-export" aria-labelledby="modal-setlist-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <div class="mobile-modal__icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </div>
+          <div class="mobile-modal__headings">
+            <h2 id="modal-setlist-title" class="mobile-modal__title">Danh sách Setlist Phiên nghe</h2>
+            <span class="mobile-modal__subtitle mono">LIVE DJ SETLIST // TRACKLIST &amp; M3U8</span>
+          </div>
+        </div>
+        <button type="button" class="mobile-modal__close" id="btn-close-setlist-modal" aria-label="Đóng (Esc)" title="Đóng (Esc)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="record-modal__body">
+        <div class="record-meta-row">
+          <div class="record-meta-item">
+            <span class="record-meta-label">Bài đã phát</span>
+            <span class="record-meta-val mono" id="setlist-stat-count">0</span>
+          </div>
+          <div class="record-meta-item">
+            <span class="record-meta-label">Thời lượng phiên</span>
+            <span class="record-meta-val mono" id="setlist-stat-duration">00:00</span>
+          </div>
+          <div class="record-meta-item">
+            <span class="record-meta-label">Nhảy / Chuyển</span>
+            <span class="record-meta-val mono" id="setlist-stat-jumps">0 / 0</span>
+          </div>
+        </div>
+
+        <div class="record-tracklist-wrap">
+          <div class="record-tracklist-head">
+            <span class="record-tracklist-title">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity: 0.7;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Nhật ký Setlist &amp; Điểm nối DJ</span>
+            </span>
+            <button type="button" class="btn-copy-pill" id="btn-copy-setlist">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Sao chép</span>
+            </button>
+          </div>
+          <textarea id="setlist-preview-text" class="record-tracklist-area mono" readonly rows="7" spellcheck="false"></textarea>
+        </div>
+
+        <div class="record-actions-row">
+          <button type="button" id="btn-dl-setlist-txt" class="btn-rec-action btn-rec-action--primary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Tải Tracklist (.txt)</span>
+          </button>
+          <button type="button" id="btn-dl-setlist-m3u" class="btn-rec-action btn-rec-action--secondary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Tải Playlist (.m3u8)</span>
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Synced Lyrics LRC Editor Modal -->
+    <dialog class="consent record-modal" id="modal-lyrics-editor" aria-labelledby="modal-lyrics-title">
+      <div class="mobile-modal__head">
+        <div class="mobile-modal__title-wrap">
+          <div class="mobile-modal__icon-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+          </div>
+          <div class="mobile-modal__headings">
+            <h2 id="modal-lyrics-title" class="mobile-modal__title">Lời bài hát Đồng bộ (LRC)</h2>
+            <span class="mobile-modal__subtitle mono" id="modal-lyrics-subtitle">AMBIENT SYNCED LYRICS // LRCLIB</span>
+          </div>
+        </div>
+        <button type="button" class="mobile-modal__close" id="btn-close-lyrics-modal" aria-label="Đóng (Esc)" title="Đóng (Esc)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="record-modal__body">
+        <div class="record-tracklist-wrap">
+          <div class="record-tracklist-head">
+            <span class="record-tracklist-title">
+              <span>Định dạng chuẩn <code>[mm:ss.xx]</code> hoặc văn bản thường</span>
+            </span>
+            <button type="button" class="btn-copy-pill" id="btn-refetch-lyrics" title="Tự động tìm lại trên LRCLIB">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <span>Tìm tự động</span>
+            </button>
+          </div>
+          <textarea id="lyrics-editor-textarea" class="record-tracklist-area mono" rows="8" spellcheck="false" placeholder="[00:12.50] Dòng lời bài hát đầu tiên...&#10;[00:16.20] Dòng lời bài hát tiếp theo..."></textarea>
+        </div>
+
+        <div class="record-actions-row">
+          <button type="button" id="btn-save-lyrics" class="btn-rec-action btn-rec-action--primary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Lưu &amp; Áp dụng lời</span>
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <script type="module" src="js/main.js?v=175"></script>
     <script>
+      if ("caches" in window) {
+        caches.keys().then((keys) => {
+          keys.filter((k) => k !== "meikova-loop-v175").forEach((k) => caches.delete(k));
+        }).catch(() => {});
+      }
       if (
         "serviceWorker" in navigator &&
         location.protocol.startsWith("http")
       ) {
+        let swRefreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (!swRefreshing) {
+            swRefreshing = true;
+            location.reload();
+          }
+        });
         navigator.serviceWorker
-          .register("sw.js?v=84")
+          .register("sw.js?v=175", { updateViaCache: "none" })
           .then((reg) => {
             reg.update();
           })

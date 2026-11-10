@@ -118,6 +118,15 @@ export function setTheme(name) {
 // dance songs would otherwise come out as one red. Each axis is mostly the
 // song's rank in the library, partly its absolute value, so a lone ballad still
 // reads calm next to a room of funk.
+export function registerMood(id, mood) {
+  if (!id || !mood || !Number.isFinite(mood.energy) || !Number.isFinite(mood.valence)) return false;
+  if (moods.has(id)) return false; // Retain library rank if already calculated
+  moods.set(id, { energy: mood.energy, valence: mood.valence });
+  version++;
+  cache.clear();
+  return true;
+}
+
 export function setMoods(metas) {
   const list = metas.filter((m) => m.mood && Number.isFinite(m.mood.energy) && Number.isFinite(m.mood.valence));
   const rank = (key) => {
@@ -166,8 +175,12 @@ function wheel(deg) {
   return WHEEL[0][1];
 }
 
-export function moodColor(id) {
-  const m = moods.get(id);
+export function moodColor(id, fallbackMood = null) {
+  let m = moods.get(id);
+  if (!m && fallbackMood) {
+    registerMood(id, fallbackMood);
+    m = moods.get(id);
+  }
   if (!m) return { l: 0.78, c: 0.11, h: hashHue(id) };
   const dx = m.valence - 0.5, dy = m.energy - 0.5;
   const deg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
@@ -177,55 +190,57 @@ export function moodColor(id) {
 
 // The colour a song stands for wherever it appears: its loop, the dots that
 // lead to it, its link in the setlist.
-export function songColor(id) {
-  const k = `s:${id}`;
-  if (cache.has(k)) return cache.get(k);
+export function songColor(id, fallbackMood = null) {
+  if (fallbackMood && !moods.has(id)) registerMood(id, fallbackMood);
+  const isKnown = moods.has(id);
+  const k = `s:${id}:${current}.${version}`;
+  if (isKnown && cache.has(k)) return cache.get(k);
   let col;
   if (current === "amber") col = { l: 0.72, c: 0.13, h: hashHue(id) };
-  else if (current === "neon") col = { ...moodColor(id), l: 0.74, c: 0.24 };
+  else if (current === "neon") col = { ...moodColor(id, fallbackMood), l: 0.74, c: 0.24 };
   else if (current === "cyberpunk") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.76, c: 0.22, h: base.h < 180 ? 195 : 320 };
   } else if (current === "synthwave") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.75, c: 0.23, h: base.h < 180 ? 305 : 185 };
   } else if (current === "aurora") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.78, c: 0.17, h: 135 + ((base.h % 120)) };
   } else if (current === "emerald") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.75, c: 0.18, h: 130 + ((base.h % 55)) };
   } else if (current === "ocean") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.72, c: 0.19, h: 210 + ((base.h % 50)) };
   } else if (current === "sunset") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.76, c: 0.21, h: base.h < 180 ? 30 : 335 };
   } else if (current === "magma") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.70, c: 0.23, h: 18 + ((base.h % 35)) };
   } else if (current === "solar") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.82, c: 0.19, h: 55 + ((base.h % 35)) };
   } else if (current === "arctic") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.82, c: 0.13, h: 190 + ((base.h % 45)) };
   } else if (current === "midnight") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.65, c: 0.14, h: 255 + ((base.h % 40)) };
   } else if (current === "tokyo") {
-    const base = moodColor(id);
+    const base = moodColor(id, fallbackMood);
     col = { l: 0.76, c: 0.24, h: base.h < 180 ? 340 : 190 };
-  } else col = moodColor(id);
+  } else col = moodColor(id, fallbackMood);
   col = fit(col);
-  cache.set(k, col);
+  if (isKnown) cache.set(k, col);
   return col;
 }
 
 // The colour the interface takes while this song plays.
-export function accentOf(id) {
+export function accentOf(id, fallbackMood = null) {
   if (!id) return idleAccent();
-  return current === "amber" ? AMBER : songColor(id);
+  return current === "amber" ? AMBER : songColor(id, fallbackMood);
 }
 
 export function idleAccent() {
@@ -247,12 +262,14 @@ export function idleAccent() {
 // A song's beats keep the timbre colouring of the original Infinite Jukebox
 // (beats that sound alike look alike), folded into the song's own range of
 // hues instead of the whole rainbow: each loop is one colour world.
-export function beatColors(id, hexes) {
+export function beatColors(id, hexes, fallbackMood = null, forcedBase = null) {
   const th = THEMES[current];
   if (th.beatSpread == null) return hexes;
-  const k = `b:${id}:${hexes.length}`;
-  if (cache.has(k)) return cache.get(k);
-  const base = songColor(id);
+  if (fallbackMood && !moods.has(id)) registerMood(id, fallbackMood);
+  const isKnown = moods.has(id);
+  const k = `b:${id}:${hexes.length}:${current}.${version}${forcedBase ? `:${forcedBase.h.toFixed(1)}` : ""}`;
+  if (isKnown && !forcedBase && cache.has(k)) return cache.get(k);
+  const base = forcedBase || songColor(id, fallbackMood);
   const out = hexes.map((hex) => {
     const n = parseInt(hex.slice(1), 16);
     const u = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.max(0, Math.min(1, (v / 255 - 0.25) / 0.75)));
@@ -262,7 +279,7 @@ export function beatColors(id, hexes) {
       h: base.h + (u[0] - 0.5) * th.beatSpread,
     });
   });
-  cache.set(k, out);
+  if (isKnown && !forcedBase) cache.set(k, out);
   return out;
 }
 

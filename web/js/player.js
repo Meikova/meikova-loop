@@ -15,7 +15,8 @@ const LOAD_LEAD = 3; // seconds needed to fetch and decode a song that is not pr
 // Seconds a transition needing more than the next song's audio (vocal stems, a
 // key-locked voice) must be planned ahead, to have them ready in time.
 const PREP_LEAD = 5;
-const PREFETCH_LEAD = 20; // start loading likely next songs this long before leaving is allowed
+const IS_MOBILE = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
+const PREFETCH_LEAD = IS_MOBILE ? 20 : 28; // start loading likely next songs earlier on Desktop before leaving is allowed
 // Smooth hand-overs first: beat-matched moves, then long filtered crossfades
 // and echoes, then the accents (build-up, flanger, a beat of silence); the
 // abrupt effects (brake, roll, spinback, gate) last and off by default.
@@ -245,11 +246,16 @@ export class Player extends EventTarget {
     this._startSeq = 0;
     this._pauseTransition = false;
     this.vocalMode = "full";
+    this.sessionSetlist = [];
+    this.sessionStats = { jumps: 0, transitions: 0, startedWall: 0 };
+    this._failedTrackUntil = new Map();
+    this._slowTrackUntil = new Map();
     this.engine._onExternalPause = async () => {
       await this.pause();
     };
     this.engine._onExternalPlay = async () => {
-      if (this.userPaused) {
+      // Never auto-play if the user explicitly paused!
+      if (!this.userPaused && !this.playing && this.cur) {
         await this.play();
       }
     };
@@ -292,10 +298,14 @@ export class Player extends EventTarget {
 
   async start(trackId) {
     const seq = ++this._startSeq;
+    this._loadingTrackId = trackId;
+    this._failedTrackUntil?.delete(trackId);
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.plan) this._dropPlan();
+    this.prefetchIds = [];
     this.engine.stopAll(0.04);
     this.userPaused = true;
     this.dispatchEvent(new Event("state"));
@@ -303,8 +313,13 @@ export class Player extends EventTarget {
     let track;
     try {
       track = await this.loader.get(trackId);
+      if (!track?.buffer) {
+        this.loader.drop?.(trackId);
+        track = await this.loader.get(trackId);
+      }
     } catch (e) {
       if (seq === this._startSeq) {
+        this._loadingTrackId = null;
         this.dispatchEvent(new Event("state"));
       }
       throw e;
@@ -314,38 +329,47 @@ export class Player extends EventTarget {
       return;
     }
 
-    this.engine.stopAll(0.01);
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-    this.reset();
-    this.userPaused = false;
-    this.engine.startAnchor();
-
-    if (this.engine.ctx.state === "suspended") {
+    if (this.engine.ctx.state !== "running") {
       await this.engine.ctx.resume().catch(() => {});
     }
 
     if (seq !== this._startSeq) {
-      this.engine.stopAll(0.01);
       return;
     }
 
-    if (this.engine.targetVol != null) {
-      this.engine.setVolume(this.engine.targetVol);
+    this._switchingTrack = track;
+    try {
+      this.engine.stopAll(0.01);
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+      this.reset();
+      this.userPaused = false;
+      this.engine.startAnchor();
+
+      if (this.engine.targetVol != null) {
+        this.engine.setVolume(this.engine.targetVol);
+      }
+      const t = this.engine.now + 0.12;
+      this.stats.startedAt = t;
+      const voice = this.engine.voice(track);
+      voice.start(t, track.beats[0], 1, 0.01);
+      this.cur = { track, beat: 0, rate: 1, voice };
+      this._enterTrack(track, t, "start");
+      this._log(t, "start");
+      this.nextTime = t + track.dur[0];
+      this.timer = setInterval(() => this._tick(), TICK_MS);
+      this._tick();
+      this.dispatchEvent(new Event("state"));
+    } finally {
+      if (seq === this._startSeq) {
+        this._loadingTrackId = null;
+      }
+      if (this._switchingTrack === track) {
+        this._switchingTrack = null;
+      }
     }
-    const t = this.engine.now + 0.15;
-    this.stats.startedAt = t;
-    const voice = this.engine.voice(track);
-    voice.start(t, track.beats[0], 1, 0.01);
-    this.cur = { track, beat: 0, rate: 1, voice };
-    this._enterTrack(track, t, "start");
-    this._log(t, "start");
-    this.nextTime = t + track.dur[0];
-    this.timer = setInterval(() => this._tick(), TICK_MS);
-    this._tick();
-    this.dispatchEvent(new Event("state"));
   }
 
   async pause() {
@@ -353,6 +377,16 @@ export class Player extends EventTarget {
     this._pauseTransition = true;
     try {
       this.userPaused = true;
+      if (this.blend) {
+        this.blend = null;
+      }
+      if (this.fx) {
+        this.fx = null;
+      }
+      this.ramp = null;
+      this.pitchRamp = null;
+      this.hold = 1;
+      this.cur.rate = 1;
       this.engine.stopAnchor();
       this.engine.stopAll(0.05);
       this.dispatchEvent(new Event("state"));
@@ -367,8 +401,12 @@ export class Player extends EventTarget {
     try {
       this.userPaused = false;
       this.engine.startAnchor();
-      if (this.engine.ctx.state === "suspended") {
+      if (this.engine.ctx.state !== "running") {
         await this.engine.ctx.resume().catch(() => {});
+      }
+      if (!this.cur.track?.buffer) {
+        this.loader.drop?.(this.cur.track.id);
+        this.cur.track = await this.loader.get(this.cur.track.id);
       }
       if (this.engine.targetVol != null) {
         this.engine.setVolume(this.engine.targetVol);
@@ -380,6 +418,9 @@ export class Player extends EventTarget {
       const voice = this.engine.voice(this.cur.track);
       voice.start(t, this.cur.track.beats[beat], rate, 0.03);
       this.cur.voice = voice;
+      if (!this.timer) {
+        this.timer = setInterval(() => this._tick(), TICK_MS);
+      }
 
       this.dispatchEvent(new Event("state"));
     } finally {
@@ -549,7 +590,7 @@ export class Player extends EventTarget {
 
   requestNextSong() {
     if (!this.cur || this.blend || this.fx) return;
-    this.plan = null;
+    if (this.plan) this._dropPlan();
     this.urgent = true;
     this._prefetch(true);
   }
@@ -568,7 +609,7 @@ export class Player extends EventTarget {
         if (ok) return true;
       }
     }
-    this.plan = null;
+    if (this.plan) this._dropPlan();
     this.urgent = true;
     this._prefetch(true);
     this._planExit(this.engine.audibleTime());
@@ -660,8 +701,8 @@ export class Player extends EventTarget {
       prev.voice.stopAt(t + secs + 0.05);
     }
 
+    if (this.plan) this._dropPlan();
     this.cur = { track: targetTrack, beat: 0, rate: 1, voice: v };
-    this.plan = null;
     this.urgent = false;
     this.ramp = null;
     this.hold = 1;
@@ -676,7 +717,11 @@ export class Player extends EventTarget {
   // ---------------------------------------------------------------- scheduling
 
   _tick() {
-    if (!this.cur || this.userPaused || this.engine.ctx.state !== "running") return;
+    if (!this.cur || this.userPaused) return;
+    if (this.engine.ctx.state !== "running") {
+      this.engine.ensureActive?.();
+      return;
+    }
     const horizon = this.engine.now + LOOKAHEAD;
     let guard = 0;
     while (this.nextTime < horizon && guard++ < 64) this._advance();
@@ -737,8 +782,10 @@ export class Player extends EventTarget {
     // and the playing one's for a tempo ramp that had not begun).
     this.plan?.stretch?.dispose();
     this.plan?.stretchA?.dispose();
+    const had = !!this.plan;
     this.plan = null;
     if (this.cur && Math.abs(this.cur.rate - 1) > 1e-3 && !this.blend && !this.fx) this._rampTo(1, BEND_BEATS);
+    if (had) this.dispatchEvent(new Event("plan"));
   }
 
   _decide(t) {
@@ -815,10 +862,12 @@ export class Player extends EventTarget {
       const trg = this._triggerOf(tr);
       const atTrigger = trg.arrive ? next === trg.node : i === trg.node;
       if (atTrigger) {
-        if (!plan.target || !plan.ready) {
+        if (!plan.target || !plan.target.buffer || !plan.ready) {
           // Next song (or its stems, or its key-locked voice) not ready in
-          // time: drop this exit; the next beat plans again and only considers
-          // songs that are ready or far enough away.
+          // time: apply a short cooldown so the next beat does not immediately
+          // re-pick the same unready trigger in a tight loop.
+          tr._cooldownUntil = Date.now() + 12_000;
+          if (!plan.target || !plan.target.buffer) this._slowTrackUntil.set(tr.to, Date.now() + 20_000);
           this._dropPlan();
         } else if (tr.type === "blend") {
           return { kind: "blendStart", track: T, beat: tr.a, rate: this._rate(), splice: routeJump !== undefined, shift: 0, tr };
@@ -943,17 +992,27 @@ export class Player extends EventTarget {
           this.cur = { ...prev, beat: step.beat, rate: step.rate, voice: v };
           break;
         }
-        if (prev.voice.stretched && !this.ramp && !this.pitchRamp && !this.blend && !prev.voice.semis
-          && Math.abs(step.rate - 1) < 1e-4) {
-          // The key-locked glide is over: a plain voice takes over the read
-          // head, crossfaded over 30 ms.
-          const x = 0.03;
-          const v = this.engine.voice(T);
-          v.shift = prev.voice.shift;
-          v.start(t - x / 2, T.beats[step.beat] + v.shift - x / 2, 1, x);
-          prev.voice.fadeOut(t - x / 2, x);
-          this.cur = { ...prev, beat: step.beat, rate: 1, voice: v };
-          break;
+        if (prev.voice.stretched && !this.blend) {
+          const readPos = T.beats[step.beat] + (prev.voice.shift || 0);
+          const outOfStretchSlice = prev.voice.stretch
+            && (readPos >= prev.voice.stretch.to - 0.6 || readPos < prev.voice.stretch.from);
+          const glideDone = !this.ramp && !this.pitchRamp
+            && Math.abs(prev.voice.semis || 0) < 1e-3
+            && Math.abs(step.rate - 1) < 1e-4;
+          if (glideDone || outOfStretchSlice) {
+            // The key-locked glide is over (or reached the end of its sliced buffer):
+            // a plain voice takes over the read head, crossfaded over 30 ms.
+            this.ramp = null;
+            this.pitchRamp = null;
+            prev.voice.semis = 0;
+            const x = 0.03;
+            const v = this.engine.voice(T);
+            v.shift = prev.voice.shift;
+            v.start(t - x / 2, T.beats[step.beat] + v.shift - x / 2, 1, x);
+            prev.voice.fadeOut(t - x / 2, x);
+            this.cur = { ...prev, beat: step.beat, rate: 1, voice: v };
+            break;
+          }
         }
         if (step.rate !== prev.rate || step.semis != null) {
           prev.voice.setRate(t, step.rate, T.beats[step.beat] + (prev.voice.shift || 0), step.semis);
@@ -976,11 +1035,14 @@ export class Player extends EventTarget {
         if (!step.forced) this.lastJumpAt = t;
         if (step.kind === "jump") {
           this.stats.jumps++;
+          this.sessionStats.jumps++;
           this._visits(T)[step.beat] += 1;
           this._log(t, "jump", { from: prev.beat, seek: !!step.seek });
         } else {
-          // B glides from the meeting tempo back to its own.
+          // B glides from the meeting tempo and transposed pitch back to its own.
           this._rampTo(1, RAMP_BEATS, step.rate);
+          const semis = v.stretched ? (v.semis || 0) : 0;
+          this.pitchRamp = semis ? { from: semis, to: 0, k: 0, n: Math.round(Math.abs(semis) * PITCH_BEATS) } : null;
           const via = step.tr?.type === "drop" ? "drop" : "cut";
           this._log(t, via, { from: prev.beat, fromTrack: prev.track.id, tr: step.tr });
           this._enterTrack(T, t, via, step.tr);
@@ -1066,6 +1128,10 @@ export class Player extends EventTarget {
         this.pitchRamp = semis ? { from: semis, to: 0, k: 0, n: Math.round(Math.abs(semis) * PITCH_BEATS) } : null;
         this._enterTrack(b.B, t, "blend", b.tr);
         this._log(t, "promote");
+        // Release previous track A from memory cache to avoid accumulating AudioBuffers in RAM
+        if (b.A && b.A.id !== b.B.id) {
+          try { this.loader._evict(); } catch (_) {}
+        }
         break;
       }
     }
@@ -1373,11 +1439,42 @@ export class Player extends EventTarget {
     // Let the new song settle before the first random jump.
     this.lastJumpAt = t;
     this.cooldown = Math.max(this.cooldown, JUMP_COOLDOWN * 2);
-    if (via !== "start") this.stats.transitions++;
+    if (via !== "start") {
+      this.stats.transitions++;
+      this.sessionStats.transitions++;
+    }
     this.history.push({ id: track.id, at: t, via, style, flat });
     if (this.history.length > 50) this.history.shift();
+
+    // Unbounded persistent session log for Tracklist & M3U8 export (survives >50 tracks & restarts)
+    const wallNow = Date.now();
+    if (!this.sessionStats.startedWall) this.sessionStats.startedWall = wallNow;
+    const prevSet = this.sessionSetlist[this.sessionSetlist.length - 1];
+    if (!(prevSet && prevSet.id === track.id && prevSet.via === via && Math.abs(t - prevSet.at) < 0.5)) {
+      this.sessionSetlist.push({
+        id: track.id,
+        title: track.meta?.title || track.id,
+        artist: track.meta?.artist || track.meta?.channel || "",
+        bpm: Math.round(track.analysis?.bpm || track.meta?.bpm || 0),
+        camelot: track.analysis?.camelot || track.meta?.camelot || "",
+        duration: Math.round(track.end || track.meta?.duration || 0),
+        at: t,
+        wallAt: wallNow,
+        elapsedSec: Math.max(0, Math.round((wallNow - this.sessionStats.startedWall) / 1000)),
+        via,
+        style,
+      });
+    }
+
     this.loader.refreshTransitions(track);
     this.dispatchEvent(new CustomEvent("track", { detail: { track, via, at: t } }));
+
+    // F8: Proactive lookahead buffer on Desktop once playback settles cleanly
+    if (!IS_MOBILE && this.settings.mode === "chain") {
+      setTimeout(() => {
+        if (this.cur?.track === track && this.settings.mode === "chain") this._prefetch();
+      }, 1500);
+    }
 
     if (this.sleepTimer?.mode === "song" && via !== "start") {
       this.clearSleepTimer();
@@ -1472,18 +1569,26 @@ export class Player extends EventTarget {
     const key = `${T.id}|${this.history.length}`;
     if (!force && this.prefetchedFor === key) return;
     this.prefetchedFor = key;
+    const isLongCurrent = (T.meta?.duration || T.duration || 0) > 900;
     const best = new Map();
     for (const tr of T.transitions) {
       if (!this.settings.allow[allowKey(tr.type)] || tr.to === T.id || !this.enabled(tr.to) || !this._usable(T, tr)) continue;
-      const u = tr.q + this._appeal(T, tr);
+      const durB = this.loader.metas?.get(tr.to)?.duration || 0;
+      const longPenalty = isLongCurrent && durB > 900 && tr.to !== this.targetNextId ? 0.25 : 0;
+      const u = tr.q + this._appeal(T, tr) - longPenalty;
       if (!best.has(tr.to) || u > best.get(tr.to)) best.set(tr.to, u);
     }
-    const maxPrefetch = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "") ? 1 : 3;
-    this.prefetchIds = [...best.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxPrefetch).map((e) => e[0]);
-    if (this.targetNextId && !this.prefetchIds.includes(this.targetNextId)) {
-      this.prefetchIds.unshift(this.targetNextId);
+    // Keep maxPrefetch=1 on Mobile (Jetsam safety), 2 on Desktop for zero-latency multi-exit readiness
+    const maxPrefetch = IS_MOBILE ? 1 : 2;
+    const prefetchLimit = isLongCurrent ? 1 : maxPrefetch;
+    const ordered = [...best.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+    if (this.targetNextId) {
+      this.prefetchIds = [this.targetNextId, ...ordered.filter((id) => id !== this.targetNextId)].slice(0, prefetchLimit);
+    } else {
+      this.prefetchIds = ordered.slice(0, prefetchLimit);
     }
     for (const id of this.prefetchIds) this.loader.get(id).catch(() => {});
+    this.dispatchEvent(new CustomEvent("prefetch", { detail: { ids: [...this.prefetchIds] } }));
   }
 
   // Runs on every beat once the song may be left, until an exit is planned.
@@ -1511,12 +1616,18 @@ export class Player extends EventTarget {
       let arrival = dist[trigger];
       if (arrive && trigger === this.cur.beat) arrival = Infinity;
       if (!isFinite(arrival)) continue;
-      if (arrival < LOAD_LEAD && !this.loader.has(tr.to)) continue;
-      if (arrival < PREP_LEAD && (tr.stems || (tr.keylock && this.engine.canStretch))) continue;
-      // A tempo ramp needs its voice before the ramp begins.
-      if (bends(tr) && arrival < PREP_LEAD + bendBeats(tr.pre) * T.dur[this.cur.beat]) continue;
+      const isLoaded = this.loader.has(tr.to);
+      const durB = this.loader.metas?.get(tr.to)?.duration || 240;
+      const slowExtra = (this._slowTrackUntil?.get(tr.to) || 0) > Date.now() ? 6 : 0;
+      const loadLead = isLoaded ? 0 : (LOAD_LEAD + Math.min(8, Math.max(0, (durB - 300) / 180)) + slowExtra);
+      const prepLead = (tr.stems || (tr.keylock && this.engine.canStretch)) ? PREP_LEAD : 0;
+      // Sum download/decode + stretch worklet + tempo ramp budgets accurately when B is uncached.
+      const bendLead = bends(tr) ? bendBeats(tr.pre) * T.dur[this.cur.beat] : 0;
+      if (arrival < loadLead + prepLead + bendLead) continue;
+      // Slightly favour already-decoded songs (and penalise huge un-decoded mixes) so hand-overs lock cleanly.
+      const readyBonus = isLoaded ? 0.08 : (durB > 900 ? -0.12 : 0);
       const noise = (CRITERIA[s.criterion] || CRITERIA.balanced).noise;
-      const u = tr.q - lambda * arrival + this._appeal(T, tr) + Math.random() * noise;
+      const u = tr.q - lambda * arrival + this._appeal(T, tr) + readyBonus + Math.random() * noise;
       if (!best || u > best.u) best = { tr, u, trigger, arrival };
     }
     if (!best && late) best = this._emergencyExit(T, items);
@@ -1593,8 +1704,9 @@ export class Player extends EventTarget {
       },
       (err) => {
         best.tr.failed = true;
+        this._failedTrackUntil?.set(best.tr.to, Date.now() + 300_000);
         if (this.plan === plan) this._dropPlan();
-        if (best.picked && err?.message) {
+        if (plan.picked && err?.message) {
           this.dispatchEvent(new CustomEvent("plan-failed", { detail: { error: err.message, to: best.tr.to } }));
         }
       },
@@ -1656,6 +1768,7 @@ export class Player extends EventTarget {
       }
     }).catch(() => {
       tr.failed = true;
+      this._failedTrackUntil?.set(tr.to, Date.now() + 300_000);
       if (this.plan === plan) this._dropPlan();
     });
   }
@@ -1666,10 +1779,17 @@ export class Player extends EventTarget {
   // (both need the key-locked voice).
   _usable(T, tr) {
     if (tr.failed) return false;
+    const wallNow = Date.now();
+    if ((this._failedTrackUntil?.get(tr.to) || 0) > wallNow) return false;
+    if ((tr._cooldownUntil || 0) > wallNow) return false;
     const metaB = this.loader.metas?.get(tr.to);
     if (metaB && this.loader.isOversized?.(metaB)) return false;
     if (tr.type === "blend" && this.settings.blendStyles?.[blendStyle(tr, T.analysis.meter || 4)] === false) return false;
-    if (tr.stems && !(this.loader.metas?.get(T.id)?.stems && this.loader.metas?.get(tr.to)?.stems)) return false;
+    const hasStems = (id) =>
+      typeof this.loader.canLoadStems === "function"
+        ? this.loader.canLoadStems(id)
+        : Boolean(this.loader.metas?.get(id)?.stems);
+    if (tr.stems && !(hasStems(T.id) && hasStems(tr.to))) return false;
     if (tr.semis && !(this.settings.keyShift !== false && this.engine.canStretch)) return false;
     if (bends(tr) && !(this.settings.tempoRamp !== false && this.engine.canStretch)) return false;
     return true;
@@ -1681,23 +1801,29 @@ export class Player extends EventTarget {
   // no shared tempo and never puts two drum kits on top of each other), or a
   // crossfade when echoes are switched off.
   _emergencyExit(T, items) {
+    const wallNow = Date.now();
+    const candidates = items.filter((tr) => (this._failedTrackUntil?.get(tr.to) || 0) <= wallNow);
+    if (!candidates.length) return null;
     const ph = T.analysis.phrase;
     let k = this.cur.beat + 2;
     while (k < T.n - 1 && ph[k] < 2) k++;
     k = Math.min(k, T.n - 1);
     let arrival = 0;
     for (let b = this.cur.beat; b < k; b++) arrival += T.dur[b];
-    if (arrival < LOAD_LEAD) {
-      k = Math.min(T.n - 1, k + 4 * (T.analysis.meter || 4));
-      arrival = 0;
-      for (let b = this.cur.beat; b < k; b++) arrival += T.dur[b];
-    }
     let pick = null;
-    for (const tr of items) {
-      const u = tr.q + this._appeal(T, tr) - (TYPE_BIAS[tr.type] ?? 0);
+    for (const tr of candidates) {
+      const readyBonus = this.loader.has(tr.to) ? 0.1 : 0;
+      const u = tr.q + this._appeal(T, tr) + readyBonus - (TYPE_BIAS[tr.type] ?? 0);
       if (!pick || u > pick.u) pick = { to: tr.to, u };
     }
     if (!pick) return null;
+    const needLead = this.loader.has(pick.to) ? LOAD_LEAD : (LOAD_LEAD + ((this._slowTrackUntil?.get(pick.to) || 0) > wallNow ? 6 : 2));
+    while (k < T.n - 1 && arrival < needLead) {
+      const stepBeats = 4 * (T.analysis.meter || 4);
+      const nextK = Math.min(T.n - 1, k + stepBeats);
+      for (let b = k; b < nextK; b++) arrival += T.dur[b];
+      k = nextK;
+    }
     if (this.settings.allow.echo !== false && k - 1 > this.cur.beat) {
       // The echo is fed by beat k - 1: the walk has to arrive there.
       const tr = { type: "echo", to: pick.to, i: k - 1, j: null, beats: 1, rate: 1, shift_ms: 0, q: 0.2, synthetic: true };
@@ -1725,5 +1851,26 @@ export class Player extends EventTarget {
 
   recentEvents(since) {
     return this.timeline.filter((e) => e.t > since && e.t <= this.engine.audibleTime() && !["seq", "blend", "fxBeat"].includes(e.kind));
+  }
+
+  // Exact audible position (seconds) within the currently heard track, surviving jumps/seeks.
+  getAudibleSongTime() {
+    if (!this.cur) return null;
+    const view = this.audible();
+    const entry = view?.entry;
+    if (!entry?.track) return null;
+    const T = entry.track;
+    const beatIdx = Math.max(0, Math.min(T.n - 1, entry.beat || 0));
+    const baseSec = T.beats?.[beatIdx] ?? 0;
+    const now = view.now ?? this.engine.audibleTime();
+    const dt = Math.max(0, (now - entry.t) * (entry.rate || 1));
+    const raw = baseSec + dt;
+    const timeSec = T.end ? Math.min(T.end, raw) : raw;
+    return { track: T, trackId: T.id, timeSec, now };
+  }
+
+  clearSessionSetlist() {
+    this.sessionSetlist = [];
+    this.sessionStats = { jumps: 0, transitions: 0, startedWall: Date.now() };
   }
 }

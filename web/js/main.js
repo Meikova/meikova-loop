@@ -1,12 +1,13 @@
-import { api, currentUser, hooks, isMobile, Loader, ready, resetSession, session, setCurrentUser, setUserToken, updateSession, userToken } from "./api.js";
-import { Engine } from "./engine.js";
-import { setupMediaSession } from "./mediasession.js";
-import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js";
-import { MixRecorder } from "./recorder.js";
-import { KaraokeMic } from "./mic.js";
-import { sortHarmonicSequence } from "./harmonic.js";
-import * as theme from "./theme.js?v=55";
-import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js";
+import { api, currentUser, hooks, isMobile, Loader, ready, resetSession, session, setCurrentUser, setUserToken, updateSession, userToken } from "./api.js?v=174";
+import { Engine } from "./engine.js?v=174";
+import { setupMediaSession } from "./mediasession.js?v=174";
+import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js?v=174";
+import { MixRecorder } from "./recorder.js?v=174";
+import { KaraokeMic } from "./mic.js?v=174";
+import { sortHarmonicSequence } from "./harmonic.js?v=174";
+import * as theme from "./theme.js?v=174";
+import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js?v=174";
+import { stageSync, initStageSyncControls } from "./stage_sync.js?v=174";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -129,18 +130,19 @@ window.alert = (msg) => {
 };
 
 const engine = new Engine();
-const loader = new Loader(engine);
+const loader = new Loader(engine, isMobile ? 2 : 3);
 const player = new Player(engine, loader);
 const recorder = new MixRecorder(engine, player);
 const karaokeMic = new KaraokeMic(engine);
 const viz = new Viz($("#viz"), player, {
   center: $("#ring-center"),
   tip: $("#viz-tip"),
-  onPick: (tr) => player.planTransition(tr),
-  onSeek: (track, beat) => player.seek(beat),
+  onPick: (tr) => stageSync.isSatellite ? (stageSync.sendCommand("pick_exit", tr), true) : player.planTransition(tr),
+  onSeek: (track, beat) => stageSync.isSatellite ? stageSync.sendCommand("seek", beat) : player.seek(beat),
   onCaption: () => renderStage(),
-  onCrossClick: () => player.forceTransition(),
+  onCrossClick: () => stageSync.isSatellite ? stageSync.sendCommand("force_transition") : player.forceTransition(),
 });
+stageSync.viz = viz;
 
 let metas = [];
 let workerState = null;
@@ -198,7 +200,15 @@ player.enabled = (id) => {
 // A little reluctance to leave the library being heard: the chain crosses
 // into the next one when the way there is clearly the better transition.
 player.bias = (id) => (kho.cur && !kho.force && libOf(id) === kho.next ? -0.12 : 0);
-loader.protect = () => [player.cur?.track.id, player.plan?.tr.to, player.blend?.B.id, ...player.prefetchIds].filter(Boolean);
+loader.protect = () => [
+  player._loadingTrackId,
+  player._switchingTrack?.id,
+  player.cur?.track.id,
+  player.plan?.tr.to,
+  player.blend?.B.id,
+  player.fx?.B?.id,
+  ...player.prefetchIds,
+].filter(Boolean);
 loader.addEventListener("transitions", () => {
   viz.invalidate();
   renderExits();
@@ -240,6 +250,10 @@ function placeIndicator(seg) {
 const placeIndicators = () => document.querySelectorAll(".seg").forEach(placeIndicator);
 window.addEventListener("resize", placeIndicators);
 document.fonts?.ready.then(placeIndicators);
+if (typeof ResizeObserver !== "undefined") {
+  const segRo = new ResizeObserver(placeIndicators);
+  document.querySelectorAll(".seg").forEach((el) => segRo.observe(el));
+}
 
 // ------------------------------------------------------------------ settings
 
@@ -265,6 +279,8 @@ const ui = {
   panelWidth: 420,
   vizScale: 1.0,
   uiScale: 1.0,
+  beatPulse: true,
+  lyricsEnabled: true,
 };
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -280,6 +296,12 @@ try {
   }
 } catch (e) {
   console.warn("Could not load local settings:", e);
+}
+if (ui.panelWidth && typeof window !== "undefined") {
+  const isMobileLand = window.matchMedia("(max-height: 600px) and (orientation: landscape)").matches;
+  if (!isMobileLand) {
+    document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);
+  }
 }
 
 export function updateDurationLimits(maxSeconds) {
@@ -313,27 +335,29 @@ export function updateDurationLimits(maxSeconds) {
   if (vdmin) vdmin.textContent = fmt(player.settings.dwellMin);
 }
 
-// Fetch server settings and merge if available
-fetch("/api/settings")
-  .then((r) => (r.ok ? r.json() : null))
-  .then((serverData) => {
-    if (serverData) {
-      if (serverData.max_duration_s) updateDurationLimits(serverData.max_duration_s);
-      if (serverData.ui || serverData.player) {
-        const localEmpty = !localStorage.getItem(STORE);
-        if (localEmpty) {
-          if (serverData.ui) Object.assign(ui, serverData.ui);
-          if (serverData.player) {
-            Object.assign(player.settings, serverData.player);
-            player.settings.allow = { ...DEFAULTS.allow, ...(serverData.player.allow || {}) };
-            player.settings.blendStyles = { ...DEFAULTS.blendStyles, ...(serverData.player.blendStyles || {}) };
+// Fetch server settings and merge if available (Host only; Satellite is driven by Host telemetry)
+if (!stageSync.isSatellite) {
+  fetch("/api/settings")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((serverData) => {
+      if (serverData) {
+        if (serverData.max_duration_s) updateDurationLimits(serverData.max_duration_s);
+        if (serverData.ui || serverData.player) {
+          const localEmpty = !localStorage.getItem(STORE);
+          if (localEmpty) {
+            if (serverData.ui) Object.assign(ui, serverData.ui);
+            if (serverData.player) {
+              Object.assign(player.settings, serverData.player);
+              player.settings.allow = { ...DEFAULTS.allow, ...(serverData.player.allow || {}) };
+              player.settings.blendStyles = { ...DEFAULTS.blendStyles, ...(serverData.player.blendStyles || {}) };
+            }
+            applySettings();
           }
-          applySettings();
         }
       }
-    }
-  })
-  .catch(() => {});
+    })
+    .catch(() => {});
+}
 
 ready().then((s) => {
   if (s?.limits?.max_duration_s) updateDurationLimits(s.limits.max_duration_s);
@@ -410,6 +434,7 @@ function syncRange(input) {
 }
 
 function applySettings() {
+  if (stageSync.isSatellite) return;
   const s = player.settings;
   // Log scale: 60 s between jumps at the far left, 6 s at the far right.
   s.jumpEvery = 60 * Math.pow(0.1, ui.freq);
@@ -450,9 +475,29 @@ function applySettings() {
   if (glowInput) glowInput.value = ui.glow;
   const glowVal = $("#v-glow");
   if (glowVal) glowVal.textContent = `${Math.round(ui.glow * 100)}%`;
-  if (ui.panelWidth) {
+  if (ui.beatPulse === undefined) ui.beatPulse = true;
+  viz.setBeatPulse?.(ui.beatPulse);
+  const sBeatPulse = $("#s-beat-pulse");
+  if (sBeatPulse) sBeatPulse.checked = Boolean(ui.beatPulse);
+  if (ui.lyricsEnabled === undefined) ui.lyricsEnabled = true;
+  const sLyrics = $("#s-lyrics");
+  if (sLyrics) sLyrics.checked = Boolean(ui.lyricsEnabled);
+  const zenLyricsBtn = $("#zen-btn-lyrics");
+  if (zenLyricsBtn) {
+    zenLyricsBtn.setAttribute("aria-pressed", ui.lyricsEnabled ? "true" : "false");
+    zenLyricsBtn.classList.toggle("is-active", Boolean(ui.lyricsEnabled));
+  }
+  if (!ui.lyricsEnabled) {
+    const lyricsEl = $("#ambient-lyrics");
+    if (lyricsEl) lyricsEl.hidden = true;
+  }
+  const isMobileLandscape = window.matchMedia("(max-height: 600px) and (orientation: landscape)").matches;
+  if (isMobileLandscape) {
+    document.documentElement.style.removeProperty("--panel-w");
+  } else if (ui.panelWidth) {
     document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);
   }
+  updatePanelCollapseUI(Boolean(ui.panelCollapsed));
   if (ui.vizScale !== undefined) {
     viz.setScale?.(ui.vizScale);
     const sVizScale = $("#s-viz-scale");
@@ -477,6 +522,10 @@ function applySettings() {
   placeIndicator($(".mode"));
   renderTransport();
   save();
+  if (!stageSync.isSatellite) {
+    stageSync.lastBroadcast = 0;
+    viz._broadcastHostTelemetry?.();
+  }
 }
 
 $("#s-freq").addEventListener("input", (e) => ((ui.freq = +e.target.value), applySettings()));
@@ -553,6 +602,11 @@ window.__onSystemVolume = (vol) => {
 };
 
 $("#s-vol").addEventListener("input", (e) => {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    syncRange(e.target);
+    stageSync.sendCommand("set_volume", +e.target.value);
+    return;
+  }
   setAppVolume(+e.target.value, true);
 });
 $("#s-cross").addEventListener("change", (e) => {
@@ -574,6 +628,20 @@ $("#s-glow")?.addEventListener("input", (e) => {
   recolor();
   applySettings();
 });
+$("#s-beat-pulse")?.addEventListener("change", (e) => {
+  ui.beatPulse = Boolean(e.target.checked);
+  viz.setBeatPulse?.(ui.beatPulse);
+  applySettings();
+});
+$("#s-lyrics")?.addEventListener("change", (e) => {
+  ui.lyricsEnabled = Boolean(e.target.checked);
+  applySettings();
+  updateAmbientLyrics();
+  if (!stageSync.isSatellite) {
+    stageSync.lastBroadcast = 0;
+    viz._broadcastHostTelemetry?.();
+  }
+});
 
 function initPanelResizer() {
   const resizer = $("#panel-resizer");
@@ -583,6 +651,7 @@ function initPanelResizer() {
   let startW = 0;
 
   const onPointerDown = (e) => {
+    if (window.matchMedia("(max-height: 600px) and (orientation: landscape)").matches) return;
     dragging = true;
     resizer.classList.add("is-dragging");
     startX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -625,8 +694,46 @@ function initPanelResizer() {
     viz.invalidate();
     save();
   });
+
+  const updatePanelWOnOrientation = () => {
+    const isMobileLand = window.matchMedia("(max-height: 600px) and (orientation: landscape)").matches;
+    if (isMobileLand) {
+      document.documentElement.style.removeProperty("--panel-w");
+    } else if (ui.panelWidth) {
+      document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);
+    }
+    requestAnimationFrame(() => placeIndicators());
+  };
+  updatePanelWOnOrientation();
+  window.addEventListener("resize", updatePanelWOnOrientation);
+  window.addEventListener("orientationchange", () => setTimeout(updatePanelWOnOrientation, 100));
 }
 initPanelResizer();
+
+function updatePanelCollapseUI(isCollapsed) {
+  document.body.classList.toggle("is-panel-collapsed", isCollapsed);
+  const topbarBtn = $("#btn-topbar-panel");
+  if (topbarBtn) {
+    topbarBtn.setAttribute("aria-pressed", (!isCollapsed).toString());
+    topbarBtn.classList.toggle("is-active", !isCollapsed);
+  }
+}
+
+function togglePanelCollapse(force) {
+  const isCollapsed = force !== undefined ? force : !document.body.classList.contains("is-panel-collapsed");
+  updatePanelCollapseUI(isCollapsed);
+  ui.panelCollapsed = isCollapsed;
+  save();
+  requestAnimationFrame(() => {
+    viz.invalidate?.();
+    placeIndicators();
+  });
+  showHudToast?.(isCollapsed ? "Đã thu gọn bảng điều khiển (B / \\)" : "Đã mở bảng điều khiển (B / \\)");
+}
+
+$("#btn-topbar-panel")?.addEventListener("click", () => togglePanelCollapse());
+$("#btn-panel-collapse")?.addEventListener("click", () => togglePanelCollapse(true));
+$("#btn-panel-expand")?.addEventListener("click", () => togglePanelCollapse(false));
 
 $("#s-viz-scale")?.addEventListener("input", (e) => {
   ui.vizScale = +e.target.value / 100;
@@ -635,6 +742,10 @@ $("#s-viz-scale")?.addEventListener("input", (e) => {
   if (vVizScale) vVizScale.textContent = `${Math.round(ui.vizScale * 100)}%`;
   syncRange(e.target);
   save();
+  if (!stageSync.isSatellite) {
+    stageSync.lastBroadcast = 0;
+    viz._broadcastHostTelemetry?.();
+  }
 });
 $("#s-ui-scale")?.addEventListener("input", (e) => {
   ui.uiScale = +e.target.value / 100;
@@ -644,6 +755,10 @@ $("#s-ui-scale")?.addEventListener("input", (e) => {
   if (vUiScale) vUiScale.textContent = `${Math.round(ui.uiScale * 100)}%`;
   syncRange(e.target);
   save();
+  if (!stageSync.isSatellite) {
+    stageSync.lastBroadcast = 0;
+    viz._broadcastHostTelemetry?.();
+  }
 });
 
 
@@ -717,6 +832,21 @@ function updateTrackLoadingUI(id, isLoading) {
 
 async function play(id) {
   if (loadingTrackId === id) return;
+  if (stageSync.isClusterFollower) {
+    const becomeMaster = await showModal({
+      title: "Thiết bị đang trong Cụm Loa",
+      message: `Máy này đang phát đồng bộ theo Chủ tọa (${stageSync.clusterMasterName || "Máy chính"}). Bạn muốn nhận quyền Chủ tọa để phát bài này cho cả Cụm Loa, hay rời cụm để nghe riêng?`,
+      confirmText: "Làm Chủ tọa & Phát cho Cụm",
+      cancelText: "Rời cụm & Nghe riêng",
+    });
+    if (becomeMaster) {
+      stageSync.claimClusterMaster();
+      await new Promise((r) => setTimeout(r, 60));
+    } else {
+      stageSync.leaveCluster();
+      await new Promise((r) => setTimeout(r, 40));
+    }
+  }
   const prevLoading = loadingTrackId;
   if (prevLoading && prevLoading !== id) {
     updateTrackLoadingUI(prevLoading, false);
@@ -748,13 +878,37 @@ function setBusy(b) {
 }
 
 $("#btn-play").addEventListener("click", async () => {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    const playBtn = $("#btn-play");
+    if (playBtn) {
+      const nextState = playBtn.dataset.state === "pause" ? "play" : "pause";
+      playBtn.dataset.state = nextState;
+      playBtn.setAttribute("aria-label", nextState === "pause" ? "Tạm dừng" : "Phát");
+      if (stageSync.telemetry) {
+        stageSync.telemetry.mode = nextState === "pause" ? "ring" : (stageSync.telemetry.track_id ? "paused" : "idle");
+      }
+    }
+    stageSync.sendCommand("toggle_pause");
+    return;
+  }
   if (busy) return;
   if (player.cur) {
     await player.togglePause();
   } else {
     engine.unlockAudio();
-    const first = metas.find((m) => m.status === "ready" && m.enabled !== false) || metas.find((m) => m.status === "ready");
-    if (first) await play(first.id);
+    const orderedReady = getOrderedReadyTracks();
+    const first =
+      orderedReady.find((m) => m.enabled !== false && !loader.isOversized(m)) ||
+      orderedReady.find((m) => !loader.isOversized(m)) ||
+      orderedReady[0] ||
+      metas.find((m) => m.status === "ready" && m.enabled !== false) ||
+      metas.find((m) => m.status === "ready") ||
+      (samples.libraries?.[0]?.ids?.[0] ? metas.find((m) => m.id === samples.libraries[0].ids[0]) : null);
+    if (first) {
+      await play(first.id);
+    } else if (samples.libraries?.[0]?.ids?.[0]) {
+      await play(samples.libraries[0].ids[0]);
+    }
   }
   renderTransport();
 });
@@ -783,6 +937,14 @@ export function showHudToast(msg) {
 }
 
 $("#btn-jump").addEventListener("click", () => {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    const btn = $("#btn-jump");
+    btn?.classList.add("is-active");
+    setTimeout(() => btn?.classList.remove("is-active"), 250);
+    stageSync.sendCommand("jump");
+    showHudToast("Nhảy phách trong bài (J)");
+    return;
+  }
   if (!player.cur) {
     showHudToast("Chưa có bài đang phát");
     return;
@@ -795,6 +957,14 @@ $("#btn-jump").addEventListener("click", () => {
 });
 
 $("#btn-next").addEventListener("click", async () => {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    const btn = $("#btn-next");
+    btn?.classList.add("is-active");
+    setTimeout(() => btn?.classList.remove("is-active"), 300);
+    stageSync.sendCommand("next");
+    showHudToast("Đang chuyển sang bài tiếp theo (N)...");
+    return;
+  }
   if (!player.cur) {
     showHudToast("Chưa có bài đang phát");
     return;
@@ -815,12 +985,22 @@ $("#btn-next").addEventListener("click", async () => {
   }
 });
 
-$("#btn-kho").addEventListener("click", () => switchKho());
+$("#btn-kho").addEventListener("click", () => {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("switch_kho");
+    return;
+  }
+  switchKho();
+});
 
 // --- Deck controls: Lock, Timer, Night EQ, Quick Mute ---
 const lockBtn = $("#btn-lock");
 if (lockBtn) {
   lockBtn.addEventListener("click", () => {
+    if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+      stageSync.sendCommand("toggle_lock");
+      return;
+    }
     player.toggleLoopLock();
     applySettings();
   });
@@ -828,6 +1008,10 @@ if (lockBtn) {
 
 const muteBtn = $("#btn-mute");
 function toggleMute() {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("toggle_mute");
+    return;
+  }
   if (!isMuted) {
     prevVol = ui.volume > 0 ? ui.volume : 0.8;
     setAppVolume(0, true);
@@ -852,6 +1036,10 @@ const EQ_LIST = ["flat", "night", "bass", "vocal", "lofi"];
 
 function setEq(preset) {
   if (!EQ_NAMES[preset]) preset = "flat";
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("set_eq", preset);
+    return;
+  }
   engine.setEqPreset(preset);
   if (eqBadge) eqBadge.textContent = EQ_NAMES[preset];
   if (eqLabel) eqLabel.textContent = preset === "flat" ? "EQ" : EQ_NAMES[preset];
@@ -868,6 +1056,10 @@ function setEq(preset) {
   }
   if (nb) nb.setAttribute("aria-pressed", String(isNight));
   document.querySelectorAll(".eq-opt").forEach((b) => b.classList.toggle("on", b.dataset.eq === preset));
+  if (!stageSync.isSatellite) {
+    stageSync.lastBroadcast = 0;
+    viz._broadcastHostTelemetry?.();
+  }
 }
 
 // Chế độ đêm theo múi giờ Việt Nam (UTC+7, xuất hiện sau 9h tối - từ 21h đến 6h sáng)
@@ -910,9 +1102,17 @@ function checkNightButtonVisibility() {
 
 const nightBtn = $("#btn-night");
 if (nightBtn) {
-  nightBtn.addEventListener("click", () => setNightMode(!isNightMode));
+  nightBtn.addEventListener("click", () => {
+    if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+      stageSync.sendCommand("toggle_night");
+      return;
+    }
+    setNightMode(!isNightMode);
+  });
   checkNightButtonVisibility();
-  setInterval(checkNightButtonVisibility, 30000);
+  if (!stageSync.isSatellite) {
+    setInterval(checkNightButtonVisibility, 30000);
+  }
 }
 
 if (eqBtn && eqPopover) {
@@ -1005,6 +1205,12 @@ if (timerBtn && timerPopover) {
       const val = btn.dataset.timer;
       document.querySelectorAll(".timer-opt").forEach((b) => b.classList.remove("on"));
       btn.classList.add("on");
+      if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+        stageSync.sendCommand("set_timer", val);
+        timerPopover.hidden = true;
+        timerBtn.setAttribute("aria-expanded", "false");
+        return;
+      }
       if (val === "0") {
         player.clearSleepTimer();
       } else if (val === "song") {
@@ -1044,7 +1250,9 @@ if (timerBtn && timerPopover) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.target.closest("input, textarea, select")) return;
+  if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (e.ctrlKey || e.metaKey) return;
+  if (e.altKey && !(e.key === "m" || e.key === "M")) return;
   if (e.code === "Space") {
     if (e.target.closest("button")) return; // a focused button handles Space itself
     e.preventDefault();
@@ -1098,6 +1306,13 @@ document.addEventListener("keydown", (e) => {
     const mode = EQ_LIST[nextIdx];
     setEq(mode);
     showHudToast(`Bộ lọc EQ: ${EQ_NAMES[mode] || mode} (E)`);
+  } else if (e.key === "c" || e.key === "C") {
+    toggleAmbientLyrics();
+  } else if (e.key === "x" || e.key === "X") {
+    if (!stageSync.isSatellite) openSetlistModal();
+  } else if ((e.key === "\\" || e.key === "b" || e.key === "B") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    togglePanelCollapse();
   } else if (e.key === "f" || e.key === "F") {
     toggleZen();
   } else if (e.key === "Escape") {
@@ -1127,6 +1342,10 @@ function formatRecTime(sec) {
 }
 
 async function toggleRecording() {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("toggle_record");
+    return;
+  }
   const btn = $("#btn-record");
   const zenBtn = $("#zen-btn-record");
   const label = $("#record-label");
@@ -1301,6 +1520,10 @@ if (recRange && recAudioEl) {
 
 $("#btn-record")?.addEventListener("click", toggleRecording);
 $("#zen-btn-record")?.addEventListener("click", toggleRecording);
+$("#zen-btn-lyrics")?.addEventListener("click", toggleAmbientLyrics);
+$("#zen-btn-setlist")?.addEventListener("click", () => {
+  if (!stageSync.isSatellite) openSetlistModal();
+});
 
 const closeRecordModal = () => {
   if (recAudioEl) {
@@ -1324,6 +1547,10 @@ const VOCAL_MODES = ["full", "instrumental", "acapella"];
 const VOCAL_LABELS = { full: "Gốc", instrumental: "Beat", acapella: "Solo" };
 
 $("#btn-vocal-mode")?.addEventListener("click", () => {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("cycle_vocal");
+    return;
+  }
   const btn = $("#btn-vocal-mode");
   const label = $("#vocal-mode-label");
   const curMode = player.vocalMode || "full";
@@ -1370,6 +1597,10 @@ function updateMicUI(isActive) {
 }
 
 async function toggleKaraokeMic() {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("toggle_mic");
+    return;
+  }
   try {
     const active = await karaokeMic.toggle();
     updateMicUI(active);
@@ -1464,20 +1695,34 @@ window.__onMiniPlayerChange = (isMini) => {
 
 window.__onMediaKey = (action) => {
   if (action === "play_pause") {
-    $("#btn-play")?.click();
+    if (player.cur) {
+      player.togglePause();
+      showHudToast(!player.playing ? "Tạm dừng" : "Đang phát");
+    } else {
+      $("#btn-play")?.click();
+    }
   } else if (action === "next") {
     $("#btn-next")?.click();
   } else if (action === "previous") {
-    player.seek(0);
-    showHudToast("Tua về đầu bài");
+    if (player.cur && (player.cur.beat || 0) > 16) {
+      player.seek(0);
+      showHudToast("Tua về đầu bài");
+    } else {
+      $("#btn-jump")?.click();
+    }
   } else if (action === "stop") {
     player.pause();
     showHudToast("Tạm dừng");
+  } else if (action === "vol_up") {
+    setAppVolume(Math.min(1.5, +(ui.volume + 0.05).toFixed(2)), true);
+  } else if (action === "vol_down") {
+    setAppVolume(Math.max(0, +(ui.volume - 0.05).toFixed(2)), true);
+  } else if (action === "mute") {
+    $("#btn-mute")?.click();
   }
 };
 
 $("#btn-mini")?.addEventListener("click", toggleMiniPlayer);
-$("#dt-btn-mini")?.addEventListener("click", toggleMiniPlayer);
 $("#btn-zen-mini")?.addEventListener("click", toggleMiniPlayer);
 $("#mini-btn-expand")?.addEventListener("click", toggleMiniPlayer);
 $("#mini-btn-prev")?.addEventListener("click", () => {
@@ -1534,9 +1779,20 @@ player.addEventListener("track", () => {
   if (typeof recorder !== "undefined" && recorder.isRecording && player.cur?.track) {
     recorder.addTrackMarker(player.cur.track.name || player.cur.track.title, player.cur.track.bpm, player.cur.track.camelot);
   }
+  if (!stageSync.isSatellite && player.cur?.track?.id && ui.lyricsEnabled !== false) {
+    ensureTrackLyrics(player.cur.track.id).then(() => updateAmbientLyrics());
+  }
   enteredSong();
   renderLibrary();
   renderExits();
+  renderSetlist();
+});
+player.addEventListener("prefetch", (e) => {
+  if (stageSync.isSatellite || ui.lyricsEnabled === false) return;
+  const ids = e?.detail?.ids || [];
+  for (const pid of ids) {
+    if (pid) ensureTrackLyrics(pid).catch(() => {});
+  }
 });
 
 // ------------------------------------------------------- sample library chain
@@ -1675,6 +1931,7 @@ setInterval(() => {
 player.addEventListener("plan", renderExits);
 
 function renderTransport() {
+  if (stageSync.isSatellite) return;
   const btn = $("#btn-play");
   const state = busy ? "load" : player.cur && player.playing ? "pause" : "play";
   btn.dataset.state = state;
@@ -1699,10 +1956,17 @@ function renderTransport() {
     lb.title = isLocked ? "Đang khoá bài này lặp mãi (L)" : "Khoá lặp bài này mãi (L)";
   }
 
+  const curTrackId = player.cur?.track?.id || player.cur?.id;
+  const curMeta = curTrackId ? (byId().get(curTrackId) || known.get(curTrackId) || player.cur?.track) : null;
+
   const dtNow = $("#dt-nowplaying");
   if (dtNow) {
-    const curMeta = player.cur ? metas.find((m) => m.id === player.cur.id) : null;
-    dtNow.textContent = curMeta ? `• ${curMeta.title || curMeta.name || "Đang phát"}` : "";
+    if (curMeta) {
+      const s = songOf(curMeta);
+      dtNow.textContent = `• ${s.title || curMeta.title || curMeta.name || "Đang phát"}`;
+    } else {
+      dtNow.textContent = "";
+    }
   }
 
   // Sync Mini Player UI
@@ -1712,17 +1976,31 @@ function renderTransport() {
     miniPlay.setAttribute("aria-label", state === "load" ? "Đang tải bài..." : state === "pause" ? "Tạm dừng" : player.cur ? "Tiếp tục" : "Phát");
     miniPlay.disabled = busy || (!player.cur && !metas.some((m) => m.status === "ready"));
   }
-  const curMetaMini = player.cur ? metas.find((m) => m.id === player.cur.id) : null;
+  const curMetaMini = curMeta;
   const miniTitle = $("#mini-title");
   if (miniTitle) {
-    miniTitle.textContent = curMetaMini ? (curMetaMini.title || curMetaMini.name || "Meikova Loop") : "Meikova Loop";
+    if (curMetaMini) {
+      const s = songOf(curMetaMini);
+      miniTitle.textContent = s.title || curMetaMini.title || curMetaMini.name || "Meikova Loop";
+    } else {
+      miniTitle.textContent = "Meikova Loop";
+    }
   }
   const miniArtist = $("#mini-artist");
   if (miniArtist) {
-    const artistStr = curMetaMini ? (curMetaMini.artist || curMetaMini.artists || "Đang phát") : "Chưa phát";
-    const bpmStr = curMetaMini?.bpm ? ` · ${Math.round(curMetaMini.bpm)} BPM` : "";
-    const camStr = curMetaMini?.camelot ? ` (${curMetaMini.camelot})` : "";
-    miniArtist.textContent = `${artistStr}${bpmStr}${camStr}`;
+    if (player.cur && curMetaMini) {
+      const s = songOf(curMetaMini);
+      const artistStr = s.artist || curMetaMini.artist || curMetaMini.artists || (!player.playing ? "Tạm dừng" : "Đang phát");
+      const bpm = curMetaMini.bpm || player.cur.track?.bpm;
+      const bpmStr = bpm ? ` · ${Math.round(bpm)} BPM` : "";
+      const camelot = curMetaMini.camelot || player.cur.track?.camelot;
+      const camStr = camelot ? ` (${camelot})` : "";
+      miniArtist.textContent = `${artistStr}${bpmStr}${camStr}`;
+    } else if (player.cur) {
+      miniArtist.textContent = !player.playing ? "Tạm dừng" : "Đang phát";
+    } else {
+      miniArtist.textContent = "Chưa phát";
+    }
   }
 
   const miniVocalLabel = $("#mini-vocal-label");
@@ -1741,6 +2019,13 @@ function renderTransport() {
     miniLock.setAttribute("aria-pressed", isLocked ? "true" : "false");
     miniLock.title = isLocked ? "Đang khoá bài này lặp mãi (L)" : "Khoá lặp bài này mãi (L)";
   }
+
+  try {
+    renderStage();
+    renderSetlist();
+  } catch (_) {}
+  stageSync.lastBroadcast = 0;
+  viz?._broadcastHostTelemetry?.();
 }
 
 
@@ -1773,6 +2058,7 @@ function miniRing(id) {
         miniCache.delete(key);
         return null;
       }
+      if (a.mood) theme.registerMood(id, a.mood);
       const size = 72;
       const c = document.createElement("canvas");
       c.width = size;
@@ -1781,7 +2067,7 @@ function miniRing(id) {
       const r = size / 2 - 6;
       const end = a.duration;
       const lmax = Math.max(...a.loud), lmin = Math.min(...a.loud);
-      const colors = theme.beatColors(id, a.color);
+      const colors = theme.beatColors(id, a.color, a.mood);
       ctx.lineWidth = 6;
       for (let b = 0; b < a.beats.length; b++) {
         const t0 = a.beats[b], t1 = b + 1 < a.beats.length ? a.beats[b + 1] : end;
@@ -1809,7 +2095,10 @@ function recolor() {
   paintMinis();
   viz.invalidate();
   renderLooks();
-  if (setlistEl) setlistEl.dataset.html = "";
+  if (setlistEl) {
+    setlistEl.dataset.html = "";
+    renderSetlist();
+  }
 }
 
 function paintMinis() {
@@ -1862,6 +2151,17 @@ function cleanVi(s) {
     .trim();
 }
 
+let _savePlaylistsTimer = null;
+function syncPlaylistsToServer() {
+  if (_savePlaylistsTimer) clearTimeout(_savePlaylistsTimer);
+  _savePlaylistsTimer = setTimeout(() => {
+    _savePlaylistsTimer = null;
+    api.savePlaylists(playlists).catch((err) => {
+      console.debug("[Playlists] Server sync failed:", err);
+    });
+  }, 400);
+}
+
 function loadPlaylists() {
   try {
     const raw = localStorage.getItem(PL_STORE_KEY);
@@ -1870,12 +2170,33 @@ function loadPlaylists() {
   } catch (_) {
     playlists = [];
   }
+  if (playlists.length > 0) {
+    renderPlaylistChips();
+    renderActivePlaylistHeader();
+  }
+  // Sync seamlessly across desktop app and web browsers
+  api.playlists().then((serverPls) => {
+    if (Array.isArray(serverPls) && serverPls.length > 0) {
+      const localOnly = playlists.filter((lp) => !serverPls.some((sp) => sp.id === lp.id));
+      playlists = [...serverPls, ...localOnly];
+      try {
+        localStorage.setItem(PL_STORE_KEY, JSON.stringify(playlists));
+      } catch (_) {}
+      lastChipsHtml = "";
+      renderPlaylistChips();
+      renderActivePlaylistHeader();
+      renderLibrary();
+    } else if (playlists.length > 0) {
+      syncPlaylistsToServer();
+    }
+  }).catch(() => {});
 }
 
 function savePlaylists() {
   try {
     localStorage.setItem(PL_STORE_KEY, JSON.stringify(playlists));
   } catch (_) {}
+  syncPlaylistsToServer();
   renderPlaylistChips();
   renderActivePlaylistHeader();
   if (typeof triggerLibrarySync === "function") triggerLibrarySync();
@@ -2248,6 +2569,14 @@ function updateBatchBar() {
   }
 }
 
+function getOrderedReadyTracks() {
+  const shown = filterMetas(metas);
+  const ordered = libSortMode === "default" && activePlaylistId === "all" ? shown.slice().reverse() : shown;
+  const readyVisible = ordered.filter((m) => m.status === "ready");
+  if (readyVisible.length) return readyVisible;
+  return metas.slice().reverse().filter((m) => m.status === "ready");
+}
+
 let lastListHtml = "";
 let lastListKey = "";
 function renderLibrary() {
@@ -2304,7 +2633,8 @@ function renderLibrary() {
     }
     html = `<li class="empty">${ICON.inf}${intro}${activePlaylistId === "all" && !libSearchQuery && offer.length ? `<br>Chưa biết thêm gì? Nghe thử một kho có sẵn:${libCards(offer)}` : ""}</li>`;
   }
-  const currentKey = `${loadingTrackId}:${batchMode ? "b:" : ""}${libSortMode}:${libSearchQuery}:${player.targetNextId}:${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
+  const activeTrackId = player.audible()?.entry?.track?.id || "";
+  const currentKey = `${loadingTrackId}:${activeTrackId}:${theme.paletteVersion()}:${batchMode ? "b:" : ""}${libSortMode}:${libSearchQuery}:${player.targetNextId}:${shown.map((m) => `${m.id}:${m.status}:${m.enabled}:${selectedTrackIds.has(m.id)}`).join(",")}`;
   if (html !== lastListHtml || currentKey !== lastListKey) {
     lastListHtml = html;
     lastListKey = currentKey;
@@ -3492,6 +3822,26 @@ function setupDesktopBridge() {
 window.addEventListener("pywebviewready", setupDesktopBridge);
 if (window.pywebview) setupDesktopBridge();
 
+// Sync OS system volume on audio endpoint changes (e.g. plugging / unplugging headphones or speakers)
+if (navigator.mediaDevices?.addEventListener) {
+  navigator.mediaDevices.addEventListener("devicechange", () => {
+    // If the user deliberately paused, firmly keep audio anchor and voices silenced
+    if (player.userPaused) {
+      engine.stopAnchor();
+      engine.stopAll(0.01);
+    }
+    if (window.pywebview?.api?.get_system_volume) {
+      setTimeout(() => {
+        window.pywebview.api.get_system_volume().then((vol) => {
+          if (typeof vol === "number" && !isNaN(vol)) {
+            setAppVolume(vol, false);
+          }
+        }).catch(() => {});
+      }, 100);
+    }
+  });
+}
+
 // Sync initial mobile system volume if Android bridge is present
 if (window.AndroidAudio?.getVolume) {
   try {
@@ -3880,6 +4230,7 @@ function setHTML(el, html) {
 }
 
 function renderStage() {
+  if (stageSync.isSatellite) return; // Màn hình vệ tinh được điều khiển hoàn toàn bởi stageSync
   const view = player.audible();
   const p = player;
   const T = view?.entry.track;
@@ -3952,6 +4303,7 @@ function renderStage() {
 // Setlist: the session as a chain of linked loops, each in its song's colour.
 const setlistEl = $("#history");
 function renderSetlist() {
+  if (stageSync.isSatellite) return;
   const hist = player.history.filter((h) => h.at <= engine.audibleTime()).slice(-11);
   const col = (id) => theme.css(theme.songColor(id));
   const html = hist.slice(-10).map((h, k, list) => {
@@ -3963,6 +4315,10 @@ function renderSetlist() {
     ol.dataset.html = html;
     ol.innerHTML = html;
     ol.scrollLeft = ol.scrollWidth;
+  }
+  const exportBtn = $("#btn-export-setlist");
+  if (exportBtn) {
+    exportBtn.hidden = getSessionSetlistEntries().length === 0;
   }
 }
 
@@ -5019,7 +5375,8 @@ function initStorageManagement() {
     }
   });
 
-  refreshStorageInfo();
+  // Defer storage info disk scan by 1.2s so initial UI/titlebar render has zero lag
+  setTimeout(refreshStorageInfo, 1200);
 }
 
 function initDesktopTitlebar() {
@@ -5036,80 +5393,463 @@ function initDesktopTitlebar() {
     updateMaxIcon(isMax);
   };
 
-  const checkDesktop = () => {
-    if (window.pywebview?.api) {
-      document.body.classList.add("is-desktop-app", "is-desktop-shell");
-      const titlebar = $("#desktop-titlebar");
-      if (titlebar) titlebar.style.display = "flex";
+  let bound = false;
+  const bindDesktopControls = () => {
+    const isDesktop = Boolean(window.pywebview?.api) ||
+                      location.search.includes("platform=desktop") ||
+                      navigator.userAgent.includes("pywebview");
 
-      $("#dt-btn-min")?.addEventListener("click", () => {
-        window.pywebview.api.minimize?.();
-      });
+    if (isDesktop) {
+      document.documentElement.classList.add("is-desktop-shell", "is-desktop-app");
+      document.body.classList.add("is-desktop-shell", "is-desktop-app");
+    }
 
-      $("#dt-btn-max")?.addEventListener("click", async () => {
+    const api = window.pywebview?.api;
+    if (!api || bound) return Boolean(api);
+
+    bound = true;
+    const btnMin = $("#dt-btn-min");
+    const btnMax = $("#dt-btn-max");
+    const btnClose = $("#dt-btn-close");
+    const titlebar = $("#desktop-titlebar");
+
+    if (btnMin) btnMin.onclick = () => api.minimize?.();
+    if (btnMax) {
+      btnMax.onclick = async () => {
         try {
-          const isMax = await window.pywebview.api.toggle_maximize?.();
+          const isMax = await api.toggle_maximize?.();
           updateMaxIcon(isMax);
         } catch (_) {}
-      });
-
-      $("#dt-btn-close")?.addEventListener("click", () => {
-        window.pywebview.api.close?.();
-      });
-
-      titlebar?.addEventListener("dblclick", (e) => {
-        if (e.target.closest(".desktop-titlebar__controls")) return;
-        $("#dt-btn-max")?.click();
-      });
-      return true;
+      };
     }
-    return false;
+    if (btnClose) btnClose.onclick = () => api.close?.();
+
+    if (titlebar && !titlebar.__dblbound) {
+      titlebar.__dblbound = true;
+      titlebar.addEventListener("dblclick", (e) => {
+        if (e.target.closest(".desktop-titlebar__controls")) return;
+        btnMax?.click();
+      });
+    }
+
+    return true;
   };
 
-  if (!checkDesktop()) {
-    window.addEventListener("pywebviewready", checkDesktop);
-    setTimeout(checkDesktop, 300);
-    setTimeout(checkDesktop, 1000);
+  // Immediate check & resilient polling
+  if (!bindDesktopControls()) {
+    window.addEventListener("pywebviewready", bindDesktopControls);
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (bindDesktopControls() || attempts > 25) {
+        clearInterval(interval);
+      }
+    }, 200);
   }
 }
 
-initCookieManagement();
-initAuthAndSync();
-initTunnelControls();
-initStorageManagement();
-initDesktopTitlebar();
-renderLooks();
-renderTransport();
-renderStage();
-placeIndicators();
-updateMobileModal();
-ready().then(async () => {
-  if (session.multiuser) {
-    // Hosted: a library per visit; pairs are linked automatically and shared.
-    $("#add-hint").textContent = "Mỗi lần mở trang là một thư viện mới. Bài ai đó đã thêm trước sẽ vào ngay, không phải chờ phân tích.";
-    const groupRelink = $("#group-relink") || $("#btn-relink")?.closest(".group");
-    if (groupRelink) groupRelink.hidden = true;
-    $("#fine").hidden = false;
-    for (const el of document.querySelectorAll("[data-ttl]")) el.textContent = session.limits.audio_ttl_h || 12;
+// ------------------------------------------------------------- F6 Synced Lyrics & F7 Setlist Exporter
+const lyricsCache = new Map(); // tid -> { found, synced, plain, ... }
+const lyricsPending = new Set();
+const LYRIC_OFFSET_S = 0.15;
 
-    const plIds = [...new Set(playlists.flatMap((p) => p.trackIds || []))].filter(Boolean);
-    const missingPlIds = plIds.filter((id) => !metas.some((m) => m.id === id));
-    if (missingPlIds.length) {
-      await api.restore(missingPlIds).catch(() => {});
-      await refresh();
+function formatLrcTimestamp(sec) {
+  const safe = Math.max(0, Number(sec) || 0);
+  const mins = Math.floor(safe / 60);
+  const rem = safe - mins * 60;
+  const whole = Math.floor(rem);
+  const hundredths = Math.round((rem - whole) * 100);
+  const c = hundredths >= 100 ? 99 : hundredths;
+  return `[${String(mins).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${String(c).padStart(2, "0")}]`;
+}
+
+function formatLrcText(data) {
+  if (!data) return "";
+  if (Array.isArray(data.synced) && data.synced.length) {
+    return data.synced.map((ln) => `${formatLrcTimestamp(ln.t)} ${ln.text}`).join("\n");
+  }
+  return data.plain || "";
+}
+
+async function ensureTrackLyrics(tid, refresh = false) {
+  if (!tid) return null;
+  if (!refresh && lyricsCache.has(tid)) return lyricsCache.get(tid);
+  if (lyricsPending.has(tid)) return null;
+  lyricsPending.add(tid);
+  try {
+    const res = await api.lyrics(tid, refresh);
+    if (res && typeof res === "object") {
+      lyricsCache.set(tid, res);
+      return res;
+    }
+  } catch (_) {
+    /* ignore network error */
+  } finally {
+    lyricsPending.delete(tid);
+  }
+  return null;
+}
+
+function findActiveLyricIndex(lines, sec) {
+  if (!Array.isArray(lines) || !lines.length) return -1;
+  const target = sec + LYRIC_OFFSET_S;
+  let lo = 0, hi = lines.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (lines[mid].t <= target) {
+      ans = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
     }
   }
-  if (session.limits.upload_mb) $("#upload-limit").textContent = `, tối đa ${session.limits.upload_mb} MB`;
-  renderLibrary();
-  api.samples().then((s) => {
-    samples.libraries = s.libraries || [];
-    samples.ids = [...new Set(samples.libraries.flatMap((l) => l.ids))];
-    lastListHtml = "";
+  return ans;
+}
+
+function updateAmbientLyrics() {
+  if (stageSync.isSatellite) return;
+  const box = $("#ambient-lyrics");
+  if (!box) return;
+  if (ui.lyricsEnabled === false) {
+    if (!box.hidden) box.hidden = true;
+    return;
+  }
+  const pos = player.getAudibleSongTime();
+  if (!pos?.trackId) {
+    if (!box.hidden) box.hidden = true;
+    return;
+  }
+  const data = lyricsCache.get(pos.trackId);
+  if (!data) {
+    ensureTrackLyrics(pos.trackId);
+    if (!box.hidden) box.hidden = true;
+    return;
+  }
+  const lines = data.found && Array.isArray(data.synced) ? data.synced : [];
+  if (!lines.length) {
+    if (!box.hidden) box.hidden = true;
+    return;
+  }
+  const idx = findActiveLyricIndex(lines, pos.timeSec);
+  let prevText = "", curText = "", nextText = "";
+  if (idx >= 0) {
+    prevText = idx > 0 ? lines[idx - 1].text : "";
+    curText = lines[idx].text;
+    nextText = idx + 1 < lines.length ? lines[idx + 1].text : "";
+  } else if (lines[0] && lines[0].t - pos.timeSec <= 8) {
+    nextText = lines[0].text;
+  }
+  const hasAny = Boolean(prevText || curText || nextText);
+  if (box.hidden !== !hasAny) box.hidden = !hasAny;
+  if (hasAny) {
+    const lPrev = $("#lyric-line-prev");
+    const lCur = $("#lyric-line-cur");
+    const lNext = $("#lyric-line-next");
+    if (lPrev && lPrev.textContent !== prevText) lPrev.textContent = prevText;
+    if (lCur && lCur.textContent !== curText) lCur.textContent = curText;
+    if (lNext && lNext.textContent !== nextText) lNext.textContent = nextText;
+  }
+}
+
+function toggleAmbientLyrics() {
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
+    stageSync.sendCommand("toggle_lyrics");
+    return;
+  }
+  ui.lyricsEnabled = !(ui.lyricsEnabled !== false);
+  applySettings();
+  updateAmbientLyrics();
+  stageSync.lastBroadcast = 0;
+  viz._broadcastHostTelemetry?.();
+  showHudToast(ui.lyricsEnabled ? "Đã bật Lời bài hát đồng bộ (C)" : "Đã tắt Lời bài hát đồng bộ (C)");
+}
+
+let editingLyricsTrackId = null;
+async function openLyricsEditorModal() {
+  if (stageSync.isSatellite) return;
+  const track = player.cur?.track;
+  const modal = $("#modal-lyrics-editor");
+  if (!modal) return;
+  if (!track?.id) {
+    showHudToast("Hãy phát một bài hát trước khi xem hoặc chỉnh lời (LRC)");
+    return;
+  }
+  editingLyricsTrackId = track.id;
+  const s = songOf(track.meta || byId().get(track.id) || { title: track.id });
+  const sub = $("#modal-lyrics-subtitle");
+  if (sub) sub.textContent = `${s.title || track.id}${s.artist ? ` // ${s.artist}` : ""}`;
+  const ta = $("#lyrics-editor-textarea");
+  if (ta) {
+    ta.value = "Đang tìm lời bài hát...";
+    ta.disabled = true;
+  }
+  modal.showModal();
+  const data = await ensureTrackLyrics(track.id);
+  if (ta && editingLyricsTrackId === track.id) {
+    ta.disabled = false;
+    ta.value = formatLrcText(data);
+    ta.focus();
+  }
+}
+
+$("#btn-open-lyrics-editor")?.addEventListener("click", openLyricsEditorModal);
+$("#btn-close-lyrics-modal")?.addEventListener("click", () => $("#modal-lyrics-editor")?.close());
+$("#modal-lyrics-editor")?.addEventListener("click", (e) => {
+  const dlg = $("#modal-lyrics-editor");
+  if (dlg && e.target === dlg) dlg.close();
+});
+$("#btn-refetch-lyrics")?.addEventListener("click", async () => {
+  if (!editingLyricsTrackId) return;
+  const btn = $("#btn-refetch-lyrics");
+  const ta = $("#lyrics-editor-textarea");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await ensureTrackLyrics(editingLyricsTrackId, true);
+    if (res?.found) {
+      if (ta) ta.value = formatLrcText(res);
+      updateAmbientLyrics();
+      showHudToast("Đã cập nhật lời bài hát từ LRCLIB!");
+    } else {
+      showHudToast("Chưa tìm thấy trên LRCLIB — bạn có thể dán lời [mm:ss.xx] thủ công");
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+$("#btn-save-lyrics")?.addEventListener("click", async () => {
+  if (!editingLyricsTrackId) return;
+  const ta = $("#lyrics-editor-textarea");
+  const btn = $("#btn-save-lyrics");
+  const raw = ta ? ta.value : "";
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api.saveLyrics(editingLyricsTrackId, raw);
+    lyricsCache.set(editingLyricsTrackId, res);
+    $("#modal-lyrics-editor")?.close();
+    updateAmbientLyrics();
+    stageSync.lastBroadcast = 0;
+    viz._broadcastHostTelemetry?.();
+    showHudToast(res?.found ? "Đã lưu & áp dụng lời bài hát!" : "Đã xóa lời bài hát cho bài này");
+  } catch (err) {
+    showHudToast(`Không thể lưu lời: ${err?.message || "Lỗi server"}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
+function getSessionSetlistEntries() {
+  const raw = Array.isArray(player.sessionSetlist) ? player.sessionSetlist : [];
+  if (raw.length) {
+    return raw.map((item) => {
+      const m = byId().get(item.id) || known.get(item.id);
+      const s = m ? songOf(m) : { title: item.title || item.id, artist: item.artist || "" };
+      return {
+        ...item,
+        title: s.title || item.title || item.id,
+        artist: s.artist || item.artist || "",
+        bpm: item.bpm || Math.round(m?.bpm || 0),
+        camelot: item.camelot || m?.camelot || "",
+        duration: item.duration || Math.round(m?.duration || 0),
+      };
+    });
+  }
+  const hist = player.history || [];
+  return hist.map((h) => {
+    const m = byId().get(h.id) || known.get(h.id);
+    const s = m ? songOf(m) : { title: h.id, artist: "" };
+    return {
+      id: h.id,
+      title: s.title || h.id,
+      artist: s.artist || "",
+      bpm: Math.round(m?.bpm || 0),
+      camelot: m?.camelot || "",
+      duration: Math.round(m?.duration || 0),
+      elapsedSec: Math.max(0, Math.round((h.at || 0) - (player.stats?.startedAt || 0))),
+      via: h.via,
+      style: h.style,
+    };
+  });
+}
+
+function buildSetlistTxt(entries) {
+  const totalDurSec = player.sessionStats?.startedWall
+    ? Math.max(0, Math.round((Date.now() - player.sessionStats.startedWall) / 1000))
+    : Math.max(0, Math.round((engine.audibleTime() || 0) - (player.stats?.startedAt || 0)));
+  const durStr = MixRecorder.formatTime(totalDurSec);
+  const jumps = player.sessionStats?.jumps ?? player.stats?.jumps ?? 0;
+  const trans = player.sessionStats?.transitions ?? player.stats?.transitions ?? 0;
+  const lines = [
+    "===========================================================",
+    "  MEIKOVA LOOP // LIVE DJ SETLIST",
+    "===========================================================",
+    `Ngày phát: ${new Date().toLocaleString("vi-VN")}`,
+    `Tổng thời lượng phiên: ${durStr}`,
+    `Số bài đã phát: ${entries.length}`,
+    `Thống kê: ${jumps} nhảy phách · ${trans} chuyển bài`,
+    "",
+    "DANH SÁCH BÀI HÁT:",
+    "-----------------------------------------------------------",
+  ];
+  entries.forEach((e, idx) => {
+    const num = String(idx + 1).padStart(2, "0");
+    const ts = MixRecorder.formatTime(e.elapsedSec || 0);
+    const viaLabel = e.via === "start" ? "Bắt đầu" : (e.via === "blend" && e.style ? BLEND_STYLE[e.style] : KIND[e.via]) || e.via || "";
+    const metaParts = [];
+    if (e.bpm) metaParts.push(`${e.bpm} BPM`);
+    if (e.camelot) metaParts.push(e.camelot);
+    if (viaLabel) metaParts.push(viaLabel);
+    const artistPart = e.artist ? ` - ${e.artist}` : "";
+    const suffix = metaParts.length ? ` [${metaParts.join(" · ")}]` : "";
+    lines.push(`${num}. [${ts}] ${e.title}${artistPart}${suffix}`);
+  });
+  lines.push("===========================================================");
+  return lines.join("\n");
+}
+
+function buildSetlistM3U8(entries) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const nowLabel = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const lines = [
+    "#EXTM3U",
+    `#PLAYLIST:Meikova Loop Live Setlist (${nowLabel})`,
+  ];
+  for (const e of entries) {
+    const dur = e.duration > 0 ? Math.round(e.duration) : -1;
+    const display = e.artist ? `${e.artist} - ${e.title}` : e.title;
+    lines.push(`#EXTINF:${dur},${display}`);
+    lines.push(`${origin}/api/tracks/${encodeURIComponent(e.id)}/audio`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+function triggerTextDownload(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function openSetlistModal() {
+  const modal = $("#modal-setlist-export");
+  if (!modal) return;
+  const entries = getSessionSetlistEntries();
+  const countEl = $("#setlist-stat-count");
+  const durEl = $("#setlist-stat-duration");
+  const jumpsEl = $("#setlist-stat-jumps");
+  const preview = $("#setlist-preview-text");
+  const copyBtn = $("#btn-copy-setlist");
+  const txtBtn = $("#btn-dl-setlist-txt");
+  const m3uBtn = $("#btn-dl-setlist-m3u");
+
+  const totalDurSec = player.sessionStats?.startedWall && entries.length
+    ? Math.max(0, Math.round((Date.now() - player.sessionStats.startedWall) / 1000))
+    : 0;
+  const jumps = player.sessionStats?.jumps ?? player.stats?.jumps ?? 0;
+  const trans = player.sessionStats?.transitions ?? player.stats?.transitions ?? 0;
+
+  if (countEl) countEl.textContent = String(entries.length);
+  if (durEl) durEl.textContent = MixRecorder.formatTime(totalDurSec);
+  if (jumpsEl) jumpsEl.textContent = `${jumps} / ${trans}`;
+
+  const empty = entries.length === 0;
+  if (preview) {
+    preview.value = empty
+      ? "Chưa có bài hát nào được phát trong phiên này.\nHãy nhấn Phát một bài để bắt đầu ghi nhận Setlist."
+      : buildSetlistTxt(entries);
+  }
+  if (copyBtn) copyBtn.disabled = empty;
+  if (txtBtn) txtBtn.disabled = empty;
+  if (m3uBtn) m3uBtn.disabled = empty;
+
+  modal.showModal();
+}
+
+$("#btn-export-setlist")?.addEventListener("click", openSetlistModal);
+$("#btn-open-setlist-modal")?.addEventListener("click", openSetlistModal);
+$("#btn-close-setlist-modal")?.addEventListener("click", () => $("#modal-setlist-export")?.close());
+$("#modal-setlist-export")?.addEventListener("click", (e) => {
+  const dlg = $("#modal-setlist-export");
+  if (dlg && e.target === dlg) dlg.close();
+});
+$("#btn-copy-setlist")?.addEventListener("click", async () => {
+  const entries = getSessionSetlistEntries();
+  if (!entries.length) return;
+  const txt = buildSetlistTxt(entries);
+  try {
+    await navigator.clipboard.writeText(txt);
+    showHudToast("Đã sao chép Setlist!");
+  } catch (_) {
+    const ta = $("#setlist-preview-text");
+    if (ta) {
+      ta.select();
+      document.execCommand("copy");
+      showHudToast("Đã sao chép Setlist!");
+    }
+  }
+});
+$("#btn-dl-setlist-txt")?.addEventListener("click", () => {
+  const entries = getSessionSetlistEntries();
+  if (!entries.length) return;
+  const slug = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  triggerTextDownload(`MeikovaLoop-Setlist-${slug}.txt`, buildSetlistTxt(entries), "text/plain;charset=utf-8");
+  showHudToast("Đã tải xuống Tracklist (.txt)!");
+});
+$("#btn-dl-setlist-m3u")?.addEventListener("click", () => {
+  const entries = getSessionSetlistEntries();
+  if (!entries.length) return;
+  const slug = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  triggerTextDownload(`MeikovaLoop-Setlist-${slug}.m3u8`, buildSetlistM3U8(entries), "application/x-mpegURL;charset=utf-8");
+  showHudToast("Đã tải xuống Playlist (.m3u8)!");
+});
+
+if (!stageSync.isSatellite) {
+  setInterval(updateAmbientLyrics, 120);
+  initCookieManagement();
+  initAuthAndSync();
+  initTunnelControls();
+  initStorageManagement();
+  initDesktopTitlebar();
+  initStageSyncControls({ player, engine });
+  renderLooks();
+  renderTransport();
+  renderStage();
+  placeIndicators();
+  updateMobileModal();
+  ready().then(async () => {
+    if (session.multiuser) {
+      // Hosted: a library per visit; pairs are linked automatically and shared.
+      $("#add-hint").textContent = "Mỗi lần mở trang là một thư viện mới. Bài ai đó đã thêm trước sẽ vào ngay, không phải chờ phân tích.";
+      const groupRelink = $("#group-relink") || $("#btn-relink")?.closest(".group");
+      if (groupRelink) groupRelink.hidden = true;
+      $("#fine").hidden = false;
+      for (const el of document.querySelectorAll("[data-ttl]")) el.textContent = session.limits.audio_ttl_h || 12;
+
+      const plIds = [...new Set(playlists.flatMap((p) => p.trackIds || []))].filter(Boolean);
+      const missingPlIds = plIds.filter((id) => !metas.some((m) => m.id === id));
+      if (missingPlIds.length) {
+        await api.restore(missingPlIds).catch(() => {});
+        await refresh();
+      }
+    }
+    if (session.limits.upload_mb) $("#upload-limit").textContent = `, tối đa ${session.limits.upload_mb} MB`;
     renderLibrary();
-    renderStage(); // the empty stage can offer one of them now
-  }, () => {});
-}).catch(() => {});
-refresh().then(schedulePoll);
+    api.samples().then((s) => {
+      samples.libraries = s.libraries || [];
+      samples.ids = [...new Set(samples.libraries.flatMap((l) => l.ids))];
+      lastListHtml = "";
+      renderLibrary();
+      renderStage(); // the empty stage can offer one of them now
+    }, () => {});
+  }).catch(() => {});
+  refresh().then(schedulePoll);
+} else {
+  // In Satellite mode, stageSync.init() handles api.tracks() and theme.setMoods() without overwriting Host visuals
+}
 
 // Handle for the browser console and the end-to-end test.
 window.loopbox = { player, engine, loader, play, refresh, applySettings, ui, viz, session };

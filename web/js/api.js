@@ -1,16 +1,18 @@
-import { Track } from "./graph.js";
+import { Track } from "./graph.js?v=174";
 
 // The library this page works on. Hosted, the server opens a fresh one for
 // every visit (nothing is kept in the browser, so a reload starts empty); in
 // the personal app the session is simply "local".
 export const session = { id: null, multiuser: false, limits: {}, key: null };
-export let userToken = localStorage.getItem("meikova:loop:token") || null;
+export let userToken = (typeof localStorage !== "undefined" ? localStorage.getItem("meikova:loop:token") : null) || null;
 export let currentUser = null;
 
 export function setUserToken(token) {
   userToken = token;
-  if (token) localStorage.setItem("meikova:loop:token", token);
-  else localStorage.removeItem("meikova:loop:token");
+  if (typeof localStorage !== "undefined") {
+    if (token) localStorage.setItem("meikova:loop:token", token);
+    else localStorage.removeItem("meikova:loop:token");
+  }
 }
 
 export function setCurrentUser(user) {
@@ -169,6 +171,8 @@ export const api = {
   relink: () => json("/api/relink", { method: "POST" }),
   analysis: (id) => json(`/api/tracks/${id}/analysis`),
   transitions: (id) => json(`/api/tracks/${id}/transitions`),
+  lyrics: (id, refresh = false) => json(`/api/tracks/${id}/lyrics${refresh ? "?refresh=true" : ""}`),
+  saveLyrics: (id, lrc) => json(`/api/tracks/${id}/lyrics`, send("POST", { lrc })),
   samples: () => json("/api/samples"),
   ingestLocal: (paths) => json("/api/desktop/ingest_local", send("POST", { paths })),
   cookieStatus: () => json("/api/cookies"),
@@ -176,6 +180,8 @@ export const api = {
   deleteCookies: () => json("/api/cookies", { method: "DELETE" }),
   settings: () => json("/api/settings"),
   saveSettings: (data) => json("/api/settings", send("POST", data)),
+  playlists: () => json("/api/playlists"),
+  savePlaylists: (data) => json("/api/playlists", send("POST", data)),
   storageInfo: () => json("/api/storage/info"),
   storageChange: (path, migrate = true) => json("/api/storage/change", send("POST", { path, migrate })),
   storageReset: () => json("/api/storage/reset", send("POST", {})),
@@ -226,19 +232,248 @@ export const api = {
 };
 
 export const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
-// Web Audio Float32 stereo PCM: ~21MB RAM per minute.
-// iOS WebKit tab Jetsam kills processes > 500-800MB: limit to 12 mins (250MB) on mobile.
-// Desktop PC 64-bit browsers have multi-gigabyte heap: allow up to 60 mins (3600s).
-export const MAX_SAFE_DURATION_S = isMobile ? 720 : 3600;
+// Chunked frame-aligned MP3 decoding + adaptive sample rate (32kHz on Desktop >25m,
+// 22.05kHz on Mobile >10m) keeps peak C++ AudioBus & AudioBuffer heap well within
+// browser limits, supporting up to 60-minute (3600s) tracks on both Desktop and Mobile Web.
+export const MAX_SAFE_DURATION_S = 3600;
+const STEM_MAX_DURATION_S = 900; // >15m mixes use DSP vocalFilter instead of a second 65MB+ stem buffer
+const MAX_CACHE_BYTES = isMobile ? 380 * 1024 * 1024 : 1150 * 1024 * 1024;
+const LAME_DECODE_DELAY_SAMPLES = 1105; // 576 LAME encoder delay + 529 MPEG Layer III decoder delay
+
+const MP3_BITRATES_V1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+const MP3_BITRATES_V2_L3 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+const MP3_SR_V1 = [44100, 48000, 32000];
+const MP3_SR_V2 = [22050, 24000, 16000];
+const MP3_SR_V25 = [11025, 12000, 8000];
+
+export function parseMp3Frames(input) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const n = bytes.length;
+  let pos = 0;
+
+  // Skip leading ID3v2 tag (including optional 10-byte footer when flag 0x10 is set)
+  if (n >= 10 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+    const flags = bytes[5];
+    const tagSize =
+      ((bytes[6] & 0x7f) << 21) |
+      ((bytes[7] & 0x7f) << 14) |
+      ((bytes[8] & 0x7f) << 7) |
+      (bytes[9] & 0x7f);
+    pos = Math.min(n, 10 + tagSize + (flags & 0x10 ? 10 : 0));
+  }
+
+  const frames = [];
+  let sampleRate = 44100;
+  let samplesPerFrame = 1152;
+  let locked = false;
+
+  while (pos + 4 <= n) {
+    if (bytes[pos] !== 0xff || (bytes[pos + 1] & 0xe0) !== 0xe0) {
+      locked = false;
+      pos++;
+      continue;
+    }
+    const b1 = bytes[pos + 1];
+    const b2 = bytes[pos + 2];
+    const ver = (b1 >> 3) & 0x03; // 3=MPEG1, 2=MPEG2, 0=MPEG2.5
+    const layer = (b1 >> 1) & 0x03; // 1=Layer III
+    const brIdx = (b2 >> 4) & 0x0f;
+    const srIdx = (b2 >> 2) & 0x03;
+    const pad = (b2 >> 1) & 0x01;
+
+    if (ver === 1 || layer !== 1 || brIdx === 0 || brIdx === 15 || srIdx === 3) {
+      locked = false;
+      pos++;
+      continue;
+    }
+
+    const sr = ver === 3 ? MP3_SR_V1[srIdx] : ver === 2 ? MP3_SR_V2[srIdx] : MP3_SR_V25[srIdx];
+    const br = ver === 3 ? MP3_BITRATES_V1_L3[brIdx] : MP3_BITRATES_V2_L3[brIdx];
+    const spf = ver === 3 ? 1152 : 576;
+    const coeff = ver === 3 ? 144000 : 72000;
+    const frameLen = Math.floor((coeff * br) / sr) + pad;
+    if (frameLen < 24 || pos + frameLen > n) {
+      break;
+    }
+
+    if (!locked) {
+      const nextPos = pos + frameLen;
+      if (nextPos + 2 <= n) {
+        const validNextSync = bytes[nextPos] === 0xff && (bytes[nextPos + 1] & 0xe0) === 0xe0;
+        const isId3v1 =
+          nextPos + 3 <= n &&
+          bytes[nextPos] === 0x54 &&
+          bytes[nextPos + 1] === 0x41 &&
+          bytes[nextPos + 2] === 0x47;
+        if (!validNextSync && !isId3v1) {
+          pos++;
+          continue;
+        }
+      }
+      locked = true;
+    }
+
+    if (frames.length === 0) {
+      sampleRate = sr;
+      samplesPerFrame = spf;
+    }
+    frames.push({ pos, len: frameLen });
+    pos += frameLen;
+  }
+
+  let hasInfoHeader = false;
+  if (frames.length > 0) {
+    const f0 = frames[0];
+    const scanEnd = Math.min(n - 4, f0.pos + Math.min(f0.len, 120));
+    for (let i = f0.pos + 4; i <= scanEnd; i++) {
+      const c0 = bytes[i];
+      const c1 = bytes[i + 1];
+      const c2 = bytes[i + 2];
+      const c3 = bytes[i + 3];
+      if (
+        (c0 === 0x58 && c1 === 0x69 && c2 === 0x6e && c3 === 0x67) || // "Xing"
+        (c0 === 0x49 && c1 === 0x6e && c2 === 0x66 && c3 === 0x6f) || // "Info"
+        (c0 === 0x56 && c1 === 0x42 && c2 === 0x52 && c3 === 0x49) // "VBRI"
+      ) {
+        hasInfoHeader = true;
+        break;
+      }
+    }
+  }
+
+  const audioStartIndex = hasInfoHeader && frames.length > 1 ? 1 : 0;
+  return {
+    frames,
+    sampleRate,
+    samplesPerFrame,
+    hasInfoHeader,
+    audioStartIndex,
+  };
+}
+
+function _allocateAudioBufferWithFallback(ctx, totalDurationSec, preferredSr, preferredCh) {
+  const candidates = [
+    { ch: preferredCh, sr: preferredSr },
+    { ch: preferredCh, sr: Math.min(preferredSr, 32000) },
+    { ch: preferredCh, sr: 22050 },
+    { ch: 1, sr: 22050 },
+  ];
+  let lastErr = null;
+  for (const cand of candidates) {
+    const length = Math.max(1, Math.round(totalDurationSec * cand.sr));
+    try {
+      const buf = ctx.createBuffer(cand.ch, length, cand.sr);
+      return buf;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Unable to allocate AudioBuffer");
+}
+
+export async function decodeTrackAudio(ctx, arrayBuffer, opts = {}) {
+  const durationSec = Number(opts.durationSec) || 0;
+  const byteLength = arrayBuffer?.byteLength || 0;
+  const longThresholdSec = isMobile ? 600 : 900;
+  const byteThreshold = isMobile ? 14 * 1024 * 1024 : 20 * 1024 * 1024;
+  const mustChunk = Boolean(opts.forceChunked) || durationSec > longThresholdSec || byteLength > byteThreshold;
+
+  if (!mustChunk) {
+    try {
+      return await ctx.decodeAudioData(arrayBuffer.slice(0));
+    } catch (_) {
+      // Fall through to chunked / lower-rate decode if monolithic decode fails
+    }
+  }
+
+  const parsed = parseMp3Frames(new Uint8Array(arrayBuffer));
+  const { frames, sampleRate: mp3Sr, samplesPerFrame, hasInfoHeader, audioStartIndex } = parsed;
+  const totalAudioFrames = frames.length - audioStartIndex;
+
+  // Non-MP3 container (WAV/FLAC/AAC/OGG) fallback when monolithic decode failed
+  if (totalAudioFrames < 32) {
+    const fallbackSr = opts.forceSampleRate || (isMobile ? 22050 : 32000);
+    if (typeof OfflineAudioContext !== "undefined") {
+      const off = new OfflineAudioContext(isMobile ? 1 : 2, 1, fallbackSr);
+      return await off.decodeAudioData(arrayBuffer.slice(0));
+    }
+    return await ctx.decodeAudioData(arrayBuffer.slice(0));
+  }
+
+  const totalDurationSec = (totalAudioFrames * samplesPerFrame) / mp3Sr;
+  const preferredSr =
+    opts.forceSampleRate ||
+    (isMobile ? 22050 : durationSec > 1500 || totalDurationSec > 1500 ? 32000 : ctx.sampleRate || mp3Sr || 44100);
+  const preferredCh = opts.forceChannels || (isMobile && (durationSec > 1800 || totalDurationSec > 1800) ? 1 : 2);
+
+  const outBuf = _allocateAudioBufferWithFallback(ctx, totalDurationSec, preferredSr, preferredCh);
+  const outSr = outBuf.sampleRate;
+  const outCh = outBuf.numberOfChannels;
+  const maxFramesPerChunk = Math.max(64, Number(opts.maxFramesPerChunk) || 9000); // ~3.9 mins per chunk
+
+  const decodeSlice = async (sliceAb) => {
+    if (typeof OfflineAudioContext !== "undefined" && outSr !== ctx.sampleRate) {
+      const off = new OfflineAudioContext(outCh, 1, outSr);
+      return await off.decodeAudioData(sliceAb);
+    }
+    return await ctx.decodeAudioData(sliceAb);
+  };
+
+  let writePos = 0;
+  let chunkIdx = 0;
+  for (let startFrame = audioStartIndex; startFrame < frames.length; startFrame += maxFramesPerChunk) {
+    const endFrame = Math.min(frames.length, startFrame + maxFramesPerChunk);
+    const isFirst = startFrame === audioStartIndex;
+    const warmFrames = isFirst ? 0 : Math.min(3, startFrame - audioStartIndex);
+    const sliceStartByte = isFirst ? 0 : frames[startFrame - warmFrames].pos;
+    const lookaheadIdx = Math.min(frames.length - 1, endFrame);
+    const sliceEndByte = frames[lookaheadIdx].pos + frames[lookaheadIdx].len;
+
+    const sliceAb = arrayBuffer.slice(sliceStartByte, sliceEndByte);
+    const dec = await decodeSlice(sliceAb);
+
+    const skipSamples = isFirst
+      ? hasInfoHeader
+        ? 0
+        : Math.round((LAME_DECODE_DELAY_SAMPLES * outSr) / mp3Sr)
+      : Math.round(((warmFrames * samplesPerFrame + LAME_DECODE_DELAY_SAMPLES) * outSr) / mp3Sr);
+
+    const chunkFrames = endFrame - startFrame;
+    const expectedSamples = Math.round((chunkFrames * samplesPerFrame * outSr) / mp3Sr);
+    const wantSamples = Math.min(expectedSamples, outBuf.length - writePos);
+    const availSamples = Math.max(0, Math.min(wantSamples, dec.length - skipSamples));
+
+    if (availSamples > 0) {
+      for (let c = 0; c < outCh; c++) {
+        const srcCh = dec.getChannelData(Math.min(c, dec.numberOfChannels - 1));
+        const sub = srcCh.subarray(skipSamples, skipSamples + availSamples);
+        if (typeof outBuf.copyToChannel === "function") {
+          outBuf.copyToChannel(sub, c, writePos);
+        } else {
+          outBuf.getChannelData(c).set(sub, writePos);
+        }
+      }
+    }
+
+    writePos += wantSamples;
+    chunkIdx++;
+    if (chunkIdx % 3 === 0 && startFrame + maxFramesPerChunk < frames.length) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+
+  return outBuf;
+}
 
 // Fetches and decodes tracks, keeping a few decoded buffers in memory
 // (a 4-minute song is ~85 MB of float samples).
 export class Loader extends EventTarget {
-  constructor(engine, keep = 5) {
+  constructor(engine, keep = isMobile ? 2 : 3) {
     super();
     this.engine = engine;
-    const mem = typeof navigator !== "undefined" && navigator.deviceMemory ? navigator.deviceMemory : (isMobile ? 2 : 4);
-    this.keep = isMobile ? 2 : (mem <= 4 ? 2 : keep);
+    // Keep at most 2 decoded songs on mobile RAM (Jetsam safety), up to 3 on Desktop
+    const maxKeep = isMobile ? 2 : 3;
+    this.keep = Math.max(1, Math.min(maxKeep, keep));
     this.cache = new Map(); // id -> {promise, track, used}
     this.metas = new Map();
     this.protect = () => [];
@@ -247,6 +482,12 @@ export class Loader extends EventTarget {
   isOversized(meta) {
     if (!meta || !meta.duration) return false;
     return meta.duration > MAX_SAFE_DURATION_S;
+  }
+
+  canLoadStems(id) {
+    const meta = this.metas.get(id);
+    if (!meta?.stems || this.isOversized(meta)) return false;
+    return (meta.duration || 0) <= STEM_MAX_DURATION_S;
   }
 
   setMetas(list) {
@@ -260,34 +501,48 @@ export class Loader extends EventTarget {
   }
 
   has(id) {
-    return !!this.cache.get(id)?.track;
+    return Boolean(this.cache.get(id)?.track?.buffer);
   }
 
   get(id) {
     const hit = this.cache.get(id);
     if (hit) {
-      hit.used = performance.now();
-      return hit.promise;
+      if (hit.track && !hit.track.buffer) {
+        this.cache.delete(id);
+      } else {
+        hit.used = performance.now();
+        return hit.promise;
+      }
+    }
+    if (!this.loadingIds) this.loadingIds = new Set();
+    this.loadingIds.add(id);
+    const meta = this.metas.get(id) || { id, title: id };
+    if ((meta.duration || 0) > 900) {
+      // Proactively free un-protected cached tracks before allocating a long mix buffer
+      this._evict(1, id);
     }
     const entry = { track: null, used: performance.now() };
     entry.promise = (async () => {
-      const meta = this.metas.get(id) || { id, title: id };
       if (this.isOversized(meta)) {
         const mins = Math.round(meta.duration / 60);
         const limitMins = Math.round(MAX_SAFE_DURATION_S / 60);
         throw new Error(`Bài quá dài (${mins} phút, giới hạn ${limitMins} phút) không thể nạp vào bộ nhớ trình duyệt`);
       }
       const [analysis, audio, trans] = await Promise.all([api.analysis(id), api.audio(id), api.transitions(id)]);
-      const buffer = await this.engine.ctx.decodeAudioData(audio);
+      const durationSec = meta.duration || analysis?.duration || 0;
+      const buffer = await decodeTrackAudio(this.engine.ctx, audio, { durationSec });
       const track = new Track(meta, analysis, buffer);
       track.transitions = trans.items;
       track.onward = trans.onward || null; // each destination's own best ways on
       entry.track = track;
+      entry.used = performance.now();
+      this._evict(this.keep, id);
       return track;
     })();
     entry.promise.catch(() => this.cache.delete(id));
+    entry.promise.finally(() => this.loadingIds?.delete(id));
     this.cache.set(id, entry);
-    this._evict();
+    this._evict(this.keep, id);
     return entry.promise;
   }
 
@@ -310,13 +565,13 @@ export class Loader extends EventTarget {
   // The vocal stem of a loaded song, decoded (null when it has none), kept as
   // long as the song: fetched only for a transition that hands over by layers.
   vocals(id) {
+    if (!this.canLoadStems(id)) return Promise.resolve(null);
     const meta = this.metas.get(id);
-    if (!meta?.stems || this.isOversized(meta)) return Promise.resolve(null);
     const hit = this.cache.get(id);
     if (hit?.vocals) return hit.vocals;
     const p = (async () => {
       const raw = await api.vocals(id);
-      return this.engine.ctx.decodeAudioData(raw);
+      return decodeTrackAudio(this.engine.ctx, raw, { durationSec: meta?.duration || 0 });
     })();
     p.catch(() => {
       const e = this.cache.get(id);
@@ -327,16 +582,35 @@ export class Loader extends EventTarget {
   }
 
   drop(id) {
+    const entry = this.cache.get(id);
+    if (entry) entry.vocals = null;
     this.cache.delete(id);
   }
 
-  _evict() {
-    if (this.cache.size <= this.keep) return;
+  _bufferBytes(entry) {
+    const buf = entry?.track?.buffer;
+    if (!buf) return 0;
+    return (buf.length || 0) * (buf.numberOfChannels || 2) * 4;
+  }
+
+  _totalCachedBytes() {
+    let sum = 0;
+    for (const e of this.cache.values()) sum += this._bufferBytes(e);
+    return sum;
+  }
+
+  _evict(maxKeep = this.keep, pinnedId = null) {
     const keep = new Set(this.protect());
-    const order = [...this.cache.entries()].filter(([id, e]) => !keep.has(id) && e.track).sort((a, b) => a[1].used - b[1].used);
-    while (this.cache.size > this.keep && order.length) {
+    if (pinnedId) keep.add(pinnedId);
+    if (this.loadingIds) {
+      for (const lid of this.loadingIds) keep.add(lid);
+    }
+    const order = [...this.cache.entries()]
+      .filter(([id, e]) => !keep.has(id) && e.track)
+      .sort((a, b) => a[1].used - b[1].used);
+    while ((this.cache.size > maxKeep || this._totalCachedBytes() > MAX_CACHE_BYTES) && order.length) {
       const [dropId, entry] = order.shift();
-      if (entry?.track) entry.track.buffer = null;
+      if (entry) entry.vocals = null;
       this.cache.delete(dropId);
     }
   }

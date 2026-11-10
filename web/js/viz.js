@@ -9,11 +9,13 @@
 // colour of the playing song, and around its loop a halo of the live spectrum
 // breathes with the music.
 
-import * as theme from "./theme.js";
+import * as theme from "./theme.js?v=174";
+import { stageSync } from "./stage_sync.js?v=174";
 
 const TAU = Math.PI * 2;
 const HALO_BANDS = 48;
 const HALO_N = 180;
+const DOCK_LEAD_S = 14; // dock the confirmed next loop cleanly into infinity only shortly before hand-over
 const HALO_COS = new Float32Array(HALO_N + 1);
 const HALO_SIN = new Float32Array(HALO_N + 1);
 for (let k = 0; k <= HALO_N; k++) {
@@ -217,6 +219,7 @@ class Ring {
     this.x = null;
     this.y = null;
     this.r = 0;
+    this._layoutR = null;
     this.rot = -Math.PI / 2; // song start at twelve o'clock
     // Which way time runs round the loop: +1 clockwise, -1 counter-clockwise.
     // Neighbours in the ∞ turn opposite ways, so the path through the crossing
@@ -251,6 +254,7 @@ export class Viz {
     this.primaryId = null;
     this.idle = 1;
     this.pulse = 0;
+    this.beatPulse = true;
     this.lastBeatKey = "";
     this.lastEventT = 0;
     this.flashes = [];
@@ -270,16 +274,57 @@ export class Viz {
     this._smoothAudioT = null;
     this._lastAudioWall = null;
     this._lastAudioVal = null;
+    this._twoHoldUntil = 0;
+    this._prewarmedIds = new Set();
     this.ro = new ResizeObserver(() => this._resize());
-    this.ro.observe(canvas.parentElement);
+    if (canvas.parentElement) this.ro.observe(canvas.parentElement);
+    window.addEventListener("resize", () => this._resize(), { passive: true });
+    window.addEventListener("orientationchange", () => setTimeout(() => this._resize(), 80), { passive: true });
     this._resize();
     this._bindPointer();
+    stageSync.viz = this;
     const loop = (now) => {
-      this._frame(now);
-      requestAnimationFrame(loop);
+      try {
+        this._frame(now);
+      } catch (err) {
+        console.error("[Viz] Frame error:", err);
+      } finally {
+        requestAnimationFrame(loop);
+      }
     };
     this.started = true;
     requestAnimationFrame(loop);
+
+    // Continuous heartbeat broadcast from host to satellites, even when host tab is in background/minimized
+    if (!stageSync.isSatellite && typeof window !== "undefined") {
+      setInterval(() => {
+        const now = performance.now();
+        if (!stageSync.connected) return;
+        const hasActiveTrack = Boolean(this.primaryId || this.player?.cur?.track || this.player?._switchingTrack);
+        if (!hasActiveTrack) {
+          // Do not broadcast idle telemetry from hidden background tabs; throttle idle keepalives to 1Hz on visible tabs
+          if (document.hidden) return;
+          if (stageSync.lastBroadcast > 0 && now - stageSync.lastBroadcast < 1000) return;
+        }
+        if (document.hidden || now - stageSync.lastBroadcast > 48) {
+          if (document.hidden || now - this.last > 48) {
+            const dt = Math.min(0.1, Math.max(0.016, (now - this.last) / 1000));
+            this.last = now;
+            const view = this.player?.audible();
+            this.mixNow = this._mix(view);
+            this._beatPulse(view, dt);
+            this._spectrum(dt);
+            this._update(view, dt);
+            const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
+            this._roomColor(primary, view, dt);
+            this.heads = this._heads(primary, view, view ? view.now : 0);
+            this.capPlace = this._captionPlace(primary, view);
+            this.captionTrack = this.capPlace.ring?.track || null;
+          }
+          this._broadcastHostTelemetry();
+        }
+      }, 33);
+    }
   }
 
   setTitles(map) {
@@ -287,7 +332,30 @@ export class Viz {
   }
 
   invalidate() {
-    for (const ring of this.rings.values()) ring.layerKey = "";
+    for (const ring of this.rings.values()) {
+      ring.layerKey = "";
+      ring.col = null;
+    }
+    if (this.satellitePrimaryRing) {
+      this.satellitePrimaryRing.layerKey = "";
+      this.satellitePrimaryRing.col = null;
+    }
+    if (this.satelliteSecondRing) {
+      this.satelliteSecondRing.layerKey = "";
+      this.satelliteSecondRing.col = null;
+    }
+  }
+
+  renderSatellite(telemetry = null) {
+    if (!stageSync.isSatellite) return;
+    const now = performance.now();
+    if (!this.started || (typeof document !== "undefined" && document.hidden) || now - this.last > 80) {
+      this._frame(now);
+    }
+  }
+
+  setBeatPulse(enabled) {
+    this.beatPulse = Boolean(enabled);
   }
 
   setScale(scale) {
@@ -298,6 +366,7 @@ export class Viz {
       const ratio = s / oldScale;
       for (const ring of this.rings.values()) {
         if (ring.r) ring.r *= ratio;
+        if (ring._layoutR) ring._layoutR *= ratio;
         if (ring.target?.r) ring.target.r *= ratio;
       }
       this.layerR = null;
@@ -313,27 +382,49 @@ export class Viz {
   // ------------------------------------------------------------- geometry
 
   _resize() {
-    const box = this.canvas.parentElement.getBoundingClientRect();
     const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
-    const w = Math.max(200, Math.round(box.width));
-    const h = Math.max(200, Math.round(box.height));
+    const box = this.canvas.parentElement ? this.canvas.parentElement.getBoundingClientRect() : null;
+    let w = Math.round(box?.width || 0);
+    let h = Math.round(box?.height || 0);
+    if (w < 120 || h < 120) {
+      w = Math.max(200, Math.round(window.innerWidth || document.documentElement.clientWidth || 800));
+      h = Math.max(200, Math.round(window.innerHeight || document.documentElement.clientHeight || 800));
+    }
+    const pxW = Math.round(w * dpr);
+    const pxH = Math.round(h * dpr);
+    const baseR = Math.round(Math.min(w, h) * 0.37 * (this.scale || 1.0));
+    if (
+      this.w === w &&
+      this.h === h &&
+      this.dpr === dpr &&
+      this.canvas.width === pxW &&
+      this.canvas.height === pxH &&
+      this.baseR === baseR
+    ) {
+      return;
+    }
     this.w = w;
     this.h = h;
-    this.canvas.width = Math.round(w * dpr);
-    this.canvas.height = Math.round(h * dpr);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
+    if (this.canvas.width !== pxW) this.canvas.width = pxW;
+    if (this.canvas.height !== pxH) this.canvas.height = pxH;
+    if (!stageSync.isSatellite) {
+      this.canvas.style.width = `${w}px`;
+      this.canvas.style.height = `${h}px`;
+    } else {
+      if (this.canvas.style.width) this.canvas.style.width = "";
+      if (this.canvas.style.height) this.canvas.style.height = "";
+    }
     this.ctx.imageSmoothingEnabled = true;
     this.ctx.imageSmoothingQuality = "high";
-    this.baseR = Math.round(Math.min(w, h) * 0.37 * (this.scale || 1.0));
-    // Redraw layers when scale changes by more than 2% to keep hairlines crisp
-    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.02) {
+    this.baseR = baseR;
+    // Redraw layers when scale changes by more than 4% (ignore minor container reflow jitter)
+    if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.04) {
       this.layerR = this.baseR;
       this.invalidate();
     }
     this.dpr = dpr;
     // Setting the canvas size cleared it: paint now, not at the next frame.
-    if (this.started) this._frame(performance.now());
+    if (this.started && !this._inFrame) this._frame(performance.now());
   }
 
   // Where the loops sit: one in the middle, or two touching (side by side on
@@ -400,13 +491,27 @@ export class Viz {
 
   // Everything about a song that does not move: drawn once, then rotated and
   // scaled as the loop travels.
-  _buildLayer(track) {
-    const RL = Math.round(this.layerR);
+  _prewarmLayer(track) {
+    if (!track || !track.analysis) return;
+    const keep = this.player?.settings?.keep ?? 0.6;
+    const transLen = track.transitions?.length ?? 0;
+    const baseLayerR = this.layerR || this.baseR || 160;
+    const key = `${track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${theme.paletteVersion()}`;
+    const ring = this._ring(track, this.rings.get(track.id)?.role || "fading");
+    if (ring.layerKey !== key) {
+      ring.alpha = ring.alpha ?? 0;
+      ring.layer = this._buildLayer(track);
+      ring.layerKey = key;
+    }
+  }
+
+  _buildLayer(track, forcedCol = null) {
+    const RL = Math.round(this.layerR || this.baseR || 160);
     const th = this._thickness(RL);
     let S = Math.ceil(RL * 2.9);
     if (S % 2 !== 0) S++;
-    // Supersample the offscreen texture (SSAA) so rotated drawImage remains razor sharp
-    const layerScale = Math.min(Math.max(Math.round(this.dpr * 2), 2), 4);
+    // Cap offscreen SSAA texture <= 2048px so layer builds never stall frame animation
+    const layerScale = Math.min(Math.max((this.dpr || 1) * 1.5, 2), 3, 2048 / S);
     const c = document.createElement("canvas");
     c.width = Math.round(S * layerScale);
     c.height = Math.round(S * layerScale);
@@ -416,42 +521,117 @@ export class Viz {
     ctx.scale(layerScale, layerScale);
     ctx.translate(S / 2, S / 2);
     const a = track.analysis;
-    const maxScore = this.player.maxScore(track);
+    const maxScore = this.player?.maxScore ? this.player.maxScore(track) : (track.scoreCut ? track.scoreCut(0.6) : 0.2);
     const loudMax = Math.max(...a.loud);
     const loudMin = Math.min(...a.loud);
     const ang = (t) => this._ang(track, t);
-    const at = (t, r) => [r * Math.cos(ang(t)), r * Math.sin(ang(t))];
     const rin = RL - th / 2 - 3;
-    const chord = theme.lift(theme.accentOf(track.id), 0.04);
-    const colors = theme.beatColors(track.id, a.color);
+    const mood = track.analysis?.mood || track.meta?.mood || null;
+    if (mood) theme.registerMood(track.id, mood);
+    let hostCol = forcedCol;
+    if (!hostCol && stageSync.isSatellite) {
+      if (stageSync.telemetry?.track_id === track.id && stageSync.telemetry?.color_a) {
+        const colA = stageSync.telemetry.color_a;
+        hostCol = { l: colA[0], c: colA[1], h: colA[2] };
+      } else if (stageSync.telemetry?.second?.id === track.id && stageSync.telemetry?.color_b) {
+        const colB = stageSync.telemetry.color_b;
+        hostCol = { l: colB[0], c: colB[1], h: colB[2] };
+      }
+    }
+    const chord = theme.lift(hostCol || theme.accentOf(track.id, mood), 0.04);
+    const colors = theme.beatColors(track.id, a.color, mood, hostCol);
     const ink = theme.inkOf(track.id);
 
-    // Jump chords, weakest first so the best sit on top.
+    // Helper appending quadratic chord curve directly into current batched path
+    const addChord = (a1, a2) => {
+      const x1 = rin * Math.cos(a1), y1 = rin * Math.sin(a1);
+      const x2 = rin * Math.cos(a2), y2 = rin * Math.sin(a2);
+      const sep = Math.abs(wrapAngle(a1 - a2));
+      const k = (1 - 0.92 * (sep / Math.PI)) * 0.9;
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(((x1 + x2) / 2) * k, ((y1 + y2) / 2) * k, x2, y2);
+    };
+
+    // Jump chords batched by alpha bucket (~9 strokes instead of thousands)
     const edges = [];
     for (let i = 0; i < track.n; i++) for (const e of track.jumps[i]) edges.push([i, e.to, e.score]);
     edges.sort((p, q) => q[2] - p[2]);
     ctx.lineWidth = 1;
-    for (const [i, j, s] of edges) {
-      const ok = s <= maxScore;
-      ctx.strokeStyle = ok ? theme.css(chord, 0.08 + 0.42 * (1 - s / Math.max(maxScore, 0.01))) : theme.css(ink, 0.03);
-      this._chordPath(ctx, rin, ang(track.beats[i] + track.dur[i]), ang(track.beats[j]));
+    const CHORD_BUCKETS = 8;
+    const faintChords = [];
+    const okBuckets = Array.from({ length: CHORD_BUCKETS }, () => []);
+    for (let idx = 0; idx < edges.length; idx++) {
+      const [i, j, s] = edges[idx];
+      if (s <= maxScore) {
+        const w = 1 - s / Math.max(maxScore, 0.01);
+        const bi = Math.min(CHORD_BUCKETS - 1, Math.max(0, Math.floor(w * CHORD_BUCKETS)));
+        okBuckets[bi].push(i, j);
+      } else {
+        faintChords.push(i, j);
+      }
+    }
+    if (faintChords.length) {
+      ctx.strokeStyle = theme.css(ink, 0.03);
+      ctx.beginPath();
+      const totalPairs = faintChords.length >> 1;
+      const step = totalPairs > 700 ? Math.ceil(totalPairs / 700) : 1;
+      for (let p = 0; p < totalPairs; p += step) {
+        const i = faintChords[p * 2], j = faintChords[p * 2 + 1];
+        addChord(ang(track.beats[i] + track.dur[i]), ang(track.beats[j]));
+      }
+      ctx.stroke();
+    }
+    for (let bi = 0; bi < CHORD_BUCKETS; bi++) {
+      const bkt = okBuckets[bi];
+      if (!bkt.length) continue;
+      ctx.strokeStyle = theme.css(chord, 0.08 + 0.42 * ((bi + 0.5) / CHORD_BUCKETS));
+      ctx.beginPath();
+      const totalPairs = bkt.length >> 1;
+      const step = totalPairs > 450 ? Math.ceil(totalPairs / 450) : 1;
+      for (let p = 0; p < totalPairs; p += step) {
+        const i = bkt[p * 2], j = bkt[p * 2 + 1];
+        addChord(ang(track.beats[i] + track.dur[i]), ang(track.beats[j]));
+      }
       ctx.stroke();
     }
 
-    // Dust: the ring is made of matter, denser where the song is loud.
+    // Dust: batched into 2 alpha groups per beat instead of individual arc+fill calls
     const rnd = seeded(track.n * 7919 + Math.round(track.end * 13));
     for (let b = 0; b < track.n; b++) {
       const lv = (a.loud[b] - loudMin) / Math.max(1, loudMax - loudMin);
-      const count = 2 + Math.round(9 * lv);
+      const count = 2 + Math.round(8 * lv);
       ctx.fillStyle = colors[b];
+      const hiPts = [];
+      const loPts = [];
       for (let k = 0; k < count; k++) {
         const t = track.beats[b] + rnd() * track.dur[b];
-        const spread = (rnd() + rnd() + rnd() - 1.5) / 1.5; // roughly normal, -1..1
+        const spread = (rnd() + rnd() + rnd() - 1.5) / 1.5;
         const r = RL + spread * th * 2.1;
-        const [x, y] = at(t, r);
-        ctx.globalAlpha = 0.12 + 0.4 * rnd() * (1 - Math.abs(spread));
+        const theta = ang(t);
+        const x = r * Math.cos(theta);
+        const y = r * Math.sin(theta);
+        const al = 0.12 + 0.4 * rnd() * (1 - Math.abs(spread));
+        const rad = 0.5 + rnd() * 0.9;
+        (al >= 0.28 ? hiPts : loPts).push(x, y, rad);
+      }
+      if (loPts.length) {
+        ctx.globalAlpha = 0.19;
         ctx.beginPath();
-        ctx.arc(x, y, 0.5 + rnd() * 0.9, 0, TAU);
+        for (let p = 0; p < loPts.length; p += 3) {
+          const x = loPts[p], y = loPts[p + 1], rad = loPts[p + 2];
+          ctx.moveTo(x + rad, y);
+          ctx.arc(x, y, rad, 0, TAU);
+        }
+        ctx.fill();
+      }
+      if (hiPts.length) {
+        ctx.globalAlpha = 0.36;
+        ctx.beginPath();
+        for (let p = 0; p < hiPts.length; p += 3) {
+          const x = hiPts[p], y = hiPts[p + 1], rad = hiPts[p + 2];
+          ctx.moveTo(x + rad, y);
+          ctx.arc(x, y, rad, 0, TAU);
+        }
         ctx.fill();
       }
     }
@@ -468,41 +648,40 @@ export class Viz {
     }
     ctx.globalAlpha = 1;
 
-    // The dial: a hairline tick every 15 s, longer on the minute.
+    // The dial: a hairline tick every 15 s, longer on the minute (single batched stroke).
     const r0 = RL + th / 2 + 8;
     ctx.strokeStyle = theme.css(ink, 0.22);
     ctx.lineWidth = 1;
+    ctx.beginPath();
     for (let t = 0; t <= track.end; t += 15) {
       const long = Math.round(t) % 60 === 0;
-      const [x1, y1] = at(t, r0);
-      const [x2, y2] = at(t, r0 + (long ? 7 : 3.5));
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
+      const thA = ang(t), cs = Math.cos(thA), sn = Math.sin(thA);
+      ctx.moveTo(r0 * cs, r0 * sn);
+      ctx.lineTo((r0 + (long ? 7 : 3.5)) * cs, (r0 + (long ? 7 : 3.5)) * sn);
     }
+    ctx.stroke();
 
-    // Section starts, just inside the dial.
+    // Section starts, just inside the dial (single batched stroke).
     ctx.strokeStyle = theme.css(ink, 0.55);
     ctx.lineWidth = 1.4;
+    ctx.beginPath();
     for (const s of a.sections) {
-      const [x1, y1] = at(track.beats[s], RL + th / 2 + 1);
-      const [x2, y2] = at(track.beats[s], RL + th / 2 + 5);
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
+      const thS = ang(track.beats[s]), cs = Math.cos(thS), sn = Math.sin(thS);
+      ctx.moveTo((RL + th / 2 + 1) * cs, (RL + th / 2 + 1) * sn);
+      ctx.lineTo((RL + th / 2 + 5) * cs, (RL + th / 2 + 5) * sn);
     }
+    ctx.stroke();
 
     // Exits to other songs (those the chain may take).
+    const exitR = this._exitRadius(RL);
     for (const tr of track.transitions) {
       if (!this._shown(track, tr)) continue;
       const t = this._exitTime(track, tr);
       if (t === null) continue;
-      const [x, y] = at(t, this._exitRadius(RL));
+      const thE = ang(t);
       ctx.fillStyle = theme.css(theme.songColor(tr.to), 0.4 + 0.55 * tr.q);
       ctx.beginPath();
-      ctx.arc(x, y, tr.type === "cut" ? 4 : 3.1, 0, TAU);
+      ctx.arc(exitR * Math.cos(thE), exitR * Math.sin(thE), tr.type === "cut" ? 4 : 3.1, 0, TAU);
       ctx.fill();
     }
     return { canvas: c, S, RL, th };
@@ -570,7 +749,7 @@ export class Viz {
 
   _roles(view) {
     const p = this.player;
-    const primary = view?.entry.track || null;
+    const primary = view?.entry.track || (p.cur ? p.cur.track : null);
     let second = null;
     let secondTr = null;
     let placeholder = null;
@@ -590,8 +769,21 @@ export class Viz {
       secondTr = tr && tr.to === second.id ? tr : null;
     } else if (p.plan && primary && p.plan.from === primary.id) {
       secondTr = p.plan.tr;
-      if (p.plan.target) second = p.plan.target;
-      else placeholder = p.plan.tr.to;
+      const etaLeft = (view && Number.isFinite(p.plan.eta)) ? (p.plan.eta - view.now) : 0;
+      if (p.plan.target && !p.plan._layerPrewarmed) {
+        p.plan._layerPrewarmed = true;
+        this._prewarmLayer(p.plan.target);
+      }
+      if (p.plan.picked) {
+        p.plan._docked = true;
+        if (p.plan.target) second = p.plan.target;
+        else placeholder = p.plan.tr.to;
+      } else if (p.plan.target && p.plan.ready && (p.urgent || etaLeft <= DOCK_LEAD_S)) {
+        p.plan._docked = true;
+        second = p.plan.target;
+      } else if (p.plan._docked && p.plan.target) {
+        second = p.plan.target;
+      }
     }
     return { primary, second, secondTr, placeholder };
   }
@@ -609,12 +801,22 @@ export class Viz {
 
   _update(view, dt) {
     const { primary, second, secondTr, placeholder } = this._roles(view);
-    const two = !!(second || placeholder);
+    const nowWall = performance.now();
+    const rawTwo = !!(second || placeholder);
+    if (rawTwo) {
+      this._twoHoldUntil = nowWall + 1100;
+    } else if (this.mixNow || this.player?.settings?.mode !== "chain" || !primary) {
+      this._twoHoldUntil = 0;
+    }
+    // Layout hysteresis: if a docked 2-ring plan drops momentarily before transition,
+    // hold two-ring geometry briefly while searching for the replacement so it never pumps.
+    const two = rawTwo || (nowWall < (this._twoHoldUntil || 0));
     const swapProg = (second && (this.mixNow || (this.player.cur && primary && this.player.cur.track.id !== primary.id)))
       ? this._mixProgress(view)
       : 0;
     const L = this._layout(two, swapProg);
     const k = this.reduced ? 1 : 1 - Math.exp(-dt / 0.22);
+    const kLayout = this.reduced ? 1 : 1 - Math.exp(-dt / 0.36);
     const kRot = this.reduced ? 1 : 1 - Math.exp(-dt / 0.3);
 
     this.idle += ((primary ? 0 : 1) - this.idle) * (this.reduced ? 1 : 1 - Math.exp(-dt / 0.25));
@@ -626,13 +828,28 @@ export class Viz {
       const fresh = !this.rings.has(primary.id);
       const ring = this._ring(primary, "primary");
       if (fresh) {
-        ring.x = L.a.x;
-        ring.y = L.a.y;
-        ring.r = L.a.r;
-        ring.fill = this.reduced || before ? 1 : 0; // the very first loop sweeps in
         if (before) {
-          ring.r = L.a.r * 0.7;
+          const L2 = this._layout(true, 0);
+          if (before.x !== null && before.y !== null) {
+            const br = before._layoutR || before.r;
+            before.x += (L2.a.x - before.x) * 0.28;
+            before.y += (L2.a.y - before.y) * 0.28;
+            before._layoutR = br + (L2.a.r - br) * 0.28;
+            before.r = before._layoutR;
+          }
+          ring.x = L2.b.x + (L2.b.x - L2.a.x) * 0.15;
+          ring.y = L2.b.y + (L2.b.y - L2.a.y) * 0.15;
+          ring.r = L2.b.r * 0.65;
+          ring._layoutR = ring.r;
+          ring.alpha = 0.25;
+          ring.fill = 1;
           ring.dir = -before.dir;
+        } else {
+          ring.x = L.a.x;
+          ring.y = L.a.y;
+          ring.r = L.a.r;
+          ring._layoutR = ring.r;
+          ring.fill = this.reduced ? 1 : 0; // the very first loop sweeps in
         }
       }
       this.primaryId = primary.id;
@@ -663,6 +880,7 @@ export class Viz {
           sr.x = L.b.x + (L.b.x - L.a.x) * 0.25;
           sr.y = L.b.y + (L.b.y - L.a.y) * 0.25;
           sr.r = L.b.r * 0.6;
+          sr._layoutR = sr.r;
           sr.rot = rot;
           sr.alpha = 0;
         }
@@ -673,30 +891,38 @@ export class Viz {
     this.cross = two ? L.cross : null;
 
     for (const [id, ring] of this.rings) {
+      const baseR = ring._layoutR || ring.r;
       if (ring.role === "leaving" || ring.role === "fading") {
         const away = ring.role === "leaving";
         ring.target = {
           x: ring.x + (away ? -0.02 * this.w : 0),
           y: ring.y,
-          r: ring.r * (away ? 0.985 : 0.99),
+          r: baseR * (away ? 0.985 : 0.99),
           alpha: 0,
         };
       }
       const tg = ring.target;
       if (!tg) continue;
-      if (ring.x === null) {
-        ring.x = tg.x;
-        ring.y = tg.y;
-        ring.r = tg.r;
+      if (ring.x === null || ring._layoutR === null) {
+        if (ring.x === null) {
+          ring.x = tg.x;
+          ring.y = tg.y;
+        }
+        ring._layoutR = tg.r;
       }
-      ring.x += (tg.x - ring.x) * k;
-      ring.y += (tg.y - ring.y) * k;
-      ring.r += (tg.r - ring.r) * k;
+      ring.x += (tg.x - ring.x) * kLayout;
+      ring.y += (tg.y - ring.y) * kLayout;
+      ring._layoutR += (tg.r - ring._layoutR) * kLayout;
+      const pulseAmt = (this.beatPulse !== false && !this.reduced)
+        ? (ring.role === "primary" ? 1 : 0.6) * (0.044 * (this.pulse || 0) + 0.017 * (this.bass || 0))
+        : 0;
+      ring.r = ring._layoutR * (1 + pulseAmt);
       const fadeK = this.reduced ? Math.min(1, dt / 0.16) : k;
       ring.alpha += (tg.alpha - ring.alpha) * fadeK;
       if (tg.rot !== undefined) ring.rot += wrapAngle(tg.rot - ring.rot) * kRot;
       // The playing loop wears the room's accent; the others their own colour.
-      const want = ring.role === "primary" ? theme.accentOf(ring.track.id) : theme.songColor(ring.track.id);
+      const mood = ring.track.analysis?.mood || ring.track.meta?.mood || null;
+      const want = ring.role === "primary" ? theme.accentOf(ring.track.id, mood) : theme.songColor(ring.track.id, mood);
       ring.col = theme.ease(ring.col, want, this.reduced ? 1 : 1 - Math.exp(-dt / 0.5));
       if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
       if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) this.rings.delete(id);
@@ -706,64 +932,92 @@ export class Viz {
   // ----------------------------------------------------------------- frame
 
   _frame(now) {
-    const dt = Math.min(0.1, (now - this.last) / 1000);
-    this.last = now;
-    const ctx = this.ctx;
-    const view = this.player.audible();
-
-    // Wall-clock interpolation to smooth out AudioContext hardware buffer quantization
-    let effectiveNow = view ? view.now : 0;
-    if (view && typeof view.now === "number") {
-      const rate = view.entry?.rate || 1;
-      if (this._smoothAudioT === null || Math.abs(view.now - this._smoothAudioT) > 0.3) {
-        this._smoothAudioT = view.now;
-        this._lastAudioWall = now;
-        this._lastAudioVal = view.now;
-      } else {
-        const dtWall = Math.min(0.1, Math.max(0, (now - (this._lastAudioWall || now)) / 1000));
-        this._lastAudioWall = now;
-        this._smoothAudioT += dtWall * rate;
-        const drift = view.now - this._smoothAudioT;
-        this._smoothAudioT += drift * 0.15;
+    if (this._inFrame) return;
+    this._inFrame = true;
+    try {
+      if (stageSync.isSatellite) {
+        const box = this.canvas.parentElement ? this.canvas.parentElement.getBoundingClientRect() : null;
+        if (box && box.width >= 120 && box.height >= 120) {
+          const targetW = Math.round(box.width);
+          const targetH = Math.round(box.height);
+          if (Math.abs(targetW - this.w) > 2 || Math.abs(targetH - this.h) > 2) {
+            this._resize();
+          }
+        }
       }
-      effectiveNow = this._smoothAudioT;
-    } else {
-      this._smoothAudioT = null;
-      this._lastAudioWall = null;
+
+      const dt = Math.min(0.1, (now - this.last) / 1000);
+      this.last = now;
+      const ctx = this.ctx;
+
+      if (stageSync.isStageMirrorActive) {
+        const sx = this.canvas.width / this.w;
+        const sy = this.canvas.height / this.h;
+        ctx.setTransform(sx, 0, 0, sy, 0, 0);
+        ctx.clearRect(0, 0, this.w, this.h);
+        this._drawSatelliteStage(ctx, now, stageSync.telemetry, dt);
+        return;
+      }
+
+      const view = this.player.audible();
+
+      // Wall-clock interpolation to smooth out AudioContext hardware buffer quantization
+      let effectiveNow = view ? view.now : 0;
+      if (view && typeof view.now === "number") {
+        const rate = view.entry?.rate || 1;
+        if (this._smoothAudioT === null || Math.abs(view.now - this._smoothAudioT) > 0.3) {
+          this._smoothAudioT = view.now;
+          this._lastAudioWall = now;
+          this._lastAudioVal = view.now;
+        } else {
+          const dtWall = Math.min(0.1, Math.max(0, (now - (this._lastAudioWall || now)) / 1000));
+          this._lastAudioWall = now;
+          this._smoothAudioT += dtWall * rate;
+          const drift = view.now - this._smoothAudioT;
+          this._smoothAudioT += drift * 0.15;
+        }
+        effectiveNow = this._smoothAudioT;
+      } else {
+        this._smoothAudioT = null;
+        this._lastAudioWall = null;
+      }
+
+      this.mixNow = this._mix(view);
+      this._beatPulse(view, dt);
+      this._spectrum(dt);
+      this._update(view, dt);
+
+      const sx = this.canvas.width / this.w;
+      const sy = this.canvas.height / this.h;
+      ctx.setTransform(sx, 0, 0, sy, 0, 0);
+      ctx.clearRect(0, 0, this.w, this.h);
+
+      const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
+      this._roomColor(primary, view, dt);
+      if (this.idle > 0.01) this._drawIdle(ctx, now, this.idle);
+
+      this.heads = this._heads(primary, view, effectiveNow);
+      this._trackCrossing(now);
+      this.capPlace = this._captionPlace(primary, view);
+      this.captionTrack = this.capPlace.ring?.track || null;
+      this._broadcastHostTelemetry();
+
+      this._drawLights(ctx, primary);
+      if (this.heads.lead && !this.reduced) this._drawHalo(ctx, this.heads.lead);
+
+      // Back to front: leaving, the next song, the playing song.
+      const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
+      for (const ring of order) this._drawRing(ctx, ring);
+      if (this.placeholder) this._drawPlaceholder(ctx, this.placeholder, now);
+      if (this.cross && primary && primary.alpha > 0.4) this._drawCross(ctx, view, now);
+
+      if (primary && view) this._drawLive(ctx, primary, view, now);
+      this._drawHover(ctx);
+      this._placeCenter(this.capPlace);
+      this._updateField(primary, now);
+    } finally {
+      this._inFrame = false;
     }
-
-    this.mixNow = this._mix(view);
-    this._update(view, dt);
-
-    const sx = this.canvas.width / this.w;
-    const sy = this.canvas.height / this.h;
-    ctx.setTransform(sx, 0, 0, sy, 0, 0);
-    ctx.clearRect(0, 0, this.w, this.h);
-
-    this._beatPulse(view, dt);
-    this._spectrum(dt);
-    const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
-    this._roomColor(primary, view, dt);
-    if (this.idle > 0.01) this._drawIdle(ctx, now, this.idle);
-
-    this.heads = this._heads(primary, view, effectiveNow);
-    this._trackCrossing(now);
-    this.capPlace = this._captionPlace(primary, view);
-    this.captionTrack = this.capPlace.ring?.track || null;
-
-    this._drawLights(ctx, primary);
-    if (this.heads.lead && !this.reduced) this._drawHalo(ctx, this.heads.lead);
-
-    // Back to front: leaving, the next song, the playing song.
-    const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
-    for (const ring of order) this._drawRing(ctx, ring);
-    if (this.placeholder) this._drawPlaceholder(ctx, this.placeholder, now);
-    if (this.cross && primary && primary.alpha > 0.4) this._drawCross(ctx, view, now);
-
-    if (primary && view) this._drawLive(ctx, primary, view, now);
-    this._drawHover(ctx);
-    this._placeCenter(this.capPlace);
-    this._updateField(primary, now);
   }
 
   // Where the light is. On the playing loop, until a blend reaches the
@@ -814,14 +1068,498 @@ export class Viz {
     return { ring: k >= 0.5 ? sr : primary, dip: Math.min(1, Math.abs(k - 0.5) * 8) };
   }
 
+  _drawSatelliteStage(ctx, now, t, dt = 0.016) {
+    const w = this.w, h = this.h;
+    const kEase = this.reduced ? 1 : 1 - Math.exp(-dt / 0.22);
+    const kLayout = this.reduced ? 1 : 1 - Math.exp(-dt / 0.36);
+    const kRot = this.reduced ? 1 : 1 - Math.exp(-dt / 0.3);
+
+    if (!t || t.mode === "idle") {
+      if (this.primaryId) {
+        const ring = this.rings.get(this.primaryId);
+        if (ring) ring.role = "leaving";
+        this.primaryId = null;
+      }
+      for (const ring of this.rings.values()) {
+        if (ring.role === "second" || ring.role === "ghost") ring.role = "fading";
+      }
+      this.idle += (1 - this.idle) * (this.reduced ? 1 : 1 - Math.exp(-dt / 0.25));
+      this.accent = t?.acc ? { l: t.acc[0], c: t.acc[1], h: t.acc[2] } : theme.idleAccent();
+      this._drawIdle(ctx, now, this.idle);
+      for (const [id, ring] of this.rings) {
+        const away = ring.role === "leaving";
+        ring.target = {
+          x: ring.x + (away ? -0.02 * w : 0),
+          y: ring.y,
+          r: ring.r * (away ? 0.985 : 0.99),
+          alpha: 0,
+        };
+        const tg = ring.target;
+        ring.x += (tg.x - ring.x) * kEase;
+        ring.y += (tg.y - ring.y) * kEase;
+        ring.r += (tg.r - ring.r) * kEase;
+        ring.alpha += (tg.alpha - ring.alpha) * kEase;
+        if (ring.alpha < 0.02) this.rings.delete(id);
+        else if (ring.track?.analysis) this._drawRing(ctx, ring);
+      }
+      this._placeCenter(null);
+      if (now - this.fieldAt >= 100) {
+        this.fieldAt = now;
+        const root = document.documentElement.style;
+        root.setProperty("--key-x", "38%");
+        root.setProperty("--key-y", "45%");
+        root.setProperty("--key-r-px", `${Math.round(this.baseR || 200)}px`);
+        root.setProperty("--fill-x", "62%");
+        root.setProperty("--fill-y", "45%");
+        root.setProperty("--fill-r-px", `${Math.round((this.baseR || 200) * 0.85)}px`);
+      }
+      return;
+    }
+
+    const pulse = Math.min(1.4, t.pulse || 0);
+    const bass = Math.min(1.4, t.bass || 0);
+    this.pulse = pulse;
+    this.bass = bass;
+    if (Array.isArray(t.bands) && t.bands.length) {
+      const n = Math.min(this.bands.length, t.bands.length);
+      for (let i = 0; i < n; i++) {
+        this.bands[i] = t.bands[i];
+      }
+    } else if (t.mode === "paused") {
+      for (let i = 0; i < this.bands.length; i++) this.bands[i] *= 0.85;
+    }
+
+    const progress = Math.max(0, Math.min(1, t.progress || 0));
+    const swapProg = t.swap_prog !== undefined ? Math.max(0, Math.min(1, t.swap_prog)) : progress;
+    const primaryTrack = stageSync.primaryTrack;
+    const two = Boolean(t.two ?? (t.second || t.placeholder || t.is_transitioning));
+    const secondTrack = (two && !t.placeholder && t.second?.id && stageSync.secondTrack?.id === t.second.id)
+      ? stageSync.secondTrack
+      : null;
+    const L = this._layout(two, swapProg);
+
+    this.idle += (0 - this.idle) * (this.reduced ? 1 : 1 - Math.exp(-dt / 0.25));
+    if (t.acc) {
+      const targetAcc = { l: t.acc[0], c: t.acc[1], h: t.acc[2] };
+      this.accent = theme.ease(this.accent, targetAcc, this.reduced ? 1 : 1 - Math.exp(-dt / 0.35));
+    }
+    if (this.idle > 0.01 && primaryTrack) this._drawIdle(ctx, now, this.idle);
+
+    // 1. Unified Ring State Machine ("primary", "second", "leaving", "fading") matching Host _update 1:1
+    if (primaryTrack && primaryTrack.id !== this.primaryId) {
+      const before = this.primaryId ? this.rings.get(this.primaryId) : null;
+      if (before) before.role = "leaving";
+      const fresh = !this.rings.has(primaryTrack.id);
+      const ring = this._ring(primaryTrack, "primary");
+      if (fresh) {
+        if (before) {
+          const L2 = this._layout(true, 0);
+          if (before.x !== null && before.y !== null) {
+            const br = before._layoutR || before.r;
+            before.x += (L2.a.x - before.x) * 0.28;
+            before.y += (L2.a.y - before.y) * 0.28;
+            before._layoutR = br + (L2.a.r - br) * 0.28;
+            before.r = before._layoutR;
+          }
+          ring.x = L2.b.x + (L2.b.x - L2.a.x) * 0.15;
+          ring.y = L2.b.y + (L2.b.y - L2.a.y) * 0.15;
+          ring.r = L2.b.r * 0.65;
+          ring._layoutR = ring.r;
+          ring.alpha = 0.25;
+          ring.fill = 1;
+          ring.dir = -before.dir;
+        } else {
+          ring.x = L.a.x;
+          ring.y = L.a.y;
+          ring.r = L.a.r;
+          ring._layoutR = ring.r;
+          ring.alpha = 1;
+          ring.fill = this.reduced || (t.primary?.fill ?? 1) >= 0.98 ? 1 : 0;
+        }
+      } else if (before && before.x !== null && Math.hypot(before.x - L.a.x, before.y - L.a.y) < L.a.r * 0.12) {
+        const L2 = this._layout(true, 0);
+        const br = before._layoutR || before.r;
+        before.x += (L2.a.x - before.x) * 0.22;
+        before.y += (L2.a.y - before.y) * 0.22;
+        before._layoutR = br + (L2.a.r - br) * 0.22;
+        before.r = before._layoutR;
+      }
+      this.primaryId = primaryTrack.id;
+    }
+
+    for (const ring of this.rings.values()) {
+      if (ring.role === "second" || ring.role === "ghost") ring.role = "fading";
+    }
+
+    let primRing = null;
+    let secRing = null;
+    const trackMatchesTelemetry = Boolean(primaryTrack && (!t.track_id || primaryTrack.id === t.track_id));
+
+    if (primaryTrack) {
+      primRing = this._ring(primaryTrack, "primary");
+      if (trackMatchesTelemetry) {
+        const rawPrimRot = t.primary?.rot !== undefined ? t.primary.rot : (t.rot !== undefined ? t.rot : -Math.PI / 2);
+        const targetPrimRot = (two && t.face_a !== undefined && L.a.face !== undefined)
+          ? L.a.face + (rawPrimRot - t.face_a)
+          : rawPrimRot;
+        primRing.dir = t.primary?.dir !== undefined ? t.primary.dir : (t.dir !== undefined ? t.dir : primRing.dir);
+        if (primRing.rot === undefined || primRing.rot === null) primRing.rot = targetPrimRot;
+        primRing.target = { ...L.a, rot: targetPrimRot, alpha: 1 };
+      } else {
+        primRing.target = { ...L.a, rot: primRing.target?.rot ?? primRing.rot ?? -Math.PI / 2, alpha: 1 };
+      }
+
+      if (secondTrack && two && L.b) {
+        secRing = this._ring(secondTrack, "second");
+        if (secRing.alpha < 0.3) {
+          secRing.dir = t.second?.dir !== undefined ? t.second.dir : -primRing.dir;
+        }
+        const rawSecRot = t.second?.rot !== undefined ? t.second.rot : -Math.PI / 2;
+        const targetSecRot = (t.face_b !== undefined && L.b.face !== undefined)
+          ? L.b.face + (rawSecRot - t.face_b)
+          : rawSecRot;
+        if (secRing.x === null) {
+          secRing.x = L.b.x + (L.b.x - L.a.x) * 0.25;
+          secRing.y = L.b.y + (L.b.y - L.a.y) * 0.25;
+          secRing.r = L.b.r * 0.6;
+          secRing._layoutR = secRing.r;
+          secRing.rot = targetSecRot;
+          secRing.alpha = 0;
+        }
+        secRing.target = { ...L.b, rot: targetSecRot, alpha: 1 };
+      }
+    }
+
+    for (const [id, ring] of this.rings) {
+      const baseR = ring._layoutR || ring.r;
+      if (ring.role === "leaving" || ring.role === "fading") {
+        const away = ring.role === "leaving";
+        ring.target = {
+          x: ring.x + (away ? -0.02 * w : 0),
+          y: ring.y,
+          r: baseR * (away ? 0.985 : 0.99),
+          alpha: 0,
+        };
+      }
+      const tg = ring.target;
+      if (!tg) continue;
+      if (ring.x === null || ring._layoutR === null) {
+        if (ring.x === null) {
+          ring.x = tg.x;
+          ring.y = tg.y;
+        }
+        ring._layoutR = tg.r;
+      }
+      ring.x += (tg.x - ring.x) * kLayout;
+      ring.y += (tg.y - ring.y) * kLayout;
+      ring._layoutR += (tg.r - ring._layoutR) * kLayout;
+      const pulseAmt = (this.beatPulse !== false && !this.reduced)
+        ? (ring.role === "primary" ? 1 : 0.6) * (0.044 * (this.pulse || 0) + 0.017 * (this.bass || 0))
+        : 0;
+      ring.r = ring._layoutR * (1 + pulseAmt);
+      const fadeK = this.reduced ? Math.min(1, dt / 0.16) : kEase;
+      ring.alpha += (tg.alpha - ring.alpha) * fadeK;
+      if (tg.rot !== undefined) ring.rot += wrapAngle(tg.rot - ring.rot) * kRot;
+      const mood = ring.track.analysis?.mood || ring.track.meta?.mood || null;
+      let want;
+      if (ring.role === "primary" && trackMatchesTelemetry && t.color_a) {
+        want = { l: t.color_a[0], c: t.color_a[1], h: t.color_a[2] };
+      } else if (ring.role === "second" && t.color_b) {
+        want = { l: t.color_b[0], c: t.color_b[1], h: t.color_b[2] };
+      } else {
+        want = ring.role === "primary" ? theme.accentOf(ring.track.id, mood) : theme.songColor(ring.track.id, mood);
+      }
+      ring.col = theme.ease(ring.col, want, this.reduced ? 1 : 1 - Math.exp(-dt / 0.5));
+      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
+      if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) this.rings.delete(id);
+    }
+
+    // 2. Draw soft background light pools under all active/leaving loops (exact _drawLights)
+    const gain = theme.glowGain();
+    this._drawLights(ctx, primRing);
+
+    // Smooth wall-clock interpolation between 30 FPS telemetry frames for 60/120 FPS glide
+    const elapsed = (t.mode === "ring" && t._recvAt)
+      ? Math.min(0.12, Math.max(0, (now - t._recvAt) / 1000))
+      : 0;
+    const leadRing = (t.lead_head?.on === "second" && secRing) ? secRing : primRing;
+    const leadRingId = leadRing?.track?.id || (t.track_id || "prim");
+    const leadBeat = t.lead_head?.beat ?? t.beat ?? 0;
+    const leadFrac = t.lead_head?.frac ?? t.frac ?? 0;
+    const leadDur = Math.max(30, leadRing?.track?.end || primaryTrack?.end || 180);
+    let targetAng;
+    if (leadRing && (leadRing === secRing || trackMatchesTelemetry) && t.lead_head?.rel_angle !== undefined) {
+      targetAng = leadRing.rot + t.lead_head.rel_angle + (leadRing.dir || 1) * ((TAU * elapsed) / leadDur);
+    } else if (leadRing && (leadRing === secRing || trackMatchesTelemetry) && leadRing.track?.beats?.length) {
+      const T = leadRing.track;
+      let bIdx = Math.max(0, Math.min(T.beats.length - 1, leadBeat));
+      const beatDur = (T.dur && T.dur[bIdx] > 0.05) ? T.dur[bIdx] : (60 / Math.max(40, t.bpm || 120));
+      let interpF = leadFrac + (elapsed / beatDur);
+      while (interpF >= 1 && bIdx + 1 < T.beats.length) {
+        interpF -= 1;
+        bIdx++;
+      }
+      const curBeatDur = (T.dur && T.dur[bIdx] > 0.05) ? T.dur[bIdx] : beatDur;
+      const audioT = T.beats[bIdx] + Math.min(1, interpF) * curBeatDur;
+      targetAng = this._angle(leadRing, audioT);
+    } else if (this._satSmoothAng !== undefined && !trackMatchesTelemetry && leadRing) {
+      targetAng = this._satSmoothAng + (leadRing.dir || 1) * ((TAU * dt) / leadDur);
+    } else {
+      const baseAng = t.angle !== undefined ? t.angle : ((leadRing?.rot || 0) + leadFrac * TAU);
+      targetAng = baseAng + (leadRing?.dir || 1) * ((TAU * elapsed) / leadDur);
+    }
+
+    if (this._satSmoothAng === undefined || this._satSmoothTrackId !== leadRingId || t.mode !== "ring") {
+      this._satSmoothAng = targetAng;
+      this._satSmoothTrackId = leadRingId;
+    } else {
+      const diff = wrapAngle(targetAng - this._satSmoothAng);
+      if (Math.abs(diff) > 0.2) {
+        this._satSmoothAng = targetAng;
+      } else {
+        this._satSmoothAng = wrapAngle(this._satSmoothAng + diff * Math.min(1, dt * 18));
+      }
+    }
+    const ang = this._satSmoothAng;
+
+    // 4. Live Spectrum Halo around the active lead loop (moves to secRing during blend, matching Host)
+    if (leadRing && leadRing.track?.analysis && !this.reduced) {
+      this._drawHalo(ctx, { ring: leadRing, angle: ang, beat: leadBeat, frac: leadFrac });
+    }
+
+    // 5. Draw complete high-fidelity rings (leaving, fading, second, primary) or dashed placeholder ("ĐANG TẢI") matching Host 1:1
+    const capOnSec = Boolean(t.cap_on === "second" && secRing && secRing.track?.analysis);
+    this.capPlace = { ring: capOnSec ? secRing : primRing, dip: t.cap_dip ?? 1 };
+
+    const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
+    for (const ring of order) {
+      if (ring.track?.analysis) {
+        this._drawRing(ctx, ring);
+      }
+    }
+
+    if (two && L.b && (t.placeholder?.id || (t.second?.id && !secRing))) {
+      this._drawPlaceholder(ctx, { id: t.placeholder?.id || t.second.id, ...L.b }, now);
+    }
+    if (!primRing && t.track_id) {
+      this._drawPlaceholder(ctx, { id: t.track_id, x: L.a.x, y: L.a.y, r: L.a.r }, now);
+    }
+
+    // 6. Draw Crossing Glow, Progress Ring & Transition Visuals (exact replica of Host _drawCross)
+    if (two && L.cross && primRing && primRing.alpha > 0.4) {
+      const c = L.cross;
+      const k = progress;
+      const ca = primRing.col || this.accent || theme.idleAccent();
+      const cb = secRing?.col || (t.color_b ? { l: t.color_b[0], c: t.color_b[1], h: t.color_b[2] } : ca);
+      const mid = t.acc ? { l: t.acc[0], c: t.acc[1], h: t.acc[2] } : ca;
+      const breathe = this.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 420);
+      const R = (16 + 26 * k) * (1 + 0.25 * bass);
+      const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
+      g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
+      g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * gain));
+      g.addColorStop(1, theme.css(mid, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
+      ctx.fill();
+      if (k > 0) {
+        const start = -Math.PI / 2;
+        const cg = ctx.createConicGradient ? ctx.createConicGradient(start, c.x, c.y) : null;
+        if (cg) {
+          cg.addColorStop(0, theme.css(theme.lift(ca, 0.06), 0.95));
+          cg.addColorStop(Math.max(0.01, k), theme.css(theme.lift(theme.mix(ca, cb, k), 0.06), 0.95));
+          cg.addColorStop(1, theme.css(cb, 0.95));
+        }
+        ctx.strokeStyle = cg || theme.css(theme.lift(mid, 0.06), 0.9);
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 11, start, start + TAU * k);
+        ctx.stroke();
+        ctx.lineCap = "butt";
+      }
+
+      const trType = t.tr_type || t.plan?.type || "blend";
+      if (trType === "riser" || trType === "sweeper") {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate((now / 180) * (1 + 2 * k));
+        for (let s = 0; s < 6; s++) {
+          const angS = (s * TAU) / 6;
+          const dist = (8 + 22 * k) * (1 + 0.15 * Math.sin(now / 120 + s));
+          ctx.fillStyle = theme.css(theme.lift(cb, 0.25), 0.85 * (0.3 + 0.7 * k));
+          ctx.beginPath();
+          ctx.arc(Math.cos(angS) * dist, Math.sin(angS) * dist, 1.8 + k, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+      } else if (trType === "echo" || trType === "wash") {
+        for (let wIdx = 1; wIdx <= 3; wIdx++) {
+          const pWave = ((now / 600 + wIdx * 0.33) % 1);
+          ctx.strokeStyle = theme.css(theme.lift(mid, 0.18), (1 - pWave) * 0.45 * (0.3 + 0.7 * k));
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, (12 + 38 * pWave) * (1 + 0.15 * bass), 0, TAU);
+          ctx.stroke();
+        }
+      } else if (trType === "drop" || trType === "cut") {
+        const shock = (0.5 + 0.5 * Math.sin(now / 100)) * bass;
+        ctx.strokeStyle = theme.css(theme.lift(ca, 0.35), (0.4 + 0.6 * shock) * (0.4 + 0.6 * k));
+        ctx.lineWidth = 2 + shock * 2.5;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, R * 1.35, 0, TAU);
+        ctx.stroke();
+      } else {
+        const auraG = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, R * 1.8);
+        auraG.addColorStop(0, theme.css(theme.lift(mid, 0.2), 0.45 * (1 + breathe * 0.3)));
+        auraG.addColorStop(1, theme.css(mid, 0));
+        ctx.fillStyle = auraG;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, R * 1.8, 0, TAU);
+        ctx.fill();
+      }
+      this._lastSatCross = { x: c.x, y: c.y, at: now };
+    }
+
+    // 7. Draw Live Jump Chords, Planned Route & Glowing Playheads (lead + ghost, exact replica of Host _drawLive)
+    if (primRing && primRing.track?.analysis) {
+      const T = primRing.track;
+      const col = primRing.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
+      const white = theme.lift(col, 0.3);
+      if (Array.isArray(t.flashes)) {
+        for (const [fi, fj, ageMs] of t.flashes) {
+          const a = Math.max(0, 1 - (ageMs + elapsed * 1000) / 900);
+          if (a > 0.02 && fi < T.n && fj < T.n) {
+            ctx.strokeStyle = theme.css(white, 0.9 * a);
+            ctx.lineWidth = 2.4;
+            this._chordWorld(ctx, primRing, fi, fj);
+            ctx.stroke();
+          }
+        }
+      }
+      if (t.plan && t.plan.from === T.id) {
+        ctx.save();
+        ctx.strokeStyle = theme.css(theme.lift(theme.mix(col, theme.songColor(t.plan.to || T.id), 0.35), 0.1), 0.88);
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([5, 6]);
+        ctx.lineDashOffset = this.reduced ? 0 : -now / 40;
+        if (Array.isArray(t.plan.jumps)) {
+          for (const [src, dst] of t.plan.jumps) {
+            if (src < T.n && dst < T.n) {
+              this._chordWorld(ctx, primRing, src, dst);
+              ctx.stroke();
+            }
+          }
+        }
+        ctx.restore();
+        const exitT = this._exitTime(T, t.plan);
+        if (exitT !== null) {
+          const [ex, ey] = this._point(primRing, exitT, this._exitRadius(primRing.r));
+          const pWave = this.reduced ? 0.6 : 0.5 + 0.5 * Math.sin(now / 200);
+          ctx.strokeStyle = theme.css(theme.lift(theme.songColor(t.plan.to || T.id), 0.06), 0.5 + 0.5 * pWave);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(ex, ey, 7 + 3 * pWave, 0, TAU);
+          ctx.stroke();
+        }
+      }
+    }
+
+    if (t.ghost_head && t.ghost_head.alpha > 0.02) {
+      const ghostRing = (t.ghost_head.on === "second" && secRing) ? secRing : primRing;
+      if (ghostRing && ghostRing.track?.analysis) {
+        const gDur = Math.max(30, ghostRing.track.end || 180);
+        const gAng = ghostRing.rot + (t.ghost_head.rel_angle ?? 0) + (ghostRing.dir || 1) * ((TAU * elapsed) / gDur);
+        this._drawHead(ctx, { ring: ghostRing, angle: gAng, beat: t.ghost_head.beat ?? 0, frac: t.ghost_head.frac ?? 0 }, t.ghost_head.alpha * 0.7, false);
+      }
+    }
+    if (leadRing && leadRing.track?.analysis) {
+      this._drawHead(ctx, { ring: leadRing, angle: ang, beat: leadBeat, frac: leadFrac }, 1, true);
+    }
+    this._drawRipples(ctx, now);
+
+    // Trigger ripple ONLY once when lead light crosses into a new song (matching Host _trackCrossing)
+    if (leadRingId && this._lastSatLeadId && leadRingId !== this._lastSatLeadId) {
+      const cross = this._lastSatCross && now - this._lastSatCross.at < 600 ? this._lastSatCross : null;
+      if (cross && !this.reduced) {
+        const col = leadRing?.col || theme.songColor(leadRingId);
+        this.ripples.push({ x: cross.x, y: cross.y, t0: now, col });
+      }
+    }
+    this._lastSatLeadId = leadRingId || null;
+
+    // 8. Position center titles & update ambient light field on Satellite
+    this._drawHover(ctx);
+    this._placeCenter(this.capPlace);
+    if (now - this.fieldAt >= 100) {
+      this.fieldAt = now;
+      const root = document.documentElement.style;
+      const rect = this.canvas.getBoundingClientRect();
+      const vw = window.innerWidth || 1;
+      const vh = window.innerHeight || 1;
+      if (primRing && primRing.x !== null && primRing.y !== null) {
+        root.setProperty("--key-x", `${(((rect.left + primRing.x) / vw) * 100).toFixed(1)}%`);
+        root.setProperty("--key-y", `${(((rect.top + primRing.y) / vh) * 100).toFixed(1)}%`);
+        root.setProperty("--key-r-px", `${Math.round(primRing.r)}px`);
+      }
+      const fillPlace = secRing || (two && L.b ? L.b : null);
+      if (fillPlace && fillPlace.x !== null && fillPlace.y !== null) {
+        root.setProperty("--fill-x", `${(((rect.left + fillPlace.x) / vw) * 100).toFixed(1)}%`);
+        root.setProperty("--fill-y", `${(((rect.top + fillPlace.y) / vh) * 100).toFixed(1)}%`);
+        root.setProperty("--fill-r-px", `${Math.round(fillPlace.r || (primRing ? primRing.r * 0.7 : 180))}px`);
+      }
+    }
+  }
+
+  _drawSatelliteHead(ctx, cx, cy, r, ang, acc, pulse) {
+    const hx = cx + Math.cos(ang) * r;
+    const hy = cy + Math.sin(ang) * r;
+    const col = acc ? { l: acc[0], c: acc[1], h: acc[2] } : theme.idleAccent();
+    const th = this._thickness(r);
+    const glow = Math.max(18, r * 0.11) * (1 + 0.3 * pulse + 0.35 * (this.bass || 0)) * Math.sqrt(theme.glowGain());
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
+    g.addColorStop(0, theme.css(theme.lift(col, 0.18), 0.85));
+    g.addColorStop(0.35, theme.css(theme.lift(col, 0.08), 0.35));
+    g.addColorStop(1, theme.css(col, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(hx, hy, glow * 2, 0, TAU);
+    ctx.fill();
+
+    const coronaR = Math.max(7, Math.min(14, th * 0.65)) * (1 + 0.15 * pulse);
+    const cg = ctx.createRadialGradient(hx, hy, 0, hx, hy, coronaR);
+    cg.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+    cg.addColorStop(0.45, theme.css(theme.lift(col, 0.28), 0.85));
+    cg.addColorStop(1, theme.css(col, 0));
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(hx, hy, coronaR, 0, TAU);
+    ctx.fill();
+
+    ctx.globalCompositeOperation = "source-over";
+    const coreR = Math.max(3, Math.min(5, th * 0.24));
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(hx, hy, coreR, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
   _beatPulse(view, dt) {
-    this.pulse *= Math.exp(-dt / 0.22);
+    this.pulse *= Math.exp(-Math.min(0.06, dt) / 0.24);
     if (!view || this.reduced) return;
     const key = `${view.entry.track.id}:${view.entry.beat}`;
     if (key !== this.lastBeatKey) {
       this.lastBeatKey = key;
       const pos = view.entry.track.analysis.pos[view.entry.beat];
-      this.pulse = Math.max(this.pulse, pos === 0 ? 1 : 0.5);
+      this.pulse = Math.max(this.pulse, pos === 0 ? 1 : 0.52);
     }
   }
 
@@ -917,7 +1655,7 @@ export class Viz {
       const v = this.bands[i] * (1 - f) + (this.bands[Math.min(HALO_BANDS - 1, i + 1)] || 0) * f;
       return v * v * (0.55 + 0.45 * u);
     };
-    const col = ring.col || theme.accentOf(T.id);
+    const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
     const hi = theme.lift(col, 0.1);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -956,7 +1694,7 @@ export class Viz {
     }
     for (let q = 0; q < 4; q++) {
       const bars = groups[q];
-      if (!bars.length) return;
+      if (!bars.length) continue;
       ctx.strokeStyle = theme.css(hi, 0.3 + 0.18 * q);
       ctx.beginPath();
       for (let i = 0; i < bars.length; i += 3) {
@@ -996,9 +1734,24 @@ export class Viz {
 
   _drawRing(ctx, ring) {
     if (ring.alpha < 0.01 || ring.x === null) return;
-    const key = `${ring.track.id}|${this.player.settings.keep}|${ring.track.transitions.length}|${this.layerR.toFixed(1)}|${this.dpr}|${theme.paletteVersion()}`;
+    const keep = this.player?.settings?.keep ?? 0.6;
+    const transLen = ring.track?.transitions?.length ?? 0;
+    const baseLayerR = this.layerR || this.baseR || ring.r || 160;
+    let satForcedCol = null;
+    if (stageSync.isStageMirrorActive) {
+      const t = stageSync.telemetry;
+      if (ring.role === "primary" && t?.color_a && (!t.track_id || ring.track?.id === t.track_id)) {
+        satForcedCol = { l: t.color_a[0], c: t.color_a[1], h: t.color_a[2] };
+      } else if (ring.role === "second" && t?.color_b) {
+        satForcedCol = { l: t.color_b[0], c: t.color_b[1], h: t.color_b[2] };
+      } else if (ring.col) {
+        satForcedCol = ring.col;
+      }
+    }
+    const satHueKey = satForcedCol ? `|h${Math.round(satForcedCol.h / 2)}` : "";
+    const key = `${ring.track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${theme.paletteVersion()}${satHueKey}`;
     if (ring.layerKey !== key) {
-      ring.layer = this._buildLayer(ring.track);
+      ring.layer = this._buildLayer(ring.track, satForcedCol);
       ring.layerKey = key;
     }
     const L = ring.layer;
@@ -1045,7 +1798,8 @@ export class Viz {
       ctx.save();
       ctx.globalAlpha = ring.alpha * 0.7;
       ctx.fillStyle = theme.css(theme.inkOf(ring.track.id), 0.7);
-      ctx.font = `400 ${Math.max(9, Math.min(11, ring.r * 0.04))}px "JetBrains Mono", monospace`;
+      const baseR = ring._layoutR || ring.r;
+      ctx.font = `400 ${Math.max(9, Math.min(11, baseR * 0.04))}px "JetBrains Mono", monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const rLab = ring.r + this._thickness(ring.r) / 2 + 8 * s + 18;
@@ -1199,7 +1953,7 @@ export class Viz {
     }
     this.lastEventT = view.now;
     this.flashes = this.flashes.filter((f) => now - f.t0 < 900);
-    const col = ring.col || theme.accentOf(T.id);
+    const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
     const white = theme.lift(col, 0.3);
     for (const f of this.flashes) {
       const a = 1 - (now - f.t0) / 900;
@@ -1242,36 +1996,43 @@ export class Viz {
     this._drawRipples(ctx, now);
   }
 
-  // A playhead: the beat lit on the loop, a glow and a bright core. The ghost
-  // keeps only a dimmed beat and a small core.
+  // A playhead: a pure optical point of light on the loop with an ambient
+  // bloom and a crisp core, identical across Host and Satellite stages.
   _drawHead(ctx, h, alpha, full) {
     const ring = h.ring;
-    const T = ring.track;
-    const th = this._thickness(ring.r);
-    const col = ring.col || theme.accentOf(T.id);
-    const a1 = this._angle(ring, T.beats[h.beat]);
-    const a2 = this._angle(ring, T.beats[h.beat] + T.dur[h.beat]);
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, ring.alpha) * alpha;
-    ctx.strokeStyle = theme.css(theme.lift(col, 0.3), full ? 0.95 : 0.6);
-    ctx.lineWidth = th + (full ? 5 : 2);
-    ctx.beginPath();
-    ctx.arc(ring.x, ring.y, ring.r, a1, a2, ring.dir < 0);
-    ctx.stroke();
+    if (!ring || ring.x === null || ring.y === null) return;
+    const T = ring?.track;
+    const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
     const hx = ring.x + ring.r * Math.cos(h.angle), hy = ring.y + ring.r * Math.sin(h.angle);
+    const a = Math.min(1, ring.alpha ?? 1) * alpha;
+    const pulse = Math.min(1.2, this.pulse || 0);
+    const bass = Math.min(1.2, this.bass || 0);
+    ctx.save();
+    ctx.globalAlpha = a;
     if (full) {
-      const glow = (14 + 8 * this.pulse + 10 * this.bass) * Math.sqrt(theme.glowGain());
+      const glow = (15 + 7 * pulse + 9 * bass) * Math.sqrt(theme.glowGain());
       const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
-      g.addColorStop(0, theme.css(theme.lift(col, 0.12), 0.9));
+      g.addColorStop(0, theme.css(theme.lift(col, 0.14), 0.88));
+      g.addColorStop(0.4, theme.css(theme.lift(col, 0.06), 0.32));
       g.addColorStop(1, theme.css(col, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(hx, hy, glow * 2, 0, TAU);
       ctx.fill();
     }
-    ctx.fillStyle = theme.css(theme.lift(col, 0.4));
+    const coreGlowR = (full ? 6.5 : 4.2) * (1 + 0.12 * pulse);
+    const cg = ctx.createRadialGradient(hx, hy, 0, hx, hy, coreGlowR);
+    cg.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+    cg.addColorStop(0.5, theme.css(theme.lift(col, 0.35), 0.85));
+    cg.addColorStop(1, theme.css(col, 0));
+    ctx.fillStyle = cg;
     ctx.beginPath();
-    ctx.arc(hx, hy, th * (full ? 0.42 : 0.28), 0, TAU);
+    ctx.arc(hx, hy, coreGlowR, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(hx, hy, full ? 2.8 : 2.0, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
@@ -1576,17 +2337,21 @@ export class Viz {
   _placeCenter(place) {
     const el = this.center;
     if (!el) return;
-    const ring = place.ring;
-    if ((ring?.track.id || null) !== this._captionId) {
-      this._captionId = ring?.track.id || null;
-      this.onCaption(); // the page writes the new song's title before it fades in
+    const ring = place?.ring || null;
+    const trackId = ring?.track?.id || null;
+    if (trackId !== this._captionId) {
+      this._captionId = trackId;
+      if (!stageSync.isStageMirrorActive) {
+        this.onCaption(); // the page writes the new song's title before it fades in
+      }
     }
     let x, y, w, size, o;
     if (ring && ring.alpha > 0.05) {
+      const rCap = ring._layoutR || ring.r;
       x = ring.x;
       y = ring.y;
-      w = ring.r * 1.32;
-      size = Math.max(15, Math.min(38, ring.r * 0.125));
+      w = rCap * 1.32;
+      size = Math.max(15, Math.min(38, rCap * 0.125));
       o = Math.min(1, ring.alpha * (ring.fill < 1 ? easeOut(ring.fill) : 1)) * place.dip;
     } else {
       x = this.w / 2;
@@ -1595,7 +2360,8 @@ export class Viz {
       size = Math.max(16, Math.min(28, this.w * 0.03));
       o = 1;
     }
-    const key = `${x.toFixed(1)}|${y.toFixed(1)}|${w.toFixed(0)}|${size.toFixed(1)}|${o.toFixed(2)}`;
+    const mode = ring ? "ring" : "idle";
+    const key = `${mode}|${x.toFixed(1)}|${y.toFixed(1)}|${w.toFixed(0)}|${size.toFixed(1)}|${o.toFixed(2)}`;
     if (key === this._centerKey) return;
     this._centerKey = key;
     el.style.setProperty("--rc-x", `${x}px`);
@@ -1603,7 +2369,7 @@ export class Viz {
     el.style.setProperty("--rc-w", `${w}px`);
     el.style.setProperty("--rc-size", `${size}px`);
     el.style.setProperty("--rc-o", o.toFixed(2));
-    el.dataset.mode = ring ? "ring" : "idle";
+    el.dataset.mode = mode;
     // Small loops (phones, the ∞ layout) keep the title and drop the details.
     el.dataset.size = ring && ring.r < 125 ? "s" : "m";
   }
@@ -1635,6 +2401,254 @@ export class Viz {
     const second2 = this.nextId ? theme.songColor(this.nextId) : null;
     theme.applyPage(target, second2, this.nextId ? 0.1 * theme.glowGain() : 0);
     root.setProperty("--pulse", Math.min(1.4, 0.6 * this.pulse + 0.9 * this.bass).toFixed(2));
+
+    // Continuously broadcast real-time telemetry to satellite screens & lighting
+    this._broadcastHostTelemetry();
+  }
+
+  _broadcastHostTelemetry() {
+    if (stageSync.isSatellite || stageSync.isClusterFollower) return;
+    const view = this.player?.audible();
+    const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
+    const activeTrack =
+      (primary && primary.track) ||
+      (this.player?.cur ? this.player.cur.track : null) ||
+      (this.player?._switchingTrack && this.player._switchingTrack.analysis ? this.player._switchingTrack : null);
+    const second = [...this.rings.values()].find((r) => r.role === "second");
+    const nextId = second?.track.id || this.placeholder?.id || null;
+    const activeMood = activeTrack?.analysis?.mood || activeTrack?.meta?.mood || null;
+    const nextMood = second?.track?.analysis?.mood || second?.track?.meta?.mood || null;
+    const a = activeTrack ? theme.accentOf(activeTrack.id, activeMood) : theme.idleAccent();
+    const target = nextId ? theme.mix(a, theme.accentOf(nextId, nextMood), this._mixProgress(view)) : a;
+    const second2 = nextId ? theme.songColor(nextId, nextMood) : null;
+    const g = theme.ground(target);
+
+    const uiScaleVal = parseFloat(document.documentElement.style.getPropertyValue("--ui-scale")) || 1.0;
+    const sVolEl = document.getElementById("s-vol");
+    const btnMuteEl = document.getElementById("btn-mute");
+    const btnKhoEl = document.getElementById("btn-kho");
+    const btnRecEl = document.getElementById("btn-record");
+    const btnMicEl = document.getElementById("btn-karaoke-mic");
+    const btnTimerEl = document.getElementById("btn-timer");
+    const btnNightEl = document.getElementById("btn-night");
+    const sLyricsEl = document.getElementById("s-lyrics");
+    const lyricsBox = document.getElementById("ambient-lyrics");
+    const lyricsOn = sLyricsEl ? Boolean(sLyricsEl.checked) : true;
+    const lyricsVisible = Boolean(lyricsOn && lyricsBox && !lyricsBox.hidden);
+    const commonCfg = {
+      app_ver: "v174",
+      focused: typeof document !== "undefined" && typeof document.hasFocus === "function" ? document.hasFocus() : false,
+      theme: theme.themeName(),
+      glow: theme.getGlow(),
+      viz_scale: this.scale || 1.0,
+      ui_scale: uiScaleVal,
+      beat_pulse: this.beatPulse !== false,
+      keep: this.player?.settings?.keep ?? 0.6,
+      night: document.body.classList.contains("is-night"),
+      night_visible: btnNightEl ? !btnNightEl.hidden : false,
+      locked: this.player?.settings?.mode === "single",
+      kho_visible: btnKhoEl ? !btnKhoEl.hidden : false,
+      kho_pressed: btnKhoEl?.getAttribute("aria-pressed") === "true",
+      recording: btnRecEl?.getAttribute("aria-pressed") === "true",
+      rec_label: document.getElementById("record-label")?.textContent || "Thu âm",
+      vocal_mode: this.player?.vocalMode || "full",
+      vocal_label: document.getElementById("vocal-mode-label")?.textContent || "Gốc",
+      mic_active: btnMicEl?.dataset.active === "true",
+      timer_active: btnTimerEl?.getAttribute("data-active") === "true",
+      timer_badge: document.getElementById("timer-badge")?.textContent || "Tắt",
+      eq_mode: this.player?.engine?.eqMode || "flat",
+      eq_badge: document.getElementById("eq-badge")?.textContent || "Chuẩn",
+      volume: sVolEl ? +sVolEl.value : (this.player?.engine?.master?.gain?.value ?? 0.85),
+      muted: btnMuteEl?.dataset.muted === "true",
+      vol_level: btnMuteEl?.dataset.level || "high",
+      next_html: document.getElementById("next-info")?.innerHTML || "",
+      ro_tl_html: document.getElementById("ro-tl")?.innerHTML || "",
+      ro_tr_html: document.getElementById("ro-tr")?.innerHTML || "",
+      history_html: document.getElementById("history")?.innerHTML || "",
+      rc_kicker_html: document.getElementById("rc-kicker")?.innerHTML || "",
+      rc_title_html: document.getElementById("rc-title")?.innerHTML || "",
+      rc_meta_html: document.getElementById("rc-meta")?.innerHTML || "",
+      lyrics_enabled: lyricsOn,
+      lyric_prev: lyricsVisible ? (document.getElementById("lyric-line-prev")?.textContent || "") : "",
+      lyric_cur: lyricsVisible ? (document.getElementById("lyric-line-cur")?.textContent || "") : "",
+      lyric_next: lyricsVisible ? (document.getElementById("lyric-line-next")?.textContent || "") : "",
+    };
+
+    if (activeTrack) {
+      const primRingObj = primary || (this.rings.get(activeTrack.id) || {
+        x: this.w / 2, y: this.h / 2, r: this.baseR || 160, rot: -Math.PI / 2, dir: 1, alpha: 1, fill: 1
+      });
+      const leadAngle = this.heads?.lead?.angle ?? primRingObj.rot ?? 0;
+      const compactBands = this.bands ? Array.from(this.bands.slice(0, HALO_BANDS)).map((v) => Math.round(v * 1000) / 1000) : [];
+      const s = splitTitle(activeTrack.meta?.title || activeTrack.title || activeTrack.id, activeTrack.meta?.channel || "");
+      const primTitle = s.title || activeTrack.meta?.title || activeTrack.id;
+      const primArtist = s.artist || activeTrack.meta?.artist || "";
+      const primBpm = activeTrack.meta?.bpm || activeTrack.analysis?.bpm || 120;
+      const primCamelot = activeTrack.meta?.camelot || activeTrack.analysis?.camelot || "";
+      const primKey = activeTrack.analysis?.key || activeTrack.meta?.key || "";
+      const secondTrack = second?.track || null;
+      const s2 = secondTrack ? splitTitle(secondTrack.meta?.title || secondTrack.title || secondTrack.id, secondTrack.meta?.channel || "") : null;
+      const secondTitle = s2 ? (s2.title || secondTrack.id) : "";
+      const secondArtist = s2 ? (s2.artist || secondTrack.meta?.artist || "") : "";
+      const secondBpm = secondTrack ? (secondTrack.meta?.bpm || secondTrack.analysis?.bpm || 120) : 120;
+      const secondCamelot = secondTrack ? (secondTrack.meta?.camelot || secondTrack.analysis?.camelot || "") : "";
+
+      const enabledIds = this.player?.metas ? this.player.metas.filter((m) => m.enabled !== false).map((m) => m.id) : [];
+      const nowPerf = performance.now();
+      const activeFlashes = Array.isArray(this.flashes)
+        ? this.flashes
+            .filter((f) => nowPerf - f.t0 < 900)
+            .slice(-4)
+            .map((f) => [f.i, f.j, Math.round(nowPerf - f.t0)])
+        : [];
+      const activePlan = (this.player?.plan && this.player.plan.from === activeTrack.id && this.player.plan.tr)
+        ? {
+            from: this.player.plan.from,
+            to: this.player.plan.tr.to,
+            type: this.player.plan.tr.type,
+            a: this.player.plan.tr.a,
+            b: this.player.plan.tr.b,
+            i: this.player.plan.tr.i,
+            j: this.player.plan.tr.j,
+            jumps: this.player.plan.jumps ? Array.from(this.player.plan.jumps) : [],
+          }
+        : null;
+
+      const roles = this._roles(view);
+      const two = Boolean(this.cross || second || this.placeholder);
+      const mixProg = view ? this._mixProgress(view) : 0;
+      const swapProg = (second && (this.mixNow || (this.player?.cur && activeTrack && this.player.cur.track.id !== activeTrack.id)))
+        ? mixProg
+        : 0;
+      const hostL = this._layout(two, swapProg);
+      const trType = roles.secondTr?.type || (this.mixNow?.blend ? "blend" : "fade");
+      const leadRing = this.heads?.lead?.ring || primRingObj;
+      const leadIsSecond = Boolean(second && leadRing === second);
+      const ghostRing = this.heads?.ghost?.ring || null;
+
+      const isPaused = !this.player?.playing;
+      stageSync.broadcastTelemetry({
+        type: "telemetry",
+        mode: isPaused ? "paused" : "ring",
+        ...commonCfg,
+        track_id: activeTrack.id,
+        title: primTitle,
+        artist: primArtist,
+        bpm: primBpm,
+        camelot: primCamelot,
+        key: primKey,
+        enabled_ids: enabledIds,
+        flashes: activeFlashes,
+        plan: activePlan,
+        two,
+        swap_prog: swapProg,
+        face_a: hostL.a?.face ?? 0,
+        face_b: hostL.b?.face ?? 0,
+        tr_type: trType,
+        placeholder: this.placeholder ? { id: this.placeholder.id } : null,
+        prefetch_ids: Array.isArray(this.player?.prefetchIds) ? this.player.prefetchIds.slice(0, 4) : [],
+        lead_head: this.heads?.lead ? {
+          on: leadIsSecond ? "second" : "primary",
+          beat: this.heads.lead.beat ?? 0,
+          frac: this.heads.lead.frac ?? 0,
+          angle: this.heads.lead.angle ?? 0,
+          rel_angle: (this.heads.lead.angle ?? 0) - (leadRing?.rot ?? 0),
+        } : null,
+        ghost_head: (this.heads?.ghost && this.heads.ghost.alpha > 0.02) ? {
+          on: (second && ghostRing === second) ? "second" : "primary",
+          beat: this.heads.ghost.beat ?? 0,
+          frac: this.heads.ghost.frac ?? 0,
+          angle: this.heads.ghost.angle ?? 0,
+          rel_angle: (this.heads.ghost.angle ?? 0) - (ghostRing?.rot ?? 0),
+          alpha: this.heads.ghost.alpha ?? 0,
+        } : null,
+        cap_on: (second && this.capPlace?.ring === second) ? "second" : "primary",
+        cap_dip: this.capPlace?.dip ?? 1,
+        acc: [target.l, target.c, target.h],
+        acc2: second2 ? [second2.l, second2.c, second2.h] : [target.l, target.c, target.h],
+        color_a: [a.l, a.c, a.h],
+        color_b: second2 ? [second2.l, second2.c, second2.h] : null,
+        is_transitioning: Boolean(nextId && second2),
+        progress: mixProg,
+        ground: [g.h, g.c],
+        fill_a: nextId ? 0.1 * theme.glowGain() : 0,
+        pulse: isPaused ? 0 : (this.pulse || 0),
+        bass: isPaused ? 0 : (this.bass || 0),
+        peak: isPaused ? 0 : (this.bands ? Math.max(...this.bands) : 0),
+        bands: compactBands,
+        angle: leadAngle,
+        rot: primRingObj.rot,
+        dir: primRingObj.dir,
+        beat: this.heads?.lead?.beat ?? 0,
+        frac: this.heads?.lead?.frac ?? 0,
+        primary: {
+          id: activeTrack.id,
+          title: primTitle,
+          artist: primArtist,
+          bpm: primBpm,
+          camelot: primCamelot,
+          key: primKey,
+          x_rel: primRingObj.x / Math.max(1, this.w),
+          y_rel: primRingObj.y / Math.max(1, this.h),
+          r_rel: primRingObj.r / Math.max(1, Math.min(this.w, this.h)),
+          rot: primRingObj.rot,
+          dir: primRingObj.dir,
+          alpha: primRingObj.alpha,
+          fill: primRingObj.fill,
+        },
+        second: secondTrack ? {
+          id: secondTrack.id,
+          title: secondTitle,
+          artist: secondArtist,
+          bpm: secondBpm,
+          camelot: secondCamelot,
+          x_rel: second.x / Math.max(1, this.w),
+          y_rel: second.y / Math.max(1, this.h),
+          r_rel: second.r / Math.max(1, Math.min(this.w, this.h)),
+          rot: second.rot,
+          dir: second.dir,
+          alpha: second.alpha,
+          fill: second.fill,
+        } : null,
+        cross: this.cross ? {
+          x_rel: this.cross.x / Math.max(1, this.w),
+          y_rel: this.cross.y / Math.max(1, this.h),
+        } : null,
+        t: Date.now()
+      });
+    } else {
+      stageSync.broadcastTelemetry({
+        type: "telemetry",
+        track_id: null,
+        title: "",
+        artist: "",
+        mode: "idle",
+        ...commonCfg,
+        acc: [a.l, a.c, a.h],
+        acc2: [a.l, a.c, a.h],
+        color_a: [a.l, a.c, a.h],
+        color_b: null,
+        is_transitioning: false,
+        progress: 0,
+        ground: [g.h, g.c],
+        fill_a: 0,
+        pulse: 0,
+        bass: 0,
+        peak: 0,
+        bands: [],
+        angle: 0,
+        rot: -Math.PI / 2,
+        dir: 1,
+        beat: 0,
+        frac: 0,
+        bpm: 120,
+        camelot: "",
+        primary: null,
+        second: null,
+        cross: null,
+        t: Date.now()
+      });
+    }
   }
 
   // ------------------------------------------------------------- pointer
@@ -1700,16 +2714,17 @@ export class Viz {
   }
 
   _hitTest(px, py) {
-    if (this.cross) {
-      const d = Math.hypot(px - this.cross.x, py - this.cross.y);
-      if (d < 34) return { kind: "cross", x: this.cross.x, y: this.cross.y, d };
+    const crossPt = stageSync.isStageMirrorActive ? this._lastSatCross : this.cross;
+    if (crossPt && (!stageSync.isStageMirrorActive || performance.now() - crossPt.at < 200)) {
+      const d = Math.hypot(px - crossPt.x, py - crossPt.y);
+      if (d < 34) return { kind: "cross", x: crossPt.x, y: crossPt.y, d };
     }
     const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
-    if (!primary || primary.alpha < 0.5) return null;
+    if (!primary || primary.alpha < 0.5 || !primary.track?.beats?.length) return null;
     const T = primary.track;
     const rx = this._exitRadius(primary.r);
     let best = null;
-    for (const tr of T.transitions) {
+    for (const tr of T.transitions || []) {
       if (!this._shown(T, tr)) continue;
       const t = this._exitTime(T, tr);
       if (t === null) continue;
@@ -1718,7 +2733,8 @@ export class Viz {
       if (d < 12 && (!best || d < best.d)) best = { kind: "exit", tr, x, y, d };
     }
     if (best) return best;
-    for (const ring of [primary, ...[...this.rings.values()].filter((r) => r.role === "second")]) {
+    const secList = [...this.rings.values()].filter((r) => r.role === "second");
+    for (const ring of [primary, ...secList]) {
       const dx = px - ring.x, dy = py - ring.y;
       const d = Math.hypot(dx, dy);
       const th = this._thickness(ring.r);
@@ -1806,6 +2822,10 @@ export class Viz {
 
   // A beat the listener may play from: on the playing song's ring.
   _seekable(hit) {
+    if (stageSync.isStageMirrorActive) {
+      const prim = this.primaryId ? this.rings.get(this.primaryId) : null;
+      return hit.ring === prim && Boolean(hit.ring?.track?.beats?.length);
+    }
     return hit.ring.track === this.player.cur?.track;
   }
 
@@ -1837,6 +2857,12 @@ export class Viz {
 
   // Exits shown on a ring: those the chain may take now.
   _shown(track, tr) {
+    if (stageSync.isStageMirrorActive) {
+      if (stageSync.enabledIds && stageSync.enabledIds.length > 0) {
+        return stageSync.enabledIds.includes(tr.to) && tr.to !== track.id;
+      }
+      return Boolean(tr && tr.to !== track.id);
+    }
     return this.player.canTake ? this.player.canTake(track, tr) : true;
   }
 

@@ -103,61 +103,113 @@ if sys.platform == "win32":
         return g
 
     class WindowsVolume:
-        """Zero-dependency Windows Core Audio Master Volume controller using ctypes."""
+        """Zero-dependency Windows Core Audio Master Volume controller with dynamic default device tracking."""
         def __init__(self):
-            self._vol_endpoint = None
-            self._get_scalar = None
-            self._set_scalar = None
-            self._init_endpoint()
-
-        def _init_endpoint(self):
+            self._ole32 = ctypes.oledll.ole32
             try:
-                ole32 = ctypes.oledll.ole32
-                ole32.CoInitialize(None)
-                clsid_enum = _guid('{BCDE0395-E52F-467C-8E3D-C4579291692E}')
-                iid_enum = _guid('{A95664D2-9614-4F35-A746-DE8DB63617E6}')
-                iid_vol = _guid('{5CDF2C82-841E-4546-9722-0CF74078229A}')
+                self._ole32.CoInitialize(None)
+            except Exception:
+                pass
+            self.clsid_enum = _guid('{BCDE0395-E52F-467C-8E3D-C4579291692E}')
+            self.iid_enum = _guid('{A95664D2-9614-4F35-A746-DE8DB63617E6}')
+            self.iid_vol = _guid('{5CDF2C82-841E-4546-9722-0CF74078229A}')
+            self._p_enum = None
+            self._fn_get_def = None
+            self._last_dev_id = ''
+            self._vol_endpoint = None
+            self._set_scalar = None
+            self._get_scalar = None
+            self._set_mute = None
+            self._get_mute = None
+            self._last_val = 0.8
+            self._is_muted = False
+            self._lock = threading.Lock()
+            self._init_enumerator()
+            self.update_endpoint()
 
+        def _init_enumerator(self):
+            try:
                 p_enum = c_void_p()
-                if ole32.CoCreateInstance(byref(clsid_enum), None, 1, byref(iid_enum), byref(p_enum)) != 0:
-                    return
-
-                vtable_enum = ctypes.cast(p_enum, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
-                fn_get_def = WINFUNCTYPE(HRESULT, c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(c_void_p))(vtable_enum[4])
-                p_device = c_void_p()
-                if fn_get_def(p_enum, 0, 1, byref(p_device)) != 0:
-                    return
-
-                vtable_dev = ctypes.cast(p_device, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
-                fn_act = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(_GUID), wintypes.DWORD, c_void_p, ctypes.POINTER(c_void_p))(vtable_dev[3])
-                p_vol = c_void_p()
-                if fn_act(p_device, byref(iid_vol), 1, None, byref(p_vol)) != 0:
-                    return
-
-                vtable_vol = ctypes.cast(p_vol, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
-                self._set_scalar = WINFUNCTYPE(HRESULT, c_void_p, c_float, c_void_p)(vtable_vol[7])
-                self._get_scalar = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(c_float))(vtable_vol[9])
-                self._set_mute = WINFUNCTYPE(HRESULT, c_void_p, wintypes.BOOL, c_void_p)(vtable_vol[14])
-                self._get_mute = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(wintypes.BOOL))(vtable_vol[15])
-                self._vol_endpoint = p_vol
+                if self._ole32.CoCreateInstance(byref(self.clsid_enum), None, 1, byref(self.iid_enum), byref(p_enum)) == 0 and p_enum.value:
+                    self._p_enum = p_enum
+                    vtable_enum = ctypes.cast(p_enum, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
+                    self._fn_get_def = WINFUNCTYPE(HRESULT, c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(c_void_p))(vtable_enum[4])
             except Exception as e:
-                logger.debug("Windows volume init error: %s", e)
+                logger.debug("Enumerator init error: %s", e)
+
+        def update_endpoint(self) -> bool:
+            with self._lock:
+                if not self._p_enum or not self._fn_get_def:
+                    self._init_enumerator()
+                if not self._p_enum or not self._fn_get_def:
+                    return False
+                try:
+                    p_dev = c_void_p()
+                    # eRender = 0, eConsole = 0, eMultimedia = 1
+                    if self._fn_get_def(self._p_enum, 0, 1, byref(p_dev)) != 0 or not p_dev.value:
+                        return False
+
+                    vtable_dev = ctypes.cast(p_dev, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
+                    fn_get_id = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(wintypes.LPWSTR))(vtable_dev[5])
+                    dev_id = wintypes.LPWSTR()
+                    cur_id = ''
+                    if fn_get_id(p_dev, byref(dev_id)) == 0 and dev_id.value:
+                        cur_id = str(dev_id.value)
+
+                    # If device didn't change and endpoint is already active, keep it
+                    if cur_id and cur_id == self._last_dev_id and self._vol_endpoint:
+                        return True
+
+                    fn_act = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(_GUID), wintypes.DWORD, c_void_p, ctypes.POINTER(c_void_p))(vtable_dev[3])
+                    p_vol = c_void_p()
+                    if fn_act(p_dev, byref(self.iid_vol), 1, None, byref(p_vol)) != 0 or not p_vol.value:
+                        return False
+
+                    vtable_vol = ctypes.cast(p_vol, ctypes.POINTER(ctypes.POINTER(c_void_p)))[0]
+                    self._set_scalar = WINFUNCTYPE(HRESULT, c_void_p, c_float, c_void_p)(vtable_vol[7])
+                    self._get_scalar = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(c_float))(vtable_vol[9])
+                    self._set_mute = WINFUNCTYPE(HRESULT, c_void_p, wintypes.BOOL, c_void_p)(vtable_vol[14])
+                    self._get_mute = WINFUNCTYPE(HRESULT, c_void_p, ctypes.POINTER(wintypes.BOOL))(vtable_vol[15])
+                    self._vol_endpoint = p_vol
+                    self._last_dev_id = cur_id
+                    logger.info("WindowsVolume: Default audio endpoint switched to: %s", cur_id)
+                    return True
+                except Exception as e:
+                    logger.debug("update_endpoint error: %s", e)
+                    return False
 
         def get_volume(self) -> float:
+            # ponytail: Only re-enumerate audio endpoints periodically or on failure, not 25x/sec
+            self._poll_ticks = getattr(self, "_poll_ticks", 0) + 1
+            if self._poll_ticks % 25 == 0 or not self._vol_endpoint:
+                self.update_endpoint()
             if not self._vol_endpoint or not self._get_scalar:
-                return 1.0
+                return self._last_val
             try:
                 m = wintypes.BOOL()
-                if self._get_mute and self._get_mute(self._vol_endpoint, byref(m)) == 0 and m.value:
-                    return 0.0
+                if self._get_mute and self._get_mute(self._vol_endpoint, byref(m)) == 0:
+                    if m.value:
+                        self._is_muted = True
+                        return 0.0
+                    self._is_muted = False
+                else:
+                    self._last_dev_id = ''
+                    self.update_endpoint()
+                    return 0.0 if self._is_muted else self._last_val
+
                 val = c_float()
-                if self._get_scalar(self._vol_endpoint, byref(val)) == 0:
-                    return float(val.value)
+                if self._get_scalar and self._get_scalar(self._vol_endpoint, byref(val)) == 0:
+                    self._last_val = max(0.0, min(1.0, float(val.value)))
+                    return self._last_val
+                else:
+                    self._last_dev_id = ''
+                    self.update_endpoint()
             except Exception:
-                self._init_endpoint()
-            return 1.0
+                self._last_dev_id = ''
+            return self._last_val
 
         def set_volume(self, val: float):
+            self.update_endpoint()
             if not self._vol_endpoint or not self._set_scalar:
                 return
             try:
@@ -166,10 +218,13 @@ if sys.platform == "win32":
                 if self._set_mute:
                     if clamped <= 0.001:
                         self._set_mute(self._vol_endpoint, 1, None)
+                        self._is_muted = True
                     else:
                         self._set_mute(self._vol_endpoint, 0, None)
+                        self._is_muted = False
+                self._last_val = clamped
             except Exception:
-                self._init_endpoint()
+                self._last_dev_id = ''
 else:
     class WindowsVolume:
         """Fallback volume controller for non-Windows platforms (macOS / Linux)."""
@@ -409,10 +464,15 @@ def _is_server_alive(port: int) -> bool:
 
 
 
+VK_VOLUME_MUTE = 0xAD
+VK_VOLUME_DOWN = 0xAE
+VK_VOLUME_UP = 0xAF
 VK_MEDIA_NEXT_TRACK = 0xB0
 VK_MEDIA_PREV_TRACK = 0xB1
 VK_MEDIA_STOP = 0xB2
 VK_MEDIA_PLAY_PAUSE = 0xB3
+VK_PLAY = 0xFA
+VK_PAUSE = 0x13
 
 
 def _media_keys_loop(bridge):
@@ -420,23 +480,32 @@ def _media_keys_loop(bridge):
         return
     try:
         user32 = ctypes.windll.user32
-        for vk in (VK_MEDIA_PLAY_PAUSE, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP):
-            user32.GetAsyncKeyState(vk)
+        # Media playback keys from Bluetooth / keyboards / headphones
+        # Note: Volume buttons (Up/Down/Mute) are handled natively by Windows Core Audio
+        # and synchronized smoothly via _volume_sync_loop to respect device-specific step mechanics.
+        keys_to_watch = {
+            VK_MEDIA_PLAY_PAUSE: "play_pause",
+            VK_PLAY: "play_pause",
+            VK_PAUSE: "play_pause",
+            VK_MEDIA_NEXT_TRACK: "next",
+            VK_MEDIA_PREV_TRACK: "previous",
+            VK_MEDIA_STOP: "stop",
+        }
+        # Pre-seed state map using high-bit (0x8000)
+        prev_states = {vk: bool(user32.GetAsyncKeyState(vk) & 0x8000) for vk in keys_to_watch}
+
         while True:
-            time.sleep(0.04)  # 25Hz polling, <0.01% CPU
+            time.sleep(0.025)  # 40Hz fast polling, accurately captures Bluetooth AVRCP pulses
             try:
-                if user32.GetAsyncKeyState(VK_MEDIA_PLAY_PAUSE) & 1:
-                    if bridge._window:
-                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('play_pause');")
-                if user32.GetAsyncKeyState(VK_MEDIA_NEXT_TRACK) & 1:
-                    if bridge._window:
-                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('next');")
-                if user32.GetAsyncKeyState(VK_MEDIA_PREV_TRACK) & 1:
-                    if bridge._window:
-                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('previous');")
-                if user32.GetAsyncKeyState(VK_MEDIA_STOP) & 1:
-                    if bridge._window:
-                        bridge._window.evaluate_js("window.__onMediaKey && window.__onMediaKey('stop');")
+                for vk, action in keys_to_watch.items():
+                    is_down = bool(user32.GetAsyncKeyState(vk) & 0x8000)
+                    was_down = prev_states.get(vk, False)
+                    prev_states[vk] = is_down
+
+                    # Rising edge: Key transitioned from Up to Down
+                    if is_down and not was_down:
+                        if bridge._window:
+                            bridge._window.evaluate_js(f"window.__onMediaKey && window.__onMediaKey('{action}');")
             except Exception:
                 pass
     except Exception as e:
@@ -555,7 +624,7 @@ def main(argv=None, splash=None):
                 if splash:
                     splash.close()
                 logger.info("Another Meikova Loop Desktop instance is already running. Restoring window.")
-                hwnd = ctypes.windll.user32.FindWindowW(None, "Meikova Loop - Nhạc nhảy nhịp vô tận")
+                hwnd = ctypes.windll.user32.FindWindowW(None, "Meikova Loop")
                 if hwnd:
                     ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
                     ctypes.windll.user32.SetForegroundWindow(hwnd)
@@ -596,8 +665,8 @@ def main(argv=None, splash=None):
 
     # Window creation (Frameless with custom titlebar controls inspired by Meikova Harvest)
     window = webview.create_window(
-        title="Meikova Loop - Nhạc nhảy nhịp vô tận",
-        url=f"http://127.0.0.1:{port}/",
+        title="Meikova Loop",
+        url=f"http://127.0.0.1:{port}/?platform=desktop",
         width=1340,
         height=880,
         min_size=(320, 100),
@@ -663,6 +732,8 @@ def main(argv=None, splash=None):
     window.events.closing += on_closing
 
     def _volume_sync_loop():
+        # ponytail: Sleep 0.6s at startup so WebView2 finishes initial DOM/titlebar render smoothly
+        time.sleep(0.6)
         try:
             ctypes.oledll.ole32.CoInitialize(None)
         except Exception:
@@ -670,7 +741,7 @@ def main(argv=None, splash=None):
         thread_win_vol = WindowsVolume()
         last_v = -1.0  # Force immediate sync on first tick
         while True:
-            time.sleep(0.04)  # 25Hz fast polling for instant smooth response
+            time.sleep(0.06)  # 25Hz fast polling for instant smooth response
             try:
                 cur_v = thread_win_vol.get_volume()
                 if abs(cur_v - last_v) >= 0.005:
@@ -784,6 +855,16 @@ def main(argv=None, splash=None):
                 except Exception as ex:
                     logger.debug("Profile migration notice: %s", ex)
     profile_dir.mkdir(parents=True, exist_ok=True)
+
+    # Purge stale HTTP asset caches on boot to guarantee freshest UI assets
+    try:
+        import shutil
+        for sub in ["Cache", "Code Cache"]:
+            p = profile_dir / "EBWebView" / "Default" / sub
+            if p.exists():
+                shutil.rmtree(p, ignore_errors=True)
+    except Exception as ex:
+        logger.debug("Cache purge notice: %s", ex)
 
     webview.start(
         debug=args.debug,

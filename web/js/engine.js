@@ -89,7 +89,23 @@ export class Engine {
     this.vocalFilter.gain.value = 0;
     this.vocalMode = "full"; // "full" | "instrumental" (karaoke) | "acapella"
 
-    this.master.connect(this.eqLow).connect(this.eqMid).connect(this.eqHigh).connect(this.vocalFilter).connect(this.limiter).connect(this.analyser).connect(this.ctx.destination);
+    this.master.connect(this.eqLow).connect(this.eqMid).connect(this.eqHigh).connect(this.vocalFilter).connect(this.limiter).connect(this.analyser);
+
+    // Acoustic Alignment & Stereo Pair Channel Matrix (Meikova Cluster Link / Zero-Echo Sync)
+    this.speakerDelay = this.ctx.createDelay(0.5);
+    this.speakerDelay.delayTime.value = 0;
+    this._speakerSyncDelaySec = 0;
+    this.outputChannelMode = "stereo"; // "stereo" | "left" | "right"
+    this.channelSplitter = this.ctx.createChannelSplitter(2);
+    this.channelMerger = this.ctx.createChannelMerger(2);
+    this.speakerTrimGain = this.ctx.createGain();
+    this.speakerTrimGain.gain.value = 1.0;
+
+    this.analyser.connect(this.speakerDelay);
+    this.speakerDelay.connect(this.channelSplitter);
+    this._wireOutputChannelMode("stereo");
+    this.channelMerger.connect(this.speakerTrimGain);
+    this.speakerTrimGain.connect(this.ctx.destination);
 
     this.voices = new Set();
     this._bgAudio = null;
@@ -110,8 +126,49 @@ export class Engine {
 
   // Time the listener is hearing right now, on the context clock.
   audibleTime() {
-    const lat = (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0);
+    const lat = (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0) + (this._speakerSyncDelaySec || 0);
     return this.ctx.currentTime - lat;
+  }
+
+  _wireOutputChannelMode(mode = "stereo") {
+    if (!this.channelSplitter || !this.channelMerger) return;
+    try {
+      this.channelSplitter.disconnect();
+    } catch (_) {}
+    if (mode === "left") {
+      this.channelSplitter.connect(this.channelMerger, 0, 0);
+      this.channelSplitter.connect(this.channelMerger, 0, 1);
+    } else if (mode === "right") {
+      this.channelSplitter.connect(this.channelMerger, 1, 0);
+      this.channelSplitter.connect(this.channelMerger, 1, 1);
+    } else {
+      this.channelSplitter.connect(this.channelMerger, 0, 0);
+      this.channelSplitter.connect(this.channelMerger, 1, 1);
+    }
+  }
+
+  setOutputChannelMode(mode = "stereo") {
+    const clean = (mode === "left" || mode === "right") ? mode : "stereo";
+    if (this.outputChannelMode === clean) return;
+    this.outputChannelMode = clean;
+    this._wireOutputChannelMode(clean);
+  }
+
+  setSpeakerSyncDelay(delayMs = 0) {
+    if (!this.speakerDelay || !this.ctx) return;
+    const sec = Math.max(0, Math.min(0.45, (Number(delayMs) || 0) / 1000));
+    this._speakerSyncDelaySec = sec;
+    const now = this.ctx.currentTime;
+    this.speakerDelay.delayTime.cancelScheduledValues(now);
+    this.speakerDelay.delayTime.setTargetAtTime(sec, now, 0.015);
+  }
+
+  setSpeakerTrim(trim = 1.0) {
+    if (!this.speakerTrimGain || !this.ctx) return;
+    const val = Math.max(0, Math.min(1.5, Number(trim) ?? 1.0));
+    const now = this.ctx.currentTime;
+    this.speakerTrimGain.gain.cancelScheduledValues(now);
+    this.speakerTrimGain.gain.setTargetAtTime(val, now, 0.015);
   }
 
   get targetVol() {
@@ -214,6 +271,10 @@ export class Engine {
         }
       });
       a.addEventListener("play", () => {
+        if (!this._shouldBePlaying) {
+          try { a.pause(); } catch (_) {}
+          return;
+        }
         if (this._onExternalPlay && !this._internalPlaying) {
           this._onExternalPlay();
         }
@@ -292,6 +353,39 @@ export class Engine {
     return typeof AudioWorkletNode === "function" && !!this.ctx.audioWorklet;
   }
 
+  // Slices [from, to] seconds of `buf` into stereo Float32Arrays at `this.ctx.sampleRate`,
+  // resampling on the fly via OfflineAudioContext only when `buf.sampleRate !== this.ctx.sampleRate`
+  // (e.g. 32kHz / 22.05kHz adaptive buffers for >15m DJ mixes).
+  async _sliceAtContextRate(buf, from, to) {
+    const srcSr = buf.sampleRate;
+    const dstSr = this.ctx.sampleRate;
+    const a = Math.max(0, Math.floor(from * srcSr));
+    const b = Math.min(buf.length, Math.ceil(to * srcSr));
+    const fromActual = a / srcSr;
+    const toActual = b / srcSr;
+    const take = (sourceBuf, c) =>
+      sourceBuf.getChannelData(Math.min(c, sourceBuf.numberOfChannels - 1)).slice(a, b);
+
+    if (srcSr === dstSr || typeof OfflineAudioContext === "undefined") {
+      return { ch0: take(buf, 0), ch1: take(buf, 1), from: fromActual, to: toActual };
+    }
+
+    const durSec = Math.max(1 / dstSr, toActual - fromActual);
+    const dstLen = Math.max(1, Math.round(durSec * dstSr));
+    const off = new OfflineAudioContext(2, dstLen, dstSr);
+    const src = off.createBufferSource();
+    src.buffer = buf;
+    src.connect(off.destination);
+    src.start(0, fromActual, durSec);
+    const rendered = await off.startRendering();
+    return {
+      ch0: rendered.getChannelData(0).slice(0),
+      ch1: rendered.getChannelData(Math.min(1, rendered.numberOfChannels - 1)).slice(0),
+      from: fromActual,
+      to: toActual,
+    };
+  }
+
   // A voice reading [from, to] s of the track through Signalsmith Stretch, so
   // its tempo can change with its pitch kept (or its pitch moved by `semis`
   // semitones, with its tempo kept); with `vocals` (the stem's AudioBuffer)
@@ -302,14 +396,14 @@ export class Engine {
     const { default: SignalsmithStretch } = await import("../vendor/signalsmith-stretch-1.3.2.mjs");
     const channels = vocals ? 4 : 2;
     const node = await SignalsmithStretch(this.ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [channels] });
-    const sr = track.buffer.sampleRate;
-    const a = Math.max(0, Math.floor(from * sr));
-    const b = Math.min(track.buffer.length, Math.ceil(to * sr));
-    const take = (buf, c) => buf.getChannelData(Math.min(c, buf.numberOfChannels - 1)).slice(a, b);
-    const chans = [take(track.buffer, 0), take(track.buffer, 1)];
-    if (vocals) chans.push(take(vocals, 0), take(vocals, 1));
+    const mainSlice = await this._sliceAtContextRate(track.buffer, from, to);
+    const chans = [mainSlice.ch0, mainSlice.ch1];
+    if (vocals) {
+      const vocSlice = await this._sliceAtContextRate(vocals, from, to);
+      chans.push(vocSlice.ch0, vocSlice.ch1);
+    }
     await node.addBuffers(chans, chans.map((c) => c.buffer));
-    const v = new Voice(this, track, { node, from: a / sr, to: b / sr, channels, latency: await node.latency(), semis });
+    const v = new Voice(this, track, { node, from: mainSlice.from, to: mainSlice.to, channels, latency: await node.latency(), semis });
     this.voices.add(v);
     return v;
   }
@@ -677,7 +771,9 @@ export class Voice {
     this.hp.frequency.value = 10;
     this.hp.Q.value = Math.SQRT1_2;
     this.trim = ctx.createGain();
-    this.trim.gain.value = dbToGain(track.analysis.gain_db);
+    const rawGainDb = Number(track.analysis?.gain_db);
+    const safeGainDb = Number.isFinite(rawGainDb) ? Math.max(-18, Math.min(12, rawGainDb)) : 0;
+    this.trim.gain.value = dbToGain(safeGainDb);
     // A unity gain for effects that chop or dip the song (gate, flanger),
     // apart from the fader the player automates.
     this.fx = ctx.createGain();
@@ -700,32 +796,46 @@ export class Voice {
   }
 
   start(when, offset, rate, fadeIn) {
-    this._read(when, offset, rate);
-    if (fadeIn > 0) {
-      this.gain.gain.setValueAtTime(0, when);
-      this._curve(FADE_IN, when, fadeIn);
+    const safeWhen = Math.max(this.engine.ctx.currentTime, when);
+    this._read(safeWhen, offset, rate);
+    const g = this.gain.gain;
+    g.cancelScheduledValues(safeWhen);
+    if (fadeIn > 0.02) {
+      this._curve(FADE_IN, safeWhen, fadeIn);
+      try {
+        g.setValueAtTime(1, safeWhen + fadeIn + 0.002);
+      } catch (_) {}
+    } else if (fadeIn > 0) {
+      const d = Math.max(0.006, fadeIn);
+      g.setValueAtTime(0, safeWhen);
+      g.linearRampToValueAtTime(1, safeWhen + d);
     } else {
-      this.gain.gain.setValueAtTime(1, when);
+      g.setValueAtTime(1, safeWhen);
     }
   }
 
   // Starts reading without touching the gain: the caller automates it.
   startSilent(when, offset, rate) {
-    this._read(when, offset, rate);
+    const safeWhen = Math.max(this.engine.ctx.currentTime, when);
+    this._read(safeWhen, offset, rate);
   }
 
   _read(when, offset, rate) {
+    const safeWhen = Math.max(this.engine.ctx.currentTime, when);
+    const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
     if (this.stretch) {
       // A transposed voice keeps its formants, so a singer moved two
       // semitones still sounds like themselves.
       this.stretch.node.schedule({
-        active: true, input: offset - this.stretch.from, output: when, outputTime: when, rate, semitones: this.semis,
+        active: true, input: offset - this.stretch.from, output: safeWhen, outputTime: safeWhen, rate: safeRate, semitones: this.semis,
         formantCompensation: this.semis !== 0,
       });
       return;
     }
-    this.src.playbackRate.setValueAtTime(rate, when);
-    this.src.start(when, Math.max(0, offset));
+    this.src.playbackRate.setValueAtTime(safeRate, safeWhen);
+    const maxOffset = this.track.buffer?.duration ? Math.max(0, this.track.buffer.duration - 0.02) : Infinity;
+    const safeOffset = Math.max(0, Math.min(maxOffset, Number.isFinite(offset) ? offset : 0));
+    this.src.start(safeWhen, safeOffset);
   }
 
   // `pos`: the read position at `when` (a key-locked voice resyncs to it on
@@ -959,13 +1069,16 @@ export class Voice {
 
   _curve(values, when, dur) {
     const g = this.gain.gain;
+    const safeWhen = Math.max(this.engine.ctx.currentTime, when);
+    const safeDur = Math.max(0.006, dur);
     try {
-      g.setValueCurveAtTime(values, when, Math.max(0.005, dur));
+      g.cancelScheduledValues(safeWhen);
+      g.setValueCurveAtTime(values, safeWhen, safeDur);
     } catch (_) {
       // Overlapping automation: fall back to a ramp toward the curve's end value.
-      g.cancelScheduledValues(when);
-      g.setValueAtTime(g.value, when);
-      g.linearRampToValueAtTime(values[values.length - 1], when + Math.max(0.005, dur));
+      g.cancelScheduledValues(safeWhen);
+      g.setValueAtTime(values[0] ?? g.value, safeWhen);
+      g.linearRampToValueAtTime(values[values.length - 1], safeWhen + safeDur);
     }
   }
 }

@@ -65,3 +65,5 @@ AGENTS.md
 docs/agent-handoff.md
 
 *.lnk
+
+.serena/

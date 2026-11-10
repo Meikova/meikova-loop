@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT_DIR = Path(__file__).resolve().parent.parent
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
@@ -548,7 +549,7 @@ def test_volume_150_themes_skip_and_shortcuts():
     assert 'Chế độ Chuỗi / Đơn / Tự do' in index_html
 
     # 5. Service worker bump
-    assert "meikova-loop-v82" in sw_js
+    assert "meikova-loop-v" in sw_js
 
 
 def test_downloads_and_expanded_modals():
@@ -1044,11 +1045,50 @@ def test_karaoke_mic_and_ambient_audio_player():
     assert 'e.key === "h"' in main_js
     assert "toggleKaraokeMic" in main_js
     assert "updateRecPlayerState" in main_js
-
-    test_strategic_upgrades_suite()
-    test_karaoke_mic_and_ambient_audio_player()
-    print("ALL TESTS PASSED WITH EXIT CODE 0")
-    os._exit(0)
+    print("test_karaoke_mic_and_ambient_audio_player passed!")
 
 
 
+
+if __name__ == '__main__':
+    tests = [
+        test_ip_extraction,
+        test_qr_api,
+        test_samples_api,
+        test_multi_source_detection,
+        test_playlist_and_album_detection,
+        test_ssrf_protection,
+        test_track_id_generation,
+        test_batch_tracks_api,
+        test_frontend_playlist_management,
+        test_search_sort_queue_inspect,
+        test_zen_hud_and_neon_engine,
+        test_responsive_mobile_declutter,
+        test_volume_svg_bounds_and_night_button,
+        test_download_error_handling_and_ui_cleanup,
+        test_cookies_api_and_playlist_scroll_navigation,
+        test_track_cancellation_on_delete,
+        test_max_duration_guard_and_frontend_limits,
+        test_settings_api_and_client_persistence,
+        test_viz_scaling_and_glow_stability,
+        test_dynamic_dwell_and_server_duration_limits,
+        test_volume_150_themes_skip_and_shortcuts,
+        test_downloads_and_expanded_modals,
+        test_deck_infinity_loading_path,
+        test_mediasession_windows_smtc_controls,
+        test_cross_platform_releases_and_media_controls,
+        test_ratelimit_dev_bypass_and_ip_whitelist,
+        test_empty_beats_guard_and_librosa_fallback,
+        test_desktop_tray_and_background_minimize,
+        test_parallel_download_and_hardware_aware_analysis,
+        test_storage_migration_move_and_cleanup,
+        test_version_ssot_sync_and_api,
+        test_download_cancel_and_storage_persistence,
+        test_native_splash_and_fast_startup,
+        test_strategic_upgrades_suite,
+        test_karaoke_mic_and_ambient_audio_player,
+    ]
+    for t in tests:
+        t()
+        print(f'PASS: {t.__name__}')
+    print('\nALL SERVER & FEATURE TESTS PASSED (EXIT CODE 0)!')

@@ -13,7 +13,7 @@ import zipfile
 import json
 import time
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 import base64
 
@@ -31,6 +31,20 @@ from .audio import encode as encode_sound
 from .config import ANCHOR_DIR, APP_VERSION, AUDIO_TTL_S, DATA_DIR, HOST, MAX_DURATION_S, MAX_PLAYLIST, MAX_SESSION_TRACKS, MAX_UPLOAD_MB, MULTIUSER, PORT, \
     WEB_DIR
 from .tunnel_manager import tunnel_manager
+from .stage_sync_hub import sync_hub
+from .smart_lights import smart_lights
+from .cluster_discovery import cluster_beacon
+from fastapi import WebSocket, WebSocketDisconnect
+
+# Connect stage telemetry to smart physical lights
+sync_hub.register_smart_lights_callback(smart_lights.process_telemetry)
+cluster_beacon.set_status_provider(lambda: {
+    "cluster_enabled": sync_hub.cluster_enabled,
+    "cluster_id": sync_hub.cluster_id,
+    "cluster_mode": sync_hub.cluster_mode,
+    "nodes_count": len(sync_hub.clients),
+    "active_title": sync_hub.last_telemetry.get("title", ""),
+})
 
 # Songs waiting to be fetched and analysed, all listeners together: past this
 # the server says it is busy rather than queueing for hours.
@@ -128,6 +142,40 @@ def health():
 
 
 SETTINGS_FILE = DATA_DIR / "settings.json"
+PLAYLISTS_FILE = DATA_DIR / "playlists.json"
+
+
+@app.get("/api/playlists")
+def get_playlists(response: Response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    if PLAYLISTS_FILE.exists():
+        try:
+            return json.loads(PLAYLISTS_FILE.read_text("utf-8"))
+        except Exception:
+            pass
+    if (ANCHOR_DIR / "playlists.json").exists():
+        try:
+            return json.loads((ANCHOR_DIR / "playlists.json").read_text("utf-8"))
+        except Exception:
+            pass
+    return []
+
+
+@app.post("/api/playlists")
+async def save_playlists_endpoint(request: Request):
+    try:
+        data = await request.json()
+        if not isinstance(data, list):
+            raise HTTPException(400, "Playlists must be a list")
+        payload = json.dumps(data, ensure_ascii=False, indent=2)
+        PLAYLISTS_FILE.write_text(payload, "utf-8")
+        try:
+            (ANCHOR_DIR / "playlists.json").write_text(payload, "utf-8")
+        except Exception:
+            pass
+        return {"status": "ok", "count": len(data)}
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/settings")
@@ -1248,13 +1296,24 @@ def _send_sound(path: Path, kid: str, request: Request, v: sessions.View) -> Res
         try:
             unit, ranges = range_header.strip().split("=", 1)
             if unit.strip().lower() == "bytes":
-                start = max(0, int(r_start)) if r_start.strip() else 0
-                end = int(r_end) if r_end.strip() else file_size - 1
+                first_range = ranges.split(",", 1)[0].strip()
+                r_start, r_end = first_range.split("-", 1)
+                if not r_start.strip() and r_end.strip():
+                    suffix_len = int(r_end)
+                    if suffix_len <= 0:
+                        raise HTTPException(416, "Requested Range Not Satisfiable")
+                    start = max(0, file_size - suffix_len)
+                    end = file_size - 1
+                else:
+                    start = max(0, int(r_start)) if r_start.strip() else 0
+                    end = int(r_end) if r_end.strip() else file_size - 1
                 if start > end or start >= file_size:
                     raise HTTPException(416, "Requested Range Not Satisfiable")
                 end = min(end, file_size - 1)
                 status_code = 206
                 headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        except HTTPException:
+            raise
         except (ValueError, IndexError):
             pass
 
@@ -1289,6 +1348,188 @@ def transitions(tid: str, v: sessions.View = Depends(view_of)):
     _ready(tid)
     _held(v, tid)
     return {"items": v.transitions(tid), "onward": v.onward(tid)}
+
+
+_lyrics_neg_cache: dict[str, float] = {}
+
+
+def _parse_lrc_lines(lrc_text: str) -> list[dict]:
+    import re
+    lines = []
+    if not lrc_text:
+        return lines
+    tag_re = re.compile(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]")
+    for raw_line in lrc_text.splitlines():
+        matches = list(tag_re.finditer(raw_line))
+        if not matches:
+            continue
+        text = tag_re.sub("", raw_line).strip()
+        if not text:
+            continue
+        for m in matches:
+            mins = int(m.group(1))
+            secs = int(m.group(2))
+            frac_s = m.group(3) or "0"
+            frac = int(frac_s) / (1000.0 if len(frac_s) == 3 else (100.0 if len(frac_s) == 2 else 10.0))
+            t = round(mins * 60.0 + secs + frac, 2)
+            lines.append({"t": t, "text": text})
+    lines.sort(key=lambda x: x["t"])
+    return lines
+
+
+def _clean_song_query(title: str, artist: str = "") -> list[str]:
+    import re
+    raw_t = (title or "").strip()
+    raw_a = (artist or "").strip()
+    # Strip bracketed suffixes like (Remix), [DJ ...], (TikTok ...), etc.
+    clean_t = re.sub(r"[\(\[【「].*?[\)\]】」]", " ", raw_t)
+    clean_t = re.sub(r"(?i)\b(remix|mashup|dj|tiktok|ver|version|cover|ost|bgm|nhạc hot.*|bản hot.*)\b", " ", clean_t)
+    clean_t = re.sub(r"\s+", " ", clean_t).strip(" -–—|_/")
+    clean_a = re.sub(r"(?i)\b(remix|dj|official|music|channel|trends?)\b", " ", raw_a)
+    clean_a = re.sub(r"\s+", " ", clean_a).strip(" -–—|_/")
+
+    queries = []
+    if clean_t and clean_a and clean_a.lower() not in clean_t.lower():
+        queries.append(f"{clean_t} {clean_a}")
+    if clean_t:
+        queries.append(clean_t)
+    if " x " in clean_t.lower():
+        parts = [p.strip() for p in re.split(r"(?i)\s+x\s+", clean_t) if len(p.strip()) >= 3]
+        queries.extend(parts[:2])
+    if raw_t and raw_t not in queries:
+        queries.append(raw_t)
+    # Deduplicate preserving order
+    seen = set()
+    out = []
+    for q in queries:
+        q_norm = q.strip()
+        if len(q_norm) >= 2 and q_norm.lower() not in seen:
+            seen.add(q_norm.lower())
+            out.append(q_norm)
+    return out[:3]
+
+
+class LyricsSaveRequest(BaseModel):
+    lrc: str = ""
+
+
+@app.get("/api/tracks/{tid}/lyrics")
+def get_track_lyrics(tid: str, refresh: bool = False):
+    import urllib.request
+    if not library.valid_id(tid):
+        raise HTTPException(404, "no such song")
+    meta = library.read_meta(tid)
+    if not meta:
+        raise HTTPException(404, "no such song")
+    tdir = library.track_dir(tid)
+    cache_file = tdir / "lyrics.json"
+    if cache_file.exists() and not refresh:
+        try:
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            if isinstance(cached, dict) and cached.get("found"):
+                return cached
+        except Exception:
+            pass
+
+    now = time.time()
+    if not refresh and tid in _lyrics_neg_cache and (now - _lyrics_neg_cache[tid]) < 300:
+        return {"found": False, "synced": [], "plain": "", "source": "cache"}
+
+    title = meta.get("title") or ""
+    artist = meta.get("artist") or ""
+    duration = float(meta.get("duration") or 180.0)
+    queries = _clean_song_query(title, artist)
+
+    best_hit = None
+    best_lines: list[dict] = []
+    for q in queries:
+        url = f"https://lrclib.net/api/search?q={quote(q)}"
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "MeikovaLoop/1.0 (https://github.com/Meikova/meikova-loop)"},
+            )
+            with urllib.request.urlopen(req, timeout=3.2) as resp:
+                if resp.status == 200:
+                    items = json.loads(resp.read().decode("utf-8", errors="replace"))
+                    if isinstance(items, list) and items:
+                        # Prefer syncedLyrics first
+                        for item in items:
+                            if item.get("syncedLyrics"):
+                                parsed = _parse_lrc_lines(item["syncedLyrics"])
+                                if len(parsed) >= 3:
+                                    best_hit = item
+                                    best_lines = parsed
+                                    break
+                        if not best_hit:
+                            for item in items:
+                                if item.get("plainLyrics"):
+                                    raw_lines = [ln.strip() for ln in item["plainLyrics"].splitlines() if ln.strip()]
+                                    if len(raw_lines) >= 3:
+                                        span = max(20.0, duration - 10.0)
+                                        step = span / max(1, len(raw_lines))
+                                        best_lines = [{"t": round(4.0 + i * step, 2), "text": ln} for i, ln in enumerate(raw_lines)]
+                                        best_hit = item
+                                        break
+                        if best_hit:
+                            break
+        except Exception:
+            continue
+
+    if best_hit and best_lines:
+        result = {
+            "found": True,
+            "synced": best_lines,
+            "plain": best_hit.get("plainLyrics") or "\n".join(x["text"] for x in best_lines),
+            "track_name": best_hit.get("trackName") or title,
+            "artist_name": best_hit.get("artistName") or artist,
+            "source": "lrclib",
+        }
+        try:
+            cache_file.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        _lyrics_neg_cache.pop(tid, None)
+        return result
+
+    _lyrics_neg_cache[tid] = now
+    return {"found": False, "synced": [], "plain": "", "source": "none"}
+
+
+@app.post("/api/tracks/{tid}/lyrics")
+def save_track_lyrics(tid: str, body: LyricsSaveRequest):
+    if not library.valid_id(tid):
+        raise HTTPException(404, "no such song")
+    meta = library.read_meta(tid)
+    if not meta:
+        raise HTTPException(404, "no such song")
+    tdir = library.track_dir(tid)
+    cache_file = tdir / "lyrics.json"
+    raw = (body.lrc or "").strip()
+    if not raw:
+        cache_file.unlink(missing_ok=True)
+        _lyrics_neg_cache.pop(tid, None)
+        return {"found": False, "synced": [], "plain": "", "source": "cleared"}
+
+    parsed = _parse_lrc_lines(raw)
+    if not parsed:
+        duration = float(meta.get("duration") or 180.0)
+        raw_lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+        span = max(20.0, duration - 10.0)
+        step = span / max(1, len(raw_lines))
+        parsed = [{"t": round(4.0 + i * step, 2), "text": ln} for i, ln in enumerate(raw_lines)]
+
+    result = {
+        "found": len(parsed) > 0,
+        "synced": parsed,
+        "plain": "\n".join(x["text"] for x in parsed),
+        "track_name": meta.get("title") or tid,
+        "artist_name": meta.get("artist") or "",
+        "source": "custom",
+    }
+    cache_file.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    _lyrics_neg_cache.pop(tid, None)
+    return result
 
 
 def _get_network_ips() -> tuple[str, str | None]:
@@ -1415,8 +1656,8 @@ async def toggle_tunnel(request: Request):
 
 
 @app.get("/api/qr")
-def get_qr(data: str | None = None, request: Request = None):
-    text = (data or "").strip()
+def get_qr(data: str | None = None, url: str | None = None, format: str = "svg", request: Request = None):
+    text = (data or url or "").strip()
     if not text:
         host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
         proto = "https" if ("hf.space" in host_header or request.headers.get("x-forwarded-proto") == "https") else "http"
@@ -1426,21 +1667,31 @@ def get_qr(data: str | None = None, request: Request = None):
     try:
         import io
         import qrcode
-        import qrcode.image.svg
-        factory = qrcode.image.svg.SvgPathImage
-        img = qrcode.make(text, image_factory=factory)
-        buf = io.BytesIO()
-        img.save(buf)
-        return Response(
-            content=buf.getvalue(),
-            media_type="image/svg+xml",
-            headers={"Cache-Control": "public, max-age=60"}
-        )
+        if format.lower() == "svg":
+            import qrcode.image.svg
+            factory = qrcode.image.svg.SvgPathImage
+            img = qrcode.make(text, image_factory=factory)
+            buf = io.BytesIO()
+            img.save(buf)
+            return Response(
+                content=buf.getvalue(),
+                media_type="image/svg+xml",
+                headers={"Cache-Control": "public, max-age=120"}
+            )
+        else:
+            img = qrcode.make(text)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return Response(
+                content=buf.getvalue(),
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=120"}
+            )
     except Exception:
         from urllib.parse import quote
         from starlette.responses import RedirectResponse
         return RedirectResponse(
-            f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={quote(text)}",
+            f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={quote(text)}",
             status_code=307
         )
 
@@ -1551,7 +1802,260 @@ def download_app(target: str, request: Request):
     raise HTTPException(404, f"Không hỗ trợ tải mục tiêu: {target}")
 
 
-app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+# ------------------------------------------------ Stage & Light Sync Hub
+class SmartLightConfigRequest(BaseModel):
+    enabled: bool | None = None
+    wled_ip: str | None = None
+    wled_port: int | None = None
+    wled_led_count: int | None = None
+    keyboard_sync: bool | None = None
+    brightness: float | None = None
+    pulse_reactive: bool | None = None
+
+
+class SmartLightTestRequest(BaseModel):
+    r: int
+    g: int
+    b: int
+    device_id: str | None = None
+
+
+class SmartLightManualDeviceRequest(BaseModel):
+    protocol: str = "wled_ddp"
+    address: str
+    port: int | None = None
+    led_count: int | None = None
+    name: str | None = None
+    enabled: bool = True
+
+
+class SmartLightDeviceActionRequest(BaseModel):
+    device_id: str
+    enabled: bool | None = None
+
+
+@app.get("/api/sync/room-info")
+def get_sync_room_info(request: Request):
+    lan_ip, tailscale_ip = _get_network_ips()
+    host_header = request.headers.get("host", f"127.0.0.1:{PORT}")
+    proto = "https" if ("hf.space" in host_header or request.headers.get("x-forwarded-proto") == "https") else "http"
+    active_url = f"{proto}://{host_header}"
+
+    port_suffix = f":{PORT}" if PORT and str(PORT) not in ("80", "443") else ""
+    lan_url = f"http://{lan_ip}{port_suffix}" if lan_ip else active_url
+    tailscale_url = f"http://{tailscale_ip}{port_suffix}" if tailscale_ip else ""
+
+    # If accessed locally, prefer LAN IP for satellite so mobile on same Wi-Fi opens directly
+    is_local = host_header.startswith("localhost") or host_header.startswith("127.0.0.1")
+    target_satellite_url = f"{lan_url}/?mode=satellite" if is_local and lan_ip else f"{active_url}/?mode=satellite"
+
+    return {
+        "success": True,
+        "room_id": "mashloop-main",
+        "active_url": active_url,
+        "lan_url": lan_url,
+        "tailscale_url": tailscale_url,
+        "satellite_url": target_satellite_url,
+        "satellites_count": len(sync_hub.satellites),
+        "audio_satellites_count": len(sync_hub.audio_satellites),
+        "hosts_count": len(sync_hub.hosts),
+        "has_host": len(sync_hub.hosts) > 0,
+        "qr_url": f"/api/qr?data={quote(target_satellite_url, safe='')}",
+        "qr_code": f"/api/qr?data={quote(target_satellite_url, safe='')}"
+    }
+
+
+@app.websocket("/api/ws/stage-sync")
+async def websocket_stage_sync(websocket: WebSocket, role: str = "satellite"):
+    await sync_hub.connect(websocket, role=role)
+    try:
+        while True:
+            msg = await websocket.receive()
+            msg_type = msg.get("type")
+            if msg_type == "websocket.disconnect":
+                break
+            if msg.get("bytes") is not None:
+                if role == "host":
+                    await sync_hub.handle_host_audio(msg["bytes"], ws=websocket)
+            elif msg.get("text"):
+                try:
+                    data = json.loads(msg["text"])
+                except Exception:
+                    continue
+                if role == "host":
+                    await sync_hub.handle_host_message(data, ws=websocket)
+                else:
+                    await sync_hub.handle_satellite_message(data, ws=websocket)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await sync_hub.disconnect(websocket, role=role)
+
+
+@app.get("/api/lights/status")
+def get_lights_status():
+    return smart_lights.get_status()
+
+
+@app.post("/api/lights/scan")
+def scan_lights_devices():
+    smart_lights.discover_devices(include_lan=True)
+    return smart_lights.get_status()
+
+
+@app.post("/api/lights/devices/add")
+def add_lights_device(req: SmartLightManualDeviceRequest):
+    try:
+        return smart_lights.add_manual_device(req.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/lights/devices/toggle")
+def toggle_lights_device(req: SmartLightDeviceActionRequest):
+    try:
+        return smart_lights.toggle_device(req.device_id, req.enabled)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/lights/devices/remove")
+def remove_lights_device(req: SmartLightDeviceActionRequest):
+    return smart_lights.remove_device(req.device_id)
+
+
+@app.post("/api/lights/config")
+def set_lights_config(req: SmartLightConfigRequest):
+    return smart_lights.configure(req.model_dump(exclude_unset=True))
+
+
+@app.post("/api/lights/test")
+def test_lights_color(req: SmartLightTestRequest):
+    return smart_lights.test_color(req.r, req.g, req.b, req.device_id)
+
+
+class ClusterToggleRequest(BaseModel):
+    enabled: bool
+    mode: str | None = None
+    client_id: str | None = None
+    host_align_ms: int | None = None
+    master_volume: float | None = None
+
+
+class ClusterNodeConfigRequest(BaseModel):
+    client_id: str | None = None
+    channel_mode: str | None = None
+    volume_trim: float | None = None
+    latency_offset_ms: int | None = None
+    in_cluster: bool | None = None
+    device_name: str | None = None
+    claim_master: bool = False
+    mode: str | None = None
+    host_align_ms: int | None = None
+    master_volume: float | None = None
+
+
+class ClusterManualPeerRequest(BaseModel):
+    address: str
+    port: int = 8765
+    name: str | None = None
+
+
+class ClusterRemovePeerRequest(BaseModel):
+    server_id: str | None = None
+    address: str | None = None
+
+
+@app.get("/api/cluster/status")
+def get_cluster_status():
+    st = sync_hub.get_cluster_status()
+    st["success"] = True
+    st["local_server"] = cluster_beacon.get_local_info()
+    st["lan_peers"] = cluster_beacon.get_active_peers()
+    return st
+
+
+@app.get("/api/cluster/peers")
+def get_cluster_peers():
+    return {
+        "success": True,
+        "local_server": cluster_beacon.get_local_info(),
+        "lan_peers": cluster_beacon.get_active_peers(),
+        "cluster": sync_hub.get_cluster_status(),
+    }
+
+
+@app.post("/api/cluster/toggle")
+async def toggle_cluster_mode(req: ClusterToggleRequest):
+    st = await sync_hub.set_cluster_state(
+        enabled=req.enabled,
+        mode=req.mode,
+        initiator_client_id=req.client_id,
+        host_align_ms=req.host_align_ms,
+        master_volume=req.master_volume,
+    )
+    st["success"] = True
+    st["lan_peers"] = cluster_beacon.get_active_peers()
+    return st
+
+
+@app.post("/api/cluster/node/config")
+async def configure_cluster_node(req: ClusterNodeConfigRequest):
+    if req.host_align_ms is not None:
+        sync_hub.host_align_ms = max(0, min(250, int(req.host_align_ms)))
+    if req.master_volume is not None:
+        sync_hub.cluster_master_volume = max(0.0, min(1.5, float(req.master_volume)))
+    if req.mode in ("party", "stereo_pair") and req.mode != sync_hub.cluster_mode:
+        sync_hub.cluster_mode = req.mode
+        sync_hub._apply_cluster_channel_assignments(force_reset=True)
+    st = await sync_hub.configure_node(
+        client_id=req.client_id,
+        channel_mode=req.channel_mode,
+        volume_trim=req.volume_trim,
+        latency_offset_ms=req.latency_offset_ms,
+        in_cluster=req.in_cluster,
+        device_name=req.device_name,
+        claim_master=req.claim_master,
+    )
+    st["success"] = True
+    return st
+
+
+@app.post("/api/cluster/peers/add")
+def add_cluster_lan_peer(req: ClusterManualPeerRequest):
+    try:
+        peer = cluster_beacon.add_manual_peer(req.address, req.port, req.name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {
+        "success": True,
+        "peer": peer,
+        "lan_peers": cluster_beacon.get_active_peers(),
+    }
+
+
+@app.post("/api/cluster/peers/remove")
+def remove_cluster_lan_peer(req: ClusterRemovePeerRequest):
+    removed = cluster_beacon.remove_peer(req.server_id or req.address or "")
+    return {
+        "success": True,
+        "removed": removed,
+        "lan_peers": cluster_beacon.get_active_peers(),
+    }
+
+
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if path in ("", ".") or path.endswith((".js", ".css", ".html", ".svg", ".json")):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+app.mount("/", NoCacheStaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 
@@ -1563,6 +2067,7 @@ def _on_loop_startup():
         if MULTIUSER:
             worker.start_retention(AUDIO_TTL_S, sessions.in_use)
         threading.Thread(target=sessions.warmup_transitions_cache, daemon=True, name="transitions-warmup").start()
+        cluster_beacon.start(PORT)
     except Exception as e:
         logger.error(f"worker.start failed on startup: {e}")
     if "--tunnel" in sys.argv or os.environ.get("AUTO_TUNNEL") in ("1", "true", "True"):
@@ -1589,7 +2094,7 @@ def main() -> None:
     if MULTIUSER:
         worker.start_retention(AUDIO_TTL_S, sessions.in_use)
     else:
-        sessions.local().link()  # pairs missing after an update are computed in the background
+        threading.Thread(target=lambda: sessions.local().link(), daemon=True, name="startup-link").start()
     if args.open:
         open_host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
         webbrowser.open(f"http://{open_host}:{args.port}")
