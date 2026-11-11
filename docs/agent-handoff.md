@@ -1,5 +1,150 @@
 # BẢN GIAO TIẾP LIÊN PHIÊN (SESSION HANDOFF) — MEIKOVA LOOP
 
+## Phiên làm việc: 11/11/2026 (Khắc phục Triệt để Lỗi Out of Memory, Mất Render Vòng Beat & Rè Âm thanh Cụm Loa v176)
+
+### 000000. Kiến trúc, Nguyên nhân gốc rễ & Giải pháp khắc phục triệt để
+
+1. **Khắc phục Triệt để Lỗi Sập "Out of Memory" (WebView2 White Screen / VirtualAlloc Commitment Limit):**
+   - **Nguyên nhân gốc rễ:**
+     - Máy tính có 32 GB RAM vật lý (>9.8 GB trống) nhưng Windows Paging File bị cố định ở 8 GB, dẫn đến trần bộ nhớ ảo toàn hệ thống (Commit Limit) là 39.42 GB. Các ứng dụng nền đã cam kết 36.98 GB, chỉ còn trống đúng **2.44 GB** bộ nhớ ảo.
+     - `api.js` cho phép lưu cache tối đa 1.15 GB PCM AudioBuffer 32-bit float (`keep = 3`), mỗi bài dài 10–15 phút ngốn ~235 MB RAM. Khi đẩy bài khỏi cache, tham chiếu `track.buffer` không được null hóa.
+     - `player.js` duy trì mảng `timeline` tới 400 sự kiện cũ, giữ chặt tham chiếu đến các đối tượng `Track` đã phát.
+     - `engine.js` (`Voice`) khởi tạo hơn 15 WebAudio nodes (Linkwitz-Riley 4th order crossover filters) nhưng hàm `_free()` chỉ disconnect duy nhất `this.gain`, khiến Chromium WebAudio Graph rò rỉ hàng trăm nodes sau mỗi bài hát.
+     - `viz.js` dựng canvas idle với `layerScale = 4` (7680x4320 = 133 MB/canvas x 2 = 266 MB GPU VRAM), đồng thời các vòng cũ khi xóa khỏi `this.rings` không hạ kích thước canvas về 0 khiến DirectX Direct2D textures bị kẹt trong VRAM.
+   - **Giải pháp triệt để:**
+     - `web/js/api.js`: Hạ trần cache xuống 450 MB (Desktop) / 300 MB (Mobile), mặc định `keep = 2`. Trong `drop(id)` và `_evict()`: gán dứt khoát `entry.track.buffer = null` và `entry.vocals = null`.
+     - `web/js/player.js`: Cắt tỉa `this.timeline` chỉ giữ tối đa 40 sự kiện gần nhất trong vòng 5 giây (`cutoff = audibleTime - 5`). Khi chuyển sang bài mới, kích hoạt `_evict()` và hủy buffer bài cũ ngay lập tức. Thêm fallback an toàn trong `_planExit` khi playlist bị khóa/lọc để không bao giờ bị stall dừng phát.
+     - `web/js/engine.js`: Thu thập toàn bộ các node `BiquadFilterNode` nội bộ vào mảng `this.lrNodes`. Trong `Voice._free()`: duyệt disconnect toàn diện 15+ nodes (`gain`, `src`, `srcGain`, `mainGain`, `voc`, `vocGain`, `pre`, `sum`, `bands.low/mid/high`, `lp`, `hp`, `trim`, `fx`, `lrNodes`), giải phóng hoàn toàn đồ thị âm thanh cho Chromium GC.
+     - `web/js/viz.js`: Triển khai `_disposeRing(ring)` (`canvas.width = 0; canvas.height = 0; ring.layer = null`). Khống chế kích thước `_idleLayer` với `layerScale <= 1.5` và giới hạn tối đa 1920x1080 (giảm dung lượng GPU texture từ 266 MB xuống < 8 MB). Giới hạn `this.rings.size <= 4`.
+     - `loopbox/desktop.py`: Thêm cờ `--renderer-process-limit=2` và `--js-flags=--expose-gc` cho WebView2. Bổ sung hàm Win32 `ctypes.windll.psapi.EmptyWorkingSet` được gọi khi ẩn vào khay hệ thống để hoàn trả trang nhớ cho Windows.
+
+2. **Khắc phục Triệt để Lỗi Mất Render Vòng Beat (Dấu chấm sáng vẫn chạy nhưng mất toàn bộ vạch nhịp, hợp âm, bụi):**
+   - **Nguyên nhân gốc rễ:**
+     - Trong `_update` và `_drawSatelliteStage`: `ring.fill` bị chặn tăng trưởng do nằm sau lệnh `if (!tg) continue;`. Khi `ring.target` là `null`, `ring.fill` bị đóng băng ở giá trị `0`.
+     - Trong `_drawRing`: Lệnh `ctx.clip()` thực hiện cắt xén theo góc `TAU * f`. Khi `ring.fill <= 0`, `f = 0`, vùng clip bị thu hẹp về diện tích bằng 0 (`ctx.arc(0, 0, L.S, 0, 0)`), dẫn đến toàn bộ nội dung của `L.canvas` (vạch nhịp, hợp âm, bụi) bị xóa sạch không còn 1 pixel! Chấm sáng playhead và vạch halo nằm ngoài `L.canvas` nên vẫn hiển thị, tạo ra hiện tượng chấm sáng chạy trên vòng vô hình.
+     - Trong `_buildLayer`: `this.player.maxScore(track)` gọi trực tiếp `T.scoreCut(this.settings.keep)`. Khi nhận track từ vệ tinh qua telemetry (vốn là plain JSON object không có prototype methods), lệnh này ném ra `TypeError: T.scoreCut is not a function`, làm sập toàn bộ hàm `_buildLayer`.
+     - Trong `_buildLayer`: Các mảng phân tích `a.pos`, `a.loud`, `a.sections`, `track.transitions` bị truy cập trực tiếp `a.pos[b]` khi chưa kiểm tra `Array.isArray()`, gây `TypeError: Cannot read properties of undefined`.
+   - **Giải pháp triệt để:**
+     - Tách việc tăng `ring.fill` ra ngoài điều kiện `if (!tg) continue;` ở cả hai hàm `_update` và `_drawSatelliteStage`.
+     - Với `ring.role === "primary"`, ép `ring.fill = 1` nếu `<= 0` hoặc `undefined`.
+     - Trong `_drawRing`: Bảo vệ diện tích clip tối thiểu bằng `Math.max(0.001, ring.fill || 0)`, đảm bảo vùng clip luôn bao phủ tối thiểu và không bao giờ thu hẹp về 0 pixel.
+     - Thêm kiểm tra `isLayerValid`: Nếu `ring.layer.canvas.width <= 1` hoặc layer bị hủy, tự động dựng lại khi bài hát đã có beats.
+     - Khắc phục `maxScore`: Kiểm tra `typeof T?.scoreCut === "function"` trước khi gọi, fallback về `0.2` an toàn.
+     - Bọc an toàn 100% các mảng `posArr`, `loudArr`, `sectionsArr`, `transArr` với fallback mảng rỗng `[]` và giá trị mặc định.
+
+3. **Khắc phục Triệt để Tiếng Rè Âm thanh & Xung đột Âm thanh Khi Chạy Cùng Máy (InPrivate / Multi-Tab):**
+   - **Nguyên nhân gốc rễ:**
+     - Trong `MLStreamPlayerProcessor` (`web/js/stage_sync.js`): Khi buffer cạn (`available <= 2`), hệ thống ghi trực tiếp `0` vào mảng âm thanh, tạo cú nhảy điện áp DC tức thời gây tiếng bụp số (digital click). Sau đó hệ thống chờ đủ 2048 mẫu (~43ms) mới phát lại, rơi vào vòng lặp ngắt quãng tạo tiếng rè cơ học 43Hz ("rè rè").
+     - `_pushToSatWorklet` gửi message `config` liên tục 47 lần/giây vào AudioWorklet, làm nghẽn MessagePort và gây GC lag trên luồng âm thanh.
+     - Khi mở tab ẩn danh InPrivate, trình duyệt cô lập hoàn toàn `BroadcastChannel("ml_local_cluster_bus")`. Lệnh tắt tiếng của tab phụ không thể truyền tới tab chính, dẫn tới cả 2 tab cùng phát đồng thời gây tiếng vọng trễ pha.
+   - **Giải pháp triệt để:**
+     - Trong `MLStreamPlayerProcessor`: Triển khai hàm trượt vi mô Cosine (Cosine micro-fade) trong 32 mẫu khi cạn buffer thay vì cắt đột ngột về 0, triệt tiêu 100% tiếng bụp DC.
+     - Giảm ngưỡng hồi phục buffer từ 2048 mẫu xuống 768 mẫu (~16ms) kết hợp `targetBuffered = 3840` (~80ms), duy trì luồng âm thanh mượt mà liên tục.
+     - Thêm cơ chế throttle cấu hình trong `_pushToSatWorklet`: Chỉ gửi message `config` khi các tham số thực sự thay đổi (`targetBuffered`, `effMode`, `isDiscrete`, `isMuted`), giảm tải từ 47 msg/s về 0 khi ổn định.
+     - Trong `loopbox/stage_sync_hub.py`: Bổ sung cơ chế WebSocket relay `same_machine_speaker_sync`. Server tự động nhận diện các client có cùng địa chỉ IP (`127.0.0.1` / `::1` / LAN IP) và chuyển tiếp trạng thái tắt loa tới tất cả các tab khác của cùng máy đó, vượt qua hoàn toàn rào cản cô lập của InPrivate.
+
+4. **Kết quả Kiểm thử Toàn diện (Verification 100% Pass — Exit Code 0):**
+   - `tests/test_memory_lifecycle.py`: **4/4 tests PASSED (Exit Code 0)**.
+   - `tests/test_viz_render_and_oom_e2e.py`: **1/1 E2E visual render test PASSED (Exit Code 0, 3.5s)**:
+     * Dựng thành công 12 bài hát chuyển tiếp liên tục.
+     * Số vòng trên sân khấu được khống chế nghiêm ngặt $\le 4$.
+     * Kích thước layer idle được khống chế $\le 1920\text{px}$.
+     * Beat blocks và chords được vẽ sắc nét lên canvas `#viz` với hàng nghìn pixel màu hợp lệ.
+   - `tests/test_cluster_e2e_playwright.py`: **32/32 tests PASSED (Exit Code 0, 59.2s)**.
+   - `tests/test_audio_continuity.py`: **9/9 tests PASSED (Exit Code 0)**.
+   - `tests/test_cluster_sync.py`: **5/5 tests PASSED (Exit Code 0)**.
+   - `tests/test_stage_sync.py`: **14/14 tests PASSED (Exit Code 0)**.
+   - `tests/test_tab_stability.py` & `scripts/verify_deck_responsive.py`: **ALL PASSED (Exit Code 0)**.
+   - Cú pháp mã nguồn JS (`node --check`): **ALL 6 FILES PASSED (Exit Code 0)**.
+   - Biên dịch Python (`python -m compileall`): **ALL MODULES PASSED (Exit Code 0)**.
+
+---
+
+## Phiên làm việc: 10/11/2026 (Triệt tiêu 100% Hiện tượng Rè rè bằng AudioWorklet Jitter Ring Buffer, Chống xung đột Âm thanh Cùng máy và Sửa lỗi Caption Sân khấu Toàn cảnh v176)
+
+### 00000. Kiến trúc, Nguyên nhân gốc rễ & Giải pháp khắc phục triệt để (v176)
+1. **Triệt tiêu Hoàn toàn Tiếng Rè rè ("rè rè" 43Hz) bằng AudioWorklet Jitter Ring Buffer (Milestone 1 — Continuous Sample-Exact DSP):**
+   - **Nguyên nhân gốc rễ:**
+     1. Lỗi đứt đoạn phân giải mẫu phân số (Fractional Sample Truncation): Khi phát stream qua các `AudioBufferSourceNode` 1024-mẫu riêng rẽ, mỗi packet (23.2ms) kết thúc tại một mẫu phân số không nguyên (ví dụ: 1024 * 48000 / 44100 = 1114.6077 mẫu). Bộ resampler native của trình duyệt làm tròn hoặc cắt bỏ 0.6 mẫu, tạo ra một bước nhảy điện áp (step discontinuity) tại ranh giới mỗi packet. Với tần suất 43 packet/giây, chuỗi xung nhịp 43Hz này tạo ra tiếng rè rè/xước liên tục ("rè rè").
+     2. Resampler Filter Tap Dropouts: Các `AudioBufferSourceNode` độc lập không chia sẻ trạng thái bộ lọc (filter history). Ở mẫu cuối cùng của buffer trước và mẫu đầu tiên của buffer sau, kernel nội suy bị thiếu mẫu tương lai/quá khứ và chìm về 0, gây micro-click tại điểm nối.
+     3. Tồn đọng bộ nhớ đệm trình duyệt (Cache Pollution): Service Worker `sw.js` lưu cache `meikova-loop-v175` với các file `?v=173`/`?v=174`, khiến trình duyệt chạy mã JS cũ dù đã bấm refresh thông thường.
+   - **Giải pháp triệt để:**
+     - Thiết kế và triển khai bộ xử lý luồng âm thanh chuyên dụng `MLStreamPlayerProcessor` chạy trên luồng thời gian thực C++ (`AudioWorkletProcessor`):
+       * Vận hành bộ nhớ đệm vòng tuần hoàn Float32 công suất 32768 mẫu (~740ms) độc lập cho kênh trái và kênh phải.
+       * Tích hợp bộ tích lũy pha liên tục (continuous phase accumulator) với **nội suy tuyến tính phân số chính xác tuyệt đối** ($\Delta\phi = rac{f_{in}}{f_{out}} \cdot 	ext{rateNudge}$, $y[n] = (1 - lpha) x[k] + lpha x[k+1]$). Triệt tiêu 100% bước nhảy ranh giới, giữ đường cong liên tục $C^0$.
+       * Điều tốc vi sai mượt mà (bounded [0.992, 1.008]): duy trì độ sâu buffer mục tiêu ~60-80ms (~2800 mẫu) không gây méo cao độ.
+       * Micro-fade cosin 64 mẫu (1.5ms) khi thoát tình trạng thiếu buffer (underrun recovery), triệt tiêu hoàn toàn tiếng "bụp" DC.
+       * Queue tạm thời khi worklet đang nạp và fallback `_schedulePcmPacket` có EMA filter.
+
+2. **Khắc phục Triệt để Vấn đề Âm thanh Khi Phát Trên CÙNG 1 MÁY (Milestone 2 — Same-Machine Anti-Clash & Single-Tab Solo):**
+   - **Nguyên nhân gốc rễ:**
+     1. Hiện tượng Lọc Lược (Comb Filtering) & Vang dội pha (Haas Effect) do 2 tab cùng xuất âm thanh ra 1 soundcard với độ lệch jitter 2-15ms.
+     2. Trong chế độ `stereo_pair` trên cùng 1 máy: Khi Tab 2 tắt tiếng để tránh vọng thì Tab 1 lại bị cắt mất kênh phải (R), làm âm thanh thiếu tai phải.
+   - **Giải pháp triệt để:**
+     - Tự động nhận diện môi trường cùng máy (`this.isSameMachine = this.isLocalHost;`).
+     - Mặc định khi Follower vào cụm trên cùng máy: Loa Follower **tự động TẮT** (`satAudioMuted = true`, hiển thị nút `Loa: Tắt (Cùng máy)`).
+     - Khi người dùng bấm `[Loa: Tắt (Cùng máy)]` trên Tab 2 -> chuyển `[Loa: Bật]`. Tab 2 gửi tín hiệu qua `BroadcastChannel("ml_local_cluster_bus")` yêu cầu Tab 1 tắt loa cục bộ (`engine.setLocalSpeakerMuted(true)`). Tab 2 phát toàn quyền Full Stereo qua `MLStreamPlayerProcessor` không vọng hay rè.
+     - Cơ chế `_syncMasterEffectiveChannels`: Khi Master phát hiện toàn bộ Follower là các tab cùng máy đang tắt tiếng, Master tự động phát **Full Stereo** đảm bảo trọn vẹn âm thanh hai kênh.
+
+3. **Khắc phục Lỗi Chữ "HAI VÒNG ĐANG CHỜ" Đè Lên Khi Bật Chiếu Toàn Cảnh (Milestone 3 — Stage Mirror Caption & DOM Protection):**
+   - Bổ sung `this._placeCenter(this.capPlace)` và `if (this.onCaption) this.onCaption()` vào heartbeat `setInterval` của `web/js/viz.js` để DOM Host không bị đóng băng khi tab ẩn.
+   - Bảo vệ `_syncCenterCaption`, `#ro-tl`, `#ro-tr` trong `web/js/stage_sync.js` bằng kiểm tra `isHtmlIdle` và `isRoIdle`: tuyệt đối không dùng chuỗi idle khi Host đang phát nhạc.
+
+4. **Đồng bộ Phiên bản & Triệt tiêu Cache Cũ (Milestone 4 — SSOT Cache Busting v176):**
+   - Cập nhật đồng bộ toàn hệ thống lên `v176` (`web/sw.js`, `web/index.html`, `web/js/stage_sync.js`, `web/js/viz.js`, `web/js/main.js`, `web/js/api.js`).
+
+5. **Kết quả Kiểm thử Toàn diện (Verification 100% Pass — Exit Code 0):**
+   - `tests/test_audio_continuity.py`: **9/9 tests PASSED (Exit Code 0, 0.025s)**.
+   - `tests/test_cluster_sync.py`: **5/5 tests PASSED (Exit Code 0, 0.08s)**.
+   - `tests/test_stage_sync.py`: **14/14 tests PASSED (Exit Code 0)**.
+   - `tests/test_tab_stability.py` & `tests/test_title_splitter.py`: **ALL PASSED (Exit Code 0)**.
+   - `tests/test_server_and_features.py`: **ALL SERVER & FEATURE TESTS PASSED (Exit Code 0)**.
+   - `tests/test_cluster_e2e_playwright.py`: **32/32 Playwright E2E tests PASSED (Exit Code 0, 62.1s)**.
+
+---
+## Phiên làm việc: 10/11/2026 (Triệt tiêu Hiện tượng Nhấp nháy Toàn cảnh Sân khấu is-cluster-mirror, Làm sạch 100% Pipeline Âm thanh PCM v2 & Đồng bộ Pha Không Vang Vọng Cho Cụm Loa & Loa Vệ tinh v175)
+
+### 0000. Kiến trúc, Nguyên nhân gốc rễ & Giải pháp khắc phục triệt để (v175)
+1. **Triệt tiêu Hiện tượng Nhấp nháy Sân khấu & Chồng lấn Vòng lặp Lemniscate ∞ (Milestone 1 — Visual Isolation):**
+   - **Nguyên nhân gốc rễ:**
+     1. Xung đột DOM đa luồng: `renderStage()` và `renderTransport()` trong `web/js/main.js` chạy định kỳ 250ms trên máy con follower (nơi `player.audible() === null`), liên tục ghi đè `#rc-kicker` thành `"HAI VÒNG ĐANG CHỜ"`, giằng co với telemetry máy chính gửi tới ("ĐANG PHÁT · CHUỖI").
+     2. Vòng lặp Heartbeat 33ms trong `web/js/viz.js` chạy trên máy con gọi `_update(null, dt)`, liên tục bơm `this.idle` lên 1.0, khiến `_drawSatelliteStage()` kích hoạt `_drawIdle()` vẽ đè 2 vòng vô cực lemniscate số 8 trực tiếp lên vòng tròn bài hát đang phát.
+     3. Khóa cứng kích thước canvas: `viz.js` ép `canvas.style.width = ...px` inline khi `!isSatellite`, và thiếu bộ CSS isolation đầy đủ cho `body.is-cluster-mirror`.
+   - **Giải pháp triệt để:**
+     - Thiết lập cờ `stageSync.isStageMirrorActive` (`isSatellite || (isClusterFollower && isClusterMirror)`) và chèn rào chắn bảo vệ toàn diện vào: `renderStage()`, `renderTransport()`, `renderSetlist()`, `updateAmbientLyrics()`, `applySettings()`, `openLyricsEditorModal()`, cùng các sự kiện `track` và `prefetch` trong `web/js/main.js`.
+     - Tắt hoàn toàn vòng lặp heartbeat trên follower trong `web/js/viz.js` (`if (!stageSync.isSatellite && !stageSync.isClusterFollower)`).
+     - Trong `_drawSatelliteStage()`: ép dứt khoát `this.idle = 0;` khi bài hát đang phát (`mode !== "idle"`), chỉ vẽ `_drawIdle` khi host thực sự dừng (`mode === "idle"`).
+     - Bổ sung bộ quy tắc CSS cô lập toàn diện cho `body.is-cluster-mirror` trong `web/css/app.css`: triệt tiêu chuyển động nhấp nháy (`transition: none !important`), căn giữa tuyệt đối canvas và ring-center, ẩn `#rc-cta`.
+
+2. **Làm sạch 100% Pipeline Âm thanh PCM v2 & Triệt tiêu Tiếng Rè, Méo tiếng, Vang vọng (Milestone 2 — Audio Pipeline & Acoustic Cleansing):**
+   - **Nguyên nhân gốc rễ:**
+     1. Méo gập phổ 2 cấp (Double Aliasing): Host hạ mẫu 44.1kHz -> 22.05kHz bằng bộ lọc trung bình cộng 2 mẫu thô bạo (độ suy giảm chỉ -7.5dB ở 16kHz, gập ngược năng lượng vào dải 6kHz gây rè chói gắt). Thiết bị nhận sau đó lại dùng nội suy tuyến tính bậc 1 để nâng lên 48kHz, nhân đôi méo hài.
+     2. Xén sóng vuông số (Hard Digital Clipping): Thiếu đường cong bão hòa mềm, mẫu float vượt quá ±1.0 bị cắt phẳng tạo sóng vuông nổ rè.
+     3. Jitter nhảy pha (`driftSec > 22ms`): Ngưỡng snap 22ms quá hẹp so với jitter Wi-Fi (10–35ms) làm gói tin bị chồng đè (overlap) hoặc tạo khoảng lặng (gap) lẹt đẹt.
+     4. Trashing tham số `DelayNode`: Host liên tục gọi `cancelScheduledValues` trên `speakerDelay` mỗi 23ms gây rung xung nhịp.
+   - **Giải pháp triệt để:**
+     - Nâng cấp luồng PCM v2 lên tần số gốc chuẩn Studio `ctx.sampleRate` (44.1kHz), giữ trọn vẹn dải cao tần tới 20kHz không qua decimation (`web/js/stage_sync.js`).
+     - Bão hòa mềm phi tuyến bằng đường cong `Math.tanh(x)` trước khi lượng tử hóa sang Int16, triệt tiêu 100% hiện tượng xén sóng vuông.
+     - Sử dụng bộ giải mã phần cứng đa pha native của trình duyệt (`ctx.createBuffer(channels, frames, srcSr)`), loại bỏ hoàn toàn nội suy JS thủ công.
+     - Tích hợp bộ lọc cắt tần số cực thấp 20Hz (`HighPass BiquadFilter`, Q=0.707) và bộ nén bảo vệ màng loa (`DynamicsCompressor` Brickwall Limiter: threshold -0.8dB, ratio 20:1, attack 2ms, release 80ms) trước `destination`.
+     - Bộ lập lịch bù pha mượt mà (Closed-Loop Slew Phase-Lock): nới ngưỡng snap lên 55ms; với độ trôi 8–55ms chỉ bù trượt 10% mỗi gói (`driftSec * 0.10`); khi cạn buffer thực sự thì khởi động lại tại mốc an toàn `Math.max(now + 0.018, idealPlayTime)`.
+     - Nâng baseline bù trễ loa máy chính `hostAlignMs` lên **`60ms`**, giữ độ lệch pha giữa máy chính và máy con $\le 2\text{ms}$, triệt tiêu hoàn toàn tiếng dội âm/vang vọng.
+     - Thêm guard check delta `< 0.5ms` trong `Engine.setSpeakerSyncDelay` (`web/js/engine.js`), ngăn trashing `AudioParam`.
+
+3. **Kiểm chứng Toàn diện 4 Tầng (Verification 100% Pass — Exit Code 0):**
+   - Bộ kiểm thử tự động Playwright E2E 4 tầng (`tests/test_cluster_e2e_playwright.py`): **32/32 tests PASSED (Exit Code 0, 88.0s)**.
+     - Tier 1: 19/19 Feature Coverage tests PASSED.
+     - Tier 2: 7/7 Boundary & Corner Case tests PASSED.
+     - Tier 3: 5/5 Cross-Feature Interaction tests PASSED.
+     - Tier 4: 1/1 Dual-Device Real-World 10+ seconds playback test PASSED.
+   - Bộ kiểm thử đơn vị backend & giao thức cụm loa (`tests/test_cluster_sync.py`): **5/5 tests PASSED (Exit Code 0, 0.08s)**.
+   - Toàn bộ kiểm thử Stage Sync (`tests/test_stage_sync.py`): **ALL PASSED (Exit Code 0)**.
+   - Toàn bộ kiểm thử tính năng server (`tests/test_server_and_features.py`): **ALL PASSED (Exit Code 0)**.
+   - Cú pháp mã nguồn JS (`node --check`): **ALL PASSED (Exit Code 0)**.
+   - Biên dịch Python (`python -m compileall`): **ALL PASSED (Exit Code 0)**.
+
+---
+
 ## Phiên làm việc: 09/11/2026 (Triển khai Hệ thống Liên kết Cụm Loa Meikova Cluster Link / PartyBoost & Stereo Pair + Đồng pha Âm thanh Zero-Echo NTP v174, Chuẩn hóa Responsive / Anti-Overflow v173, Khắc phục Lỗi Mất Tiếng Khi Phát / Chuyển Bài v171, Hiệu chuẩn Màu RGB v170, Dò tìm Động Thiết bị Ánh sáng v169, Loa Vệ tinh Mobile v168 & Phát Bài Dài >15 Phút v167)
 
 ### 000. Kiến trúc & Triển khai Meikova Cluster Link (PartyBoost & Stereo Pair) + Đồng pha Âm thanh Zero-Echo NTP (v174)

@@ -10,11 +10,11 @@ def test_deck_and_panel():
     stage_sync_js = Path("web/js/stage_sync.js").read_text(encoding="utf-8")
     engine_js = Path("web/js/engine.js").read_text(encoding="utf-8")
 
-    # Verify CSS/JS/SW version bump to v175
-    assert 'css/app.css?v=175' in html, "CSS version not bumped to v175 in index.html"
-    assert 'js/main.js?v=175' in html, "JS version not bumped to v175 in index.html"
-    assert 'sw.js?v=175' in html, "SW version not bumped to v175 in index.html"
-    assert 'meikova-loop-v175' in sw, "Cache version not bumped to v175 in sw.js"
+    # Verify CSS/JS/SW version bump to v176
+    assert 'css/app.css?v=176' in html, "CSS version not bumped to v176 in index.html"
+    assert 'js/main.js?v=176' in html, "JS version not bumped to v176 in index.html"
+    assert 'sw.js?v=176' in html, "SW version not bumped to v176 in index.html"
+    assert 'meikova-loop-v176' in sw, "Cache version not bumped to v176 in sw.js"
 
     # Verify Shelf Head concise title (Less Text, More Signal)
     assert 'Kho bài' in html, "Missing concise title 'Kho bài' in index.html"

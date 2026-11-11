@@ -1,24 +1,24 @@
-const CACHE_NAME = "meikova-loop-v175";
+const CACHE_NAME = "meikova-loop-v176";
 const STATIC_ASSETS = [
   "/",
-  "/css/app.css?v=173",
+  "/css/app.css?v=176",
   "/img/favicon.svg",
   "/img/icon-192.png",
   "/img/icon-512.png",
   "/img/apple-touch-icon.png",
   "/audio/silence.mp3",
-  "/js/main.js?v=173",
-  "/js/api.js?v=173",
-  "/js/engine.js?v=173",
-  "/js/player.js?v=173",
-  "/js/viz.js?v=173",
-  "/js/stage_sync.js?v=173",
-  "/js/harmonic.js?v=173",
-  "/js/theme.js?v=173",
-  "/js/graph.js?v=173",
-  "/js/mediasession.js?v=173",
-  "/js/recorder.js?v=173",
-  "/js/mic.js?v=173",
+  "/js/main.js?v=176",
+  "/js/api.js?v=176",
+  "/js/engine.js?v=176",
+  "/js/player.js?v=176",
+  "/js/viz.js?v=176",
+  "/js/stage_sync.js?v=176",
+  "/js/harmonic.js?v=176",
+  "/js/theme.js?v=176",
+  "/js/graph.js?v=176",
+  "/js/mediasession.js?v=176",
+  "/js/recorder.js?v=176",
+  "/js/mic.js?v=176",
   "/vendor/signalsmith-stretch-1.3.2.mjs"
 ];
 

@@ -30,11 +30,11 @@ def test_tab_and_panel_css_stability():
     assert 'document.documentElement.style.setProperty("--panel-w", `${ui.panelWidth}px`);' in js, \
         "main.js must apply --panel-w immediately upon reading localStorage"
 
-    # 5. Asset version match v175
-    assert "app.css?v=175" in html, "index.html missing v=175 for app.css"
-    assert "main.js?v=175" in html, "index.html missing v=175 for main.js"
-    assert "sw.js?v=175" in html, "index.html missing v=175 for sw.js"
-    assert "meikova-loop-v175" in sw, "sw.js missing meikova-loop-v175 cache name"
+    # 5. Asset version match v176
+    assert "app.css?v=176" in html, "index.html missing v=176 for app.css"
+    assert "main.js?v=176" in html, "index.html missing v=176 for main.js"
+    assert "sw.js?v=176" in html, "index.html missing v=176 for sw.js"
+    assert "meikova-loop-v176" in sw, "sw.js missing meikova-loop-v176 cache name"
 
     print("ALL TAB STABILITY UNIT TESTS PASSED (EXIT CODE 0)!")
 

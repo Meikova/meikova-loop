@@ -19,6 +19,8 @@ if sys.platform == "win32":
         "--use-fake-ui-for-media-stream",
         "--enable-features=AudioServiceOutOfProcess",
         "--autoplay-policy=no-user-gesture-required",
+        "--renderer-process-limit=2",
+        "--js-flags=--expose-gc",
     ]
     for flag in flags:
         if flag not in cur_args:
@@ -40,6 +42,8 @@ if sys.platform == "win32":
                     "--use-fake-ui-for-media-stream",
                     "--enable-features=AudioServiceOutOfProcess",
                     "--autoplay-policy=no-user-gesture-required",
+                    "--renderer-process-limit=2",
+                    "--js-flags=--expose-gc",
                 ]
                 props = self.webview.CreationProperties
                 cur = (props.AdditionalBrowserArguments or "").strip()
@@ -259,6 +263,16 @@ class DesktopBridge:
             self._tray.hide_window()
         elif self._window:
             self._window.hide()
+        self.trim_memory()
+
+    def trim_memory(self):
+        """Win32 API EmptyWorkingSet to reclaim unused virtual and physical pages."""
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                ctypes.windll.psapi.EmptyWorkingSet(ctypes.windll.kernel32.GetCurrentProcess())
+            except Exception:
+                pass
 
     def is_desktop(self) -> bool:
         return True

@@ -9338,7 +9338,10 @@ body.is-satellite-mode {
 /* Eliminate transition fighting with high-frequency 30-60 FPS telemetry in satellite mode */
 html.is-satellite-mode *,
 body.is-satellite-mode,
-body.is-satellite-mode .field {
+body.is-satellite-mode .field,
+html.is-cluster-mirror *,
+body.is-cluster-mirror,
+body.is-cluster-mirror .field {
   transition: none !important;
 }
 
@@ -11156,6 +11159,27 @@ body.is-satellite-mode .sat-audio-wrap {
   color: var(--accent-hi);
 }
 
+.cluster-banner__btn--speaker.is-active {
+  background: oklch(var(--acc) / 0.18);
+  border-color: oklch(var(--acc) / 0.65);
+  color: var(--accent-hi);
+  box-shadow: 0 0 10px -2px oklch(var(--acc) / 0.38);
+}
+
+.cluster-banner__btn--speaker.is-muted {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+
+.cluster-banner__btn--speaker.is-muted:hover {
+  background: oklch(var(--acc) / 0.12);
+  border-color: oklch(var(--acc) / 0.45);
+  color: var(--text-bright);
+  opacity: 1;
+}
+
 .cluster-banner__btn--leave:hover {
   background: rgba(239, 68, 68, 0.16);
   border-color: rgba(239, 68, 68, 0.55);
@@ -11229,6 +11253,100 @@ body.is-cluster-mirror .stage {
   margin: 0 !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
+  touch-action: none !important;
+}
+
+body.is-cluster-mirror .canvas-wrap {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+
+body.is-cluster-mirror .canvas-wrap canvas,
+body.is-cluster-mirror #viz {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  touch-action: none !important;
+}
+
+body.is-cluster-mirror .ring-center {
+  position: absolute !important;
+  left: var(--rc-x, 50%) !important;
+  top: var(--rc-y, 50%) !important;
+  transform: translate(-50%, -50%) !important;
+  width: var(--rc-w, 360px) !important;
+  opacity: var(--rc-o, 1) !important;
+  pointer-events: none !important;
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
+  z-index: 10 !important;
+}
+
+body.is-cluster-mirror .ring-center[data-mode="idle"] {
+  top: var(--rc-y, 62%) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+body.is-cluster-mirror .rc-title {
+  max-width: 90% !important;
+  margin: 0 auto !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  word-break: break-word !important;
+  line-height: 1.25 !important;
+  font-size: var(--rc-size, 24px) !important;
+  letter-spacing: -0.02em !important;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7) !important;
+}
+
+body.is-cluster-mirror .rc-meta {
+  max-width: 85% !important;
+  margin: 6px auto 0 auto !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8) !important;
+}
+
+body.is-cluster-mirror .rc-kicker {
+  font-size: 10.5px !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  margin-bottom: 4px !important;
+  opacity: 0.8 !important;
+}
+
+body.is-satellite-mode #rc-cta,
+body.is-cluster-mirror #rc-cta {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.is-cluster-mirror .deck {
+  display: inline-flex !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  justify-self: center !important;
+  width: max-content !important;
+  max-width: calc(100vw - 24px) !important;
+  margin: 2px auto 0 auto !important;
+  z-index: 50 !important;
 }
 
 body.is-cluster-mirror .cluster-member-banner {

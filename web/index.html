@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
   <head>
-    <meta name="version" content="1.0.30" />
+    <meta name="version" content="1.0.31" />
     <meta charset="utf-8" />
     <meta
       name="viewport"
@@ -65,7 +65,7 @@
       }
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <link rel="stylesheet" href="css/app.css?v=175" />
+    <link rel="stylesheet" href="css/app.css?v=176" />
   </head>
   <body>
     <script>
@@ -454,35 +454,69 @@
           </div>
         </div>
 
-        <!-- Floating Cluster Member Banner (Option 2 Default + 1-Click Option 1 Full Stage Mirror) -->
-        <div class="cluster-member-banner" id="cluster-member-banner" hidden role="status" aria-live="polite">
-          <div class="cluster-banner__lead">
-            <span class="status-dot tunnel-dot tunnel-dot--running" aria-hidden="true"></span>
-            <div class="cluster-banner__texts">
-              <span class="cluster-banner__title" id="cluster-banner-title">Đang trong Cụm Loa</span>
-              <span class="cluster-banner__sub mono" id="cluster-banner-sub">Đồng bộ âm thanh Zero-Echo</span>
-            </div>
-            <span class="cluster-banner__ch mono" id="cluster-banner-channel" data-channel="stereo">STEREO · L+R</span>
-          </div>
-          <div class="cluster-banner__actions">
-            <button type="button" class="cluster-banner__btn cluster-banner__btn--unlock" id="btn-cluster-audio-unlock" hidden title="Chạm để mở khóa âm thanh trình duyệt">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-              <span>Bật tiếng</span>
-            </button>
-            <button type="button" class="cluster-banner__btn cluster-banner__btn--mirror" id="btn-cluster-stage-mirror" aria-pressed="false" title="Phóng to toàn cảnh vòng vô cực đồng bộ 1:1 với Chủ tọa">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-              <span id="cluster-stage-mirror-text">Toàn cảnh</span>
-            </button>
-            <button type="button" class="cluster-banner__btn cluster-banner__btn--icon" id="btn-cluster-banner-config" title="Mở bảng điều khiển Cụm Loa" aria-label="Cấu hình Cụm Loa">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.8"/><rect x="14" y="4" width="7" height="16" rx="1.8"/><path d="M10 9h4M10 15h4"/></svg>
-            </button>
-            <button type="button" class="cluster-banner__btn cluster-banner__btn--leave" id="btn-cluster-leave" title="Ngắt liên kết cụm và quay về phát độc lập">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              <span>Rời cụm</span>
-            </button>
-          </div>
-        </div>
-
+        <!-- Floating Cluster Member Banner (Option 2 Default + 1-Click Option 1 Full Stage Mirror) -->
+
+        <div class="cluster-member-banner" id="cluster-member-banner" hidden role="status" aria-live="polite">
+
+          <div class="cluster-banner__lead">
+
+            <span class="status-dot tunnel-dot tunnel-dot--running" aria-hidden="true"></span>
+
+            <div class="cluster-banner__texts">
+
+              <span class="cluster-banner__title" id="cluster-banner-title">Đang trong Cụm Loa</span>
+
+              <span class="cluster-banner__sub mono" id="cluster-banner-sub">Đồng bộ âm thanh Zero-Echo</span>
+
+            </div>
+
+            <span class="cluster-banner__ch mono" id="cluster-banner-channel" data-channel="stereo">STEREO · L+R</span>
+
+          </div>
+
+          <div class="cluster-banner__actions">
+
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--speaker" id="btn-cluster-audio-toggle" title="Bặt/Tắt loa thiết bị này">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              <span id="cluster-audio-toggle-text">Loa: Tắt</span>
+            </button>
+
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--unlock" id="btn-cluster-audio-unlock" hidden title="Chạm để mở khóa âm thanh trình duyệt">
+
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+
+              <span>Bật tiếng</span>
+
+            </button>
+
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--mirror" id="btn-cluster-stage-mirror" aria-pressed="false" title="Phóng to toàn cảnh vòng vô cực đồng bộ 1:1 với Chủ tọa">
+
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+
+              <span id="cluster-stage-mirror-text">Toàn cảnh</span>
+
+            </button>
+
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--icon" id="btn-cluster-banner-config" title="Mở bảng điều khiển Cụm Loa" aria-label="Cấu hình Cụm Loa">
+
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.8"/><rect x="14" y="4" width="7" height="16" rx="1.8"/><path d="M10 9h4M10 15h4"/></svg>
+
+            </button>
+
+            <button type="button" class="cluster-banner__btn cluster-banner__btn--leave" id="btn-cluster-leave" title="Ngắt liên kết cụm và quay về phát độc lập">
+
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+
+              <span>Rời cụm</span>
+
+            </button>
+
+          </div>
+
+        </div>
+
+
+
         <div class="canvas-wrap" id="canvas-wrap">
           <canvas
             id="viz"
@@ -1745,7 +1779,7 @@
 
           <div class="settings-app-info">
             <span class="settings-app-info__name">Meikova Loop</span>
-            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.30</span>
+            <span class="settings-app-info__version mono" id="app-version-badge">v1.0.31</span>
           </div>
         </div>
 
@@ -2563,9 +2597,9 @@
           <div class="sync-form-row" style="margin-top: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
               <label class="sync-form-label" for="s-sat-latency" style="margin: 0;">Bù trễ đồng pha loa chính &amp; vệ tinh <small class="sync-tab__sub">(Zero-Echo Align)</small>:</label>
-              <span class="mono" id="v-sat-latency" style="font-size: 12px; color: var(--accent);">45ms</span>
+              <span class="mono" id="v-sat-latency" style="font-size: 12px; color: var(--accent);">60ms</span>
             </div>
-            <input type="range" class="custom-slider" id="s-sat-latency" min="15" max="150" step="5" value="45" aria-label="Bù trễ đồng pha âm thanh" />
+            <input type="range" class="custom-slider" id="s-sat-latency" min="15" max="150" step="5" value="60" aria-label="Bù trễ đồng pha âm thanh" />
           </div>
         </div>
 
@@ -2656,148 +2690,290 @@
         </div>
       </dialog>
 
-    <!-- Modal: Meikova Cluster Link (PartyBoost & Stereo Pair Multi-Speaker System) -->
-    <dialog class="consent stage-sync-modal cluster-link-modal" id="modalClusterLink" aria-labelledby="modalClusterLinkTitle">
-      <div class="tunnel-modal__head">
-        <div class="tunnel-modal__title-wrap">
-          <div class="tunnel-modal__icon-badge" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="7" height="16" rx="1.8"/>
-              <rect x="14" y="4" width="7" height="16" rx="1.8"/>
-              <circle cx="6.5" cy="14.5" r="1.5"/>
-              <circle cx="17.5" cy="14.5" r="1.5"/>
-              <path d="M10 9h4M10 15h4"/>
-            </svg>
-          </div>
-          <div class="tunnel-modal__headings">
-            <h2 id="modalClusterLinkTitle">Liên kết Cụm Loa (PartyBoost)</h2>
-            <span class="tunnel-modal__subtitle mono">MEIKOVA CLUSTER LINK // MULTI-SPEAKER MESH</span>
-          </div>
-        </div>
-        <button type="button" class="tunnel-modal__close" id="btnCloseClusterLink" aria-label="Đóng" title="Đóng">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
-      <div class="sync-tab-pane cluster-modal-body">
-        <!-- Master Cluster Enable Switch -->
-        <div class="sync-toggle-row cluster-hero-card">
-          <div class="sync-toggle-info">
-            <div class="lights-discovery-title-row">
-              <span class="sync-toggle-title">Hợp nhất thành Hệ thống Cụm Loa</span>
-              <span class="lights-count-pill mono" id="cluster-modal-status-pill">Độc lập từng máy</span>
-            </div>
-            <span class="sync-toggle-desc">Khi tắt, các máy phát nhạc độc lập. Khi bật, toàn bộ thiết bị trong cụm phát đồng bộ tuyệt đối (Zero-Echo NTP Sync) từ máy Chủ tọa.</span>
-          </div>
-          <button type="button" class="tunnel-toggle-switch" id="btn-cluster-master-toggle" aria-pressed="false" aria-label="Bật/Tắt Hợp nhất Cụm Loa">
-            <span class="switch-handle"></span>
-          </button>
-        </div>
-
-        <!-- Remote Server Bridge Indicator (when connected to another MashLoop server on LAN) -->
-        <div class="cluster-remote-bridge-bar" id="cluster-remote-bridge-bar" hidden>
-          <span class="mono" id="cluster-remote-bridge-text">Đang nối trực tiếp tới Cụm Loa LAN</span>
-          <button type="button" class="btn-copy-pill" id="btn-disconnect-remote-bridge">Ngắt về máy này</button>
-        </div>
-
-        <!-- Acoustic Mode Selector: Party Mode (All Stereo) vs Stereo Pair (Left / Right) -->
-        <div class="cluster-mode-switch" role="radiogroup" aria-label="Chế độ âm thanh Cụm Loa">
-          <button type="button" class="cluster-mode-card is-active" id="btn-cluster-mode-party" aria-pressed="true">
-            <div class="cluster-mode-card__head">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-              </svg>
-              <strong>Chế độ Tiệc tùng (Party Stereo)</strong>
-            </div>
-            <span class="cluster-mode-card__desc">Tất cả các máy cùng phát đầy đủ 2 kênh Stereo (L+R) cộng hưởng công suất lớn.</span>
-          </button>
-          <button type="button" class="cluster-mode-card" id="btn-cluster-mode-stereo" aria-pressed="false">
-            <div class="cluster-mode-card__head">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="4" width="8" height="16" rx="1.8"/>
-                <rect x="14" y="4" width="8" height="16" rx="1.8"/>
-                <circle cx="6" cy="14" r="1.5"/>
-                <circle cx="18" cy="14" r="1.5"/>
-              </svg>
-              <strong>Ghép đôi Trái / Phải (Stereo Pair)</strong>
-            </div>
-            <span class="cluster-mode-card__desc">Tách kênh âm thanh vòm thực thụ: Máy 1 phát kênh Trái (L), Máy 2 phát kênh Phải (R).</span>
-          </button>
-        </div>
-
-        <!-- Master Volume & Zero-Echo Acoustic Alignment -->
-        <div class="cluster-sliders-grid">
-          <div class="sync-form-row">
-            <div class="cluster-slider-head">
-              <label class="sync-form-label" for="s-cluster-master-vol">Âm lượng Tổng toàn Cụm</label>
-              <span class="mono" id="v-cluster-master-vol" style="font-size: 12px; color: var(--accent);">100%</span>
-            </div>
-            <input type="range" class="custom-slider" id="s-cluster-master-vol" min="0" max="1.5" step="0.05" value="1.0" aria-label="Âm lượng tổng toàn cụm" />
-          </div>
-          <div class="sync-form-row">
-            <div class="cluster-slider-head">
-              <label class="sync-form-label" for="s-cluster-align-ms">Đồng pha Âm học (Zero-Echo)</label>
-              <span class="mono" id="v-cluster-align-ms" style="font-size: 12px; color: var(--accent);">45ms</span>
-            </div>
-            <input type="range" class="custom-slider" id="s-cluster-align-ms" min="15" max="150" step="5" value="45" aria-label="Bù trễ đồng pha loa chính" />
-          </div>
-        </div>
-
-        <!-- Device Name Customization -->
-        <div class="cluster-identity-row">
-          <label class="sync-form-label" for="input-cluster-device-name">Tên định danh loa của máy này:</label>
-          <div class="cluster-identity-input-wrap">
-            <input type="text" class="sync-input" id="input-cluster-device-name" placeholder="Ví dụ: Loa bàn DJ, Laptop Phòng khách..." maxlength="48" autocomplete="off" spellcheck="false" />
-            <button type="button" class="btn-copy-pill" id="btn-save-cluster-name">Đổi tên</button>
-          </div>
-        </div>
-
-        <!-- Connected Speakers Roster -->
-        <div class="lights-discovery-bar" style="margin-top: 4px;">
-          <div class="lights-discovery-meta">
-            <div class="lights-discovery-title-row">
-              <span class="sync-toggle-title">Danh sách Loa &amp; Trạm phát kết nối</span>
-              <span class="lights-count-pill mono" id="cluster-nodes-count-badge">0/0 trong cụm</span>
-            </div>
-            <span class="sync-toggle-desc">Tùy chỉnh kênh Trái (L) / Stereo / Phải (R), âm lượng riêng hoặc nhường quyền Chủ tọa cho từng máy</span>
-          </div>
-        </div>
-
-        <div class="lights-devices-list cluster-nodes-list" id="cluster-nodes-list" role="region" aria-label="Danh sách các loa trong cụm">
-          <!-- Populated dynamically by stage_sync.js -->
-        </div>
-
-        <!-- Multi-Server LAN Discovery & Manual IP Link (Scenario B) -->
-        <div class="lights-manual-card cluster-lan-card">
-          <div class="lights-manual-head">
-            <div class="lights-manual-title-wrap">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"/>
-                <path d="M3.6 9h16.8M3.6 15h16.8"/>
-              </svg>
-              <span>Liên kết Máy chủ MashLoop độc lập khác trong LAN</span>
-            </div>
-            <span class="lights-manual-hint mono">UDP 8766 · Multi-Backend</span>
-          </div>
-          <div class="cluster-lan-peers-list" id="cluster-lan-peers-list">
-            <div class="cluster-lan-empty">Đang dò tìm các máy chủ MashLoop khác trong mạng nội bộ...</div>
-          </div>
-          <div class="cluster-manual-peer-row">
-            <input type="text" class="sync-input mono" id="input-cluster-peer-ip" placeholder="Nhập IP:Port máy chính (ví dụ: 192.168.1.25:8765)" autocomplete="off" spellcheck="false" />
-            <button type="button" class="btn-add-light-device" id="btn-add-cluster-peer">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M5 12h14"/><path d="M12 5v14"/>
-              </svg>
-              <span>Nối Cụm</span>
-            </button>
-          </div>
-          <div class="lights-manual-feedback" id="cluster-peer-feedback" hidden></div>
-        </div>
-      </div>
-    </dialog>
-
+    <!-- Modal: Meikova Cluster Link (PartyBoost & Stereo Pair Multi-Speaker System) -->
+
+    <dialog class="consent stage-sync-modal cluster-link-modal" id="modalClusterLink" aria-labelledby="modalClusterLinkTitle">
+
+      <div class="tunnel-modal__head">
+
+        <div class="tunnel-modal__title-wrap">
+
+          <div class="tunnel-modal__icon-badge" aria-hidden="true">
+
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+              <rect x="3" y="4" width="7" height="16" rx="1.8"/>
+
+              <rect x="14" y="4" width="7" height="16" rx="1.8"/>
+
+              <circle cx="6.5" cy="14.5" r="1.5"/>
+
+              <circle cx="17.5" cy="14.5" r="1.5"/>
+
+              <path d="M10 9h4M10 15h4"/>
+
+            </svg>
+
+          </div>
+
+          <div class="tunnel-modal__headings">
+
+            <h2 id="modalClusterLinkTitle">Liên kết Cụm Loa (PartyBoost)</h2>
+
+            <span class="tunnel-modal__subtitle mono">MEIKOVA CLUSTER LINK // MULTI-SPEAKER MESH</span>
+
+          </div>
+
+        </div>
+
+        <button type="button" class="tunnel-modal__close" id="btnCloseClusterLink" aria-label="Đóng" title="Đóng">
+
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+
+        </button>
+
+      </div>
+
+
+
+      <div class="sync-tab-pane cluster-modal-body">
+
+        <!-- Master Cluster Enable Switch -->
+
+        <div class="sync-toggle-row cluster-hero-card">
+
+          <div class="sync-toggle-info">
+
+            <div class="lights-discovery-title-row">
+
+              <span class="sync-toggle-title">Hợp nhất thành Hệ thống Cụm Loa</span>
+
+              <span class="lights-count-pill mono" id="cluster-modal-status-pill">Độc lập từng máy</span>
+
+            </div>
+
+            <span class="sync-toggle-desc">Khi tắt, các máy phát nhạc độc lập. Khi bật, toàn bộ thiết bị trong cụm phát đồng bộ tuyệt đối (Zero-Echo NTP Sync) từ máy Chủ tọa.</span>
+
+          </div>
+
+          <button type="button" class="tunnel-toggle-switch" id="btn-cluster-master-toggle" aria-pressed="false" aria-label="Bật/Tắt Hợp nhất Cụm Loa">
+
+            <span class="switch-handle"></span>
+
+          </button>
+
+        </div>
+
+
+
+        <!-- Remote Server Bridge Indicator (when connected to another MashLoop server on LAN) -->
+
+        <div class="cluster-remote-bridge-bar" id="cluster-remote-bridge-bar" hidden>
+
+          <span class="mono" id="cluster-remote-bridge-text">Đang nối trực tiếp tới Cụm Loa LAN</span>
+
+          <button type="button" class="btn-copy-pill" id="btn-disconnect-remote-bridge">Ngắt về máy này</button>
+
+        </div>
+
+
+
+        <!-- Acoustic Mode Selector: Party Mode (All Stereo) vs Stereo Pair (Left / Right) -->
+
+        <div class="cluster-mode-switch" role="radiogroup" aria-label="Chế độ âm thanh Cụm Loa">
+
+          <button type="button" class="cluster-mode-card is-active" id="btn-cluster-mode-party" aria-pressed="true">
+
+            <div class="cluster-mode-card__head">
+
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+
+              </svg>
+
+              <strong>Chế độ Tiệc tùng (Party Stereo)</strong>
+
+            </div>
+
+            <span class="cluster-mode-card__desc">Tất cả các máy cùng phát đầy đủ 2 kênh Stereo (L+R) cộng hưởng công suất lớn.</span>
+
+          </button>
+
+          <button type="button" class="cluster-mode-card" id="btn-cluster-mode-stereo" aria-pressed="false">
+
+            <div class="cluster-mode-card__head">
+
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+                <rect x="2" y="4" width="8" height="16" rx="1.8"/>
+
+                <rect x="14" y="4" width="8" height="16" rx="1.8"/>
+
+                <circle cx="6" cy="14" r="1.5"/>
+
+                <circle cx="18" cy="14" r="1.5"/>
+
+              </svg>
+
+              <strong>Ghép đôi Trái / Phải (Stereo Pair)</strong>
+
+            </div>
+
+            <span class="cluster-mode-card__desc">Tách kênh âm thanh vòm thực thụ: Máy 1 phát kênh Trái (L), Máy 2 phát kênh Phải (R).</span>
+
+          </button>
+
+        </div>
+
+
+
+        <!-- Master Volume & Zero-Echo Acoustic Alignment -->
+
+        <div class="cluster-sliders-grid">
+
+          <div class="sync-form-row">
+
+            <div class="cluster-slider-head">
+
+              <label class="sync-form-label" for="s-cluster-master-vol">Âm lượng Tổng toàn Cụm</label>
+
+              <span class="mono" id="v-cluster-master-vol" style="font-size: 12px; color: var(--accent);">100%</span>
+
+            </div>
+
+            <input type="range" class="custom-slider" id="s-cluster-master-vol" min="0" max="1.5" step="0.05" value="1.0" aria-label="Âm lượng tổng toàn cụm" />
+
+          </div>
+
+          <div class="sync-form-row">
+
+            <div class="cluster-slider-head">
+
+              <label class="sync-form-label" for="s-cluster-align-ms">Đồng pha Âm học (Zero-Echo)</label>
+
+              <span class="mono" id="v-cluster-align-ms" style="font-size: 12px; color: var(--accent);">60ms</span>
+
+            </div>
+
+            <input type="range" class="custom-slider" id="s-cluster-align-ms" min="15" max="150" step="5" value="60" aria-label="Bù trễ đồng pha loa chính" />
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Device Name Customization -->
+
+        <div class="cluster-identity-row">
+
+          <label class="sync-form-label" for="input-cluster-device-name">Tên định danh loa của máy này:</label>
+
+          <div class="cluster-identity-input-wrap">
+
+            <input type="text" class="sync-input" id="input-cluster-device-name" placeholder="Ví dụ: Loa bàn DJ, Laptop Phòng khách..." maxlength="48" autocomplete="off" spellcheck="false" />
+
+            <button type="button" class="btn-copy-pill" id="btn-save-cluster-name">Đổi tên</button>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Connected Speakers Roster -->
+
+        <div class="lights-discovery-bar" style="margin-top: 4px;">
+
+          <div class="lights-discovery-meta">
+
+            <div class="lights-discovery-title-row">
+
+              <span class="sync-toggle-title">Danh sách Loa &amp; Trạm phát kết nối</span>
+
+              <span class="lights-count-pill mono" id="cluster-nodes-count-badge">0/0 trong cụm</span>
+
+            </div>
+
+            <span class="sync-toggle-desc">Tùy chỉnh kênh Trái (L) / Stereo / Phải (R), âm lượng riêng hoặc nhường quyền Chủ tọa cho từng máy</span>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="lights-devices-list cluster-nodes-list" id="cluster-nodes-list" role="region" aria-label="Danh sách các loa trong cụm">
+
+          <!-- Populated dynamically by stage_sync.js -->
+
+        </div>
+
+
+
+        <!-- Multi-Server LAN Discovery & Manual IP Link (Scenario B) -->
+
+        <div class="lights-manual-card cluster-lan-card">
+
+          <div class="lights-manual-head">
+
+            <div class="lights-manual-title-wrap">
+
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+                <circle cx="12" cy="12" r="9"/>
+
+                <path d="M3.6 9h16.8M3.6 15h16.8"/>
+
+              </svg>
+
+              <span>Liên kết Máy chủ MashLoop độc lập khác trong LAN</span>
+
+            </div>
+
+            <span class="lights-manual-hint mono">UDP 8766 · Multi-Backend</span>
+
+          </div>
+
+          <div class="cluster-lan-peers-list" id="cluster-lan-peers-list">
+
+            <div class="cluster-lan-empty">Đang dò tìm các máy chủ MashLoop khác trong mạng nội bộ...</div>
+
+          </div>
+
+          <div class="cluster-manual-peer-row">
+
+            <input type="text" class="sync-input mono" id="input-cluster-peer-ip" placeholder="Nhập IP:Port máy chính (ví dụ: 192.168.1.25:8765)" autocomplete="off" spellcheck="false" />
+
+            <button type="button" class="btn-add-light-device" id="btn-add-cluster-peer">
+
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+                <path d="M5 12h14"/><path d="M12 5v14"/>
+
+              </svg>
+
+              <span>Nối Cụm</span>
+
+            </button>
+
+          </div>
+
+          <div class="lights-manual-feedback" id="cluster-peer-feedback" hidden></div>
+
+        </div>
+
+      </div>
+
+    </dialog>
+
+
+
     <!-- Modal: Cloudflare Quick Tunnel (Multiplatform One-Click WAN) -->
     <dialog class="consent tunnel-modal" id="modalTunnel" aria-labelledby="modalTunnelTitle">
       <div class="tunnel-modal__head">
@@ -3080,11 +3256,11 @@
       </div>
     </dialog>
 
-    <script type="module" src="js/main.js?v=175"></script>
+    <script type="module" src="js/main.js?v=176"></script>
     <script>
       if ("caches" in window) {
         caches.keys().then((keys) => {
-          keys.filter((k) => k !== "meikova-loop-v175").forEach((k) => caches.delete(k));
+          keys.filter((k) => k !== "meikova-loop-v176").forEach((k) => caches.delete(k));
         }).catch(() => {});
       }
       if (
@@ -3099,7 +3275,7 @@
           }
         });
         navigator.serviceWorker
-          .register("sw.js?v=175", { updateViaCache: "none" })
+          .register("sw.js?v=176", { updateViaCache: "none" })
           .then((reg) => {
             reg.update();
           })

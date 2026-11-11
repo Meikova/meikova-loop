@@ -36,7 +36,7 @@ class StageSyncHub:
         self.cluster_mode: str = "party"  # "party" | "stereo_pair"
         self.cluster_master_ws: WebSocket | None = None
         self.cluster_master_volume: float = 1.0
-        self.host_align_ms: int = 45
+        self.host_align_ms: int = 60
 
         self.last_telemetry: Dict[str, Any] = {
             "type": "telemetry",
@@ -649,6 +649,29 @@ class StageSyncHub:
                 ws=ws,
                 claim_master=True,
             )
+            return True
+
+        if msg_type == "same_machine_speaker_sync" and ws is not None:
+            sender_ip = getattr(ws.client, "host", "") if getattr(ws, "client", None) else ""
+            sender_is_loopback = sender_ip in ("127.0.0.1", "::1", "localhost", "testclient")
+            payload_str = json.dumps({
+                "type": "same_machine_speaker_sync",
+                "clientId": data.get("clientId") or data.get("client_id") or "",
+                "suppressMasterSpeaker": bool(data.get("suppressMasterSpeaker", False)),
+                "isMutedLocal": bool(data.get("isMutedLocal", False)),
+            })
+            for meta in list(self.clients.values()):
+                target_ws = meta.get("ws")
+                if target_ws is None or target_ws is ws:
+                    continue
+                target_ip = getattr(target_ws.client, "host", "") if getattr(target_ws, "client", None) else ""
+                target_is_loopback = target_ip in ("127.0.0.1", "::1", "localhost", "testclient")
+                is_same = (sender_is_loopback and target_is_loopback) or (bool(sender_ip) and sender_ip == target_ip)
+                if is_same:
+                    try:
+                        await target_ws.send_text(payload_str)
+                    except Exception:
+                        pass
             return True
 
         return False

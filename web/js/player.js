@@ -585,7 +585,7 @@ export class Player extends EventTarget {
 
   // Score limit for this song's jumps under the current strictness setting.
   maxScore(T) {
-    return T.scoreCut(this.settings.keep);
+    return typeof T?.scoreCut === "function" ? T.scoreCut(this.settings.keep) : 0.2;
   }
 
   requestNextSong() {
@@ -1131,6 +1131,9 @@ export class Player extends EventTarget {
         // Release previous track A from memory cache to avoid accumulating AudioBuffers in RAM
         if (b.A && b.A.id !== b.B.id) {
           try { this.loader._evict(); } catch (_) {}
+          if (b.A.buffer && !this.loader.protect().includes(b.A.id)) {
+            b.A.buffer = null;
+          }
         }
         break;
       }
@@ -1599,7 +1602,12 @@ export class Player extends EventTarget {
     const s = this.settings;
     let items = T.transitions.filter((tr) => s.allow[allowKey(tr.type)] && tr.to !== T.id && this.enabled(tr.to)
       && this._usable(T, tr));
-    if (!items.length) return;
+    if (!items.length) {
+      // Fallback: If playlist is locked or filtered and no external transitions match strict criteria,
+      // search for any enabled transition to avoid chain stall
+      items = T.transitions.filter((tr) => tr.to !== T.id && this.enabled(tr.to));
+      if (!items.length) return;
+    }
     if (this.targetNextId) {
       const targeted = items.filter((tr) => tr.to === this.targetNextId);
       if (targeted.length) items = targeted;
@@ -1838,7 +1846,12 @@ export class Player extends EventTarget {
   _log(t, kind, extra = {}) {
     const c = this.cur;
     this.timeline.push({ t, kind, track: c.track, beat: c.beat, rate: c.rate, ...extra });
-    if (this.timeline.length > 400) this.timeline.splice(0, 100);
+    // Keep only recent events needed for audible() and recentEvents()
+    const cutoff = (this.engine?.audibleTime ? this.engine.audibleTime() : t) - 5;
+    while (this.timeline.length > 25 && this.timeline[0].t < cutoff) {
+      this.timeline.shift();
+    }
+    if (this.timeline.length > 40) this.timeline.splice(0, 15);
   }
 
   // The step being heard right now (the scheduler runs ahead of the speakers).

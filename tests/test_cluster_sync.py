@@ -20,14 +20,14 @@ class TestClusterSync(unittest.TestCase):
         stage_sync_hub.cluster_mode = "party"
         stage_sync_hub.cluster_master_id = ""
         stage_sync_hub.cluster_master_volume = 1.0
-        stage_sync_hub.host_align_ms = 45.0
+        stage_sync_hub.host_align_ms = 60.0
 
     def tearDown(self):
         stage_sync_hub.cluster_enabled = False
         stage_sync_hub.cluster_mode = "party"
         stage_sync_hub.cluster_master_id = ""
         stage_sync_hub.cluster_master_volume = 1.0
-        stage_sync_hub.host_align_ms = 45.0
+        stage_sync_hub.host_align_ms = 60.0
 
     def test_cluster_beacon_manual_peer_lifecycle(self):
         beacon = ClusterBeaconManager(port=8765)
@@ -54,6 +54,7 @@ class TestClusterSync(unittest.TestCase):
         self.assertEqual(data["type"], "cluster_state")
         self.assertFalse(data["cluster_enabled"])
         self.assertEqual(data["cluster_mode"], "party")
+        self.assertEqual(data["host_align_ms"], 60)
 
         # Toggle cluster on in stereo_pair mode
         tog = client.post(
@@ -173,6 +174,108 @@ class TestClusterSync(unittest.TestCase):
                     )
                     st_after_claim = drain_until_type(ws_follower, "cluster_state")
                     self.assertEqual(st_after_claim["master_id"], "node_follower")
+
+    def test_cluster_pcm_v2_44100hz_full_fidelity_relay(self):
+        """Verify full fidelity 44.1kHz stereo PCM v2 packet (1024 frames = 4096 payload bytes) relay."""
+        client = TestClient(app)
+        with patch.object(smart_lights.tuf_driver, "set_rgb", return_value=True):
+            with client.websocket_connect(
+                "/api/ws/stage-sync?role=host&client_id=master_44k&device_name=StudioMaster&device_type=desktop"
+            ) as ws_m:
+                with client.websocket_connect(
+                    "/api/ws/stage-sync?role=host&client_id=node_44k&device_name=StudioMonitor&device_type=desktop"
+                ) as ws_n:
+                    # Drain cluster_state
+                    for _ in range(5):
+                        m = ws_m.receive_json()
+                        if m.get("type") == "cluster_state":
+                            break
+                    for _ in range(5):
+                        m = ws_n.receive_json()
+                        if m.get("type") == "cluster_state":
+                            break
+
+                    # Enable cluster link
+                    ws_m.send_json({
+                        "type": "cluster_toggle",
+                        "enabled": True,
+                        "mode": "party",
+                        "host_align_ms": 60,
+                    })
+                    for _ in range(5):
+                        m = ws_m.receive_json()
+                        if m.get("type") == "cluster_state" and m.get("cluster_enabled"):
+                            break
+
+                    # Create 44.1kHz 1024 stereo frames packet (16 bytes header + 4096 bytes PCM = 4112 bytes)
+                    now_ms = stage_sync_hub.clock_ms()
+                    header = struct.pack("<BBHI d", 0x4D, 2, 1024, 44100, now_ms)
+                    payload = (b"\x12\x34\x56\x78" * 1024)
+                    full_packet = header + payload
+                    self.assertEqual(len(full_packet), 16 + 1024 * 4)
+
+                    ws_m.send_bytes(full_packet)
+
+                    received_bytes = None
+                    for _ in range(10):
+                        msg = ws_n.receive()
+                        if msg.get("bytes"):
+                            received_bytes = msg["bytes"]
+                            break
+
+                    self.assertIsNotNone(received_bytes)
+                    self.assertEqual(received_bytes, full_packet)
+                    magic, ch, frames, sr, cap_ms = struct.unpack("<BBHI d", received_bytes[:16])
+                    self.assertEqual(magic, 0x4D)
+                    self.assertEqual(ch, 2)
+                    self.assertEqual(frames, 1024)
+                    self.assertEqual(sr, 44100)
+                    self.assertAlmostEqual(cap_ms, now_ms, places=1)
+
+    def test_audio_pipeline_and_stage_sync_m2_spec_invariants(self):
+        """Verify M2 acoustic cleansing specifications and structural requirements."""
+        stage_sync_js = Path("web/js/stage_sync.js").read_text(encoding="utf-8")
+        engine_js = Path("web/js/engine.js").read_text(encoding="utf-8")
+        hub_py = Path("loopbox/stage_sync_hub.py").read_text(encoding="utf-8")
+        index_html = Path("web/index.html").read_text(encoding="utf-8")
+
+        # 1. Host Capture: Native 44.1k/48k sample rate + Math.tanh soft saturation + Int16 rounding
+        self.assertIn("Math.round(ctx.sampleRate || 44100)", stage_sync_js)
+        self.assertIn("Math.tanh(inL[i] || 0)", stage_sync_js)
+        self.assertIn("Math.tanh(inR[i] || 0)", stage_sync_js)
+        self.assertIn("Math.round(sL * 0x8000)", stage_sync_js)
+        self.assertIn("Math.round(sR * 0x8000)", stage_sync_js)
+        self.assertNotIn("const outFrames = bufSize >> 1", stage_sync_js)
+
+        # 2. Follower DSP Chain: 20Hz High-Pass + DynamicsCompressor Brickwall Limiter
+        self.assertIn("this.satHighPass = this.satAudioCtx.createBiquadFilter();", stage_sync_js)
+        self.assertIn('this.satHighPass.type = "highpass";', stage_sync_js)
+        self.assertIn("this.satHighPass.frequency.value = 20;", stage_sync_js)
+        self.assertIn("this.satHighPass.Q.value = 0.707;", stage_sync_js)
+        self.assertIn("this.satLimiter = this.satAudioCtx.createDynamicsCompressor();", stage_sync_js)
+        self.assertIn("this.satLimiter.threshold.value = -0.8;", stage_sync_js)
+        self.assertIn("this.satLimiter.ratio.value = 20.0;", stage_sync_js)
+        self.assertIn("this.satChannelMerger.connect(this.satHighPass);", stage_sync_js)
+        self.assertIn("this.satHighPass.connect(this.satGainNode);", stage_sync_js)
+        self.assertIn("this.satGainNode.connect(this.satLimiter);", stage_sync_js)
+        self.assertIn("this.satLimiter.connect(this.satAudioCtx.destination);", stage_sync_js)
+
+        # 3. Resampler & Slew Phase-Lock: Native Web Audio buffer + continuous varispeed rate nudge
+        self.assertIn("const audioBuf = ctx.createBuffer(channels, frames, srcSr);", stage_sync_js)
+        self.assertIn("src.playbackRate.value = rateNudge;", stage_sync_js)
+        self.assertIn("this.satNextPlayTime += (audioBuf.duration / rateNudge);", stage_sync_js)
+
+        # 4. Engine AudioParam Guard: Anti-trashing check and 0.02s slew time
+        self.assertIn("Math.abs(sec - (this._speakerSyncDelaySec || 0)) < 0.0005", engine_js)
+        self.assertIn("this.speakerDelay.delayTime.setTargetAtTime(sec, now, 0.02);", engine_js)
+
+        # 5. Baseline 60ms Alignment across Ecosystem
+        self.assertIn("self.host_align_ms: int = 60", hub_py)
+        self.assertIn("this.hostAlignMs = 60;", stage_sync_js)
+        self.assertIn('id="v-sat-latency" style="font-size: 12px; color: var(--accent);">60ms</span>', index_html)
+        self.assertIn('id="s-sat-latency" min="15" max="150" step="5" value="60"', index_html)
+        self.assertIn('id="v-cluster-align-ms" style="font-size: 12px; color: var(--accent);">60ms</span>', index_html)
+        self.assertIn('id="s-cluster-align-ms" min="15" max="150" step="5" value="60"', index_html)
 
 
 if __name__ == "__main__":

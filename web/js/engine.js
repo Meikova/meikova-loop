@@ -40,10 +40,11 @@ function butter(ctx, type, freq) {
 
 // Linkwitz-Riley (two Butterworth sections): a low and a high band of one
 // crossover sum back flat, so the open EQ leaves the sound untouched.
-function lr4(ctx, input, type, freq) {
+function lr4(ctx, input, type, freq, collector = null) {
   const a = butter(ctx, type, freq);
   const b = butter(ctx, type, freq);
   input.connect(a).connect(b);
+  if (collector) collector.push(a, b);
   return b;
 }
 
@@ -96,6 +97,9 @@ export class Engine {
     this.speakerDelay.delayTime.value = 0;
     this._speakerSyncDelaySec = 0;
     this.outputChannelMode = "stereo"; // "stereo" | "left" | "right"
+    this.outputDiscreteChannels = false;
+    this._localSpeakerMuted = false;
+    this._lastSpeakerTrim = 1.0;
     this.channelSplitter = this.ctx.createChannelSplitter(2);
     this.channelMerger = this.ctx.createChannelMerger(2);
     this.speakerTrimGain = this.ctx.createGain();
@@ -103,7 +107,7 @@ export class Engine {
 
     this.analyser.connect(this.speakerDelay);
     this.speakerDelay.connect(this.channelSplitter);
-    this._wireOutputChannelMode("stereo");
+    this._wireOutputChannelMode("stereo", false);
     this.channelMerger.connect(this.speakerTrimGain);
     this.speakerTrimGain.connect(this.ctx.destination);
 
@@ -130,45 +134,71 @@ export class Engine {
     return this.ctx.currentTime - lat;
   }
 
-  _wireOutputChannelMode(mode = "stereo") {
+  _wireOutputChannelMode(mode = "stereo", discrete = false) {
     if (!this.channelSplitter || !this.channelMerger) return;
     try {
       this.channelSplitter.disconnect();
     } catch (_) {}
     if (mode === "left") {
-      this.channelSplitter.connect(this.channelMerger, 0, 0);
-      this.channelSplitter.connect(this.channelMerger, 0, 1);
+      if (discrete) {
+        // Discrete Left: only send to Left ear/speaker (0 -> 0), Right is silent
+        this.channelSplitter.connect(this.channelMerger, 0, 0);
+      } else {
+        // Dual Mono Left: send Left audio to both Left and Right speakers
+        this.channelSplitter.connect(this.channelMerger, 0, 0);
+        this.channelSplitter.connect(this.channelMerger, 0, 1);
+      }
     } else if (mode === "right") {
-      this.channelSplitter.connect(this.channelMerger, 1, 0);
-      this.channelSplitter.connect(this.channelMerger, 1, 1);
+      if (discrete) {
+        // Discrete Right: only send to Right ear/speaker (1 -> 1), Left is silent
+        this.channelSplitter.connect(this.channelMerger, 1, 1);
+      } else {
+        // Dual Mono Right: send Right audio to both Left and Right speakers
+        this.channelSplitter.connect(this.channelMerger, 1, 0);
+        this.channelSplitter.connect(this.channelMerger, 1, 1);
+      }
     } else {
       this.channelSplitter.connect(this.channelMerger, 0, 0);
       this.channelSplitter.connect(this.channelMerger, 1, 1);
     }
   }
 
-  setOutputChannelMode(mode = "stereo") {
+  setOutputChannelMode(mode = "stereo", discrete = false) {
     const clean = (mode === "left" || mode === "right") ? mode : "stereo";
-    if (this.outputChannelMode === clean) return;
+    const cleanDiscrete = Boolean(discrete);
+    if (this.outputChannelMode === clean && this.outputDiscreteChannels === cleanDiscrete) return;
     this.outputChannelMode = clean;
-    this._wireOutputChannelMode(clean);
+    this.outputDiscreteChannels = cleanDiscrete;
+    this._wireOutputChannelMode(clean, cleanDiscrete);
   }
 
   setSpeakerSyncDelay(delayMs = 0) {
     if (!this.speakerDelay || !this.ctx) return;
     const sec = Math.max(0, Math.min(0.45, (Number(delayMs) || 0) / 1000));
+    if (Math.abs(sec - (this._speakerSyncDelaySec || 0)) < 0.0005) return;
     this._speakerSyncDelaySec = sec;
     const now = this.ctx.currentTime;
     this.speakerDelay.delayTime.cancelScheduledValues(now);
-    this.speakerDelay.delayTime.setTargetAtTime(sec, now, 0.015);
+    this.speakerDelay.delayTime.setTargetAtTime(sec, now, 0.02);
   }
 
   setSpeakerTrim(trim = 1.0) {
     if (!this.speakerTrimGain || !this.ctx) return;
     const val = Math.max(0, Math.min(1.5, Number(trim) ?? 1.0));
+    this._lastSpeakerTrim = val;
     const now = this.ctx.currentTime;
+    const target = this._localSpeakerMuted ? 0 : val;
     this.speakerTrimGain.gain.cancelScheduledValues(now);
-    this.speakerTrimGain.gain.setTargetAtTime(val, now, 0.015);
+    this.speakerTrimGain.gain.setTargetAtTime(target, now, 0.015);
+  }
+
+  setLocalSpeakerMuted(muted = false) {
+    this._localSpeakerMuted = Boolean(muted);
+    if (!this.speakerTrimGain || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const target = this._localSpeakerMuted ? 0 : (this._lastSpeakerTrim ?? 1.0);
+    this.speakerTrimGain.gain.cancelScheduledValues(now);
+    this.speakerTrimGain.gain.setTargetAtTime(target, now, 0.015);
   }
 
   get targetVol() {
@@ -757,9 +787,10 @@ export class Voice {
     this.sum = ctx.createGain();
     this.bands = { low: ctx.createGain(), mid: ctx.createGain(), high: ctx.createGain() };
     this.level = { low: 1, mid: 1, high: 1 }; // last scheduled gain per band
-    lr4(ctx, this.pre, "lowpass", LOW_X).connect(this.bands.low).connect(this.sum);
-    lr4(ctx, lr4(ctx, this.pre, "highpass", LOW_X), "lowpass", HIGH_X).connect(this.bands.mid).connect(this.sum);
-    lr4(ctx, this.pre, "highpass", HIGH_X).connect(this.bands.high).connect(this.sum);
+    this.lrNodes = [];
+    lr4(ctx, this.pre, "lowpass", LOW_X, this.lrNodes).connect(this.bands.low).connect(this.sum);
+    lr4(ctx, lr4(ctx, this.pre, "highpass", LOW_X, this.lrNodes), "lowpass", HIGH_X, this.lrNodes).connect(this.bands.mid).connect(this.sum);
+    lr4(ctx, this.pre, "highpass", HIGH_X, this.lrNodes).connect(this.bands.high).connect(this.sum);
     // Open low-pass, swept down to darken a song leaving and up to open one
     // arriving; open high-pass, swept up to thin a song out of a filter hand-over.
     this.lp = ctx.createBiquadFilter();
@@ -792,7 +823,30 @@ export class Voice {
 
   _free() {
     this.engine.voices.delete(this);
-    this.gain.disconnect();
+    try { this.gain?.disconnect(); } catch (_) {}
+    try { this.src?.disconnect(); } catch (_) {}
+    try { this.srcGain?.disconnect(); } catch (_) {}
+    try { this.mainGain?.disconnect(); } catch (_) {}
+    try { this.voc?.disconnect(); } catch (_) {}
+    try { this.vocGain?.disconnect(); } catch (_) {}
+    try { this.vocSrcGain?.disconnect(); } catch (_) {}
+    try { this.pre?.disconnect(); } catch (_) {}
+    try { this.sum?.disconnect(); } catch (_) {}
+    try { this.lp?.disconnect(); } catch (_) {}
+    try { this.hp?.disconnect(); } catch (_) {}
+    try { this.trim?.disconnect(); } catch (_) {}
+    try { this.fx?.disconnect(); } catch (_) {}
+    if (this.bands) {
+      try { this.bands.low?.disconnect(); } catch (_) {}
+      try { this.bands.mid?.disconnect(); } catch (_) {}
+      try { this.bands.high?.disconnect(); } catch (_) {}
+    }
+    if (this.lrNodes) {
+      for (const n of this.lrNodes) {
+        try { n.disconnect(); } catch (_) {}
+      }
+      this.lrNodes = null;
+    }
   }
 
   start(when, offset, rate, fadeIn) {

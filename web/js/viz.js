@@ -9,8 +9,8 @@
 // colour of the playing song, and around its loop a halo of the live spectrum
 // breathes with the music.
 
-import * as theme from "./theme.js?v=174";
-import { stageSync } from "./stage_sync.js?v=174";
+import * as theme from "./theme.js?v=176";
+import { stageSync } from "./stage_sync.js?v=176";
 
 const TAU = Math.PI * 2;
 const HALO_BANDS = 48;
@@ -296,8 +296,9 @@ export class Viz {
     requestAnimationFrame(loop);
 
     // Continuous heartbeat broadcast from host to satellites, even when host tab is in background/minimized
-    if (!stageSync.isSatellite && typeof window !== "undefined") {
+    if (!stageSync.isSatellite && !stageSync.isClusterFollower && typeof window !== "undefined") {
       setInterval(() => {
+        if (stageSync.isSatellite || stageSync.isClusterFollower) return;
         const now = performance.now();
         if (!stageSync.connected) return;
         const hasActiveTrack = Boolean(this.primaryId || this.player?.cur?.track || this.player?._switchingTrack);
@@ -320,11 +321,25 @@ export class Viz {
             this.heads = this._heads(primary, view, view ? view.now : 0);
             this.capPlace = this._captionPlace(primary, view);
             this.captionTrack = this.capPlace.ring?.track || null;
+            this._placeCenter(this.capPlace);
+            if (this.onCaption) this.onCaption();
           }
           this._broadcastHostTelemetry();
         }
       }, 33);
     }
+  }
+
+  _disposeRing(ring) {
+    if (!ring) return;
+    if (ring.layer?.canvas) {
+      ring.layer.canvas.width = 0;
+      ring.layer.canvas.height = 0;
+      ring.layer = null;
+    }
+    ring.layerKey = "";
+    ring.track = null;
+    ring.target = null;
   }
 
   setTitles(map) {
@@ -347,7 +362,7 @@ export class Viz {
   }
 
   renderSatellite(telemetry = null) {
-    if (!stageSync.isSatellite) return;
+    if (!stageSync.isStageMirrorActive) return;
     const now = performance.now();
     if (!this.started || (typeof document !== "undefined" && document.hidden) || now - this.last > 80) {
       this._frame(now);
@@ -407,7 +422,7 @@ export class Viz {
     this.h = h;
     if (this.canvas.width !== pxW) this.canvas.width = pxW;
     if (this.canvas.height !== pxH) this.canvas.height = pxH;
-    if (!stageSync.isSatellite) {
+    if (!stageSync.isStageMirrorActive) {
       this.canvas.style.width = `${w}px`;
       this.canvas.style.height = `${h}px`;
     } else {
@@ -492,16 +507,24 @@ export class Viz {
   // Everything about a song that does not move: drawn once, then rotated and
   // scaled as the loop travels.
   _prewarmLayer(track) {
-    if (!track || !track.analysis) return;
+    if (!track || !track.analysis || !track.beats?.length) return;
     const keep = this.player?.settings?.keep ?? 0.6;
     const transLen = track.transitions?.length ?? 0;
     const baseLayerR = this.layerR || this.baseR || 160;
     const key = `${track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${theme.paletteVersion()}`;
     const ring = this._ring(track, this.rings.get(track.id)?.role || "fading");
-    if (ring.layerKey !== key) {
+    const isLayerValid = Boolean(
+      ring.layer &&
+      ring.layer.canvas &&
+      ring.layer.canvas.width > 0 &&
+      ring.layer.RL > 0
+    );
+    if (ring.layerKey !== key || !isLayerValid) {
       ring.alpha = ring.alpha ?? 0;
       ring.layer = this._buildLayer(track);
-      ring.layerKey = key;
+      if (track.beats?.length > 0) {
+        ring.layerKey = key;
+      }
     }
   }
 
@@ -516,30 +539,39 @@ export class Viz {
     c.width = Math.round(S * layerScale);
     c.height = Math.round(S * layerScale);
     const ctx = c.getContext("2d");
+    if (!ctx || !track?.analysis || !Array.isArray(track.beats) || track.beats.length === 0) {
+      return { canvas: c, S, RL, th };
+    }
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.scale(layerScale, layerScale);
     ctx.translate(S / 2, S / 2);
     const a = track.analysis;
-    const maxScore = this.player?.maxScore ? this.player.maxScore(track) : (track.scoreCut ? track.scoreCut(0.6) : 0.2);
-    const loudMax = Math.max(...a.loud);
-    const loudMin = Math.min(...a.loud);
+    const loudArr = Array.isArray(a.loud) ? a.loud : [];
+    const posArr = Array.isArray(a.pos) ? a.pos : [];
+    const maxScore = typeof track?.scoreCut === "function" ? (this.player?.maxScore ? this.player.maxScore(track) : track.scoreCut(0.6)) : 0.2;
+    const loudMax = loudArr.length ? Math.max(...loudArr) : 0;
+    const loudMin = loudArr.length ? Math.min(...loudArr) : -60;
     const ang = (t) => this._ang(track, t);
     const rin = RL - th / 2 - 3;
     const mood = track.analysis?.mood || track.meta?.mood || null;
     if (mood) theme.registerMood(track.id, mood);
     let hostCol = forcedCol;
-    if (!hostCol && stageSync.isSatellite) {
-      if (stageSync.telemetry?.track_id === track.id && stageSync.telemetry?.color_a) {
+    if (!hostCol && stageSync.isStageMirrorActive) {
+      if (stageSync.telemetry?.track_id === track.id && Array.isArray(stageSync.telemetry?.color_a) && stageSync.telemetry.color_a.length >= 3) {
         const colA = stageSync.telemetry.color_a;
-        hostCol = { l: colA[0], c: colA[1], h: colA[2] };
-      } else if (stageSync.telemetry?.second?.id === track.id && stageSync.telemetry?.color_b) {
+        if (Number.isFinite(colA[0]) && Number.isFinite(colA[1]) && Number.isFinite(colA[2])) {
+          hostCol = { l: colA[0], c: colA[1], h: colA[2] };
+        }
+      } else if (stageSync.telemetry?.second?.id === track.id && Array.isArray(stageSync.telemetry?.color_b) && stageSync.telemetry.color_b.length >= 3) {
         const colB = stageSync.telemetry.color_b;
-        hostCol = { l: colB[0], c: colB[1], h: colB[2] };
+        if (Number.isFinite(colB[0]) && Number.isFinite(colB[1]) && Number.isFinite(colB[2])) {
+          hostCol = { l: colB[0], c: colB[1], h: colB[2] };
+        }
       }
     }
     const chord = theme.lift(hostCol || theme.accentOf(track.id, mood), 0.04);
-    const colors = theme.beatColors(track.id, a.color, mood, hostCol);
+    const colors = theme.beatColors(track.id, a.color || [], mood, hostCol);
     const ink = theme.inkOf(track.id);
 
     // Helper appending quadratic chord curve directly into current batched path
@@ -553,8 +585,16 @@ export class Viz {
     };
 
     // Jump chords batched by alpha bucket (~9 strokes instead of thousands)
+    const jumpsArr = Array.isArray(track.jumps) ? track.jumps : [];
     const edges = [];
-    for (let i = 0; i < track.n; i++) for (const e of track.jumps[i]) edges.push([i, e.to, e.score]);
+    for (let i = 0; i < track.n && i < jumpsArr.length; i++) {
+      const jList = jumpsArr[i];
+      if (Array.isArray(jList)) {
+        for (const e of jList) {
+          if (e && e.to !== undefined) edges.push([i, e.to, e.score || 0]);
+        }
+      }
+    }
     edges.sort((p, q) => q[2] - p[2]);
     ctx.lineWidth = 1;
     const CHORD_BUCKETS = 8;
@@ -596,11 +636,12 @@ export class Viz {
     }
 
     // Dust: batched into 2 alpha groups per beat instead of individual arc+fill calls
-    const rnd = seeded(track.n * 7919 + Math.round(track.end * 13));
+    const rnd = seeded(track.n * 7919 + Math.round((track.end || 60) * 13));
     for (let b = 0; b < track.n; b++) {
-      const lv = (a.loud[b] - loudMin) / Math.max(1, loudMax - loudMin);
-      const count = 2 + Math.round(8 * lv);
-      ctx.fillStyle = colors[b];
+      const bLoud = loudArr[b] ?? loudMin;
+      const lv = (bLoud - loudMin) / Math.max(1, loudMax - loudMin);
+      const count = 2 + Math.round(8 * (Number.isFinite(lv) ? lv : 0.5));
+      ctx.fillStyle = colors[b] || theme.css(ink, 0.5);
       const hiPts = [];
       const loPts = [];
       for (let k = 0; k < count; k++) {
@@ -638,12 +679,16 @@ export class Viz {
 
     // Beat segments.
     for (let b = 0; b < track.n; b++) {
-      const lv = (a.loud[b] - loudMin) / Math.max(1, loudMax - loudMin);
-      ctx.globalAlpha = 0.3 + 0.7 * lv;
-      ctx.strokeStyle = colors[b];
-      ctx.lineWidth = th * (a.pos[b] === 0 ? 1 : 0.78);
+      const bLoud = loudArr[b] ?? loudMin;
+      const lv = (bLoud - loudMin) / Math.max(1, loudMax - loudMin);
+      ctx.globalAlpha = 0.3 + 0.7 * (Number.isFinite(lv) ? lv : 0.5);
+      ctx.strokeStyle = colors[b] || theme.css(ink, 0.5);
+      const isDownbeat = posArr[b] === 0 || (b % 4 === 0);
+      ctx.lineWidth = th * (isDownbeat ? 1 : 0.78);
       ctx.beginPath();
-      ctx.arc(0, 0, RL, ang(track.beats[b]), ang(track.beats[b] + track.dur[b]) + 0.002);
+      const beatStart = track.beats?.[b] ?? (b * 0.5);
+      const beatDur = track.dur?.[b] ?? 0.5;
+      ctx.arc(0, 0, RL, ang(beatStart), ang(beatStart + beatDur) + 0.002);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -665,7 +710,8 @@ export class Viz {
     ctx.strokeStyle = theme.css(ink, 0.55);
     ctx.lineWidth = 1.4;
     ctx.beginPath();
-    for (const s of a.sections) {
+    const sectionsArr = Array.isArray(a.sections) ? a.sections : [];
+    for (const s of sectionsArr) {
       const thS = ang(track.beats[s]), cs = Math.cos(thS), sn = Math.sin(thS);
       ctx.moveTo((RL + th / 2 + 1) * cs, (RL + th / 2 + 1) * sn);
       ctx.lineTo((RL + th / 2 + 5) * cs, (RL + th / 2 + 5) * sn);
@@ -674,7 +720,8 @@ export class Viz {
 
     // Exits to other songs (those the chain may take).
     const exitR = this._exitRadius(RL);
-    for (const tr of track.transitions) {
+    const transArr = Array.isArray(track.transitions) ? track.transitions : [];
+    for (const tr of transArr) {
       if (!this._shown(track, tr)) continue;
       const t = this._exitTime(track, tr);
       if (t === null) continue;
@@ -901,6 +948,10 @@ export class Viz {
           alpha: 0,
         };
       }
+      if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+        ring.fill = 1;
+      }
+      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
       const tg = ring.target;
       if (!tg) continue;
       if (ring.x === null || ring._layoutR === null) {
@@ -924,8 +975,18 @@ export class Viz {
       const mood = ring.track.analysis?.mood || ring.track.meta?.mood || null;
       const want = ring.role === "primary" ? theme.accentOf(ring.track.id, mood) : theme.songColor(ring.track.id, mood);
       ring.col = theme.ease(ring.col, want, this.reduced ? 1 : 1 - Math.exp(-dt / 0.5));
-      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
-      if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) this.rings.delete(id);
+      if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) {
+        this._disposeRing(ring);
+        this.rings.delete(id);
+      }
+    }
+    if (this.rings.size > 4) {
+      for (const [id, r] of this.rings) {
+        if (r.role !== "primary" && r.role !== "second" && this.rings.size > 3) {
+          this._disposeRing(r);
+          this.rings.delete(id);
+        }
+      }
     }
   }
 
@@ -935,7 +996,7 @@ export class Viz {
     if (this._inFrame) return;
     this._inFrame = true;
     try {
-      if (stageSync.isSatellite) {
+      if (stageSync.isStageMirrorActive) {
         const box = this.canvas.parentElement ? this.canvas.parentElement.getBoundingClientRect() : null;
         if (box && box.width >= 120 && box.height >= 120) {
           const targetW = Math.round(box.width);
@@ -1138,12 +1199,11 @@ export class Viz {
       : null;
     const L = this._layout(two, swapProg);
 
-    this.idle += (0 - this.idle) * (this.reduced ? 1 : 1 - Math.exp(-dt / 0.25));
+    this.idle = 0;
     if (t.acc) {
       const targetAcc = { l: t.acc[0], c: t.acc[1], h: t.acc[2] };
       this.accent = theme.ease(this.accent, targetAcc, this.reduced ? 1 : 1 - Math.exp(-dt / 0.35));
     }
-    if (this.idle > 0.01 && primaryTrack) this._drawIdle(ctx, now, this.idle);
 
     // 1. Unified Ring State Machine ("primary", "second", "leaving", "fading") matching Host _update 1:1
     if (primaryTrack && primaryTrack.id !== this.primaryId) {
@@ -1241,6 +1301,10 @@ export class Viz {
           alpha: 0,
         };
       }
+      if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+        ring.fill = 1;
+      }
+      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
       const tg = ring.target;
       if (!tg) continue;
       if (ring.x === null || ring._layoutR === null) {
@@ -1270,8 +1334,18 @@ export class Viz {
         want = ring.role === "primary" ? theme.accentOf(ring.track.id, mood) : theme.songColor(ring.track.id, mood);
       }
       ring.col = theme.ease(ring.col, want, this.reduced ? 1 : 1 - Math.exp(-dt / 0.5));
-      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
-      if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) this.rings.delete(id);
+      if ((ring.role === "leaving" || ring.role === "fading") && ring.alpha < 0.02) {
+        this._disposeRing(ring);
+        this.rings.delete(id);
+      }
+    }
+    if (this.rings.size > 4) {
+      for (const [id, r] of this.rings) {
+        if (r.role !== "primary" && r.role !== "second" && this.rings.size > 3) {
+          this._disposeRing(r);
+          this.rings.delete(id);
+        }
+      }
     }
 
     // 2. Draw soft background light pools under all active/leaving loops (exact _drawLights)
@@ -1733,6 +1807,9 @@ export class Viz {
   }
 
   _drawRing(ctx, ring) {
+    if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+      ring.fill = 1;
+    }
     if (ring.alpha < 0.01 || ring.x === null) return;
     const keep = this.player?.settings?.keep ?? 0.6;
     const transLen = ring.track?.transitions?.length ?? 0;
@@ -1750,11 +1827,20 @@ export class Viz {
     }
     const satHueKey = satForcedCol ? `|h${Math.round(satForcedCol.h / 2)}` : "";
     const key = `${ring.track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${theme.paletteVersion()}${satHueKey}`;
-    if (ring.layerKey !== key) {
-      ring.layer = this._buildLayer(ring.track, satForcedCol);
-      ring.layerKey = key;
+    const isLayerValid = Boolean(
+      ring.layer &&
+      ring.layer.canvas &&
+      ring.layer.canvas.width > 1 &&
+      ring.layer.RL > 0
+    );
+    if (ring.layerKey !== key || !isLayerValid) {
+      if (ring.track?.beats?.length > 0) {
+        ring.layer = this._buildLayer(ring.track, satForcedCol);
+        ring.layerKey = key;
+      }
     }
     const L = ring.layer;
+    if (!L || !L.canvas || L.canvas.width <= 1) return;
     let s = ring.r / L.RL;
     if (Math.abs(s - 1) < 0.003) s = 1;
     ctx.save();
@@ -1766,8 +1852,11 @@ export class Viz {
     ctx.translate(px, py);
     ctx.rotate(ring.rot);
     ctx.scale(s, s * ring.dir);
+    if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+      ring.fill = 1;
+    }
     if (ring.fill < 1) {
-      const f = easeOut(ring.fill);
+      const f = easeOut(Math.max(0.001, ring.fill || 0));
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, L.S, 0, TAU * f);
@@ -2114,20 +2203,24 @@ export class Viz {
 
   // One ghost loop drawn once (redrawn when its colour has moved a few degrees).
   _idleLayer(side, col) {
-    const st = this.idleSt;
-    const layerScale = Math.min(Math.max(Math.round(this.dpr * 2), 2), 4);
+    const st = this.idleSt || (this.idleSt = { layers: {}, chords: [], sparks: [], ripples: [] });
+    const layerScale = Math.min(1.5, Math.max(1, this.dpr || 1));
     const sc = (this.scale || 1.0).toFixed(2);
-    const key = `${this.w}x${this.h}@${layerScale}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}|${sc}`;
+    const key = `${this.w}x${this.h}@${layerScale.toFixed(2)}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}|${sc}`;
     const have = st.layers[side];
     if (have && have.key === key) return have.canvas;
     const g = this._idleGeom();
     const c = have?.canvas || document.createElement("canvas");
-    c.width = Math.round(this.w * layerScale);
-    c.height = Math.round(this.h * layerScale);
+    const maxDim = 1920;
+    const cw = Math.max(1, Math.min(maxDim, Math.round(this.w * layerScale)));
+    const ch = Math.max(1, Math.min(Math.round(maxDim * (this.h / Math.max(1, this.w))), Math.round(this.h * layerScale)));
+    c.width = cw;
+    c.height = ch;
     const ctx = c.getContext("2d");
+    if (!ctx) return c;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.setTransform(layerScale, 0, 0, layerScale, 0, 0);
+    ctx.setTransform(cw / Math.max(1, this.w), 0, 0, ch / Math.max(1, this.h), 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
     const rnd = seeded(side > 0 ? 7741 : 3319);
     const N = 112; // beats round the loop
@@ -2436,7 +2529,7 @@ export class Viz {
     const lyricsOn = sLyricsEl ? Boolean(sLyricsEl.checked) : true;
     const lyricsVisible = Boolean(lyricsOn && lyricsBox && !lyricsBox.hidden);
     const commonCfg = {
-      app_ver: "v174",
+      app_ver: "v176",
       focused: typeof document !== "undefined" && typeof document.hasFocus === "function" ? document.hasFocus() : false,
       theme: theme.themeName(),
       glow: theme.getGlow(),

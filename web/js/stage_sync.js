@@ -7,10 +7,10 @@
  * 3. Zero-Echo Acoustic Sync: NTP clock offset estimation + Host Speaker Delay alignment + L/R/Stereo channel routing matrix.
  * 4. Satellite Mode & Cluster Stage Mirror: Renders 1:1 synchronized dual-ring visualizer & ambient light.
  */
-import * as theme from "./theme.js?v=174";
-import { Track } from "./graph.js?v=174";
-import { api } from "./api.js?v=174";
-import { splitTitle } from "./viz.js?v=174";
+import * as theme from "./theme.js?v=176";
+import { Track } from "./graph.js?v=176";
+import { api } from "./api.js?v=176";
+import { splitTitle } from "./viz.js?v=176";
 
 const escHtml = (s) =>
   String(s ?? "")
@@ -114,21 +114,42 @@ class StageSyncClient {
     this.myChannelMode = "stereo"; // "stereo" | "left" | "right"
     this.myVolumeTrim = 1.0;
     this.myLatencyOffsetMs = 0; // Fine phase offset (-50ms .. +50ms)
-    this.hostAlignMs = 45; // Acoustic alignment horizon in ms
+    this.hostAlignMs = 60; // Acoustic alignment horizon in ms
 
     // Live Multi-room & Cluster Audio Resonance state
     this.hostAudioStreamEnabled = false;
     this.satAudioEnabled = false;
+    this.satAudioMuted = false;
+    this._filteredDriftSec = 0;
     this.satAudioVol = 1.0;
-    this.satLatencyMs = 45;
+    this.satLatencyMs = 60;
     this.satAudioCtx = null;
     this.satGainNode = null;
     this.satChannelSplitter = null;
     this.satChannelMerger = null;
+    this.satHighPass = null;
+    this.satLimiter = null;
     this.satNextPlayTime = 0;
     this._hostAudioTap = null;
+    this._satPlayerNode = null;
+    this._satPlayerWorkletReady = false;
+    this._satPlayerWorkletFailed = false;
+    this._satPlayerLoading = false;
+    this._satWorkletQueue = [];
+    this._localFollowerStates = new Map();
     this.engine = null;
     this.player = null;
+
+    // Same-machine detection & local tab bus
+    this.isSameMachine = false;
+    this.isLocalHost = false;
+    this._localTabBus = null;
+    if (isBrowser) {
+      const h = window.location.hostname;
+      this.isLocalHost = h === "localhost" || h === "127.0.0.1" || h === "::1";
+      this.isSameMachine = this.isLocalHost;
+      this._initLocalTabBus();
+    }
 
     // Callbacks
     this.onCommand = null;
@@ -250,7 +271,18 @@ class StageSyncClient {
     const rcCta = document.getElementById("rc-cta");
     if (rcCta && !rcCta.hidden) rcCta.hidden = true;
 
-    if (data.rc_kicker_html || data.rc_title_html || data.rc_meta_html) {
+    const isHtmlIdle = Boolean(
+      data.rc_title_html && (
+        data.rc_title_html.includes("Chọn một bài") ||
+        data.rc_title_html.includes("Thêm một bài") ||
+        data.rc_title_html.includes("chưa phát")
+      )
+    );
+    const hasActiveTrackId = Boolean(
+      (primId || data.primary?.id || data.track_id) &&
+      (data.mode === "ring" || data.mode === "paused" || data.mode === "playing")
+    );
+    if ((data.rc_title_html && !isHtmlIdle) || (!hasActiveTrackId && (data.rc_kicker_html || data.rc_title_html || data.rc_meta_html))) {
       if (rcKicker && data.rc_kicker_html !== undefined && rcKicker.innerHTML !== data.rc_kicker_html) {
         rcKicker.innerHTML = data.rc_kicker_html;
       }
@@ -580,6 +612,29 @@ class StageSyncClient {
       return;
     }
 
+    if (data.type === "same_machine_speaker_sync") {
+      if (data.clientId !== this.clientId) {
+        this.isSameMachine = true;
+        this._localFollowerStates.set(data.clientId, {
+          suppressMasterSpeaker: Boolean(data.suppressMasterSpeaker),
+          isMutedLocal: Boolean(data.isMutedLocal),
+          at: Date.now(),
+        });
+        if (this.isClusterMaster && this.engine) {
+          let anySolo = false;
+          for (const st of this._localFollowerStates.values()) {
+            if (Date.now() - st.at < 15000 && st.suppressMasterSpeaker) {
+              anySolo = true;
+              break;
+            }
+          }
+          this.engine.setLocalSpeakerMuted(anySolo);
+          this._syncMasterEffectiveChannels();
+        }
+      }
+      return;
+    }
+
     if (data.type === "welcome_sync") {
       if (data.cluster) {
         this._applyClusterState(data.cluster);
@@ -698,6 +753,136 @@ class StageSyncClient {
     }
   }
 
+  _initLocalTabBus() {
+    if (typeof BroadcastChannel === "undefined") return;
+    try {
+      this._localTabBus = new BroadcastChannel("ml_local_cluster_bus");
+      this._localTabBus.onmessage = (ev) => {
+        const msg = ev.data;
+        if (!msg || typeof msg !== "object") return;
+        if (msg.type === "master_announce" && msg.clientId !== this.clientId) {
+          this.isSameMachine = true;
+          if (this.isClusterFollower) {
+            this._updateClusterMemberBanner();
+          }
+        } else if (msg.type === "follower_speaker_status" && msg.clientId !== this.clientId) {
+          this.isSameMachine = true;
+          this._localFollowerStates.set(msg.clientId, {
+            suppressMasterSpeaker: Boolean(msg.suppressMasterSpeaker),
+            isMutedLocal: Boolean(msg.isMutedLocal),
+            at: Date.now(),
+          });
+          if (this.isClusterMaster && this.engine) {
+            // Check if ANY same-machine follower wants solo speaker output
+            let anySolo = false;
+            for (const st of this._localFollowerStates.values()) {
+              if (Date.now() - st.at < 15000 && st.suppressMasterSpeaker) {
+                anySolo = true;
+                break;
+              }
+            }
+            this.engine.setLocalSpeakerMuted(anySolo);
+            this._syncMasterEffectiveChannels();
+          }
+        }
+      };
+
+      // Periodically announce master / same-machine follower state across local tabs
+      setInterval(() => {
+        if (!this._localTabBus) return;
+        if (this.isClusterMaster || (this.engine && this.player?.playing)) {
+          this._localTabBus.postMessage({
+            type: "master_announce",
+            clientId: this.clientId,
+            playing: Boolean(this.player?.playing),
+          });
+        }
+        if (this.isClusterFollower && this.isSameMachine) {
+          this._localTabBus.postMessage({
+            type: "follower_speaker_status",
+            clientId: this.clientId,
+            suppressMasterSpeaker: !this.satAudioMuted,
+            isMutedLocal: Boolean(this.satAudioMuted),
+          });
+        }
+      }, 1000);
+
+      if (typeof window !== "undefined") {
+        window.addEventListener("beforeunload", () => {
+          if (this._localTabBus && !this.satAudioMuted && this.isClusterFollower) {
+            try {
+              this._localTabBus.postMessage({
+                type: "follower_speaker_status",
+                clientId: this.clientId,
+                suppressMasterSpeaker: false,
+              });
+            } catch (_) {}
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  _syncMasterEffectiveChannels() {
+    if (!this.engine) return;
+    if (this.isClusterMaster) {
+      // Determine if all followers in cluster are muted same-machine tabs
+      const followers = this.clusterNodes.filter((n) => n.in_cluster && !n.is_master);
+      const hasRemoteActiveFollower = followers.some((n) => {
+        const localSt = this._localFollowerStates.get(n.client_id);
+        return !(localSt && (Date.now() - localSt.at < 15000) && localSt.isMutedLocal);
+      });
+      // When all followers are local muted tabs on this same machine, play full stereo so user never loses L or R ear!
+      const effMode = (this.isSameMachine && !hasRemoteActiveFollower) ? "stereo" : this.myChannelMode;
+      const isDiscrete = this.isSameMachine || this.deviceType === "desktop";
+      this.engine.setOutputChannelMode(effMode, isDiscrete);
+      this.engine.setSpeakerTrim(this.myVolumeTrim * this.clusterMasterVolume);
+    } else {
+      this.engine.setOutputChannelMode("stereo", false);
+      this.engine.setSpeakerTrim(1.0);
+    }
+  }
+
+  setFollowerAudioMuted(muted = true) {
+    this.satAudioMuted = Boolean(muted);
+    if (!this.satAudioMuted) {
+      this._unlockSatAudio(true);
+    }
+    this._syncSatEffectiveGain();
+    if (this._satPlayerNode) {
+      try {
+        const effMode = (this.isSameMachine && !this.satAudioMuted) ? "stereo" : this.myChannelMode;
+        this._satPlayerNode.port.postMessage({
+          type: "config",
+          muted: Boolean(this.satAudioMuted && this.isClusterFollower),
+          channelMode: effMode,
+          isDiscrete: this.isSameMachine || this.deviceType === "desktop",
+        });
+      } catch (_) {}
+    }
+    this._updateClusterMemberBanner();
+    if (this._localTabBus && this.isSameMachine) {
+      try {
+        this._localTabBus.postMessage({
+          type: "follower_speaker_status",
+          clientId: this.clientId,
+          suppressMasterSpeaker: !this.satAudioMuted,
+          isMutedLocal: Boolean(this.satAudioMuted),
+        });
+      } catch (_) {}
+    }
+    if (this.ws?.readyState === WebSocket.OPEN && (this.isSameMachine || this.isLocalHost)) {
+      try {
+        this.ws.send(JSON.stringify({
+          type: "same_machine_speaker_sync",
+          clientId: this.clientId,
+          suppressMasterSpeaker: !this.satAudioMuted,
+          isMutedLocal: Boolean(this.satAudioMuted),
+        }));
+      } catch (_) {}
+    }
+  }
+
   // --- Cluster Link State & Role Transitions ---
   _applyClusterState(state) {
     if (!state) return;
@@ -732,13 +917,7 @@ class StageSyncClient {
 
     // Apply channel routing & gain trim on local Engine (when Master/Standalone) or Satellite Audio Context (when Follower/Satellite)
     if (this.engine) {
-      if (this.isClusterMaster) {
-        this.engine.setOutputChannelMode(this.myChannelMode);
-        this.engine.setSpeakerTrim(this.myVolumeTrim * this.clusterMasterVolume);
-      } else {
-        this.engine.setOutputChannelMode("stereo");
-        this.engine.setSpeakerTrim(1.0);
-      }
+      this._syncMasterEffectiveChannels();
       this._syncHostSpeakerDelay();
     }
 
@@ -752,6 +931,22 @@ class StageSyncClient {
           this.player.pause();
         } catch (_) {}
       }
+      // On same machine, default satAudioMuted to true to prevent acoustic comb filtering / echo!
+      if (this.isSameMachine || this.isLocalHost) {
+        this.satAudioMuted = true;
+        if (this._localTabBus) {
+          try {
+            this._localTabBus.postMessage({
+              type: "follower_speaker_status",
+              clientId: this.clientId,
+              suppressMasterSpeaker: false,
+              isMutedLocal: true,
+            });
+          } catch (_) {}
+        }
+      } else {
+        this.satAudioMuted = false;
+      }
       this._unlockSatAudio(false);
     } else if (wasFollower && !nowFollower) {
       // Left cluster or promoted to Master: exit stage mirror if active
@@ -759,6 +954,15 @@ class StageSyncClient {
         this.setClusterMirrorMode(false);
       }
       this.satNextPlayTime = 0;
+      if (this._localTabBus && this.isSameMachine) {
+        try {
+          this._localTabBus.postMessage({
+            type: "follower_speaker_status",
+            clientId: this.clientId,
+            suppressMasterSpeaker: false,
+          });
+        } catch (_) {}
+      }
     }
 
     this._updateClusterMemberBanner();
@@ -778,12 +982,13 @@ class StageSyncClient {
   }
 
   setClusterMirrorMode(enabled) {
-    this.isClusterMirror = Boolean(enabled) && this.isClusterFollower;
-    document.body.classList.toggle("is-cluster-mirror", this.isClusterMirror);
-    document.documentElement.classList.toggle("is-cluster-mirror", this.isClusterMirror);
-    if (this.isClusterMirror && this.telemetry) {
+    this.isClusterMirror = Boolean(enabled);
+    const active = this.isClusterMirror && this.isClusterFollower;
+    document.body.classList.toggle("is-cluster-mirror", active);
+    document.documentElement.classList.toggle("is-cluster-mirror", active);
+    if (active && this.telemetry) {
       this.applySatelliteTelemetry(this.telemetry);
-    } else if (!this.isClusterMirror && this.viz) {
+    } else if (!active && this.viz) {
       this.viz.invalidate();
     }
     this._updateClusterMemberBanner();
@@ -810,6 +1015,8 @@ class StageSyncClient {
     const titleEl = document.getElementById("cluster-banner-title");
     const subEl = document.getElementById("cluster-banner-sub");
     const chBadge = document.getElementById("cluster-banner-channel");
+    const audioToggleBtn = document.getElementById("btn-cluster-audio-toggle");
+    const audioToggleTxt = document.getElementById("cluster-audio-toggle-text");
     const mirrorBtn = document.getElementById("btn-cluster-stage-mirror");
     const mirrorBtnTxt = document.getElementById("cluster-stage-mirror-text");
     const unlockBtn = document.getElementById("btn-cluster-audio-unlock");
@@ -826,6 +1033,23 @@ class StageSyncClient {
       chBadge.textContent = this._channelLabelText(this.myChannelMode);
       chBadge.dataset.channel = this.myChannelMode;
     }
+    if (audioToggleBtn && audioToggleTxt) {
+      const isMuted = Boolean(this.satAudioMuted);
+      audioToggleBtn.classList.toggle("is-muted", isMuted);
+      audioToggleBtn.classList.toggle("is-active", !isMuted);
+      audioToggleBtn.setAttribute("aria-pressed", String(!isMuted));
+      if (isMuted) {
+        audioToggleTxt.textContent = this.isSameMachine ? "Loa: Tắt (Cùng máy)" : "Loa: Tắt";
+        audioToggleBtn.title = this.isSameMachine
+          ? "Đang tắt tiếng để tránh trùng âm thanh trên cùng máy · Bấm để nghe thử riêng tab này"
+          : "Bật tiếng loa cho thiết bị này";
+      } else {
+        audioToggleTxt.textContent = "Loa: Bật";
+        audioToggleBtn.title = this.isSameMachine
+          ? "Đang phát qua tab này (Máy chính tự tắt loa) · Bấm để tắt tiếng"
+          : "Tắt tiếng loa thiết bị này";
+      }
+    }
     if (mirrorBtnTxt) {
       mirrorBtnTxt.textContent = this.isClusterMirror ? "Thu nhỏ" : "Toàn cảnh";
     }
@@ -834,7 +1058,7 @@ class StageSyncClient {
       mirrorBtn.setAttribute("aria-pressed", String(this.isClusterMirror));
     }
     if (unlockBtn) {
-      const needsUnlock = !this.satAudioCtx || this.satAudioCtx.state !== "running";
+      const needsUnlock = !this.satAudioMuted && (!this.satAudioCtx || this.satAudioCtx.state !== "running");
       unlockBtn.hidden = !needsUnlock;
     }
   }
@@ -1057,53 +1281,124 @@ class StageSyncClient {
     if (this.isSatellite || !engine?.ctx || !engine?.analyser || this._hostAudioTap) return;
     try {
       const ctx = engine.ctx;
-      // 1024 samples (~23.2ms at 44.1kHz) cuts capture latency in half compared to 2048
       const bufSize = 1024;
-      const proc = ctx.createScriptProcessor(bufSize, 2, 2);
-      const zeroGain = ctx.createGain();
-      zeroGain.gain.value = 0;
-      engine.analyser.connect(proc);
-      proc.connect(zeroGain);
-      zeroGain.connect(ctx.destination);
+      const targetSr = Math.round(ctx.sampleRate || 44100);
 
-      const outFrames = bufSize >> 1; // 512 stereo frames at 22050 Hz
-      // 16-byte PCM v2 Header:
-      // [0..1] 'M','L' | [2] ver=2 | [3] ch=2 | [4..7] sampleRate (uint32) | [8..15] serverCaptureMs (float64)
-      const packetBuf = new ArrayBuffer(16 + outFrames * 2 * 2);
-      const headerView = new DataView(packetBuf, 0, 16);
-      const pcmView = new Int16Array(packetBuf, 16, outFrames * 2);
-      const targetSr = Math.round((ctx.sampleRate || 44100) / 2);
-
-      headerView.setUint8(0, 0x4d); // 'M'
-      headerView.setUint8(1, 0x4c); // 'L'
-      headerView.setUint8(2, 2);    // version 2 (with Float64 NTP timestamp)
-      headerView.setUint8(3, 2);    // 2 channels
-      headerView.setUint32(4, targetSr, true);
-
-      proc.onaudioprocess = (ev) => {
+      const sendPcmBlock = (inL, inR) => {
         const streaming = this.shouldStreamAudio() && Boolean(player?.playing);
         this._syncHostSpeakerDelay();
         if (!streaming) return;
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
         if (this.ws.bufferedAmount > 49152) return; // Prevent backpressure queue buildup
 
         const nowPerf = typeof performance !== "undefined" ? performance.now() : Date.now();
         const serverCaptureMs = nowPerf + (this.ntpOffsetMs || 0);
+
+        // 16-byte PCM v2 Header + 1024 frames stereo Int16 (4096 bytes) = 4112 bytes
+        const packetBuf = new ArrayBuffer(16 + bufSize * 4);
+        const headerView = new DataView(packetBuf, 0, 16);
+        const pcmView = new Int16Array(packetBuf, 16, bufSize * 2);
+
+        headerView.setUint8(0, 0x4d); // 'M'
+        headerView.setUint8(1, 0x4c); // 'L'
+        headerView.setUint8(2, 2);    // version 2 (with Float64 NTP timestamp)
+        headerView.setUint8(3, 2);    // 2 channels
+        headerView.setUint32(4, targetSr, true);
         headerView.setFloat64(8, serverCaptureMs, true);
 
-        const inL = ev.inputBuffer.getChannelData(0);
-        const inR = ev.inputBuffer.numberOfChannels > 1 ? ev.inputBuffer.getChannelData(1) : inL;
         let outIdx = 0;
-        for (let i = 0; i < bufSize; i += 2) {
-          const sL = Math.max(-1, Math.min(1, (inL[i] + inL[i + 1]) * 0.5));
-          const sR = Math.max(-1, Math.min(1, (inR[i] + inR[i + 1]) * 0.5));
-          pcmView[outIdx++] = sL < 0 ? sL * 0x8000 : sL * 0x7fff;
-          pcmView[outIdx++] = sR < 0 ? sR * 0x8000 : sR * 0x7fff;
+        for (let i = 0; i < bufSize; i++) {
+          // Soft-knee tanh saturation prevents digital square-wave hard clipping
+          const sL = Math.tanh(inL[i] || 0);
+          const sR = Math.tanh(inR[i] || 0);
+          pcmView[outIdx++] = sL < 0 ? Math.round(sL * 0x8000) : Math.round(sL * 0x7fff);
+          pcmView[outIdx++] = sR < 0 ? Math.round(sR * 0x8000) : Math.round(sR * 0x7fff);
         }
         try {
           this.ws.send(packetBuf);
         } catch (_) {}
       };
-      this._hostAudioTap = { proc, zeroGain };
+
+      const setupScriptProcessorFallback = () => {
+        if (this._hostAudioTap) return;
+        try {
+          const proc = ctx.createScriptProcessor(bufSize, 2, 2);
+          const zeroGain = ctx.createGain();
+          zeroGain.gain.setValueAtTime(0, ctx.currentTime);
+          engine.analyser.connect(proc);
+          proc.connect(zeroGain);
+          zeroGain.connect(ctx.destination);
+          proc.onaudioprocess = (ev) => {
+            const inL = ev.inputBuffer.getChannelData(0);
+            const inR = ev.inputBuffer.numberOfChannels > 1 ? ev.inputBuffer.getChannelData(1) : inL;
+            sendPcmBlock(inL, inR);
+          };
+          this._hostAudioTap = { proc, zeroGain };
+        } catch (err) {
+          console.debug("[StageSync] ScriptProcessor error:", err);
+        }
+      };
+
+      if (typeof AudioWorkletNode === "function" && ctx.audioWorklet) {
+        const workletCode = `
+          class MLStreamCaptureProcessor extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this.bufSize = 1024;
+              this.bufL = new Float32Array(this.bufSize);
+              this.bufR = new Float32Array(this.bufSize);
+              this.pos = 0;
+            }
+            process(inputs) {
+              const input = inputs[0];
+              if (!input || !input[0]) return true;
+              const inL = input[0];
+              const inR = input.length > 1 ? input[1] : inL;
+              const len = inL.length;
+              for (let i = 0; i < len; i++) {
+                this.bufL[this.pos] = inL[i];
+                this.bufR[this.pos] = inR[i];
+                this.pos++;
+                if (this.pos >= this.bufSize) {
+                  const lCopy = this.bufL.slice(0);
+                  const rCopy = this.bufR.slice(0);
+                  this.port.postMessage({ l: lCopy, r: rCopy }, [lCopy.buffer, rCopy.buffer]);
+                  this.pos = 0;
+                }
+              }
+              return true;
+            }
+          }
+          registerProcessor("ml-stream-capture", MLStreamCaptureProcessor);
+        `;
+        const blob = new Blob([workletCode], { type: "application/javascript" });
+        const blobUrl = URL.createObjectURL(blob);
+        ctx.audioWorklet.addModule(blobUrl).then(() => {
+          URL.revokeObjectURL(blobUrl);
+          const workletNode = new AudioWorkletNode(ctx, "ml-stream-capture", {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            channelCount: 2,
+            outputChannelCount: [2],
+          });
+          const silentTapGain = ctx.createGain();
+          silentTapGain.gain.setValueAtTime(0, ctx.currentTime);
+          engine.analyser.connect(workletNode);
+          workletNode.connect(silentTapGain);
+          silentTapGain.connect(ctx.destination);
+          workletNode.port.onmessage = (ev) => {
+            if (ev.data?.l && ev.data?.r) {
+              sendPcmBlock(ev.data.l, ev.data.r);
+            }
+          };
+          this._hostAudioTap = { workletNode };
+        }).catch((err) => {
+          console.debug("[StageSync] AudioWorklet fallback to ScriptProcessor:", err);
+          setupScriptProcessorFallback();
+        });
+      } else {
+        setupScriptProcessorFallback();
+      }
     } catch (err) {
       console.debug("[StageSync] attachHostEngine error:", err);
     }
@@ -1163,12 +1458,21 @@ class StageSyncClient {
     try {
       this.satChannelSplitter.disconnect();
     } catch (_) {}
+    const isDiscrete = this.isSameMachine || this.deviceType === "desktop";
     if (mode === "left") {
-      this.satChannelSplitter.connect(this.satChannelMerger, 0, 0);
-      this.satChannelSplitter.connect(this.satChannelMerger, 0, 1);
+      if (isDiscrete) {
+        this.satChannelSplitter.connect(this.satChannelMerger, 0, 0);
+      } else {
+        this.satChannelSplitter.connect(this.satChannelMerger, 0, 0);
+        this.satChannelSplitter.connect(this.satChannelMerger, 0, 1);
+      }
     } else if (mode === "right") {
-      this.satChannelSplitter.connect(this.satChannelMerger, 1, 0);
-      this.satChannelSplitter.connect(this.satChannelMerger, 1, 1);
+      if (isDiscrete) {
+        this.satChannelSplitter.connect(this.satChannelMerger, 1, 1);
+      } else {
+        this.satChannelSplitter.connect(this.satChannelMerger, 1, 0);
+        this.satChannelSplitter.connect(this.satChannelMerger, 1, 1);
+      }
     } else {
       this.satChannelSplitter.connect(this.satChannelMerger, 0, 0);
       this.satChannelSplitter.connect(this.satChannelMerger, 1, 1);
@@ -1177,9 +1481,15 @@ class StageSyncClient {
 
   _syncSatEffectiveGain() {
     if (!this.satGainNode || !this.satAudioCtx) return;
+    if (this.satAudioMuted && this.isClusterFollower) {
+      this.satGainNode.gain.cancelScheduledValues(this.satAudioCtx.currentTime);
+      this.satGainNode.gain.setTargetAtTime(0, this.satAudioCtx.currentTime, 0.015);
+      return;
+    }
     const base = this.isClusterFollower ? 1.0 : this.satAudioVol;
     const clusterScale = this.inCluster ? (this.myVolumeTrim * this.clusterMasterVolume) : 1.0;
     const effective = Math.max(0, Math.min(2.0, base * clusterScale));
+    this.satGainNode.gain.cancelScheduledValues(this.satAudioCtx.currentTime);
     this.satGainNode.gain.setTargetAtTime(effective, this.satAudioCtx.currentTime, 0.015);
   }
 
@@ -1188,27 +1498,264 @@ class StageSyncClient {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (AC) {
         try {
-          this.satAudioCtx = new AC({ latencyHint: "interactive" });
+          this.satAudioCtx = new AC({ sampleRate: 44100, latencyHint: "interactive" });
         } catch (_) {
-          this.satAudioCtx = new AC();
+          try {
+            this.satAudioCtx = new AC({ latencyHint: "interactive" });
+          } catch (_) {
+            this.satAudioCtx = new AC();
+          }
         }
         this.satChannelSplitter = this.satAudioCtx.createChannelSplitter(2);
         this.satChannelMerger = this.satAudioCtx.createChannelMerger(2);
         this.satGainNode = this.satAudioCtx.createGain();
+
+        // Filter DC sub-rumble (< 20Hz)
+        this.satHighPass = this.satAudioCtx.createBiquadFilter();
+        this.satHighPass.type = "highpass";
+        this.satHighPass.frequency.value = 20;
+        this.satHighPass.Q.value = 0.707;
+
+        // Output brickwall limiter prevents speaker distortion at high trim/volume
+        this.satLimiter = this.satAudioCtx.createDynamicsCompressor();
+        this.satLimiter.threshold.value = -0.8;
+        this.satLimiter.knee.value = 3.0;
+        this.satLimiter.ratio.value = 20.0;
+        this.satLimiter.attack.value = 0.002;
+        this.satLimiter.release.value = 0.08;
+
         this._applySatChannelMatrix(this.myChannelMode);
-        this.satChannelMerger.connect(this.satGainNode);
-        this.satGainNode.connect(this.satAudioCtx.destination);
+        this.satChannelMerger.connect(this.satHighPass);
+        this.satHighPass.connect(this.satGainNode);
+        this.satGainNode.connect(this.satLimiter);
+        this.satLimiter.connect(this.satAudioCtx.destination);
         this._syncSatEffectiveGain();
         this.satAudioCtx.addEventListener?.("statechange", () => {
           this._updateSatelliteAudioUI();
           this._updateClusterMemberBanner();
         });
+        this._initSatPlayerWorklet(this.satAudioCtx);
       }
     }
     if (this.satAudioCtx && this.satAudioCtx.state !== "running") {
       this.satAudioCtx.resume().catch(() => {});
     }
     return this.satAudioCtx;
+  }
+
+  _initSatPlayerWorklet(ctx) {
+    if (!ctx || this._satPlayerLoading || this._satPlayerWorkletReady || this._satPlayerWorkletFailed) return;
+    if (typeof AudioWorkletNode !== "function" || !ctx.audioWorklet) {
+      this._satPlayerWorkletFailed = true;
+      return;
+    }
+    this._satPlayerLoading = true;
+    const playerWorkletCode = `
+      class MLStreamPlayerProcessor extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          this.capacity = 32768;
+          this.mask = this.capacity - 1;
+          this.bufL = new Float32Array(this.capacity);
+          this.bufR = new Float32Array(this.capacity);
+          this.writeIdx = 0;
+          this.readIdx = 0;
+          this.readFrac = 0.0;
+          this.available = 0;
+          this.targetBuffered = 3840;
+          this.srcSr = 44100;
+          this.outSr = sampleRate || 44100;
+          this.isMuted = false;
+          this.channelMode = "stereo";
+          this.isDiscrete = false;
+          this.fadeSamples = 64;
+          this.curFade = 0;
+          this.wasStarved = true;
+
+          this.port.onmessage = (ev) => {
+            const msg = ev.data;
+            if (!msg) return;
+            if (msg.type === "push") {
+              const pcm = msg.pcm;
+              const chs = msg.channels || 2;
+              const frames = msg.frames || Math.floor(pcm.length / chs);
+              if (msg.srcSr) this.srcSr = msg.srcSr;
+              const inv = 1 / 32768;
+              let pIdx = 0;
+              if (chs > 1) {
+                for (let i = 0; i < frames; i++) {
+                  this.bufL[this.writeIdx] = pcm[pIdx++] * inv;
+                  this.bufR[this.writeIdx] = pcm[pIdx++] * inv;
+                  this.writeIdx = (this.writeIdx + 1) & this.mask;
+                }
+              } else {
+                for (let i = 0; i < frames; i++) {
+                  const s = pcm[pIdx++] * inv;
+                  this.bufL[this.writeIdx] = s;
+                  this.bufR[this.writeIdx] = s;
+                  this.writeIdx = (this.writeIdx + 1) & this.mask;
+                }
+              }
+              this.available += frames;
+              const maxAllowed = Math.min(this.capacity - 512, Math.max(8192, this.targetBuffered * 3));
+              if (this.available > maxAllowed) {
+                const trim = this.available - this.targetBuffered;
+                this.readIdx = (this.readIdx + trim) & this.mask;
+                this.available -= trim;
+                this.curFade = 0;
+              }
+              if (this.wasStarved && this.available >= Math.min(this.targetBuffered, 768)) {
+                this.wasStarved = false;
+                this.curFade = 0;
+              }
+            } else if (msg.type === "config") {
+              if (typeof msg.target === "number") this.targetBuffered = msg.target;
+              if (msg.channelMode) this.channelMode = msg.channelMode;
+              if (typeof msg.isDiscrete === "boolean") this.isDiscrete = msg.isDiscrete;
+              if (typeof msg.muted === "boolean") this.isMuted = msg.muted;
+            }
+          };
+        }
+
+        process(inputs, outputs) {
+          const output = outputs[0];
+          if (!output || !output[0]) return true;
+          const outL = output[0];
+          const outR = output.length > 1 ? output[1] : outL;
+          const len = outL.length;
+
+          if (this.isMuted || this.wasStarved || this.available < 128) {
+            outL.fill(0);
+            if (outR !== outL) outR.fill(0);
+            if (this.available < 128) this.wasStarved = true;
+            return true;
+          }
+
+          const drift = this.available - this.targetBuffered;
+          const rateNudge = Math.max(0.992, Math.min(1.008, 1.0 + (drift * 0.000008)));
+          const step = (this.srcSr / this.outSr) * rateNudge;
+
+          const mode = this.channelMode;
+          const discrete = this.isDiscrete;
+          const mask = this.mask;
+
+          for (let i = 0; i < len; i++) {
+            if (this.available <= 2) {
+              const fadeOutLen = Math.min(32, len - i);
+              const lastL = i > 0 ? outL[i - 1] : 0;
+              const lastR = (i > 0 && outR !== outL) ? outR[i - 1] : lastL;
+              for (let k = 0; k < fadeOutLen; k++) {
+                const factor = 0.5 * (1 + Math.cos(Math.PI * (k / fadeOutLen)));
+                outL[i + k] = lastL * factor;
+                if (outR !== outL) outR[i + k] = lastR * factor;
+              }
+              for (let k = i + fadeOutLen; k < len; k++) {
+                outL[k] = 0;
+                if (outR !== outL) outR[k] = 0;
+              }
+              this.wasStarved = true;
+              break;
+            }
+
+            const i0 = this.readIdx;
+            const i1 = (i0 + 1) & mask;
+            const frac = this.readFrac;
+
+            let sL = this.bufL[i0] + frac * (this.bufL[i1] - this.bufL[i0]);
+            let sR = this.bufR[i0] + frac * (this.bufR[i1] - this.bufR[i0]);
+
+            if (this.curFade < this.fadeSamples) {
+              const factor = 0.5 * (1 - Math.cos(Math.PI * (this.curFade / this.fadeSamples)));
+              sL *= factor;
+              sR *= factor;
+              this.curFade++;
+            }
+
+            if (mode === "left") {
+              outL[i] = sL;
+              outR[i] = discrete ? 0 : sL;
+            } else if (mode === "right") {
+              outL[i] = discrete ? 0 : sR;
+              outR[i] = sR;
+            } else {
+              outL[i] = sL;
+              outR[i] = sR;
+            }
+
+            this.readFrac += step;
+            const adv = Math.floor(this.readFrac);
+            if (adv > 0) {
+              this.readFrac -= adv;
+              this.readIdx = (this.readIdx + adv) & mask;
+              this.available -= adv;
+            }
+          }
+          return true;
+        }
+      }
+      registerProcessor("ml-stream-player", MLStreamPlayerProcessor);
+    `;
+    try {
+      const pBlob = new Blob([playerWorkletCode], { type: "application/javascript" });
+      const pUrl = URL.createObjectURL(pBlob);
+      ctx.audioWorklet.addModule(pUrl).then(() => {
+        URL.revokeObjectURL(pUrl);
+        this._satPlayerNode = new AudioWorkletNode(ctx, "ml-stream-player", {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+        });
+        this._satPlayerNode.connect(this.satHighPass || this.satGainNode || ctx.destination);
+        this._satPlayerWorkletReady = true;
+        this._satPlayerLoading = false;
+        if (this._satWorkletQueue?.length) {
+          const queued = this._satWorkletQueue.splice(0);
+          for (const pkt of queued) {
+            this._pushToSatWorklet(pkt.channels, pkt.sampleRate, pkt.pcm, pkt.frames);
+          }
+        }
+      }).catch((err) => {
+        console.debug("[StageSync] AudioWorklet player fallback:", err);
+        this._satPlayerWorkletFailed = true;
+        this._satPlayerLoading = false;
+      });
+    } catch (e) {
+      this._satPlayerWorkletFailed = true;
+      this._satPlayerLoading = false;
+    }
+  }
+
+  _pushToSatWorklet(channels, sampleRate, pcm, frames) {
+    if (!this._satPlayerNode) return;
+    const targetBuffered = Math.max(
+      1024,
+      Math.min(16384, Math.round((((this.hostAlignMs || 60) + (this.myLatencyOffsetMs || 0)) / 1000) * sampleRate))
+    );
+    const effMode = (this.isSameMachine && !this.satAudioMuted) ? "stereo" : this.myChannelMode;
+    const isDiscrete = Boolean(this.isSameMachine || this.deviceType === "desktop");
+    const isMuted = Boolean(this.satAudioMuted && this.isClusterFollower);
+    const configKey = `${targetBuffered}|${effMode}|${isDiscrete}|${isMuted}`;
+    if (this._lastSatWorkletConfigKey !== configKey) {
+      this._lastSatWorkletConfigKey = configKey;
+      this._satPlayerNode.port.postMessage({
+        type: "config",
+        target: targetBuffered,
+        channelMode: effMode,
+        isDiscrete,
+        muted: isMuted,
+      });
+    }
+    const pcmCopy = new Int16Array(pcm);
+    this._satPlayerNode.port.postMessage(
+      {
+        type: "push",
+        pcm: pcmCopy,
+        channels,
+        frames,
+        srcSr: sampleRate,
+      },
+      [pcmCopy.buffer]
+    );
   }
 
   _unlockSatAudio(fromUserGesture = false) {
@@ -1250,7 +1797,7 @@ class StageSyncClient {
     if (this.satAudioEnabled) {
       const ctx = this._unlockSatAudio(fromUserGesture);
       if (ctx && ctx.state === "running") {
-        this.satNextPlayTime = ctx.currentTime + (this.hostAlignMs || 45) / 1000;
+        this.satNextPlayTime = ctx.currentTime + (this.hostAlignMs || 60) / 1000;
       } else {
         this.satNextPlayTime = 0;
       }
@@ -1342,75 +1889,82 @@ class StageSyncClient {
   }
 
   _schedulePcmPacket(ctx, channels, srcSr, pcm, frames, serverCaptureMs = 0) {
-    const dstSr = ctx.sampleRate || srcSr;
-    const inv = 1 / 32768;
-    let audioBuf;
+    if (this.satAudioMuted && this.isClusterFollower) return;
 
-    if (dstSr === srcSr) {
-      audioBuf = ctx.createBuffer(channels, frames, dstSr);
-      const ch0 = audioBuf.getChannelData(0);
-      const ch1 = channels > 1 ? audioBuf.getChannelData(1) : null;
-      if (ch1) {
-        for (let i = 0, j = 0; i < frames; i++, j += 2) {
-          ch0[i] = pcm[j] * inv;
-          ch1[i] = pcm[j + 1] * inv;
-        }
-      } else {
-        for (let i = 0; i < frames; i++) {
-          ch0[i] = pcm[i] * inv;
-        }
+    // Use Web Audio native polyphase resampler (zero-distortion browser hardware resampling)
+    const audioBuf = ctx.createBuffer(channels, frames, srcSr);
+    const ch0 = audioBuf.getChannelData(0);
+    const ch1 = channels > 1 ? audioBuf.getChannelData(1) : null;
+    const inv = 1 / 32768;
+
+    if (ch1) {
+      for (let i = 0, j = 0; i < frames; i++, j += 2) {
+        ch0[i] = pcm[j] * inv;
+        ch1[i] = pcm[j + 1] * inv;
       }
     } else {
-      const dstFrames = Math.max(1, Math.round((frames * dstSr) / srcSr));
-      audioBuf = ctx.createBuffer(channels, dstFrames, dstSr);
-      const ch0 = audioBuf.getChannelData(0);
-      const ch1 = channels > 1 ? audioBuf.getChannelData(1) : null;
-      const step = srcSr / dstSr;
-      if (ch1) {
-        for (let i = 0; i < dstFrames; i++) {
-          const srcPos = i * step;
-          const idx0 = Math.min(frames - 1, srcPos | 0);
-          const idx1 = Math.min(frames - 1, idx0 + 1);
-          const frac = srcPos - idx0;
-          const j0 = idx0 * 2;
-          const j1 = idx1 * 2;
-          ch0[i] = (pcm[j0] + (pcm[j1] - pcm[j0]) * frac) * inv;
-          ch1[i] = (pcm[j0 + 1] + (pcm[j1 + 1] - pcm[j0 + 1]) * frac) * inv;
-        }
-      } else {
-        for (let i = 0; i < dstFrames; i++) {
-          const srcPos = i * step;
-          const idx0 = Math.min(frames - 1, srcPos | 0);
-          const idx1 = Math.min(frames - 1, idx0 + 1);
-          const frac = srcPos - idx0;
-          ch0[i] = (pcm[idx0] + (pcm[idx1] - pcm[idx0]) * frac) * inv;
-        }
+      for (let i = 0; i < frames; i++) {
+        ch0[i] = pcm[i] * inv;
       }
     }
 
     const now = ctx.currentTime;
-    let targetLeadSec = Math.max(0.018, Math.min(0.22, ((this.hostAlignMs || 45) + (this.myLatencyOffsetMs || 0)) / 1000));
+    let targetLeadSec = Math.max(0.022, Math.min(0.25, ((this.hostAlignMs || 60) + (this.myLatencyOffsetMs || 0)) / 1000));
 
     if (serverCaptureMs > 0 && this.ntpSynced) {
       const nowServerMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) + this.ntpOffsetMs;
       const packetAgeMs = Math.max(0, Math.min(250, nowServerMs - serverCaptureMs));
-      const remainingMs = (this.hostAlignMs || 45) + (this.myLatencyOffsetMs || 0) - packetAgeMs;
-      targetLeadSec = Math.max(0.015, Math.min(0.22, remainingMs / 1000));
+      const remainingMs = (this.hostAlignMs || 60) + (this.myLatencyOffsetMs || 0) - packetAgeMs;
+      targetLeadSec = Math.max(0.022, Math.min(0.25, remainingMs / 1000));
     }
 
     const idealPlayTime = now + targetLeadSec;
-    const driftSec = Math.abs(this.satNextPlayTime - idealPlayTime);
+    let isUnderrun = false;
 
-    // Phase-lock: if playhead underrun or drifted > 22ms away from NTP target, snap to idealPlayTime
-    if (this.satNextPlayTime < now + 0.006 || driftSec > 0.022) {
+    // Buffer scheduling state
+    if (!this.satNextPlayTime || this.satNextPlayTime < now + 0.010) {
+      // True underrun (startup or audio pipeline starved):
+      this.satNextPlayTime = Math.max(now + 0.018, idealPlayTime);
+      this._filteredDriftSec = 0;
+      isUnderrun = true;
+    }
+
+    // Measure time difference between where playback is and where ideal target is
+    const rawDriftSec = idealPlayTime - this.satNextPlayTime;
+
+    // Apply low-pass EMA filter (alpha = 0.06) to reject high-frequency packet jitter (1-10ms fluctuations)
+    this._filteredDriftSec = (this._filteredDriftSec ?? 0) * 0.94 + rawDriftSec * 0.06;
+
+    // Only if drift is massive (>75ms, e.g. latency slider dragged), perform hard resync
+    if (Math.abs(this._filteredDriftSec) > 0.075) {
       this.satNextPlayTime = idealPlayTime;
+      this._filteredDriftSec = 0;
+      isUnderrun = true;
+    }
+
+    // Smooth varispeed pitch-lock: adjust playbackRate within +/-1.2% (zero audible pitch change, continuous sample-exact chaining)
+    // Positive drift = behind schedule -> play slightly faster (rate > 1.0)
+    // Negative drift = ahead of schedule -> play slightly slower (rate < 1.0)
+    const rateNudge = Math.max(0.988, Math.min(1.012, 1.0 + (this._filteredDriftSec * 0.12)));
+
+    // Micro 1.5ms (64 samples) fade-in on underrun recovery to prevent start pop
+    if (isUnderrun) {
+      const declickLen = Math.min(64, frames);
+      for (let i = 0; i < declickLen; i++) {
+        const factor = i / declickLen;
+        ch0[i] *= factor;
+        if (ch1) ch1[i] *= factor;
+      }
     }
 
     const src = ctx.createBufferSource();
     src.buffer = audioBuf;
+    src.playbackRate.value = rateNudge;
     src.connect(this.satChannelSplitter || this.satGainNode || ctx.destination);
+
+    // Contiguous scheduling: start precisely where previous buffer finished!
     src.start(this.satNextPlayTime);
-    this.satNextPlayTime += audioBuf.duration;
+    this.satNextPlayTime += (audioBuf.duration / rateNudge);
   }
 
   handleAudioPacket(arrayBuffer) {
@@ -1442,6 +1996,24 @@ class StageSyncClient {
       }
       this._updateSatelliteAudioUI();
       this._updateClusterMemberBanner();
+      return;
+    }
+
+    if (this._satPlayerWorkletReady && this._satPlayerNode) {
+      if (this._pendingAudioPackets?.length) {
+        const queued = this._pendingAudioPackets.splice(0);
+        for (const pkt of queued) {
+          this._pushToSatWorklet(pkt.channels, pkt.sampleRate, pkt.pcm, pkt.frames);
+        }
+      }
+      this._pushToSatWorklet(channels, sampleRate, pcm, frames);
+      return;
+    }
+
+    if (this._satPlayerLoading && !this._satPlayerWorkletFailed) {
+      if (!this._satWorkletQueue) this._satWorkletQueue = [];
+      this._satWorkletQueue.push({ channels, sampleRate, pcm: new Int16Array(pcm), frames });
+      if (this._satWorkletQueue.length > 6) this._satWorkletQueue.shift();
       return;
     }
 
@@ -1536,7 +2108,7 @@ class StageSyncClient {
     root.setProperty("--pulse", pulseVal.toFixed(2));
 
     // 3. Sync primary & second tracks on satellite / cluster mirror
-    const LOCAL_APP_VER = 174;
+    const LOCAL_APP_VER = 176;
     const remoteVerNum = typeof data.app_ver === "string" ? parseInt(data.app_ver.replace(/^v/i, ""), 10) : 0;
     if (remoteVerNum > LOCAL_APP_VER && typeof window !== "undefined" && !this._reloadingVer) {
       const guardKey = `ml_reloaded_v${remoteVerNum}`;
@@ -1649,13 +2221,36 @@ class StageSyncClient {
       this._syncCenterCaption(data, primInfo?.id);
     }
 
-    if (data.ro_tl_html !== undefined) {
+    const isRoIdle = Boolean(
+      data.ro_tl_html && (data.ro_tl_html.includes("chưa phát") || data.ro_tr_html?.includes("chưa có vòng nào"))
+    );
+    const hasActiveStageTrack = Boolean(primInfo?.id && (data.mode === "ring" || data.mode === "paused" || data.mode === "playing"));
+    if (data.ro_tl_html !== undefined && (!hasActiveStageTrack || !isRoIdle)) {
       const roTl = document.getElementById("ro-tl");
       if (roTl && roTl.innerHTML !== data.ro_tl_html) roTl.innerHTML = data.ro_tl_html;
+    } else if (hasActiveStageTrack) {
+      const roTl = document.getElementById("ro-tl");
+      const rawT = primInfo?.title || data.title || this.primaryTrack?.meta?.title || "";
+      const s = rawT ? splitTitle(rawT, primInfo?.artist || data.artist || "") : { title: "", artist: "" };
+      if (roTl && s.title) {
+        const modeTag = data.locked ? "LẶP" : "CHUỖI";
+        const newTl = `<b>${modeTag}</b> // ${escHtml(s.artist ? `${s.artist} · ` : "")}${escHtml(s.title)}`;
+        if (roTl.innerHTML !== newTl) roTl.innerHTML = newTl;
+      }
     }
-    if (data.ro_tr_html !== undefined) {
+    if (data.ro_tr_html !== undefined && (!hasActiveStageTrack || !isRoIdle)) {
       const roTr = document.getElementById("ro-tr");
       if (roTr && roTr.innerHTML !== data.ro_tr_html) roTr.innerHTML = data.ro_tr_html;
+    } else if (hasActiveStageTrack) {
+      const roTr = document.getElementById("ro-tr");
+      const bpmVal = Math.round(primInfo?.bpm || data.bpm || this.primaryTrack?.analysis?.bpm || 120);
+      const camVal = primInfo?.camelot || data.camelot || this.primaryTrack?.analysis?.camelot || "";
+      const secVal = Math.max(0, Math.round(data.pos ?? data.now ?? 0));
+      const mm = Math.floor(secVal / 60);
+      const ss = String(secVal % 60).padStart(2, "0");
+      const camBadge = camVal ? `<span class="badge-camelot">${escHtml(camVal)}</span> · ` : "";
+      const newTr = `<span class="mono">∞ ${mm}:${ss}</span><span class="ro-stats"> · ${camBadge}${bpmVal} BPM</span>`;
+      if (roTr && roTr.innerHTML !== newTr) roTr.innerHTML = newTr;
     }
     if (data.next_html !== undefined) {
       const nextInfo = document.getElementById("next-info");
@@ -1983,7 +2578,12 @@ export function initStageSyncControls({ player, engine } = {}) {
   const mirrorBtn = document.getElementById("btn-cluster-stage-mirror");
   const leaveBtn = document.getElementById("btn-cluster-leave");
   const unlockClusterBtn = document.getElementById("btn-cluster-audio-unlock");
+  const audioToggleBtn = document.getElementById("btn-cluster-audio-toggle");
   const openClusterFromBannerBtn = document.getElementById("btn-cluster-banner-config");
+
+  audioToggleBtn?.addEventListener("click", () => {
+    stageSync.setFollowerAudioMuted(!stageSync.satAudioMuted);
+  });
 
   mirrorBtn?.addEventListener("click", () => {
     stageSync._unlockSatAudio(true);
@@ -2074,12 +2674,12 @@ export function initStageSyncControls({ player, engine } = {}) {
     const nextState = !(stageSync.audioSatellitesCount > 0 || stageSync.hostAudioStreamEnabled);
     stageSync.setHostAudioControl({
       enabled: nextState,
-      host_align_ms: hostLatSlider ? parseInt(hostLatSlider.value, 10) : 45,
+      host_align_ms: hostLatSlider ? parseInt(hostLatSlider.value, 10) : 60,
     });
   });
 
   hostLatSlider?.addEventListener("input", () => {
-    const ms = parseInt(hostLatSlider.value, 10) || 45;
+    const ms = parseInt(hostLatSlider.value, 10) || 60;
     if (hostLatVal) hostLatVal.textContent = `${ms}ms`;
     stageSync.setHostAudioControl({
       enabled: stageSync.audioSatellitesCount > 0 || stageSync.hostAudioStreamEnabled,

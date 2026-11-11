@@ -1,13 +1,13 @@
-import { api, currentUser, hooks, isMobile, Loader, ready, resetSession, session, setCurrentUser, setUserToken, updateSession, userToken } from "./api.js?v=174";
-import { Engine } from "./engine.js?v=174";
-import { setupMediaSession } from "./mediasession.js?v=174";
-import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js?v=174";
-import { MixRecorder } from "./recorder.js?v=174";
-import { KaraokeMic } from "./mic.js?v=174";
-import { sortHarmonicSequence } from "./harmonic.js?v=174";
-import * as theme from "./theme.js?v=174";
-import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js?v=174";
-import { stageSync, initStageSyncControls } from "./stage_sync.js?v=174";
+import { api, currentUser, hooks, isMobile, Loader, ready, resetSession, session, setCurrentUser, setUserToken, updateSession, userToken } from "./api.js?v=176";
+import { Engine } from "./engine.js?v=176";
+import { setupMediaSession } from "./mediasession.js?v=176";
+import { CRITERIA, DEFAULTS, keyFit, Player, setPhase, shiftCamelot } from "./player.js?v=176";
+import { MixRecorder } from "./recorder.js?v=176";
+import { KaraokeMic } from "./mic.js?v=176";
+import { sortHarmonicSequence } from "./harmonic.js?v=176";
+import * as theme from "./theme.js?v=176";
+import { bendNote, fmt, KIND_VI, short, splitTitle, Viz } from "./viz.js?v=176";
+import { stageSync, initStageSyncControls } from "./stage_sync.js?v=176";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -137,10 +137,10 @@ const karaokeMic = new KaraokeMic(engine);
 const viz = new Viz($("#viz"), player, {
   center: $("#ring-center"),
   tip: $("#viz-tip"),
-  onPick: (tr) => stageSync.isSatellite ? (stageSync.sendCommand("pick_exit", tr), true) : player.planTransition(tr),
-  onSeek: (track, beat) => stageSync.isSatellite ? stageSync.sendCommand("seek", beat) : player.seek(beat),
+  onPick: (tr) => (stageSync.isSatellite || stageSync.isStageMirrorActive) ? (stageSync.sendCommand("pick_exit", tr), true) : player.planTransition(tr),
+  onSeek: (track, beat) => (stageSync.isSatellite || stageSync.isStageMirrorActive) ? stageSync.sendCommand("seek", beat) : player.seek(beat),
   onCaption: () => renderStage(),
-  onCrossClick: () => stageSync.isSatellite ? stageSync.sendCommand("force_transition") : player.forceTransition(),
+  onCrossClick: () => (stageSync.isSatellite || stageSync.isStageMirrorActive) ? stageSync.sendCommand("force_transition") : player.forceTransition(),
 });
 stageSync.viz = viz;
 
@@ -435,6 +435,7 @@ function syncRange(input) {
 
 function applySettings() {
   if (stageSync.isSatellite) return;
+  if (stageSync.isStageMirrorActive) return;
   const s = player.settings;
   // Log scale: 60 s between jumps at the far left, 6 s at the far right.
   s.jumpEvery = 60 * Math.pow(0.1, ui.freq);
@@ -881,11 +882,14 @@ $("#btn-play").addEventListener("click", async () => {
   if (stageSync.isSatellite || stageSync.isStageMirrorActive) {
     const playBtn = $("#btn-play");
     if (playBtn) {
-      const nextState = playBtn.dataset.state === "pause" ? "play" : "pause";
-      playBtn.dataset.state = nextState;
-      playBtn.setAttribute("aria-label", nextState === "pause" ? "Tạm dừng" : "Phát");
-      if (stageSync.telemetry) {
-        stageSync.telemetry.mode = nextState === "pause" ? "ring" : (stageSync.telemetry.track_id ? "paused" : "idle");
+      const isIdle = !stageSync.telemetry?.track_id || stageSync.telemetry?.mode === "idle";
+      if (!isIdle) {
+        const nextState = playBtn.dataset.state === "pause" ? "play" : "pause";
+        playBtn.dataset.state = nextState;
+        playBtn.setAttribute("aria-label", nextState === "pause" ? "Tạm dừng" : "Phát");
+        if (stageSync.telemetry) {
+          stageSync.telemetry.mode = nextState === "pause" ? "ring" : "paused";
+        }
       }
     }
     stageSync.sendCommand("toggle_pause");
@@ -1779,16 +1783,21 @@ player.addEventListener("track", () => {
   if (typeof recorder !== "undefined" && recorder.isRecording && player.cur?.track) {
     recorder.addTrackMarker(player.cur.track.name || player.cur.track.title, player.cur.track.bpm, player.cur.track.camelot);
   }
-  if (!stageSync.isSatellite && player.cur?.track?.id && ui.lyricsEnabled !== false) {
+  if (!stageSync.isStageMirrorActive && player.cur?.track?.id && ui.lyricsEnabled !== false) {
     ensureTrackLyrics(player.cur.track.id).then(() => updateAmbientLyrics());
   }
   enteredSong();
   renderLibrary();
   renderExits();
   renderSetlist();
+  if (typeof window !== "undefined" && typeof window.gc === "function") {
+    setTimeout(() => {
+      try { window.gc(); } catch (_) {}
+    }, 1500);
+  }
 });
 player.addEventListener("prefetch", (e) => {
-  if (stageSync.isSatellite || ui.lyricsEnabled === false) return;
+  if (stageSync.isStageMirrorActive || ui.lyricsEnabled === false) return;
   const ids = e?.detail?.ids || [];
   for (const pid of ids) {
     if (pid) ensureTrackLyrics(pid).catch(() => {});
@@ -1931,7 +1940,7 @@ setInterval(() => {
 player.addEventListener("plan", renderExits);
 
 function renderTransport() {
-  if (stageSync.isSatellite) return;
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) return;
   const btn = $("#btn-play");
   const state = busy ? "load" : player.cur && player.playing ? "pause" : "play";
   btn.dataset.state = state;
@@ -4230,7 +4239,7 @@ function setHTML(el, html) {
 }
 
 function renderStage() {
-  if (stageSync.isSatellite) return; // Màn hình vệ tinh được điều khiển hoàn toàn bởi stageSync
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) return; // Màn hình vệ tinh được điều khiển hoàn toàn bởi stageSync
   const view = player.audible();
   const p = player;
   const T = view?.entry.track;
@@ -4269,7 +4278,9 @@ function renderStage() {
   setHTML($("#rc-meta"), `${song.artist ? `<span class="rc-artist">${esc(song.artist)}</span>` : ""}<span class="mono">${sa.bpm.toFixed(0)} BPM · ${esc(sa.camelot)} · ${esc(sa.key)}</span>`);
   const crit = p.settings.mode === "chain" && CRIT_TAG[p.settings.criterion] ? ` · ${CRIT_TAG[p.settings.criterion]}` : "";
   const inLib = libByKey(libOf(shown.id));
-  setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}${crit}</b> // ${inLib ? `${esc(inLib.name)} · ` : ""}${esc(short(song.artist || shown.meta.title || "", 34))}`);
+  const titleText = song.title || shown.meta?.title || shown.id;
+  const artistText = song.artist ? ` · ${song.artist}` : "";
+  setHTML($("#ro-tl"), `<b>${p.settings.mode === "chain" ? "CHUỖI" : "LẶP"}${crit}</b> // ${inLib ? `${esc(inLib.name)} · ` : ""}${esc(short(titleText + artistText, 38))}`);
   const listened = Math.max(0, view.now - p.stats.startedAt);
   const camelotBadge = sa.camelot ? `<span class="badge-camelot" title="Tông ${esc(sa.key)}">${esc(sa.camelot)}</span> · ` : "";
   const bpmText = sa.bpm ? `${sa.bpm.toFixed(0)} BPM · ` : "";
@@ -4303,7 +4314,7 @@ function renderStage() {
 // Setlist: the session as a chain of linked loops, each in its song's colour.
 const setlistEl = $("#history");
 function renderSetlist() {
-  if (stageSync.isSatellite) return;
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) return;
   const hist = player.history.filter((h) => h.at <= engine.audibleTime()).slice(-11);
   const col = (id) => theme.css(theme.songColor(id));
   const html = hist.slice(-10).map((h, k, list) => {
@@ -5507,7 +5518,7 @@ function findActiveLyricIndex(lines, sec) {
 }
 
 function updateAmbientLyrics() {
-  if (stageSync.isSatellite) return;
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) return;
   const box = $("#ambient-lyrics");
   if (!box) return;
   if (ui.lyricsEnabled === false) {
@@ -5566,7 +5577,7 @@ function toggleAmbientLyrics() {
 
 let editingLyricsTrackId = null;
 async function openLyricsEditorModal() {
-  if (stageSync.isSatellite) return;
+  if (stageSync.isSatellite || stageSync.isStageMirrorActive) return;
   const track = player.cur?.track;
   const modal = $("#modal-lyrics-editor");
   if (!modal) return;

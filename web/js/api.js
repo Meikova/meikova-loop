@@ -1,4 +1,4 @@
-import { Track } from "./graph.js?v=174";
+import { Track } from "./graph.js?v=176";
 
 // The library this page works on. Hosted, the server opens a fresh one for
 // every visit (nothing is kept in the browser, so a reload starts empty); in
@@ -237,7 +237,7 @@ export const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|An
 // browser limits, supporting up to 60-minute (3600s) tracks on both Desktop and Mobile Web.
 export const MAX_SAFE_DURATION_S = 3600;
 const STEM_MAX_DURATION_S = 900; // >15m mixes use DSP vocalFilter instead of a second 65MB+ stem buffer
-const MAX_CACHE_BYTES = isMobile ? 380 * 1024 * 1024 : 1150 * 1024 * 1024;
+const MAX_CACHE_BYTES = isMobile ? 300 * 1024 * 1024 : 450 * 1024 * 1024;
 const LAME_DECODE_DELAY_SAMPLES = 1105; // 576 LAME encoder delay + 529 MPEG Layer III decoder delay
 
 const MP3_BITRATES_V1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
@@ -468,11 +468,11 @@ export async function decodeTrackAudio(ctx, arrayBuffer, opts = {}) {
 // Fetches and decodes tracks, keeping a few decoded buffers in memory
 // (a 4-minute song is ~85 MB of float samples).
 export class Loader extends EventTarget {
-  constructor(engine, keep = isMobile ? 2 : 3) {
+  constructor(engine, keep = 2) {
     super();
     this.engine = engine;
-    // Keep at most 2 decoded songs on mobile RAM (Jetsam safety), up to 3 on Desktop
-    const maxKeep = isMobile ? 2 : 3;
+    // Keep at most 2 decoded songs on RAM (1 active playing, 1 prefetch target)
+    const maxKeep = 2;
     this.keep = Math.max(1, Math.min(maxKeep, keep));
     this.cache = new Map(); // id -> {promise, track, used}
     this.metas = new Map();
@@ -583,7 +583,12 @@ export class Loader extends EventTarget {
 
   drop(id) {
     const entry = this.cache.get(id);
-    if (entry) entry.vocals = null;
+    if (entry) {
+      if (entry.track) {
+        entry.track.buffer = null;
+      }
+      entry.vocals = null;
+    }
     this.cache.delete(id);
   }
 
@@ -610,7 +615,12 @@ export class Loader extends EventTarget {
       .sort((a, b) => a[1].used - b[1].used);
     while ((this.cache.size > maxKeep || this._totalCachedBytes() > MAX_CACHE_BYTES) && order.length) {
       const [dropId, entry] = order.shift();
-      if (entry) entry.vocals = null;
+      if (entry) {
+        if (entry.track) {
+          entry.track.buffer = null;
+        }
+        entry.vocals = null;
+      }
       this.cache.delete(dropId);
     }
   }
