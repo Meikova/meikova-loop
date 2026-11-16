@@ -65,6 +65,7 @@ hiddenimports = [
     "loopbox.tunnel_manager",
     "loopbox.universal_sso",
     "loopbox.stage_sync_hub",
+    "loopbox.memory_monitor",
     "loopbox.smart_lights",
     "loopbox.cluster_discovery",
     "loopbox.cookies",

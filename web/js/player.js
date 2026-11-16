@@ -264,7 +264,16 @@ export class Player extends EventTarget {
         this.dispatchEvent(new Event("expired"));
       }
     };
+    this.memoryPressure = "normal";
     this.reset();
+  }
+
+  setMemoryPressure(state) {
+    this.memoryPressure = String(state || "normal").toLowerCase();
+    if (this.memoryPressure === "high" || this.memoryPressure === "critical") {
+      this.prefetchIds = [];
+      this.prefetchedFor = null;
+    }
   }
 
   reset() {
@@ -344,7 +353,9 @@ export class Player extends EventTarget {
         clearInterval(this.timer);
         this.timer = null;
       }
+      const prevPlayingId = this.cur?.track?.id;
       this.reset();
+      if (prevPlayingId) this._lastPlayingTrackId = prevPlayingId;
       this.userPaused = false;
       this.engine.startAnchor();
 
@@ -1131,8 +1142,12 @@ export class Player extends EventTarget {
         // Release previous track A from memory cache to avoid accumulating AudioBuffers in RAM
         if (b.A && b.A.id !== b.B.id) {
           try { this.loader._evict(); } catch (_) {}
-          if (b.A.buffer && !this.loader.protect().includes(b.A.id)) {
-            b.A.buffer = null;
+          const prevEntry = this.loader.cache.get(b.A.id);
+          if (prevEntry && !this.loader.protect().includes(b.A.id)) {
+            if (prevEntry.track) prevEntry.track.buffer = null;
+            prevEntry.vocals = null;
+            prevEntry.vocalsBuffer = null;
+            this.loader.cache.delete(b.A.id);
           }
         }
         break;
@@ -1442,6 +1457,24 @@ export class Player extends EventTarget {
     // Let the new song settle before the first random jump.
     this.lastJumpAt = t;
     this.cooldown = Math.max(this.cooldown, JUMP_COOLDOWN * 2);
+
+    // Centralized proactive buffer eviction across all 6 transition pathways
+    // (cut, fxDrop, fade, promote, skipToNext, start)
+    const prevId = this.history[this.history.length - 1]?.id || this._lastPlayingTrackId;
+    if (prevId && prevId !== track.id) {
+      try {
+        this.loader._evict();
+        const prevEntry = this.loader.cache.get(prevId);
+        if (prevEntry && !this.loader.protect().includes(prevId)) {
+          if (prevEntry.track) prevEntry.track.buffer = null;
+          prevEntry.vocals = null;
+          prevEntry.vocalsBuffer = null;
+          this.loader.cache.delete(prevId);
+        }
+      } catch (_) {}
+    }
+    this._lastPlayingTrackId = track.id;
+
     if (via !== "start") {
       this.stats.transitions++;
       this.sessionStats.transitions++;
@@ -1473,9 +1506,11 @@ export class Player extends EventTarget {
     this.dispatchEvent(new CustomEvent("track", { detail: { track, via, at: t } }));
 
     // F8: Proactive lookahead buffer on Desktop once playback settles cleanly
-    if (!IS_MOBILE && this.settings.mode === "chain") {
+    if (!IS_MOBILE && this.settings.mode === "chain" && this.memoryPressure !== "high" && this.memoryPressure !== "critical") {
       setTimeout(() => {
-        if (this.cur?.track === track && this.settings.mode === "chain") this._prefetch();
+        if (this.cur?.track === track && this.settings.mode === "chain" && this.memoryPressure !== "high" && this.memoryPressure !== "critical") {
+          this._prefetch();
+        }
       }, 1500);
     }
 
@@ -1567,6 +1602,11 @@ export class Player extends EventTarget {
   // Loads the songs this one is most likely to hand over to, so that an exit
   // only a beat or two away can still be taken.
   _prefetch(force = false) {
+    if (this.memoryPressure === "high" || this.memoryPressure === "critical") {
+      this.prefetchIds = [];
+      this.prefetchedFor = null;
+      return;
+    }
     const T = this.cur?.track;
     if (!T) return;
     const key = `${T.id}|${this.history.length}`;

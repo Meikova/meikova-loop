@@ -70,7 +70,7 @@ const VN_SENTENCE_WORDS = /\b(anh|em|tôi|mình|ta|ai|người|yêu|thương|nh�
 
 function cleanArtist(s) {
   if (!s) return "";
-  const m = s.split(/[\s]*[♫🎶🎼|][\s]*/);
+  const m = s.split(/[\s]*[\u266B\uD83C\uDFB5\uD83C\uDFB6\uD83C\uDFBC|][\s]*/);
   let res = (m.length > 1 && m[0].trim().length >= 2) ? m[0].trim() : s;
   res = res.replace(/\s*\/\s*(audio\s*)?lyrics?.*$/i, "").trim();
   res = res.replace(/\s*[([](?!.*?\b(ft|feat)\b)[^)\]]*[)\]]/gi, "").trim();
@@ -129,7 +129,7 @@ export function splitTitle(raw, channel = "") {
   // Song hints (remix, mashup, acoustic, etc.) strongly indicate a Song Title
   if (TITLE_HINTS.test(partA)) scoreA_is_artist -= 10;
   if (TITLE_HINTS.test(partB)) {
-    if (!/\b(cover|ca\s*sĩ|singer|prod|beat)\b/i.test(partB) && !/[♫🎶🎼|]/.test(partB)) {
+    if (!/\b(cover|ca\s*sĩ|singer|prod|beat)\b/i.test(partB) && !/[\u266B\uD83C\uDFB5\uD83C\uDFB6\uD83C\uDFBC|]/.test(partB)) {
       scoreB_is_artist -= 3;
     }
   }
@@ -147,7 +147,7 @@ export function splitTitle(raw, channel = "") {
   if (/,/.test(partA) || /\b(x|\&|\+)\b/i.test(partA)) scoreA_is_artist += 1;
 
   // Trailing lyric notes/quotes in part B (very common in VN remix videos)
-  if (/[♫🎶🎼]/.test(partB)) scoreB_is_artist += 5;
+  if (/[\u266B\uD83C\uDFB5\uD83C\uDFB6\uD83C\uDFBC]/.test(partB)) scoreB_is_artist += 5;
 
   // Clean candidate strings before sentence word inspection
   const candArtistA = cleanArtist(partA);
@@ -162,7 +162,7 @@ export function splitTitle(raw, channel = "") {
   if (VN_SENTENCE_WORDS.test(partA) && !VN_SENTENCE_WORDS.test(candArtistB)) {
     scoreA_is_artist -= 3;
     scoreB_is_artist += 3;
-  } else if (!VN_SENTENCE_WORDS.test(candArtistA) && VN_SENTENCE_WORDS.test(partB) && !/[♫🎶🎼|]/.test(partB)) {
+  } else if (!VN_SENTENCE_WORDS.test(candArtistA) && VN_SENTENCE_WORDS.test(partB) && !/[\u266B\uD83C\uDFB5\uD83C\uDFB6\uD83C\uDFBC|]/.test(partB)) {
     scoreA_is_artist += 3;
     scoreB_is_artist -= 3;
   }
@@ -276,6 +276,28 @@ export class Viz {
     this._lastAudioVal = null;
     this._twoHoldUntil = 0;
     this._prewarmedIds = new Set();
+    this.memoryPressure = "normal";
+    this._targetPressure = "normal";
+    this._normalDwellTimer = null;
+    this._contextLost = false;
+    this.canvas.addEventListener("contextlost", (e) => {
+      e.preventDefault();
+      this._contextLost = true;
+      console.warn("[Viz] Canvas context lost. Pausing active rendering.");
+    });
+    this.canvas.addEventListener("contextrestored", () => {
+      this._contextLost = false;
+      this.ctx = this.canvas.getContext("2d");
+      this.invalidate();
+      this._resize();
+      console.log("[Viz] Canvas context restored. Reconstructing render stage.");
+    });
+    if (typeof window !== "undefined") {
+      window.addEventListener("memorypressure", (e) => {
+        const state = e?.detail?.state ?? e?.detail;
+        if (state) this.setMemoryPressure(state);
+      });
+    }
     this.ro = new ResizeObserver(() => this._resize());
     if (canvas.parentElement) this.ro.observe(canvas.parentElement);
     window.addEventListener("resize", () => this._resize(), { passive: true });
@@ -333,13 +355,173 @@ export class Viz {
   _disposeRing(ring) {
     if (!ring) return;
     if (ring.layer?.canvas) {
-      ring.layer.canvas.width = 0;
-      ring.layer.canvas.height = 0;
+      // 1x1 dimensions immediately drop DirectX/ANGLE swapchain backing store and avoid IndexSizeError
+      try {
+        ring.layer.canvas.width = 1;
+        ring.layer.canvas.height = 1;
+      } catch (_) {}
+      ring.layer.canvas = null;
       ring.layer = null;
     }
     ring.layerKey = "";
     ring.track = null;
     ring.target = null;
+  }
+
+  _disposeIdleLayers() {
+    if (this.idleSt?.layers) {
+      for (const side of Object.keys(this.idleSt.layers)) {
+        const item = this.idleSt.layers[side];
+        if (item?.canvas) {
+          try {
+            item.canvas.width = 1;
+            item.canvas.height = 1;
+          } catch (_) {}
+          item.canvas = null;
+        }
+      }
+      this.idleSt.layers = {};
+    }
+  }
+
+  setMemoryPressure(state, opts = null) {
+    const raw = typeof state === "string" ? state : (state?.state || "normal");
+    const s = String(raw).toLowerCase();
+    const validState = (s === "high" || s === "critical") ? s : "normal";
+    const immediate = Boolean(opts === true || opts?.immediate);
+
+    if (validState === "critical") {
+      if (this._normalDwellTimer) {
+        clearTimeout(this._normalDwellTimer);
+        this._normalDwellTimer = null;
+      }
+      this._targetPressure = "critical";
+      const changed = this.memoryPressure !== "critical";
+      this.memoryPressure = "critical";
+
+      if (typeof document !== "undefined" && document.body) {
+        document.body.classList.remove("pressure-high");
+        document.body.classList.add("pressure-critical");
+      }
+
+      this._disposeIdleLayers();
+
+      // Enforce ring cap <= 1 immediately (keep primary only)
+      if (this.rings.size > 1) {
+        for (const [id, r] of this.rings) {
+          if (r.role !== "primary" && this.rings.size > 1) {
+            this._disposeRing(r);
+            this.rings.delete(id);
+          }
+        }
+      }
+      // Release oversized offscreen layers immediately via 1x1 disposal
+      for (const r of this.rings.values()) {
+        if (r.layer?.canvas && (r.layer.canvas.width > 512 || r.layer.canvas.height > 512)) {
+          try {
+            r.layer.canvas.width = 1;
+            r.layer.canvas.height = 1;
+          } catch (_) {}
+          r.layer.canvas = null;
+          r.layer = null;
+          r.layerKey = "";
+        }
+      }
+
+      if (changed) {
+        this.invalidate();
+        this._resize();
+      }
+      return;
+    }
+
+    if (validState === "high") {
+      if (this._normalDwellTimer) {
+        clearTimeout(this._normalDwellTimer);
+        this._normalDwellTimer = null;
+      }
+      this._targetPressure = "high";
+      const changed = this.memoryPressure !== "high";
+      this.memoryPressure = "high";
+
+      if (typeof document !== "undefined" && document.body) {
+        document.body.classList.remove("pressure-critical");
+        document.body.classList.add("pressure-high");
+      }
+
+      this._disposeIdleLayers();
+
+      // Enforce ring cap <= 2 immediately
+      if (this.rings.size > 2) {
+        for (const [id, r] of this.rings) {
+          if (r.role !== "primary" && r.role !== "second" && this.rings.size > 2) {
+            this._disposeRing(r);
+            this.rings.delete(id);
+          }
+        }
+        if (this.rings.size > 2) {
+          for (const [id, r] of this.rings) {
+            if (r.role !== "primary" && this.rings.size > 2) {
+              this._disposeRing(r);
+              this.rings.delete(id);
+            }
+          }
+        }
+      }
+      // Release oversized offscreen layers immediately via 1x1 disposal
+      for (const r of this.rings.values()) {
+        if (r.layer?.canvas && (r.layer.canvas.width > 1024 || r.layer.canvas.height > 1024)) {
+          try {
+            r.layer.canvas.width = 1;
+            r.layer.canvas.height = 1;
+          } catch (_) {}
+          r.layer.canvas = null;
+          r.layer = null;
+          r.layerKey = "";
+        }
+      }
+
+      if (changed) {
+        this.invalidate();
+        this._resize();
+      }
+      return;
+    }
+
+    // Target is "normal"
+    this._targetPressure = "normal";
+    if (this.memoryPressure === "normal") {
+      if (typeof document !== "undefined" && document.body) {
+        document.body.classList.remove("pressure-high", "pressure-critical");
+      }
+      return;
+    }
+
+    const restoreNormal = () => {
+      this._normalDwellTimer = null;
+      if (this._targetPressure === "normal") {
+        this.memoryPressure = "normal";
+        if (typeof document !== "undefined" && document.body) {
+          document.body.classList.remove("pressure-high", "pressure-critical");
+        }
+        this.invalidate();
+        this._resize();
+      }
+    };
+
+    if (immediate) {
+      if (this._normalDwellTimer) {
+        clearTimeout(this._normalDwellTimer);
+        this._normalDwellTimer = null;
+      }
+      restoreNormal();
+      return;
+    }
+
+    // 4-second hysteresis dwell time before restoring full SSAA resolution
+    if (!this._normalDwellTimer) {
+      this._normalDwellTimer = setTimeout(restoreNormal, 4000);
+    }
   }
 
   setTitles(map) {
@@ -397,7 +579,9 @@ export class Viz {
   // ------------------------------------------------------------- geometry
 
   _resize() {
-    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+    let maxDpr = 3;
+    if (this.memoryPressure === "critical" || this.memoryPressure === "high") maxDpr = 1.0;
+    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), maxDpr);
     const box = this.canvas.parentElement ? this.canvas.parentElement.getBoundingClientRect() : null;
     let w = Math.round(box?.width || 0);
     let h = Math.round(box?.height || 0);
@@ -405,8 +589,8 @@ export class Viz {
       w = Math.max(200, Math.round(window.innerWidth || document.documentElement.clientWidth || 800));
       h = Math.max(200, Math.round(window.innerHeight || document.documentElement.clientHeight || 800));
     }
-    const pxW = Math.round(w * dpr);
-    const pxH = Math.round(h * dpr);
+    const pxW = Math.max(1, Math.round(w * dpr));
+    const pxH = Math.max(1, Math.round(h * dpr));
     const baseR = Math.round(Math.min(w, h) * 0.37 * (this.scale || 1.0));
     if (
       this.w === w &&
@@ -420,8 +604,16 @@ export class Viz {
     }
     this.w = w;
     this.h = h;
-    if (this.canvas.width !== pxW) this.canvas.width = pxW;
-    if (this.canvas.height !== pxH) this.canvas.height = pxH;
+    try {
+      if (this.canvas.width !== pxW) this.canvas.width = pxW;
+      if (this.canvas.height !== pxH) this.canvas.height = pxH;
+    } catch (err) {
+      console.warn("[Viz] Main canvas resize failed:", err);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("memorystrain", { detail: { source: "canvas", error: err } }));
+      }
+      return;
+    }
     if (!stageSync.isStageMirrorActive) {
       this.canvas.style.width = `${w}px`;
       this.canvas.style.height = `${h}px`;
@@ -429,8 +621,11 @@ export class Viz {
       if (this.canvas.style.width) this.canvas.style.width = "";
       if (this.canvas.style.height) this.canvas.style.height = "";
     }
-    this.ctx.imageSmoothingEnabled = true;
-    this.ctx.imageSmoothingQuality = "high";
+    if (!this.ctx) this.ctx = this.canvas.getContext("2d");
+    if (this.ctx) {
+      this.ctx.imageSmoothingEnabled = true;
+      this.ctx.imageSmoothingQuality = this.memoryPressure === "critical" ? "low" : "high";
+    }
     this.baseR = baseR;
     // Redraw layers when scale changes by more than 4% (ignore minor container reflow jitter)
     if (dpr !== this.dpr || !this.layerR || Math.abs(this.baseR - this.layerR) / this.layerR > 0.04) {
@@ -439,7 +634,7 @@ export class Viz {
     }
     this.dpr = dpr;
     // Setting the canvas size cleared it: paint now, not at the next frame.
-    if (this.started && !this._inFrame) this._frame(performance.now());
+    if (this.started && !this._inFrame && !this._contextLost) this._frame(performance.now());
   }
 
   // Where the loops sit: one in the middle, or two touching (side by side on
@@ -507,20 +702,30 @@ export class Viz {
   // Everything about a song that does not move: drawn once, then rotated and
   // scaled as the loop travels.
   _prewarmLayer(track) {
+    if (this.memoryPressure === "critical") return;
     if (!track || !track.analysis || !track.beats?.length) return;
     const keep = this.player?.settings?.keep ?? 0.6;
     const transLen = track.transitions?.length ?? 0;
     const baseLayerR = this.layerR || this.baseR || 160;
-    const key = `${track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${theme.paletteVersion()}`;
+    const key = `${track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${this.memoryPressure || "normal"}|${theme.paletteVersion()}`;
     const ring = this._ring(track, this.rings.get(track.id)?.role || "fading");
     const isLayerValid = Boolean(
       ring.layer &&
       ring.layer.canvas &&
-      ring.layer.canvas.width > 0 &&
+      ring.layer.canvas.width > 1 &&
+      ring.layer.canvas.height > 1 &&
       ring.layer.RL > 0
     );
     if (ring.layerKey !== key || !isLayerValid) {
       ring.alpha = ring.alpha ?? 0;
+      if (ring.layer?.canvas) {
+        try {
+          ring.layer.canvas.width = 1;
+          ring.layer.canvas.height = 1;
+        } catch (_) {}
+        ring.layer.canvas = null;
+        ring.layer = null;
+      }
       ring.layer = this._buildLayer(track);
       if (track.beats?.length > 0) {
         ring.layerKey = key;
@@ -533,17 +738,44 @@ export class Viz {
     const th = this._thickness(RL);
     let S = Math.ceil(RL * 2.9);
     if (S % 2 !== 0) S++;
-    // Cap offscreen SSAA texture <= 2048px so layer builds never stall frame animation
-    const layerScale = Math.min(Math.max((this.dpr || 1) * 1.5, 2), 3, 2048 / S);
+    let maxTextureDim = 2048;
+    let layerScale;
+    if (this.memoryPressure === "critical") {
+      maxTextureDim = 512;
+      layerScale = Math.min(1.0, 512 / S);
+    } else if (this.memoryPressure === "high") {
+      maxTextureDim = 1024;
+      layerScale = Math.min(Math.max(this.dpr || 1, 1), 1.5, 1024 / S);
+    } else {
+      // Cap offscreen SSAA texture <= 2048px so layer builds never stall frame animation
+      layerScale = Math.min(Math.max((this.dpr || 1) * 1.5, 2), 3, 2048 / S);
+    }
     const c = document.createElement("canvas");
-    c.width = Math.round(S * layerScale);
-    c.height = Math.round(S * layerScale);
+    try {
+      c.width = Math.min(maxTextureDim, Math.max(1, Math.round(S * layerScale)));
+      c.height = Math.min(maxTextureDim, Math.max(1, Math.round(S * layerScale)));
+    } catch (err) {
+      c.width = 1;
+      c.height = 1;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("memorystrain", { detail: { source: "canvas", error: err } }));
+      }
+      return { canvas: c, S, RL, th };
+    }
     const ctx = c.getContext("2d");
-    if (!ctx || !track?.analysis || !Array.isArray(track.beats) || track.beats.length === 0) {
+    if (!ctx) {
+      c.width = 1;
+      c.height = 1;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("memorystrain", { detail: { source: "canvas", error: new Error("2D context unavailable") } }));
+      }
+      return { canvas: c, S, RL, th };
+    }
+    if (!track?.analysis || !Array.isArray(track.beats) || track.beats.length === 0) {
       return { canvas: c, S, RL, th };
     }
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = this.memoryPressure === "critical" ? "low" : "high";
     ctx.scale(layerScale, layerScale);
     ctx.translate(S / 2, S / 2);
     const a = track.analysis;
@@ -867,6 +1099,10 @@ export class Viz {
     const kRot = this.reduced ? 1 : 1 - Math.exp(-dt / 0.3);
 
     this.idle += ((primary ? 0 : 1) - this.idle) * (this.reduced ? 1 : 1 - Math.exp(-dt / 0.25));
+    if (primary && this.idle < 0.01) {
+      this.idle = 0;
+      this._disposeIdleLayers();
+    }
 
     if (primary && primary.id !== this.primaryId) {
       // A new song is playing: the one before it leaves the stage.
@@ -980,11 +1216,21 @@ export class Viz {
         this.rings.delete(id);
       }
     }
-    if (this.rings.size > 4) {
+    const maxRings = this.memoryPressure === "critical" ? 1 : (this.memoryPressure === "high" ? 2 : 4);
+    const pruneTarget = this.memoryPressure === "normal" ? 3 : maxRings;
+    if (this.rings.size > maxRings) {
       for (const [id, r] of this.rings) {
-        if (r.role !== "primary" && r.role !== "second" && this.rings.size > 3) {
+        if (r.role !== "primary" && (pruneTarget <= 1 || r.role !== "second") && this.rings.size > pruneTarget) {
           this._disposeRing(r);
           this.rings.delete(id);
+        }
+      }
+      if (this.rings.size > maxRings) {
+        for (const [id, r] of this.rings) {
+          if (r.role !== "primary" && this.rings.size > maxRings) {
+            this._disposeRing(r);
+            this.rings.delete(id);
+          }
         }
       }
     }
@@ -993,7 +1239,11 @@ export class Viz {
   // ----------------------------------------------------------------- frame
 
   _frame(now) {
-    if (this._inFrame) return;
+    if (this._inFrame || this._contextLost) return;
+    if (!this.ctx) {
+      this.ctx = this.canvas.getContext("2d");
+      if (!this.ctx) return;
+    }
     this._inFrame = true;
     try {
       if (stageSync.isStageMirrorActive) {
@@ -1010,6 +1260,7 @@ export class Viz {
       const dt = Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
       const ctx = this.ctx;
+      if (!ctx || !this.w || !this.h) return;
 
       if (stageSync.isStageMirrorActive) {
         const sx = this.canvas.width / this.w;
@@ -1056,6 +1307,7 @@ export class Viz {
       const primary = this.primaryId ? this.rings.get(this.primaryId) : null;
       this._roomColor(primary, view, dt);
       if (this.idle > 0.01) this._drawIdle(ctx, now, this.idle);
+      else if (this.idleSt?.layers && Object.keys(this.idleSt.layers).length > 0) this._disposeIdleLayers();
 
       this.heads = this._heads(primary, view, effectiveNow);
       this._trackCrossing(now);
@@ -1064,7 +1316,7 @@ export class Viz {
       this._broadcastHostTelemetry();
 
       this._drawLights(ctx, primary);
-      if (this.heads.lead && !this.reduced) this._drawHalo(ctx, this.heads.lead);
+      if (this.heads.lead && !this.reduced && this.memoryPressure !== "critical") this._drawHalo(ctx, this.heads.lead);
 
       // Back to front: leaving, the next song, the playing song.
       const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
@@ -1160,7 +1412,10 @@ export class Viz {
         ring.y += (tg.y - ring.y) * kEase;
         ring.r += (tg.r - ring.r) * kEase;
         ring.alpha += (tg.alpha - ring.alpha) * kEase;
-        if (ring.alpha < 0.02) this.rings.delete(id);
+        if (ring.alpha < 0.02) {
+          this._disposeRing(ring);
+          this.rings.delete(id);
+        }
         else if (ring.track?.analysis) this._drawRing(ctx, ring);
       }
       this._placeCenter(null);
@@ -1200,6 +1455,7 @@ export class Viz {
     const L = this._layout(two, swapProg);
 
     this.idle = 0;
+    this._disposeIdleLayers();
     if (t.acc) {
       const targetAcc = { l: t.acc[0], c: t.acc[1], h: t.acc[2] };
       this.accent = theme.ease(this.accent, targetAcc, this.reduced ? 1 : 1 - Math.exp(-dt / 0.35));
@@ -1339,11 +1595,21 @@ export class Viz {
         this.rings.delete(id);
       }
     }
-    if (this.rings.size > 4) {
+    const maxSatRings = this.memoryPressure === "critical" ? 1 : (this.memoryPressure === "high" ? 2 : 4);
+    const satPruneTarget = this.memoryPressure === "normal" ? 3 : maxSatRings;
+    if (this.rings.size > maxSatRings) {
       for (const [id, r] of this.rings) {
-        if (r.role !== "primary" && r.role !== "second" && this.rings.size > 3) {
+        if (r.role !== "primary" && (satPruneTarget <= 1 || r.role !== "second") && this.rings.size > satPruneTarget) {
           this._disposeRing(r);
           this.rings.delete(id);
+        }
+      }
+      if (this.rings.size > maxSatRings) {
+        for (const [id, r] of this.rings) {
+          if (r.role !== "primary" && this.rings.size > maxSatRings) {
+            this._disposeRing(r);
+            this.rings.delete(id);
+          }
         }
       }
     }
@@ -1397,7 +1663,7 @@ export class Viz {
     const ang = this._satSmoothAng;
 
     // 4. Live Spectrum Halo around the active lead loop (moves to secRing during blend, matching Host)
-    if (leadRing && leadRing.track?.analysis && !this.reduced) {
+    if (leadRing && leadRing.track?.analysis && !this.reduced && this.memoryPressure !== "critical") {
       this._drawHalo(ctx, { ring: leadRing, angle: ang, beat: leadBeat, frac: leadFrac });
     }
 
@@ -1428,21 +1694,32 @@ export class Viz {
       const mid = t.acc ? { l: t.acc[0], c: t.acc[1], h: t.acc[2] } : ca;
       const breathe = this.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 420);
       const R = (16 + 26 * k) * (1 + 0.25 * bass);
-      const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
-      g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
-      g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * gain));
-      g.addColorStop(1, theme.css(mid, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
-      ctx.fill();
+      if (this.memoryPressure === "critical") {
+        ctx.fillStyle = theme.css(theme.lift(mid, 0.12), 0.7 * (1 + 0.3 * k));
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, R, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
+        ctx.fill();
+      } else {
+        const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
+        g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
+        g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * gain));
+        g.addColorStop(1, theme.css(mid, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
+        ctx.fill();
+      }
       if (k > 0) {
         const start = -Math.PI / 2;
-        const cg = ctx.createConicGradient ? ctx.createConicGradient(start, c.x, c.y) : null;
+        const cg = (this.memoryPressure !== "critical" && ctx.createConicGradient) ? ctx.createConicGradient(start, c.x, c.y) : null;
         if (cg) {
           cg.addColorStop(0, theme.css(theme.lift(ca, 0.06), 0.95));
           cg.addColorStop(Math.max(0.01, k), theme.css(theme.lift(theme.mix(ca, cb, k), 0.06), 0.95));
@@ -1487,6 +1764,11 @@ export class Viz {
         ctx.beginPath();
         ctx.arc(c.x, c.y, R * 1.35, 0, TAU);
         ctx.stroke();
+      } else if (this.memoryPressure === "critical") {
+        ctx.fillStyle = theme.css(theme.lift(mid, 0.1), 0.3);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, R * 1.2, 0, TAU);
+        ctx.fill();
       } else {
         const auraG = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, R * 1.8);
         auraG.addColorStop(0, theme.css(theme.lift(mid, 0.2), 0.45 * (1 + breathe * 0.3)));
@@ -1594,18 +1876,29 @@ export class Viz {
     const hy = cy + Math.sin(ang) * r;
     const col = acc ? { l: acc[0], c: acc[1], h: acc[2] } : theme.idleAccent();
     const th = this._thickness(r);
-    const glow = Math.max(18, r * 0.11) * (1 + 0.3 * pulse + 0.35 * (this.bass || 0)) * Math.sqrt(theme.glowGain());
 
     ctx.save();
+    if (this.memoryPressure === "critical") {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(hx, hy, Math.max(3, Math.min(5, th * 0.24)), 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
     ctx.globalCompositeOperation = "lighter";
-    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
-    g.addColorStop(0, theme.css(theme.lift(col, 0.18), 0.85));
-    g.addColorStop(0.35, theme.css(theme.lift(col, 0.08), 0.35));
-    g.addColorStop(1, theme.css(col, 0));
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(hx, hy, glow * 2, 0, TAU);
-    ctx.fill();
+    if (this.memoryPressure !== "high") {
+      const glow = Math.max(18, r * 0.11) * (1 + 0.3 * pulse + 0.35 * (this.bass || 0)) * Math.sqrt(theme.glowGain());
+      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
+      g.addColorStop(0, theme.css(theme.lift(col, 0.18), 0.85));
+      g.addColorStop(0.35, theme.css(theme.lift(col, 0.08), 0.35));
+      g.addColorStop(1, theme.css(col, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(hx, hy, glow * 2, 0, TAU);
+      ctx.fill();
+    }
 
     const coronaR = Math.max(7, Math.min(14, th * 0.65)) * (1 + 0.15 * pulse);
     const cg = ctx.createRadialGradient(hx, hy, 0, hx, hy, coronaR);
@@ -1711,6 +2004,7 @@ export class Viz {
   // playhead, lows at the playhead and highs on the far side. The music seems
   // to come out of the loop where it is being played.
   _drawHalo(ctx, head) {
+    if (this.memoryPressure === "critical") return;
     const ring = head.ring;
     if (ring.alpha < 0.05 || ring.fill < 1) return;
     let peak = 0;
@@ -1721,6 +2015,7 @@ export class Viz {
     const th = this._thickness(ring.r);
     const r0 = ring.r + th / 2 + 1;
     const H = ring.r * 0.1 * Math.min(1.3, theme.glowGain());
+    const haloStep = this.memoryPressure === "high" ? 2 : 1;
     const N = HALO_N;
     const amp = (k) => {
       const u = 1 - Math.abs((k / N) * 2 - 1); // 1 at the playhead, 0 opposite
@@ -1734,31 +2029,33 @@ export class Viz {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = ring.alpha;
-    // A soft breath of light under the hairlines.
-    const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H);
-    g.addColorStop(0, theme.css(col, 0.16));
-    g.addColorStop(1, theme.css(col, 0));
-    ctx.fillStyle = g;
-    ctx.beginPath();
     const cosA0 = Math.cos(a0), sinA0 = Math.sin(a0);
-    for (let k = 0; k <= N; k++) {
-      const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
-      const ca = cosA0 * cosTh - sinA0 * sinTh;
-      const sa = sinA0 * cosTh + cosA0 * sinTh;
-      const r = r0 + amp(k) * H;
-      const x = ring.x + r * ca, y = ring.y + r * sa;
-      if (k) ctx.lineTo(x, y);
-      else ctx.moveTo(x, y);
+    // A soft breath of light under the hairlines.
+    if (this.memoryPressure !== "high") {
+      const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H);
+      g.addColorStop(0, theme.css(col, 0.16));
+      g.addColorStop(1, theme.css(col, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      for (let k = 0; k <= N; k += haloStep) {
+        const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
+        const ca = cosA0 * cosTh - sinA0 * sinTh;
+        const sa = sinA0 * cosTh + cosA0 * sinTh;
+        const r = r0 + amp(k) * H;
+        const x = ring.x + r * ca, y = ring.y + r * sa;
+        if (k) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
+      ctx.closePath();
+      ctx.fill();
     }
-    ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
-    ctx.closePath();
-    ctx.fill();
     // The spectrum itself: hairlines, like the dial's ticks, grouped by
     // brightness so the whole halo costs four strokes.
     ctx.lineWidth = 1.2;
     ctx.lineCap = "round";
     const groups = [[], [], [], []];
-    for (let k = 0; k < N; k++) {
+    for (let k = 0; k < N; k += haloStep) {
       const v = amp(k);
       if (v < 0.015) continue;
       const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
@@ -1782,6 +2079,7 @@ export class Viz {
   }
 
   _drawLights(ctx, primary) {
+    if (this.memoryPressure === "high" || this.memoryPressure === "critical") return;
     const gain = theme.glowGain();
     for (const ring of this.rings.values()) {
       if (ring.alpha < 0.02 || ring.x === null || !ring.col) continue;
@@ -1826,26 +2124,35 @@ export class Viz {
       }
     }
     const satHueKey = satForcedCol ? `|h${Math.round(satForcedCol.h / 2)}` : "";
-    const key = `${ring.track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${theme.paletteVersion()}${satHueKey}`;
+    const key = `${ring.track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${this.memoryPressure || "normal"}|${theme.paletteVersion()}${satHueKey}`;
     const isLayerValid = Boolean(
       ring.layer &&
       ring.layer.canvas &&
       ring.layer.canvas.width > 1 &&
+      ring.layer.canvas.height > 1 &&
       ring.layer.RL > 0
     );
     if (ring.layerKey !== key || !isLayerValid) {
       if (ring.track?.beats?.length > 0) {
+        if (ring.layer?.canvas) {
+          try {
+            ring.layer.canvas.width = 1;
+            ring.layer.canvas.height = 1;
+          } catch (_) {}
+          ring.layer.canvas = null;
+          ring.layer = null;
+        }
         ring.layer = this._buildLayer(ring.track, satForcedCol);
         ring.layerKey = key;
       }
     }
     const L = ring.layer;
-    if (!L || !L.canvas || L.canvas.width <= 1) return;
+    if (!L || !L.canvas || L.canvas.width <= 1 || L.canvas.height <= 1) return;
     let s = ring.r / L.RL;
     if (Math.abs(s - 1) < 0.003) s = 1;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = this.memoryPressure === "critical" ? "low" : "high";
     ctx.globalAlpha = Math.min(1, ring.alpha);
     const px = Math.round(ring.x * this.dpr) / this.dpr;
     const py = Math.round(ring.y * this.dpr) / this.dpr;
@@ -1863,7 +2170,13 @@ export class Viz {
       ctx.closePath();
       ctx.clip();
     }
-    ctx.drawImage(L.canvas, -L.S / 2, -L.S / 2, L.S, L.S);
+    if (L?.canvas && L.canvas.width > 1 && L.canvas.height > 1) {
+      try {
+        ctx.drawImage(L.canvas, -L.S / 2, -L.S / 2, L.S, L.S);
+      } catch (err) {
+        console.warn("[Viz] Safe drawImage error:", err);
+      }
+    }
     ctx.restore();
 
     // A soft dark pool in the middle of the loop that holds the caption keeps
@@ -1872,11 +2185,15 @@ export class Viz {
       const a = ring.alpha * this.capPlace.dip;
       const gr = theme.ground(ring.col || theme.accentOf(ring.track.id));
       const pool = { l: 0.15, c: gr.c, h: gr.h };
-      const g = ctx.createRadialGradient(ring.x, ring.y, 0, ring.x, ring.y, ring.r * 0.72);
-      g.addColorStop(0, theme.css(pool, 0.86 * a));
-      g.addColorStop(0.62, theme.css(pool, 0.62 * a));
-      g.addColorStop(1, theme.css(pool, 0));
-      ctx.fillStyle = g;
+      if (this.memoryPressure === "critical") {
+        ctx.fillStyle = theme.css(pool, 0.72 * a);
+      } else {
+        const g = ctx.createRadialGradient(ring.x, ring.y, 0, ring.x, ring.y, ring.r * 0.72);
+        g.addColorStop(0, theme.css(pool, 0.86 * a));
+        g.addColorStop(0.62, theme.css(pool, 0.62 * a));
+        g.addColorStop(1, theme.css(pool, 0));
+        ctx.fillStyle = g;
+      }
       ctx.beginPath();
       ctx.arc(ring.x, ring.y, ring.r * 0.72, 0, TAU);
       ctx.fill();
@@ -1928,27 +2245,38 @@ export class Viz {
     const mid = this.accent || ca;
     const breathe = this.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 420);
     const R = (16 + 26 * k) * (1 + 0.25 * this.bass);
-    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
-    g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
-    g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * theme.glowGain()));
-    g.addColorStop(1, theme.css(mid, 0));
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
-    ctx.fill();
+    if (this.memoryPressure === "critical") {
+      ctx.fillStyle = theme.css(theme.lift(mid, 0.12), 0.7 * (1 + 0.3 * k));
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
+      ctx.fill();
+    } else {
+      const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
+      g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
+      g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * theme.glowGain()));
+      g.addColorStop(1, theme.css(mid, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
+      ctx.fill();
+    }
     if (k > 0) {
       const start = -Math.PI / 2;
       const cg = ctx.createConicGradient ? ctx.createConicGradient(start, c.x, c.y) : null;
-      if (cg) {
+      if (cg && this.memoryPressure !== "critical") {
         cg.addColorStop(0, theme.css(theme.lift(ca, 0.06), 0.95));
         cg.addColorStop(Math.max(0.01, k), theme.css(theme.lift(theme.mix(ca, cb, k), 0.06), 0.95));
         cg.addColorStop(1, theme.css(cb, 0.95));
       }
-      ctx.strokeStyle = cg || theme.css(theme.lift(mid, 0.06), 0.9);
+      ctx.strokeStyle = (this.memoryPressure !== "critical" && cg) ? cg : theme.css(theme.lift(mid, 0.06), 0.9);
       ctx.lineWidth = 2;
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -1990,6 +2318,11 @@ export class Viz {
       ctx.beginPath();
       ctx.arc(c.x, c.y, R * 1.35, 0, TAU);
       ctx.stroke();
+    } else if (this.memoryPressure === "critical") {
+      ctx.fillStyle = theme.css(theme.lift(mid, 0.1), 0.3);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R * 1.2, 0, TAU);
+      ctx.fill();
     } else {
       // Ethereal glowing aura for fade / blend
       const auraG = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, R * 1.8);
@@ -2094,11 +2427,23 @@ export class Viz {
     const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
     const hx = ring.x + ring.r * Math.cos(h.angle), hy = ring.y + ring.r * Math.sin(h.angle);
     const a = Math.min(1, ring.alpha ?? 1) * alpha;
-    const pulse = Math.min(1.2, this.pulse || 0);
-    const bass = Math.min(1.2, this.bass || 0);
+
     ctx.save();
     ctx.globalAlpha = a;
-    if (full) {
+
+    if (this.memoryPressure === "critical") {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(hx, hy, full ? 2.8 : 2.0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    const pulse = Math.min(1.2, this.pulse || 0);
+    const bass = Math.min(1.2, this.bass || 0);
+
+    if (full && this.memoryPressure !== "high") {
       const glow = (15 + 7 * pulse + 9 * bass) * Math.sqrt(theme.glowGain());
       const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
       g.addColorStop(0, theme.css(theme.lift(col, 0.14), 0.88));
@@ -2206,20 +2551,30 @@ export class Viz {
     const st = this.idleSt || (this.idleSt = { layers: {}, chords: [], sparks: [], ripples: [] });
     const layerScale = Math.min(1.5, Math.max(1, this.dpr || 1));
     const sc = (this.scale || 1.0).toFixed(2);
-    const key = `${this.w}x${this.h}@${layerScale.toFixed(2)}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}|${sc}`;
+    const key = `${this.w}x${this.h}@${layerScale.toFixed(2)}|${Math.round(col.h / 3)}|${col.l.toFixed(2)}|${theme.themeName()}|${this.memoryPressure || "normal"}|${sc}`;
     const have = st.layers[side];
-    if (have && have.key === key) return have.canvas;
+    if (have && have.key === key && have.canvas && have.canvas.width > 1 && have.canvas.height > 1) return have.canvas;
     const g = this._idleGeom();
-    const c = have?.canvas || document.createElement("canvas");
-    const maxDim = 1920;
+    const c = (have?.canvas && have.canvas.width > 1 && have.canvas.height > 1) ? have.canvas : document.createElement("canvas");
+    const maxDim = this.memoryPressure === "critical" ? 960 : 1920;
     const cw = Math.max(1, Math.min(maxDim, Math.round(this.w * layerScale)));
     const ch = Math.max(1, Math.min(Math.round(maxDim * (this.h / Math.max(1, this.w))), Math.round(this.h * layerScale)));
-    c.width = cw;
-    c.height = ch;
+    try {
+      c.width = cw;
+      c.height = ch;
+    } catch (_) {
+      c.width = 1;
+      c.height = 1;
+      return c;
+    }
     const ctx = c.getContext("2d");
-    if (!ctx) return c;
+    if (!ctx) {
+      c.width = 1;
+      c.height = 1;
+      return c;
+    }
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = this.memoryPressure === "critical" ? "low" : "high";
     ctx.setTransform(cw / Math.max(1, this.w), 0, 0, ch / Math.max(1, this.h), 0, 0);
     ctx.clearRect(0, 0, this.w, this.h);
     const rnd = seeded(side > 0 ? 7741 : 3319);
@@ -2293,9 +2648,18 @@ export class Viz {
     ctx.save();
     // The two ghost loops, breathing.
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = this.memoryPressure === "critical" ? "low" : "high";
     ctx.globalAlpha = alpha * (0.76 + 0.24 * breath);
-    for (const side of [-1, 1]) ctx.drawImage(this._idleLayer(side, loopCol(side)), 0, 0, this.w, this.h);
+    for (const side of [-1, 1]) {
+      const idleC = this._idleLayer(side, loopCol(side));
+      if (idleC && idleC.width > 1 && idleC.height > 1) {
+        try {
+          ctx.drawImage(idleC, 0, 0, this.w, this.h);
+        } catch (err) {
+          console.warn("[Viz] Safe idle drawImage error:", err);
+        }
+      }
+    }
 
     // The path itself, a hairline.
     ctx.globalAlpha = alpha;
@@ -2340,10 +2704,14 @@ export class Viz {
       }
       if (best.d < 70) {
         const k = 1 - best.d / 70;
-        const glow = ctx.createRadialGradient(best.x, best.y, 0, best.x, best.y, 40);
-        glow.addColorStop(0, theme.css(theme.lift(colAt(best.u), 0.1), 0.35 * k));
-        glow.addColorStop(1, theme.css(colAt(best.u), 0));
-        ctx.fillStyle = glow;
+        if (this.memoryPressure !== "critical") {
+          const glow = ctx.createRadialGradient(best.x, best.y, 0, best.x, best.y, 40);
+          glow.addColorStop(0, theme.css(theme.lift(colAt(best.u), 0.1), 0.35 * k));
+          glow.addColorStop(1, theme.css(colAt(best.u), 0));
+          ctx.fillStyle = glow;
+        } else {
+          ctx.fillStyle = theme.css(theme.lift(colAt(best.u), 0.1), 0.25 * k);
+        }
         ctx.beginPath();
         ctx.arc(best.x, best.y, 40, 0, TAU);
         ctx.fill();
@@ -2369,14 +2737,16 @@ export class Viz {
     }
     const [hx, hy] = this._idlePt(g, uH);
     const colH = colAt(uH);
-    const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, 30);
-    halo.addColorStop(0, theme.css(theme.lift(colH, 0.14), 0.9));
-    halo.addColorStop(0.35, theme.css(colH, 0.35));
-    halo.addColorStop(1, theme.css(colH, 0));
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(hx, hy, 30, 0, TAU);
-    ctx.fill();
+    if (this.memoryPressure !== "critical") {
+      const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, 30);
+      halo.addColorStop(0, theme.css(theme.lift(colH, 0.14), 0.9));
+      halo.addColorStop(0.35, theme.css(colH, 0.35));
+      halo.addColorStop(1, theme.css(colH, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 30, 0, TAU);
+      ctx.fill();
+    }
     ctx.fillStyle = theme.css(theme.lift(colH, 0.18));
     ctx.beginPath();
     ctx.arc(hx, hy, 2.4, 0, TAU);

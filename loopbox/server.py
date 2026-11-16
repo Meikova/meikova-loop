@@ -5,6 +5,7 @@ MEIKOVA_LOOP_MULTIUSER=1 every visit gets a library of its own (X-Session header
 over a shared store of songs; see sessions.py."""
 import argparse
 import hashlib
+import logging
 import os
 import tempfile
 import threading
@@ -34,7 +35,10 @@ from .tunnel_manager import tunnel_manager
 from .stage_sync_hub import sync_hub
 from .smart_lights import smart_lights
 from .cluster_discovery import cluster_beacon
+from .memory_monitor import memory_monitor
 from fastapi import WebSocket, WebSocketDisconnect
+
+logger = logging.getLogger("meikova.loop.server")
 
 # Connect stage telemetry to smart physical lights
 sync_hub.register_smart_lights_callback(smart_lights.process_telemetry)
@@ -45,6 +49,7 @@ cluster_beacon.set_status_provider(lambda: {
     "nodes_count": len(sync_hub.clients),
     "active_title": sync_hub.last_telemetry.get("title", ""),
 })
+memory_monitor.add_listener(sync_hub.dispatch_memory_state)
 
 # Songs waiting to be fetched and analysed, all listeners together: past this
 # the server says it is busy rather than queueing for hours.
@@ -1596,6 +1601,17 @@ def get_host_info(request: Request):
     }
 
 
+@app.get("/api/system/memory")
+def get_system_memory(request: Request, response: Response):
+    """Real-time system virtual commit and physical RAM pressure telemetry."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    telemetry = memory_monitor.get_telemetry()
+    if MULTIUSER and not is_trusted_host_client(request):
+        # Omit internal process memory metrics for untrusted multi-user clients
+        telemetry = {k: v for k, v in telemetry.items() if not k.startswith("process_")}
+    return telemetry
+
+
 @app.get("/api/version")
 def api_version():
     return {"version": APP_VERSION, "app": "Meikova Loop"}
@@ -2063,6 +2079,7 @@ app.mount("/", NoCacheStaticFiles(directory=WEB_DIR, html=True), name="web")
 def _on_loop_startup():
     import sys
     try:
+        memory_monitor.start()
         worker.start()
         if MULTIUSER:
             worker.start_retention(AUDIO_TTL_S, sessions.in_use)
@@ -2081,6 +2098,14 @@ def _on_loop_startup():
         threading.Thread(target=_auto_tunnel, daemon=True).start()
 
 
+@app.on_event("shutdown")
+def _on_loop_shutdown():
+    try:
+        memory_monitor.stop()
+    except Exception:
+        pass
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--open", action="store_true", help="open the browser")
@@ -2090,6 +2115,7 @@ def main() -> None:
     args = ap.parse_args()
     if args.tunnel:
         os.environ["AUTO_TUNNEL"] = "1" 
+    memory_monitor.start()
     worker.start()
     if MULTIUSER:
         worker.start_retention(AUDIO_TTL_S, sessions.in_use)

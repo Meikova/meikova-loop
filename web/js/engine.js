@@ -762,12 +762,15 @@ export class Voice {
     if (stretch) {
       const split = ctx.createChannelSplitter(stretch.channels);
       const main = ctx.createChannelMerger(2);
+      this.stretchSplit = split;
+      this.stretchMain = main;
       stretch.node.connect(split);
       split.connect(main, 0, 0);
       split.connect(main, 1, 1);
       main.connect(this.mainGain);
       if (stretch.channels === 4) {
         const voc = ctx.createChannelMerger(2);
+        this.stretchVoc = voc;
         split.connect(voc, 2, 0);
         split.connect(voc, 3, 1);
         voc.connect(this.vocGain);
@@ -823,6 +826,35 @@ export class Voice {
 
   _free() {
     this.engine.voices.delete(this);
+    try { this.gain?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.lp?.frequency?.cancelScheduledValues(0); } catch (_) {}
+    try { this.hp?.frequency?.cancelScheduledValues(0); } catch (_) {}
+    try { this.pre?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.mainGain?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.vocGain?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.srcGain?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.vocSrcGain?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.trim?.gain?.cancelScheduledValues(0); } catch (_) {}
+    try { this.fx?.gain?.cancelScheduledValues(0); } catch (_) {}
+    if (this.bands) {
+      try { this.bands.low?.gain?.cancelScheduledValues(0); } catch (_) {}
+      try { this.bands.mid?.gain?.cancelScheduledValues(0); } catch (_) {}
+      try { this.bands.high?.gain?.cancelScheduledValues(0); } catch (_) {}
+    }
+    if (this.loopGains) {
+      for (const g of this.loopGains) {
+        try { g.gain?.cancelScheduledValues(0); } catch (_) {}
+        try { g.disconnect(); } catch (_) {}
+      }
+      this.loopGains = null;
+    }
+    if (this.loopSources) {
+      for (const s of this.loopSources) {
+        try { s.stop(0); } catch (_) {}
+        try { s.disconnect(); } catch (_) {}
+      }
+      this.loopSources = null;
+    }
     try { this.gain?.disconnect(); } catch (_) {}
     try { this.src?.disconnect(); } catch (_) {}
     try { this.srcGain?.disconnect(); } catch (_) {}
@@ -847,6 +879,28 @@ export class Voice {
       }
       this.lrNodes = null;
     }
+    try { this.stretchSplit?.disconnect(); } catch (_) {}
+    try { this.stretchMain?.disconnect(); } catch (_) {}
+    try { this.stretchVoc?.disconnect(); } catch (_) {}
+    this.stretchSplit = null;
+    this.stretchMain = null;
+    this.stretchVoc = null;
+
+    this.gain = null;
+    this.src = null;
+    this.srcGain = null;
+    this.mainGain = null;
+    this.voc = null;
+    this.vocGain = null;
+    this.vocSrcGain = null;
+    this.pre = null;
+    this.sum = null;
+    this.lp = null;
+    this.hp = null;
+    this.trim = null;
+    this.fx = null;
+    this.bands = null;
+    this.track = null;
   }
 
   start(when, offset, rate, fadeIn) {
@@ -906,7 +960,7 @@ export class Voice {
       this.stretch.node.schedule(change);
       return;
     }
-    this.src.playbackRate.setValueAtTime(rate, when);
+    if (this.src) this.src.playbackRate.setValueAtTime(rate, when);
     if (this.voc) this.voc.playbackRate.setValueAtTime(rate, when);
   }
 
@@ -960,6 +1014,8 @@ export class Voice {
         s.start(t - xf / 2, Math.max(0, from - (xf / 2) * rate));
         s.stop(Math.min(until, t + len + xf) + 0.02);
         this.loopSources.push(s);
+        this.loopGains = this.loopGains || [];
+        this.loopGains.push(g);
         next.push(g);
       }
       for (const g of playing) {
@@ -974,7 +1030,7 @@ export class Voice {
 
   // full | instrumental (voice out) | acapella (voice alone), over `ramp` s.
   vocals(when, mode, ramp = 0) {
-    if (!this.hasVocals) return;
+    if (!this.hasVocals || !this.mainGain || !this.vocGain) return;
     const [main, voc] = VOCAL_MODES[mode];
     const end = when + Math.max(0.005, ramp);
     for (const [k, node, to] of [["main", this.mainGain, main], ["voc", this.vocGain, voc]]) {
@@ -1037,7 +1093,7 @@ export class Voice {
       // would silence it now). Its fader is already down by then (every
       // caller fades first); it is muted there and freed just after.
       try {
-        this.gain.gain.setValueAtTime(0, when);
+        this.gain?.gain?.setValueAtTime(0, when);
       } catch (_) {
         /* inside a curve that ends at 0 anyway */
       }
@@ -1060,16 +1116,17 @@ export class Voice {
 
   // A key-locked voice frees its worklet and buffers once it has stopped.
   dispose() {
-    this.engine.voices.delete(this);
-    this.gain.disconnect();
+    this._free();
     if (this.stretch) {
-      this.stretch.node.disconnect();
-      this.stretch.node.dropBuffers?.();
+      try { this.stretch.node.disconnect(); } catch (_) {}
+      try { this.stretch.node.dropBuffers?.(); } catch (_) {}
+      this.stretch = null;
     }
   }
 
   // Immediate release used when the whole transport stops.
   release(t, fade) {
+    if (!this.gain?.gain) return;
     const g = this.gain.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(g.value, t);
@@ -1080,6 +1137,7 @@ export class Voice {
 
   // A band set at `when` (dB; KILL_DB and below: off).
   setBand(name, when, db) {
+    if (!this.bands?.[name]?.gain) return;
     const v = toGain(db);
     this.bands[name].gain.setValueAtTime(v, when);
     this.level[name] = v;
@@ -1089,6 +1147,7 @@ export class Voice {
   // Long moves go evenly in dB (exponentially), as a DJ turns an EQ knob;
   // a kill or a short swap goes straight.
   rampBand(name, when, db, dur) {
+    if (!this.bands?.[name]?.gain) return;
     const p = this.bands[name].gain;
     const from = this.level[name];
     const to = toGain(db);
@@ -1105,6 +1164,7 @@ export class Voice {
 
   // Low-pass sweep (exponential, so it sounds even across octaves).
   sweep(when, fromHz, toHz, dur) {
+    if (!this.lp?.frequency) return;
     const f = this.lp.frequency;
     f.setValueAtTime(fromHz, when);
     f.exponentialRampToValueAtTime(toHz, when + Math.max(0.05, dur));
@@ -1112,16 +1172,18 @@ export class Voice {
 
   // High-pass sweep with a resonance that rises as it climbs.
   hpSweep(when, fromHz, toHz, dur, qFrom = 0.7, qTo = 1.2) {
+    if (!this.hp?.frequency) return;
     const f = this.hp.frequency;
     const q = this.hp.Q;
     const end = when + Math.max(0.05, dur);
     f.setValueAtTime(fromHz, when);
     f.exponentialRampToValueAtTime(toHz, end);
-    q.setValueAtTime(qFrom, when);
-    q.linearRampToValueAtTime(qTo, end);
+    q?.setValueAtTime?.(qFrom, when);
+    q?.linearRampToValueAtTime?.(qTo, end);
   }
 
   _curve(values, when, dur) {
+    if (!this.gain?.gain) return;
     const g = this.gain.gain;
     const safeWhen = Math.max(this.engine.ctx.currentTime, when);
     const safeDur = Math.max(0.006, dur);

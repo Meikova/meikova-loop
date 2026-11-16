@@ -1,5 +1,6 @@
 """Desktop application launcher for Meikova Loop using Microsoft Edge WebView2 (pywebview)."""
 import argparse
+import json
 import logging
 import os
 import sys
@@ -21,6 +22,7 @@ if sys.platform == "win32":
         "--autoplay-policy=no-user-gesture-required",
         "--renderer-process-limit=2",
         "--js-flags=--expose-gc",
+        "--disk-cache-size=33554432",
     ]
     for flag in flags:
         if flag not in cur_args:
@@ -44,6 +46,7 @@ if sys.platform == "win32":
                     "--autoplay-policy=no-user-gesture-required",
                     "--renderer-process-limit=2",
                     "--js-flags=--expose-gc",
+                    "--disk-cache-size=33554432",
                 ]
                 props = self.webview.CreationProperties
                 cur = (props.AdditionalBrowserArguments or "").strip()
@@ -251,12 +254,60 @@ class DesktopBridge:
         self._window = None
         self._tray = None
         self._win_vol = WindowsVolume()
+        self._mem_cb = None
+        try:
+            import weakref
+            try:
+                from .memory_monitor import memory_monitor
+            except (ImportError, ValueError):
+                from loopbox.memory_monitor import memory_monitor
+            self_ref = weakref.ref(self)
+            def _on_mem(telemetry: dict):
+                obj = self_ref()
+                if obj is not None:
+                    obj.on_memory_pressure(telemetry)
+            self._mem_cb = _on_mem
+            memory_monitor.add_listener(_on_mem)
+        except Exception:
+            pass
+
+    def __del__(self):
+        try:
+            cb = getattr(self, "_mem_cb", None)
+            if cb is not None:
+                try:
+                    from .memory_monitor import memory_monitor
+                except (ImportError, ValueError):
+                    from loopbox.memory_monitor import memory_monitor
+                memory_monitor.remove_listener(cb)
+        except Exception:
+            pass
 
     def set_window(self, window):
         self._window = window
 
     def set_tray(self, tray):
         self._tray = tray
+
+    def get_memory_status(self) -> dict:
+        """Returns the latest memory pressure status and system commit headroom."""
+        try:
+            from .memory_monitor import memory_monitor
+        except (ImportError, ValueError):
+            from loopbox.memory_monitor import memory_monitor
+        return memory_monitor.get_telemetry()
+
+    def on_memory_pressure(self, telemetry: dict):
+        """Dispatches memory pressure telemetry to WebView2 DOM and trims working set if elevated."""
+        if self._window:
+            try:
+                self._window.evaluate_js(
+                    f"window.__onMemoryPressure && window.__onMemoryPressure({json.dumps(telemetry)});"
+                )
+            except Exception:
+                pass
+            if telemetry.get("state") in ("high", "critical"):
+                self.trim_memory()
 
     def hide_to_tray(self):
         if self._tray:
@@ -267,12 +318,40 @@ class DesktopBridge:
 
     def trim_memory(self):
         """Win32 API EmptyWorkingSet to reclaim unused virtual and physical pages."""
-        if sys.platform == "win32":
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            psapi = ctypes.WinDLL("psapi", use_last_error=True)
+            kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+            psapi.EmptyWorkingSet.argtypes = [wintypes.HANDLE]
+            psapi.EmptyWorkingSet.restype = wintypes.BOOL
+            psapi.EmptyWorkingSet(kernel32.GetCurrentProcess())
+
+            # Also attempt to trim child processes (such as msedgewebview2.exe)
             try:
-                import ctypes
-                ctypes.windll.psapi.EmptyWorkingSet(ctypes.windll.kernel32.GetCurrentProcess())
+                import psutil
+                parent_proc = psutil.Process(os.getpid())
+                kernel32.OpenProcess.restype = wintypes.HANDLE
+                kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+                kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+                kernel32.CloseHandle.restype = wintypes.BOOL
+                PROCESS_SET_QUOTA = 0x0100
+                PROCESS_QUERY_INFORMATION = 0x0400
+                for child in parent_proc.children(recursive=True):
+                    try:
+                        h_child = kernel32.OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, False, child.pid)
+                        if h_child:
+                            psapi.EmptyWorkingSet(h_child)
+                            kernel32.CloseHandle(h_child)
+                    except Exception:
+                        pass
             except Exception:
                 pass
+        except Exception as e:
+            logger.debug("trim_memory notice: %s", e)
 
     def is_desktop(self) -> bool:
         return True
@@ -674,6 +753,11 @@ def main(argv=None, splash=None):
             sys.exit(1)
 
     bridge = DesktopBridge(port)
+    try:
+        from .memory_monitor import memory_monitor
+    except (ImportError, ValueError):
+        from loopbox.memory_monitor import memory_monitor
+    memory_monitor.start()
     if splash:
         splash.set_status("Đang mở không gian làm việc...")
 
@@ -844,8 +928,23 @@ def main(argv=None, splash=None):
                     logger.debug("WebView2 permission hook notice: %s", perm_ex)
             threading.Thread(target=_volume_sync_loop, name="volume-sync", daemon=True).start()
             threading.Thread(target=_media_keys_loop, args=(bridge,), name="media-keys", daemon=True).start()
+            def _periodic_trim_loop():
+                while True:
+                    time.sleep(120)
+                    try:
+                        st = bridge.get_memory_status()
+                        if st.get("state") in ("high", "critical"):
+                            bridge.trim_memory()
+                    except Exception:
+                        pass
+            threading.Thread(target=_periodic_trim_loop, name="memory-trim", daemon=True).start()
             init_v = bridge.get_system_volume()
             window.evaluate_js(f"window.__onSystemVolume && window.__onSystemVolume({init_v:.3f});")
+            try:
+                init_m = bridge.get_memory_status()
+                window.evaluate_js(f"window.__onMemoryPressure && window.__onMemoryPressure({json.dumps(init_m)});")
+            except Exception:
+                pass
         except Exception:
             pass
 

@@ -202,12 +202,12 @@ loader._evict(3, "t4");
 assert.equal(loader.has("t4"), true, "Newly loaded track t4 must not be evicted by _evict!");
 assert.ok(t4.buffer, "Newly loaded track t4.buffer must not be nulled out!");
 
-// Now protect only t4 and evict old tracks: evicted tracks must be removed from cache WITHOUT corrupting t1.buffer
+// Now protect only t4 and evict old tracks: evicted tracks must be removed from cache and unprotected buffers nulled out to reclaim PCM RAM
 loader.protect = () => ["t4"];
 loader._evict(1, "t4");
 assert.equal(loader.has("t4"), true);
 assert.equal(loader.has("t1"), false);
-assert.ok(t1.buffer, "Evicting t1 from cache must not mutate t1.buffer to null while a Voice may still reference t1!");
+assert.equal(t1.buffer, null, "Evicted unprotected track t1.buffer must be nulled out to reclaim float PCM memory!");
 console.log("LOADER_PIN_OK");
 """
         loader_hook = (

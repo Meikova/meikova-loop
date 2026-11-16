@@ -1,5 +1,47 @@
 # BẢN GIAO TIẾP LIÊN PHIÊN (SESSION HANDOFF) — MEIKOVA LOOP
 
+## Phiên làm việc: 16/11/2026 (Dynamic Memory Pressure Sensing, Adaptive Audio Throttling & Self-Healing Canvas v1.0.32)
+
+### 1. Mục tiêu hoàn thành
+- **R1: Dynamic Memory Pressure Sensing (Backend & Win32 Ctypes / IPC)**:
+  - `loopbox/memory_monitor.py`: Sử dụng thư viện chuẩn `ctypes` tương tác trực tiếp Win32 Virtual Commit Memory (`psapi.GetPerformanceInfo` với cấu trúc `PERFORMANCE_INFORMATION`) và private commit headroom (`kernel32.GlobalMemoryStatusEx`) trong ~0.25ms (0 phụ thuộc bên ngoài). Bộ máy trạng thái trễ 3 mức (`normal`, `high`, `critical`) với asymmetric deadbands và 8-giây dwell time để triệt tiêu hiện tượng thrashing. Có fallback an toàn cho POSIX (`/proc/meminfo`).
+  - Phân phối đa kênh: REST API `GET /api/system/memory` (hỗ trợ multi-user isolation), WebSocket `/api/ws/stage-sync` (`type: "memory_pressure"`), và cầu nối Desktop Shell DOM Bridge `window.__onMemoryPressure` qua pywebview.
+  - Sửa lỗi cắt ngắn 64-bit handle trong `EmptyWorkingSet` ở `loopbox/desktop.py` dùng `wintypes.HANDLE`, tự động kích hoạt cắt tỉa working set khi áp lực nhớ cao hoặc thu nhỏ vào khay hệ thống.
+- **R2: Adaptive Memory Footprint & Audio Buffer Throttling**:
+  - `web/js/api.js`: Bộ nhớ đệm `Loader` co giãn động theo 3 mức áp lực: `normal` (450MB, keep 2), `high` (250MB, keep 1), `critical` (140MB, keep 1). Hạch toán chính xác cả buffer âm thanh tách vocal Demucs trong `_totalCachedBytes()`. Chặn nạp vocal stem khi ở trạng thái Critical, và tự động gọi `_evict()` ngay sau khi decode stem xong.
+  - `web/js/player.js`: Tập trung hóa cơ chế giải phóng bộ nhớ chủ động trong `_enterTrack()`, bao phủ toàn diện cả 6 lộ trình chuyển bài (`cut`, `fxDrop`, `fade`, `promote`, `skipToNext`, `start`). Bài cũ được xóa sạch hoàn toàn khỏi cache (`track.buffer = null`, `vocals = null`, `vocalsBuffer = null`, `loader.cache.delete(prevId)`), loại bỏ 100% rò rỉ Zombie Vocal Stems qua 120 lần chuyển bài liên tục.
+  - `web/js/engine.js`: `Voice._free()` giải phóng triệt để hơn 21 WebAudio nodes và hủy bỏ toàn bộ scheduled parameter automations (`gain`, `lrNodes`, `stretchSplit/Main/Voc`, `bands`, `filters`), cho phép Chromium audio thread thu hồi bộ nhớ ngay lập tức.
+- **R3: Resilient Visualizer Canvas Rendering & Self-Healing Recovery**:
+  - `web/js/viz.js`: Thu nhỏ kích thước canvas về 1x1 pixel trong `_disposeRing()` và `_disposeIdleLayers()` để giải phóng ngay swapchain DirectX/ANGLE trên GPU.
+  - Tự động bắt sự kiện `contextlost` và `contextrestored` để tạm dừng vòng lặp render an toàn và phục hồi giao diện khi GPU hồi phục.
+  - Bao bọc toàn bộ các lệnh `drawImage` bằng khối try/catch và kiểm tra kích thước `width > 1 && height > 1`.
+  - Giảm DPR về 1.0, thu nhỏ texture, tắt các hiệu ứng bloom/light phức tạp và loại bỏ CSS backdrop blur dưới áp lực Critical.
+  - Chuẩn hóa Zero-Emoji: Thay thế toàn bộ ký tự emoji nốt nhạc trong regex splitTitle bằng chuỗi unicode escape `[\u266B\uD83C\uDFB5\uD83C\uDFB6\uD83C\uDFBC]`.
+- **Độc lập Kiểm toán Chiến thắng (teamwork_victory_auditor)**:
+  - Phán quyết: **VICTORY CONFIRMED**.
+  - Kiểm tra 3 pha: Timeline & Git Forensics (PASS), Anti-Cheating & Implementation Integrity (PASS, 0 stubs/fakes/mocks), Independent Test Execution (PASS 100% Exit Code 0).
+  - 28/28 bài kiểm tra Lifecycle & Adversarial Stress đạt 100% Exit Code 0.
+  - Toàn bộ 6 bộ kiểm thử hồi quy đạt 100% Exit Code 0.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe -m unittest tests/test_memory_lifecycle.py -v`: 22/22 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe -m unittest tests/stress_adversarial_r3.py -v`: 6/6 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe -m unittest tests/test_memory_lifecycle.py tests/stress_adversarial_r3.py -v`: 28/28 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe tests/test_tab_stability.py`: PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe -m unittest tests/test_cluster_sync.py -v`: 5/5 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe tests/test_stage_sync.py`: 14/14 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe -m unittest tests/test_long_track_playback.py -v`: 4/4 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe scripts/verify_deck_responsive.py`: PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe tests/test_viz_render_and_oom_e2e.py`: PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe version.py --check`: PASS (100% sync v1.0.32, Exit Code 0)
+
+### 3. Đóng gói & Phát hành
+- Version bump: `v1.0.32` (SSOT qua `version.py`).
+- Binary build: PyInstaller đóng gói `dist/Meikova Loop/Meikova Loop.exe`.
+- Git Ops: Tag `v1.0.32`, commit `[build] [release]`, dual-push GitHub `origin main` & `space main:main` (Hugging Face Spaces).
+
+---
+
 ## Phiên làm việc: 11/11/2026 (Khắc phục Triệt để Lỗi Out of Memory, Mất Render Vòng Beat & Rè Âm thanh Cụm Loa v176)
 
 ### 000000. Kiến trúc, Nguyên nhân gốc rễ & Giải pháp khắc phục triệt để

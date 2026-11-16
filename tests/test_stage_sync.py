@@ -329,7 +329,7 @@ def test_v164_features_and_security_gates():
     assert "#EXTM3U" in main_js and "#EXTINF:" in main_js
 
     # F8 Smart Pre-buffer (Desktop upgrade while keeping Mobile RAM caps)
-    assert "const maxKeep = isMobile ? 2 : 3;" in api_js
+    assert "const maxKeep = 2;" in api_js
     assert "const maxPrefetch = IS_MOBILE ? 1 : 2;" in player_js
     assert "const PREFETCH_LEAD = IS_MOBILE ? 20 : 28;" in player_js
 

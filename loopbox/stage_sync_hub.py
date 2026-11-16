@@ -57,6 +57,8 @@ class StageSyncHub:
             "t": int(time.time() * 1000),
         }
         self.smart_lights_callback = None
+        self.last_memory_telemetry: Dict[str, Any] | None = None
+        self._loop: Any = None
 
     @staticmethod
     def clock_ms() -> float:
@@ -382,7 +384,58 @@ class StageSyncHub:
             except Exception:
                 pass
 
+    async def broadcast_memory_state(self, telemetry: Dict[str, Any]) -> None:
+        """Broadcast real-time memory pressure state to all connected host and satellite clients."""
+        payload = {
+            "type": "memory_pressure",
+            "state": telemetry.get("state", "normal"),
+            "level": telemetry.get("level", 0),
+            "commit_avail_mb": telemetry.get("commit_avail_mb", 0.0),
+            "commit_total_mb": telemetry.get("commit_total_mb", 0.0),
+            "commit_limit_mb": telemetry.get("commit_limit_mb", 0.0),
+            "commit_pct": telemetry.get("commit_pct", 0.0),
+            "phys_avail_mb": telemetry.get("phys_avail_mb", 0.0),
+            "phys_total_mb": telemetry.get("phys_total_mb", 0.0),
+            "phys_load_pct": telemetry.get("phys_load_pct", 0.0),
+            "recommended_cache_mb": telemetry.get("recommended_cache_mb", 450),
+            "recommended_keep_tracks": telemetry.get("recommended_keep_tracks", 2),
+            "dwell_s": telemetry.get("dwell_s", 0.0),
+            "t": telemetry.get("t", int(time.time() * 1000)),
+        }
+        self.last_memory_telemetry = payload
+        all_ws = list(self.hosts | self.satellites)
+        if not all_ws:
+            return
+        payload_str = json.dumps(payload)
+        dead_clients = set()
+        for client_ws in all_ws:
+            try:
+                await client_ws.send_text(payload_str)
+            except Exception:
+                dead_clients.add(client_ws)
+        if dead_clients:
+            for dc in dead_clients:
+                self.hosts.discard(dc)
+                self.satellites.discard(dc)
+                self.audio_satellites.discard(dc)
+                self.clients.pop(id(dc), None)
+
+    def dispatch_memory_state(self, telemetry: Dict[str, Any]) -> None:
+        """Thread-safe synchronous bridge for background threads to trigger WebSocket broadcast."""
+        import asyncio
+        loop = self._loop
+        if loop is not None and loop.is_running():
+            try:
+                asyncio.run_coroutine_threadsafe(self.broadcast_memory_state(telemetry), loop)
+            except Exception as ex:
+                logger.debug("dispatch_memory_state notice: %s", ex)
+
     async def connect(self, ws: WebSocket, role: str = "satellite") -> None:
+        try:
+            import asyncio
+            self._loop = asyncio.get_running_loop()
+        except Exception:
+            pass
         await ws.accept()
         meta = self._ensure_client_meta(ws, role=role)
         if role == "host":

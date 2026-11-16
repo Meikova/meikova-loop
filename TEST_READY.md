@@ -1,115 +1,177 @@
-# TEST READINESS REPORT — 4-TIER AUTOMATED E2E SUITE
-**Project:** MashLoop (Meikova Loop) — Cluster Mirror & High-Fidelity Audio Synchronization  
-**Document:** `TEST_READY.md`  
-**Location:** Project Root (`d:\JOB\DEV\MashLoop\TEST_READY.md`)  
-**Standard:** Antigravity Master Rules & System Standards (Global Titan Edition)  
-**Author:** `test_writer_e2e` (Quality Assurance & Test Specialist)  
-**Date:** 2026-11-10T09:17:00Z  
-**Status:** **READY — 100% PASS (32/32 Tests, Exit Code 0)**
+# TEST READY CERTIFICATION — Dynamic Memory Pressure Sensing & Adaptive Scaling
+
+**Date**: 2026-11-11T08:30:00Z  
+**Author**: `test_writer_e2e_mem` (teamwork_test_writer)  
+**Status**: 100% VERIFIED & PASSING (Exit Code 0 Across All Suites)  
+**Target Project**: MashLoop (Meikova Loop)  
 
 ---
 
-## 1. Executive Summary
+## 1. Certification Statement
 
-A comprehensive, opaque-box, requirement-driven automated test suite has been engineered and independently verified in `tests/test_cluster_e2e_playwright.py`.
+The automated verification suite and regression alignment for Dynamic Memory Pressure Sensing & Adaptive Resource Scaling (Features 22–25) is complete, executable, and certified passing with **Exit Code 0**.
 
-The suite covers **all 18 specification features** across **4 verification tiers**, verifying:
-1. Stage mirroring isolation guards preventing local empty player state from flashing over remote playback.
-2. Complete high-fidelity Web Audio pipeline with 44.1kHz native binary PCM streaming, soft-saturation $\tanh(x)$ curve, hardware polyphase resampling, 20Hz high-pass filtering, brickwall limiter, and jitter/slew phase correction.
-3. Central WebSocket sync hub topology and cluster membership role transitions.
-4. Boundary stress conditions, cross-feature multi-client interactions, and dual-device real-world playback for 10+ seconds in headless Microsoft Edge.
+The test harness exercises the full memory lifecycle across all four tiers:
+- **Tier 1 (Subsystem & Unit)**: Win32 virtual commit ctypes querying, 3-tier hysteresis state classification with dwell time, REST/WebSocket telemetry distribution, 64-bit safe `EmptyWorkingSet` trimming, AudioBuffer cache eviction with vocal stem byte accounting, WebAudio voice graph disconnection, and 1x1 pixel ring canvas disposal.
+- **Tier 2 (Boundary & Corner Cases)**: Sudden Critical pressure spikes mid-blend, 10 rapid track skips, canvas context loss and restoration events, zero bounding box resilience, and 60-minute long track memory bounds.
+- **Tier 3 (Cross-Feature Interactions)**: Cluster stage mirroring under Critical pressure, full pressure lifecycle hysteresis with 4-second dwell before SSAA recovery, and active karaoke mic and recording protection.
+- **Tier 4 (Real-World Acceptance)**: 30-track continuous automated playback cycle in headless Microsoft Edge asserting stable JS heap (< 400 MB), zero unhandled browser page errors, and active canvas rendering throughout.
 
-### Verification Execution Record
-- **Command:** `.\.venv\Scripts\python -m unittest tests/test_cluster_e2e_playwright.py -v`
-- **Result:** **32/32 Passed (OK)**
-- **Duration:** 70.993 seconds
-- **Exit Code:** `0`
-- **Flakiness / Failures:** `0` failures, `0` errors.
+All regression assertion conflicts in `tests/test_stage_sync.py` and `tests/test_long_track_playback.py` have been resolved.
 
 ---
 
-## 2. 4-Tier Test Coverage Breakdown
+## 2. Test Artifacts Inventory
 
-### Tier 1: Feature Coverage (19 Tests — 100% Pass)
-| Test ID | Test Name | Target Specification | Status |
-|---------|-----------|----------------------|:------:|
-| `TEST-A1` | `test_tier1_a1_render_stage_guard` | Feature 1: `renderStage` ignores empty local player when `isStageMirrorActive` is true | **PASS** |
-| `TEST-A2` | `test_tier1_a2_render_transport_guard` | Feature 2: `renderTransport` does not reset `#btn-play` state on follower | **PASS** |
-| `TEST-A3` | `test_tier1_a3_update_ambient_lyrics_guard` | Feature 3: `updateAmbientLyrics` does not hide remote ambient lyrics on follower | **PASS** |
-| `TEST-A4` | `test_tier1_a4_heartbeat_suppressed_on_follower` | Feature 4: 33ms heartbeat interval is suppressed on cluster followers | **PASS** |
-| `TEST-A5` | `test_tier1_a5_canvas_idle_clamping` | Feature 5: `viz._drawSatelliteStage` clamps `idle = 0` and suppresses `_drawIdle` when track is active | **PASS** |
-| `TEST-A6` | `test_tier1_a6_full_stage_css_isolation` | Feature 6: `body.is-cluster-mirror` enforces fullscreen, absolute centering, and transition suppression | **PASS** |
-| `TEST-A7` | `test_tier1_a7_dynamic_mirror_canvas_resize` | Feature 7: Follower mirror canvas dynamically recalculates dimensions without fixed pixel lock | **PASS** |
-| `TEST-B1` | `test_tier1_b1_44_1khz_pcm_packet_header` | Feature 8: Binary PCM v2 header structure (16 bytes: `'ML'`, ver 2, 2 ch, uint32 sample rate, float64 timestamp) | **PASS** |
-| `TEST-B2` | `test_tier1_b2_soft_saturation_tanh` | Feature 9: Soft-knee `Math.tanh` saturation prevents digital square-wave clipping | **PASS** |
-| `TEST-B3` | `test_tier1_b3_native_polyphase_resampler` | Feature 10: Follower decodes PCM packet via `ctx.createBuffer` with native polyphase resampling | **PASS** |
-| `TEST-B4` | `test_tier1_b4_highpass_and_brickwall_limiter` | Features 11 & 12: Follower audio graph includes 20Hz HighPass filter and DynamicsCompressor limiter | **PASS** |
-| `TEST-B5` | `test_tier1_b5_phase_slew_smoothing` | Feature 13: Phase drift between 8ms and 55ms applies a smooth 10% slew nudge | **PASS** |
-| `TEST-B6` | `test_tier1_b6_delaynode_trashing_guard` | Feature 14: `engine.setSpeakerSyncDelay` skips rescheduling AudioParam when delta < 0.5ms | **PASS** |
-| `TEST-B7` | `test_tier1_b7_60ms_baseline_host_alignment` | Feature 15: Baseline `host_align_ms` defaults to 60ms across hub, UI sliders, and client state | **PASS** |
-| `TEST-C1` | `test_tier1_c1_hub_cluster_status_and_defaults` | Feature 16: `GET /api/cluster/status` returns default `host_align_ms = 60` | **PASS** |
-| `TEST-C2` | `test_tier1_c2_hub_cluster_toggle_stereo_pair` | Feature 16: `POST /api/cluster/toggle` activates `stereo_pair` mode | **PASS** |
-| `TEST-C3` | `test_tier1_c3_hub_binary_pcm_relay` | Feature 17: Hub forwards binary PCM frames from master to listening nodes | **PASS** |
-| `TEST-C4` | `test_tier1_c4_hub_ntp_clock_sync_protocol` | Feature 18: NTP `ping_sync` returns `pong_sync` with monotonic server timestamps | **PASS** |
-| `TEST-C5` | `test_tier1_c5_hub_follower_master_handoff` | Feature 16: Follower can claim mastership via `cluster_node_config` with `claim_master: true` | **PASS** |
-
-### Tier 2: Boundary & Corner Cases (7 Tests — 100% Pass)
-| Test ID | Test Name | Scenario Tested | Status |
-|---------|-----------|-----------------|:------:|
-| `TEST-BC1` | `test_tier2_bc1_empty_null_track_state` | Empty/null track state renders idle stage without unhandled exceptions or NaN values | **PASS** |
-| `TEST-BC2` | `test_tier2_bc2_sample_rate_mismatch_44k_vs_48k` | Stream at 44.1kHz decoded in 48kHz AudioContext preserves sample integrity | **PASS** |
-| `TEST-BC3` | `test_tier2_bc3_jitter_and_slew_recovery_8_to_55ms` | Sequential packets with 15ms and 35ms Wi-Fi jitter adjust smoothly without hard snap | **PASS** |
-| `TEST-BC4` | `test_tier2_bc4_hard_snap_recovery_over_55ms` | Drift > 55ms (network hiccup) triggers immediate snap re-sync | **PASS** |
-| `TEST-BC5` | `test_tier2_bc5_buffer_underrun_restart_horizon` | Buffer underrun condition restarts playhead at safe horizon `Math.max(now + 0.018, idealPlayTime)` | **PASS** |
-| `TEST-BC6` | `test_tier2_bc6_volume_trim_150_percent_saturation` | 150% volume trim never causes Int16 buffer overflow `[-32768, 32767]` | **PASS** |
-| `TEST-BC7` | `test_tier2_bc7_window_resize_extreme_aspect_ratios` | Window resize across mobile portrait, landscape, and ultrawide keeps canvas centered with zero horizontal scrollbar | **PASS** |
-
-### Tier 3: Cross-Feature Interactions (5 Tests — 100% Pass)
-| Test ID | Test Name | Scenario Tested | Status |
-|---------|-----------|-----------------|:------:|
-| `TEST-X1` | `test_tier3_x1_cluster_mirror_with_stereo_pair_and_audio` | Follower in stereo pair mode outputs right channel only while stage mirror displays full canvas | **PASS** |
-| `TEST-X2` | `test_tier3_x2_live_host_align_slider_adjustment` | Dragging `#s-cluster-align-ms` slider smoothly updates delay during audio streaming | **PASS** |
-| `TEST-X3` | `test_tier3_x3_track_blend_transition_while_mirroring` | Host initiates DJ track blend transition; follower renders dual rings and cross-fades lyrics | **PASS** |
-| `TEST-X4` | `test_tier3_x4_background_tab_throttling` | Follower backgrounded tab continues audio packet reception with bounded backpressure queue | **PASS** |
-| `TEST-X5` | `test_tier3_x5_follower_leave_cluster_cleanup` | Follower leaves cluster; mirror mode deactivates, `is-cluster-mirror` removed, local controls restore | **PASS** |
-
-### Tier 4: Real-World Scenarios (1 Test — 100% Pass)
-| Test ID | Test Name | Scenario Tested | Status |
-|---------|-----------|-----------------|:------:|
-| `TEST-RW1` | `test_tier4_dual_device_cluster_mirror_real_world_playback` | Dual-device Playwright headless run simulating Host + Follower in Cluster Mirror mode with active audio playback for 10+ seconds | **PASS** |
-*Assertions validated during 10+ seconds:*
-- `#rc-kicker` never displays `"HAI VÒNG ĐANG CHỜ"` (stage flashing bug permanently suppressed).
-- `#rc-kicker` consistently displays `"ĐANG PHÁT · CHUỖI"`.
-- `#rc-title` consistently displays the active Master track title.
-- `viz.idle === 0.0` throughout (zero lemniscate ghost overlap).
-- Follower canvas dimensions > 0 and centered.
-- Zero browser console errors (`0` page errors) across both devices.
+| File Path | Role | Status | Description |
+|---|---|---|---|
+| `tests/test_memory_lifecycle.py` | Core Test Suite | **CREATED / UPGRADED** | 21 executable tests across Tiers 1–4 with isolated test server on port 8775 and Playwright Edge runner |
+| `tests/test_stage_sync.py` | Regression Suite | **MODIFIED** | Line 332 aligned to memory-safe `const maxKeep = 2;` |
+| `tests/test_long_track_playback.py` | Regression Suite | **MODIFIED** | Line 210 aligned to `assert.equal(t1.buffer, null)` for evicted unprotected tracks |
+| `TEST_INFRA.md` | Infrastructure Specification | **CREATED** | Complete 4-tier matrix mapping Features 1–25, runner commands, and failure mode documentation |
+| `TEST_READY.md` | Certification Artifact | **PUBLISHED** | This readiness document |
 
 ---
 
-## 3. How to Run the Test Suite
+## 3. Verification Execution Results (Exit Code 0)
 
+### 3.1. Primary Memory Lifecycle Suite (`tests/test_memory_lifecycle.py`)
 ```powershell
-# Run the complete 32-test automated Playwright suite with verbose reporting:
-.\.venv\Scripts\python -m unittest tests/test_cluster_e2e_playwright.py -v
+Command: .\.venv\Scripts\python.exe -m unittest tests/test_memory_lifecycle.py -v
+Exit Code: 0
 
-# Run individual tiers:
-.\.venv\Scripts\python -m unittest tests.test_cluster_e2e_playwright.TestTier1FeatureCoverage -v
-.\.venv\Scripts\python -m unittest tests.test_cluster_e2e_playwright.TestTier2BoundaryAndCornerCases -v
-.\.venv\Scripts\python -m unittest tests.test_cluster_e2e_playwright.TestTier3CrossFeatureInteractions -v
-.\.venv\Scripts\python -m unittest tests.test_cluster_e2e_playwright.TestTier4RealWorldScenarios -v
+test_tier1_r1_backend_win32_ctypes_query (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r1_backend_win32_ctypes_query)
+Feature 1 & 2: Win32 ctypes / POSIX memory query returns valid metrics within <10ms. ... ok
+test_tier1_r1_desktop_bridge_memory_and_trim (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r1_desktop_bridge_memory_and_trim)
+Feature 6 & 7: DesktopBridge memory status query and 64-bit safe EmptyWorkingSet trim. ... ok
+test_tier1_r1_rest_memory_endpoint_and_websocket_broadcast (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r1_rest_memory_endpoint_and_websocket_broadcast)
+Feature 4 & 5: REST GET /api/system/memory and WebSocket broadcast relay telemetry. ... ok
+test_tier1_r1_threshold_state_classification_and_hysteresis (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r1_threshold_state_classification_and_hysteresis)
+Feature 3: 3-tier hysteresis state machine classifies Normal, High, and Critical with dwell time. ... ok
+test_tier1_r2_loader_buffer_eviction_and_vocals_accounting (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r2_loader_buffer_eviction_and_vocals_accounting)
+Feature 8, 9, 10: Loader dynamic limits, stem accounting, and buffer nulling on eviction. ... ok
+test_tier1_r2_prefetch_shield_removal_and_webaudio_strain_signal (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r2_prefetch_shield_removal_and_webaudio_strain_signal)
+Feature 10, 12, 15: WebAudio strain signal, prefetch eviction shield removal, and runtime GC triggering. ... ok
+test_tier1_r2_timeline_pruning (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r2_timeline_pruning)
+Feature 11: player.timeline stays bounded <= 40 events and purges old history past 5s. ... ok
+test_tier1_r2_voice_audio_node_disconnection (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r2_voice_audio_node_disconnection)
+Feature 13 & 14: Voice.dispose() invokes _free() and disconnects all 20+ WebAudio nodes. ... ok
+test_tier1_r3_dispose_ring_sets_1x1_dimensions (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r3_dispose_ring_sets_1x1_dimensions)
+Feature 16: viz._disposeRing(ring) sets 1x1 dimensions to immediately reclaim GPU textures. ... ok
+test_tier1_r3_rings_cap_and_idle_layer_vram_limit (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r3_rings_cap_and_idle_layer_vram_limit)
+Feature 19, 20, 21: Ring cap enforcement and idle layer width <= 1920px VRAM cap. ... ok
+test_tier1_r3_satellite_idle_ring_and_lemniscate_disposal (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_r3_satellite_idle_ring_and_lemniscate_disposal)
+Feature 17 & 21: Satellite idle fading ring disposal and lemniscate idle layer disposal. ... ok
+test_tier1_same_machine_speaker_sync_relay (tests.test_memory_lifecycle.TestTier1FeatureCoverage.test_tier1_same_machine_speaker_sync_relay)
+Regression unit test: StageSyncHub same-machine speaker sync arbitration. ... ok
+test_tier2_bc1_critical_pressure_spike_mid_transition (tests.test_memory_lifecycle.TestTier2BoundaryAndCornerCases.test_tier2_bc1_critical_pressure_spike_mid_transition)
+BC1: Critical pressure spike mid-transition sheds secondary ring and evicts non-playing buffers. ... ok
+test_tier2_bc2_rapid_10_track_skip_stress (tests.test_memory_lifecycle.TestTier2BoundaryAndCornerCases.test_tier2_bc2_rapid_10_track_skip_stress)
+BC2: 10 rapid track skips in quick succession leave zero orphaned rings or canvas leaks. ... ok
+test_tier2_bc3_canvas_context_loss_and_restoration (tests.test_memory_lifecycle.TestTier2BoundaryAndCornerCases.test_tier2_bc3_canvas_context_loss_and_restoration)
+BC3: Canvas context loss pauses rendering safely and restored event reconstructs stage. ... ok
+test_tier2_bc4_zero_bounding_box_resilience (tests.test_memory_lifecycle.TestTier2BoundaryAndCornerCases.test_tier2_bc4_zero_bounding_box_resilience)
+BC4: Zero parent bounding box clamps to >= 200px and does not crash render loop. ... ok
+test_tier2_bc5_60_minute_track_memory_stability (tests.test_memory_lifecycle.TestTier2BoundaryAndCornerCases.test_tier2_bc5_60_minute_track_memory_stability)
+BC5: 60-minute track is supported without memory blowup, while >15m stems are omitted. ... ok
+test_tier3_x1_cluster_stage_mirror_under_critical_pressure (tests.test_memory_lifecycle.TestTier3CrossFeatureInteractions.test_tier3_x1_cluster_stage_mirror_under_critical_pressure)
+X1: Cluster follower in stage mirror mode scales down under Critical memory pressure. ... ok
+test_tier3_x2_full_pressure_lifecycle_hysteresis (tests.test_memory_lifecycle.TestTier3CrossFeatureInteractions.test_tier3_x2_full_pressure_lifecycle_hysteresis)
+X2: Lifecycle Normal -> High -> Critical -> Normal verifies 4s dwell before SSAA recovery. ... ok
+test_tier3_x3_active_mic_and_recording_protection (tests.test_memory_lifecycle.TestTier3CrossFeatureInteractions.test_tier3_x3_active_mic_and_recording_protection)
+X3: Active KaraokeMic and MixRecorder nodes remain protected while idle track cache is purged. ... ok
+test_tier4_30_track_continuous_cycle_acceptance (tests.test_memory_lifecycle.TestTier4RealWorldAcceptance.test_tier4_30_track_continuous_cycle_acceptance)
+RW1: 30-track continuous automated playback cycle verifies stable heap <400 MB and zero canvas freezes. ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 40.663s
+
+OK
+```
+
+### 3.2. Direct Script Invocation
+```powershell
+Command: .\.venv\Scripts\python.exe tests/test_memory_lifecycle.py
+Exit Code: 0
+Ran 21 tests in 27.720s. OK
+```
+
+### 3.3. Stage Sync & Light Regression Suite (`tests/test_stage_sync.py`)
+```powershell
+Command: .\.venv\Scripts\python.exe tests/test_stage_sync.py
+Exit Code: 0
+
+PASS: test_oklch_to_srgb_conversion
+PASS: test_sync_room_info_endpoint
+PASS: test_smart_lights_endpoints
+PASS: test_dual_color_transition_sync
+PASS: test_websocket_stage_sync
+PASS: test_multi_host_arbitration
+PASS: test_satellite_viz_loop_resilience
+PASS: test_satellite_audio_binary_relay
+PASS: test_lyrics_endpoints_and_lrc_parser
+PASS: test_v164_features_and_security_gates
+PASS: test_v166_calm_docking_and_pulse_continuity
+PASS: test_v168_mobile_satellite_audio_and_popover_css
+PASS: test_v169_dynamic_light_discovery_and_manual_connect
+PASS: test_v170_led_color_calibration_and_satellite_sync
+
+ALL STAGE SYNC & LIGHT TESTS PASSED (EXIT CODE 0)!
+```
+
+### 3.4. Long Track Playback Regression Suite (`tests/test_long_track_playback.py`)
+```powershell
+Command: .\.venv\Scripts\python.exe -m unittest tests/test_long_track_playback.py -v
+Exit Code: 0
+
+test_chunked_mp3_decoder_handles_oversized_monolithic_decode_failure ... ok
+test_loader_never_evicts_newly_loaded_track_and_cut_keyshift_glides_home ... ok
+test_multiuser_send_sound_range_request_unscrambles_exact_slice ... ok
+test_satellite_render_advances_when_raf_throttled_and_deck_play_uses_visible_order ... ok
+
+Ran 4 tests in 2.726s. OK
+```
+
+### 3.5. Tab Stability Regression Suite (`tests/test_tab_stability.py`)
+```powershell
+Command: .\.venv\Scripts\python.exe tests/test_tab_stability.py
+Exit Code: 0
+ALL TAB STABILITY UNIT TESTS PASSED (EXIT CODE 0)!
+```
+
+### 3.6. Deck Responsive Layout Suite (`scripts/verify_deck_responsive.py`)
+```powershell
+Command: .\.venv\Scripts\python.exe scripts/verify_deck_responsive.py
+Exit Code: 0
+ALL TESTS PASSED: Deck responsive layout, Panel Collapse, Cluster Link & Zero-Echo Sync verified!
+```
+
+### 3.7. Cluster Synchronization Regression Suite (`tests/test_cluster_sync.py`)
+```powershell
+Command: .\.venv\Scripts\python.exe -m unittest tests/test_cluster_sync.py -v
+Exit Code: 0
+Ran 5 tests in 0.083s. OK
+```
+
+### 3.8. Visualizer Render & OOM E2E Suite (`tests/test_viz_render_and_oom_e2e.py`)
+```powershell
+Command: .\.venv\Scripts\python.exe tests/test_viz_render_and_oom_e2e.py
+Exit Code: 0
+Ran 1 test in 4.658s. OK
 ```
 
 ---
 
-## 4. Defect Findings & Escalations
+## 4. Key Performance & Resilience Invariants
 
-### Application Code (Milestones M1 & M2):
-- **Finding:** **ZERO application bugs or defects found in M1 or M2 production code.**
-- The DOM guards in `web/js/main.js`, heartbeat suppression and idle clamping in `web/js/viz.js`, CSS rules in `web/css/app.css`, DSP pipeline with native 44.1kHz PCM header and tanh saturation in `web/js/stage_sync.js`, and backend hub routing in `loopbox/stage_sync_hub.py` are all functioning in strict compliance with the architecture contract.
+1. **JS Heap Ceiling**: Verified peak heap footprint $< 400\text{ MB}$ across a 30-track continuous transition run.
+2. **Backing Store Protection**: Zero `IndexSizeError` or canvas rendering freezes (`viz._inFrame === false`).
+3. **Voice Graph Hygiene**: 20+ audio nodes including `lrNodes` and Signalsmith stretch channels disconnected on `Voice.dispose()`.
+4. **Win32 Commit Telemetry**: Query latency $< 10\text{ms}$ via pure standard library `ctypes`.
+5. **Memory Trimming**: 64-bit safe `wintypes.HANDLE` `EmptyWorkingSet` trimming verified on Windows.
 
 ---
 
-## 5. Certification
+## 5. Conclusion
 
-I hereby certify that the automated Playwright E2E test suite `tests/test_cluster_e2e_playwright.py` has been executed locally on Windows using Python 3.12 (`.\.venv\Scripts\python`) and Microsoft Edge browser automation (`channel='msedge'`), achieving **Exit Code 0** with all **32 test assertions passing**. The codebase is verified ready for Phase 2C–E independent forensic auditing.
+Test Track (Features 22–25) is fully complete and verified. The codebase is ready for handoff to the Project Orchestrator and the Final Milestone verification and certification phase.

@@ -200,6 +200,67 @@ player.enabled = (id) => {
 // A little reluctance to leave the library being heard: the chain crosses
 // into the next one when the way there is clearly the better transition.
 player.bias = (id) => (kho.cur && !kho.force && libOf(id) === kho.next ? -0.12 : 0);
+
+let currentMemoryPressure = "normal";
+let lastPressureTelemetry = null;
+
+export function applyMemoryPressure(state, telemetry = null) {
+  const s = String(state || "normal").toLowerCase();
+  if (telemetry && lastPressureTelemetry && s === currentMemoryPressure && telemetry.t === lastPressureTelemetry.t) return;
+  lastPressureTelemetry = telemetry;
+  currentMemoryPressure = s;
+
+  loader.setMemoryPressure?.(s, telemetry);
+  player.setMemoryPressure?.(s);
+  viz?.setMemoryPressure?.(s);
+
+  if (s === "critical" && typeof window !== "undefined" && typeof window.gc === "function") {
+    try { window.gc(); } catch (_) {}
+  }
+}
+
+// Wire WebSocket memory_pressure messages from stageSync
+stageSync.onMemoryPressure = (state, data) => {
+  applyMemoryPressure(state, data);
+};
+
+// Wire window memorypressure custom events
+window.addEventListener("memorypressure", (e) => {
+  const detail = e.detail || {};
+  applyMemoryPressure(detail.state, detail.telemetry || detail);
+});
+
+// Wire frontend WebAudio memorystrain events
+window.addEventListener("memorystrain", (e) => {
+  const detail = e.detail || {};
+  const targetState = (detail.type === "alloc_fail" || detail.type === "decode_error") ? "critical" : "high";
+  applyMemoryPressure(targetState, { source: "memorystrain", ...detail });
+});
+
+// Wire pywebview desktop bridge DOM hook
+window.__onMemoryPressure = (telemetry) => {
+  if (!telemetry) return;
+  const state = typeof telemetry === "string" ? telemetry : (telemetry.state || "normal");
+  applyMemoryPressure(state, telemetry);
+};
+
+// REST polling fallback for memory telemetry
+let memoryPollTimer = null;
+function startMemoryPressurePolling() {
+  if (memoryPollTimer) clearInterval(memoryPollTimer);
+  memoryPollTimer = setInterval(async () => {
+    if (!stageSync.connected && typeof api.memoryPressure === "function") {
+      try {
+        const mem = await api.memoryPressure();
+        if (mem?.state) {
+          applyMemoryPressure(mem.state, mem);
+        }
+      } catch (_) {}
+    }
+  }, 12000);
+}
+startMemoryPressurePolling();
+
 loader.protect = () => [
   player._loadingTrackId,
   player._switchingTrack?.id,
@@ -207,7 +268,7 @@ loader.protect = () => [
   player.plan?.tr.to,
   player.blend?.B.id,
   player.fx?.B?.id,
-  ...player.prefetchIds,
+  ...((currentMemoryPressure === "high" || currentMemoryPressure === "critical") ? [] : player.prefetchIds),
 ].filter(Boolean);
 loader.addEventListener("transitions", () => {
   viz.invalidate();
@@ -1791,6 +1852,9 @@ player.addEventListener("track", () => {
   renderExits();
   renderSetlist();
   if (typeof window !== "undefined" && typeof window.gc === "function") {
+    if (currentMemoryPressure === "critical") {
+      try { window.gc(); } catch (_) {}
+    }
     setTimeout(() => {
       try { window.gc(); } catch (_) {}
     }, 1500);
@@ -5863,4 +5927,16 @@ if (!stageSync.isSatellite) {
 }
 
 // Handle for the browser console and the end-to-end test.
-window.loopbox = { player, engine, loader, play, refresh, applySettings, ui, viz, session };
+window.loopbox = {
+  player,
+  engine,
+  loader,
+  play,
+  refresh,
+  applySettings,
+  ui,
+  viz,
+  session,
+  getMemoryPressure: () => currentMemoryPressure,
+  applyMemoryPressure,
+};

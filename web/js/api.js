@@ -197,6 +197,7 @@ export const api = {
     syncGet: () => json("/api/user/sync"),
     syncPost: (data) => json("/api/user/sync", send("POST", data)),
   },
+  memoryPressure: () => json("/api/system/memory"),
   async audio(id, retry = true) {
     return sound(id, "audio", id, retry);
   },
@@ -351,6 +352,16 @@ export function parseMp3Frames(input) {
   };
 }
 
+export function reportWebAudioStrain(detail = {}) {
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    try {
+      window.dispatchEvent(new CustomEvent("memorystrain", {
+        detail: { source: "webaudio", timestamp: Date.now(), ...detail }
+      }));
+    } catch (_) {}
+  }
+}
+
 function _allocateAudioBufferWithFallback(ctx, totalDurationSec, preferredSr, preferredCh) {
   const candidates = [
     { ch: preferredCh, sr: preferredSr },
@@ -359,15 +370,20 @@ function _allocateAudioBufferWithFallback(ctx, totalDurationSec, preferredSr, pr
     { ch: 1, sr: 22050 },
   ];
   let lastErr = null;
-  for (const cand of candidates) {
+  for (let i = 0; i < candidates.length; i++) {
+    const cand = candidates[i];
     const length = Math.max(1, Math.round(totalDurationSec * cand.sr));
     try {
       const buf = ctx.createBuffer(cand.ch, length, cand.sr);
+      if (i > 0) {
+        reportWebAudioStrain({ type: "alloc_fallback", cand, error: lastErr });
+      }
       return buf;
     } catch (err) {
       lastErr = err;
     }
   }
+  reportWebAudioStrain({ type: "alloc_fail", error: lastErr });
   throw lastErr || new Error("Unable to allocate AudioBuffer");
 }
 
@@ -381,7 +397,8 @@ export async function decodeTrackAudio(ctx, arrayBuffer, opts = {}) {
   if (!mustChunk) {
     try {
       return await ctx.decodeAudioData(arrayBuffer.slice(0));
-    } catch (_) {
+    } catch (err) {
+      reportWebAudioStrain({ type: "decode_fallback", error: err });
       // Fall through to chunked / lower-rate decode if monolithic decode fails
     }
   }
@@ -393,11 +410,16 @@ export async function decodeTrackAudio(ctx, arrayBuffer, opts = {}) {
   // Non-MP3 container (WAV/FLAC/AAC/OGG) fallback when monolithic decode failed
   if (totalAudioFrames < 32) {
     const fallbackSr = opts.forceSampleRate || (isMobile ? 22050 : 32000);
-    if (typeof OfflineAudioContext !== "undefined") {
-      const off = new OfflineAudioContext(isMobile ? 1 : 2, 1, fallbackSr);
-      return await off.decodeAudioData(arrayBuffer.slice(0));
+    try {
+      if (typeof OfflineAudioContext !== "undefined") {
+        const off = new OfflineAudioContext(isMobile ? 1 : 2, 1, fallbackSr);
+        return await off.decodeAudioData(arrayBuffer.slice(0));
+      }
+      return await ctx.decodeAudioData(arrayBuffer.slice(0));
+    } catch (err) {
+      reportWebAudioStrain({ type: "decode_error", error: err });
+      throw err;
     }
-    return await ctx.decodeAudioData(arrayBuffer.slice(0));
   }
 
   const totalDurationSec = (totalAudioFrames * samplesPerFrame) / mp3Sr;
@@ -412,11 +434,16 @@ export async function decodeTrackAudio(ctx, arrayBuffer, opts = {}) {
   const maxFramesPerChunk = Math.max(64, Number(opts.maxFramesPerChunk) || 9000); // ~3.9 mins per chunk
 
   const decodeSlice = async (sliceAb) => {
-    if (typeof OfflineAudioContext !== "undefined" && outSr !== ctx.sampleRate) {
-      const off = new OfflineAudioContext(outCh, 1, outSr);
-      return await off.decodeAudioData(sliceAb);
+    try {
+      if (typeof OfflineAudioContext !== "undefined" && outSr !== ctx.sampleRate) {
+        const off = new OfflineAudioContext(outCh, 1, outSr);
+        return await off.decodeAudioData(sliceAb);
+      }
+      return await ctx.decodeAudioData(sliceAb);
+    } catch (err) {
+      reportWebAudioStrain({ type: "decode_slice_error", error: err });
+      throw err;
     }
-    return await ctx.decodeAudioData(sliceAb);
   };
 
   let writePos = 0;
@@ -474,9 +501,47 @@ export class Loader extends EventTarget {
     // Keep at most 2 decoded songs on RAM (1 active playing, 1 prefetch target)
     const maxKeep = 2;
     this.keep = Math.max(1, Math.min(maxKeep, keep));
-    this.cache = new Map(); // id -> {promise, track, used}
+    this.maxCacheBytes = MAX_CACHE_BYTES;
+    this.memoryPressure = "normal";
+    this.cache = new Map(); // id -> {promise, track, used, vocals, vocalsBuffer}
     this.metas = new Map();
     this.protect = () => [];
+  }
+
+  setMemoryPressure(state, telemetry = null) {
+    const s = String(state || "normal").toLowerCase();
+    this.memoryPressure = s;
+    if (s === "critical") {
+      this.maxCacheBytes = isMobile ? 90 * 1024 * 1024 : 140 * 1024 * 1024;
+      this.keep = 1;
+      const keep = new Set(this.protect());
+      if (this.loadingIds) {
+        for (const lid of this.loadingIds) keep.add(lid);
+      }
+      for (const [id, entry] of [...this.cache.entries()]) {
+        if (!keep.has(id)) {
+          if (entry) {
+            if (entry.track) {
+              entry.track.buffer = null;
+            }
+            entry.vocals = null;
+            entry.vocalsBuffer = null;
+          }
+          this.cache.delete(id);
+        }
+      }
+      this._evict(1);
+    } else if (s === "high") {
+      this.maxCacheBytes = isMobile ? 180 * 1024 * 1024 : 250 * 1024 * 1024;
+      this.keep = 1;
+      this._evict(1);
+    } else {
+      this.maxCacheBytes = isMobile ? 300 * 1024 * 1024 : 450 * 1024 * 1024;
+      this.keep = 2;
+    }
+    this.dispatchEvent(new CustomEvent("memorypressure", {
+      detail: { state: s, maxCacheBytes: this.maxCacheBytes, keep: this.keep, telemetry }
+    }));
   }
 
   isOversized(meta) {
@@ -485,6 +550,7 @@ export class Loader extends EventTarget {
   }
 
   canLoadStems(id) {
+    if (this.memoryPressure === "critical") return false;
     const meta = this.metas.get(id);
     if (!meta?.stems || this.isOversized(meta)) return false;
     return (meta.duration || 0) <= STEM_MAX_DURATION_S;
@@ -517,11 +583,11 @@ export class Loader extends EventTarget {
     if (!this.loadingIds) this.loadingIds = new Set();
     this.loadingIds.add(id);
     const meta = this.metas.get(id) || { id, title: id };
-    if ((meta.duration || 0) > 900) {
+    if ((meta.duration || 0) > 900 || this.memoryPressure === "high" || this.memoryPressure === "critical") {
       // Proactively free un-protected cached tracks before allocating a long mix buffer
       this._evict(1, id);
     }
-    const entry = { track: null, used: performance.now() };
+    const entry = { track: null, used: performance.now(), vocals: null, vocalsBuffer: null };
     entry.promise = (async () => {
       if (this.isOversized(meta)) {
         const mins = Math.round(meta.duration / 60);
@@ -565,17 +631,26 @@ export class Loader extends EventTarget {
   // The vocal stem of a loaded song, decoded (null when it has none), kept as
   // long as the song: fetched only for a transition that hands over by layers.
   vocals(id) {
-    if (!this.canLoadStems(id)) return Promise.resolve(null);
+    if (this.memoryPressure === "critical" || !this.canLoadStems(id)) return Promise.resolve(null);
     const meta = this.metas.get(id);
     const hit = this.cache.get(id);
     if (hit?.vocals) return hit.vocals;
     const p = (async () => {
       const raw = await api.vocals(id);
-      return decodeTrackAudio(this.engine.ctx, raw, { durationSec: meta?.duration || 0 });
+      const buf = await decodeTrackAudio(this.engine.ctx, raw, { durationSec: meta?.duration || 0 });
+      const currentHit = this.cache.get(id);
+      if (currentHit && currentHit.vocals === p) {
+        currentHit.vocalsBuffer = buf;
+        this._evict(this.keep, id);
+      }
+      return buf;
     })();
     p.catch(() => {
       const e = this.cache.get(id);
-      if (e && e.vocals === p) e.vocals = null;
+      if (e && e.vocals === p) {
+        e.vocals = null;
+        e.vocalsBuffer = null;
+      }
     });
     if (hit) hit.vocals = p;
     return p;
@@ -588,14 +663,22 @@ export class Loader extends EventTarget {
         entry.track.buffer = null;
       }
       entry.vocals = null;
+      entry.vocalsBuffer = null;
     }
     this.cache.delete(id);
   }
 
   _bufferBytes(entry) {
+    let bytes = 0;
     const buf = entry?.track?.buffer;
-    if (!buf) return 0;
-    return (buf.length || 0) * (buf.numberOfChannels || 2) * 4;
+    if (buf) {
+      bytes += (buf.length || 0) * (buf.numberOfChannels || 2) * 4;
+    }
+    const vocBuf = entry?.vocalsBuffer;
+    if (vocBuf) {
+      bytes += (vocBuf.length || 0) * (vocBuf.numberOfChannels || 2) * 4;
+    }
+    return bytes;
   }
 
   _totalCachedBytes() {
@@ -613,13 +696,15 @@ export class Loader extends EventTarget {
     const order = [...this.cache.entries()]
       .filter(([id, e]) => !keep.has(id) && e.track)
       .sort((a, b) => a[1].used - b[1].used);
-    while ((this.cache.size > maxKeep || this._totalCachedBytes() > MAX_CACHE_BYTES) && order.length) {
+    const maxBytes = this.maxCacheBytes || MAX_CACHE_BYTES;
+    while ((this.cache.size > maxKeep || this._totalCachedBytes() > maxBytes) && order.length) {
       const [dropId, entry] = order.shift();
       if (entry) {
         if (entry.track) {
           entry.track.buffer = null;
         }
         entry.vocals = null;
+        entry.vocalsBuffer = null;
       }
       this.cache.delete(dropId);
     }

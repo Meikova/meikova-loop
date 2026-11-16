@@ -607,6 +607,21 @@ class StageSyncClient {
   handleMessage(data) {
     if (!data || typeof data !== "object") return;
 
+    if (data.type === "memory_pressure") {
+      const state = String(data.state || "normal").toLowerCase();
+      if (typeof this.onMemoryPressure === "function") {
+        try { this.onMemoryPressure(state, data); } catch (_) {}
+      }
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        try {
+          window.dispatchEvent(new CustomEvent("memorypressure", {
+            detail: { state, telemetry: data, source: "ws" }
+          }));
+        } catch (_) {}
+      }
+      return;
+    }
+
     if (data.type === "pong_sync") {
       this._handlePongSync(data);
       return;
