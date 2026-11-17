@@ -14,7 +14,7 @@ import { stageSync } from "./stage_sync.js?v=176";
 
 const TAU = Math.PI * 2;
 const HALO_BANDS = 48;
-const HALO_N = 180;
+const HALO_N = 256;
 const DOCK_LEAD_S = 14; // dock the confirmed next loop cleanly into infinity only shortly before hand-over
 const HALO_COS = new Float32Array(HALO_N + 1);
 const HALO_SIN = new Float32Array(HALO_N + 1);
@@ -2048,73 +2048,105 @@ export class Viz {
     const r0 = ring.r + th / 2 + 1;
 
     // Headroom safety: clamp H so the halo never clips against the top or bottom of the canvas
-    const safeHeadroom = Math.max(6, Math.min(ring.y - r0 - 12, this.h - ring.y - r0 - 12));
-    const H = Math.min(ring.r * 0.105 * Math.min(1.2, theme.glowGain()), safeHeadroom);
+    const safeHeadroom = Math.max(6, Math.min(ring.y - r0 - 14, this.h - ring.y - r0 - 14));
+    const H = Math.min(ring.r * 0.115 * Math.min(1.2, theme.glowGain()), safeHeadroom);
 
-    const haloStep = this.memoryPressure === "high" ? 2 : 1;
     const N = HALO_N;
     const amp = (k) => {
       const u = 1 - Math.abs((k / N) * 2 - 1); // 1 at the playhead, 0 opposite
       const x = (1 - u) * (HALO_BANDS - 1);
       const i = Math.floor(x), f = x - i;
       const v = this.bands[i] * (1 - f) + (this.bands[Math.min(HALO_BANDS - 1, i + 1)] || 0) * f;
-      return v * v * (0.55 + 0.45 * u);
+      return Math.pow(v, 1.4) * (0.55 + 0.45 * u);
     };
     const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
-    const hi = theme.lift(col, 0.12);
+    const hi = theme.lift(col, 0.14);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = ring.alpha;
     const cosA0 = Math.cos(a0), sinA0 = Math.sin(a0);
 
-    // 1. Soft undulating colored breath of light under the hairlines (Mảng màu blur mỏng nhấp nhô)
-    if (this.memoryPressure !== "high") {
-      const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H);
-      g.addColorStop(0, theme.css(col, 0.32));
-      g.addColorStop(0.55, theme.css(hi, 0.16));
-      g.addColorStop(1, theme.css(col, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      for (let k = 0; k <= N; k += haloStep) {
-        const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
-        const ca = cosA0 * cosTh - sinA0 * sinTh;
-        const sa = sinA0 * cosTh + cosA0 * sinTh;
-        const r = r0 + amp(k) * H;
-        const x = ring.x + r * ca, y = ring.y + r * sa;
-        if (k === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
-      ctx.closePath();
-      if (!this.reduced) {
-        ctx.shadowColor = theme.css(col, 0.45);
-        ctx.shadowBlur = 10;
-      }
-      ctx.fill();
-      if (!this.reduced) ctx.shadowBlur = 0;
-    }
+    // Precalculate coordinates and heights for all N dense ticks
+    const rPeaks = new Float32Array(N + 1);
+    const cosAngles = new Float32Array(N + 1);
+    const sinAngles = new Float32Array(N + 1);
+    const barLens = new Float32Array(N + 1);
+    const amps = new Float32Array(N + 1);
 
-    // 2. The spectrum itself: delicate hairlines grouped by brightness (Original source logic)
-    ctx.lineWidth = 1.3;
-    ctx.lineCap = "round";
-    const groups = [[], [], [], []];
-    for (let k = 0; k < N; k += haloStep) {
-      const v = amp(k);
-      if (v < 0.015) continue;
+    for (let k = 0; k <= N; k++) {
       const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
       const ca = cosA0 * cosTh - sinA0 * sinTh;
       const sa = sinA0 * cosTh + cosA0 * sinTh;
-      groups[Math.min(3, Math.floor(v * 4))].push(ca, sa, v);
+      cosAngles[k] = ca;
+      sinAngles[k] = sa;
+
+      const v = amp(k);
+      amps[k] = v;
+      const barLen = Math.max(2.0, v * H);
+      barLens[k] = barLen;
+      rPeaks[k] = r0 + barLen + 1.2;
+    }
+
+    // 1. Ethereal colored membrane enclosing the bars (Lớp màng màu bao bọc các thanh)
+    const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H + 4);
+    g.addColorStop(0, theme.css(col, 0.42));
+    g.addColorStop(0.35, theme.css(hi, 0.26));
+    g.addColorStop(0.72, theme.css(hi, 0.12));
+    g.addColorStop(1, theme.css(col, 0.02));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let k = 0; k <= N; k++) {
+      const x = ring.x + rPeaks[k] * cosAngles[k];
+      const y = ring.y + rPeaks[k] * sinAngles[k];
+      if (k === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
+    ctx.closePath();
+    if (!this.reduced) {
+      ctx.shadowColor = theme.css(col, 0.5);
+      ctx.shadowBlur = 10;
+    }
+    ctx.fill();
+    if (!this.reduced) ctx.shadowBlur = 0;
+
+    // 2. Soft luminous crest boundary line of the membrane (Mép màng màu phát quang nhẹ)
+    ctx.beginPath();
+    for (let k = 0; k <= N; k++) {
+      const x = ring.x + rPeaks[k] * cosAngles[k];
+      const y = ring.y + rPeaks[k] * sinAngles[k];
+      if (k === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = theme.css(theme.lift(col, 0.22), 0.38);
+    ctx.lineWidth = 1.0;
+    if (!this.reduced) {
+      ctx.shadowColor = theme.css(theme.lift(col, 0.22), 0.45);
+      ctx.shadowBlur = 6;
+    }
+    ctx.stroke();
+    if (!this.reduced) ctx.shadowBlur = 0;
+
+    // 3. Dense precision hairlines (Các vạch phổ dày đặc, thanh thoát)
+    ctx.lineWidth = 1.35;
+    ctx.lineCap = "round";
+    const groups = [[], [], [], []];
+    for (let k = 0; k < N; k++) {
+      const v = amps[k];
+      const ca = cosAngles[k], sa = sinAngles[k];
+      const len = barLens[k];
+      groups[Math.min(3, Math.floor(v * 4))].push(ca, sa, len);
     }
     for (let q = 0; q < 4; q++) {
       const bars = groups[q];
       if (!bars.length) continue;
-      ctx.strokeStyle = theme.css(hi, 0.32 + 0.2 * q);
+      ctx.strokeStyle = theme.css(hi, 0.36 + 0.18 * q);
       ctx.beginPath();
       for (let i = 0; i < bars.length; i += 3) {
-        const c = bars[i], s = bars[i + 1], v = bars[i + 2];
-        ctx.moveTo(ring.x + (r0 + 2) * c, ring.y + (r0 + 2) * s);
-        ctx.lineTo(ring.x + (r0 + 2 + v * H) * c, ring.y + (r0 + 2 + v * H) * s);
+        const c = bars[i], s = bars[i + 1], len = bars[i + 2];
+        ctx.moveTo(ring.x + (r0 + 1.8) * c, ring.y + (r0 + 1.8) * s);
+        ctx.lineTo(ring.x + (r0 + 1.8 + len) * c, ring.y + (r0 + 1.8 + len) * s);
       }
       ctx.stroke();
     }
@@ -2123,7 +2155,7 @@ export class Viz {
   }
 
   _drawLights(ctx, primary) {
-    if (this.memoryPressure === "high" || this.memoryPressure === "critical") return;
+    if (this.memoryPressure === "critical") return;
     const gain = theme.glowGain();
     for (const ring of this.rings.values()) {
       if (ring.alpha < 0.02 || ring.x === null || !ring.col) continue;
@@ -2467,18 +2499,22 @@ export class Viz {
     const pulse = Math.min(1.2, this.pulse || 0);
     const bass = Math.min(1.2, this.bass || 0);
 
-    if (full && this.memoryPressure !== "high") {
-      const glow = (15 + 7 * pulse + 9 * bass) * Math.sqrt(theme.glowGain());
-      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glow * 2);
-      g.addColorStop(0, theme.css(theme.lift(col, 0.14), 0.88));
-      g.addColorStop(0.4, theme.css(theme.lift(col, 0.06), 0.32));
+    const gain = Math.sqrt(theme.glowGain());
+    if (full) {
+      // Atmospheric radiant neon aura from the bright playhead
+      const glowR = (32 + 16 * pulse + 20 * bass) * gain;
+      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, glowR);
+      g.addColorStop(0, theme.css(theme.lift(col, 0.22), 0.95));
+      g.addColorStop(0.24, theme.css(theme.lift(col, 0.14), 0.68));
+      g.addColorStop(0.52, theme.css(col, 0.32));
+      g.addColorStop(0.8, theme.css(col, 0.08));
       g.addColorStop(1, theme.css(col, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(hx, hy, glow * 2, 0, TAU);
+      ctx.arc(hx, hy, glowR, 0, TAU);
       ctx.fill();
     }
-    const coreGlowR = (full ? 6.5 : 4.2) * (1 + 0.12 * pulse);
+    const coreGlowR = (full ? 7.5 : 4.6) * (1 + 0.12 * pulse);
     const cg = ctx.createRadialGradient(hx, hy, 0, hx, hy, coreGlowR);
     cg.addColorStop(0, "rgba(255, 255, 255, 0.95)");
     cg.addColorStop(0.5, theme.css(theme.lift(col, 0.35), 0.85));

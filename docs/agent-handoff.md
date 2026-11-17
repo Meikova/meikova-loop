@@ -1121,3 +1121,34 @@ ode --check các file JS: ALL PASSED (Exit Code 0).
 ### 3. Cảnh báo kỹ thuật & Lưu ý vận hành:
 - Đã đồng bộ tài nguyên giao diện vào thư mục `dist/MeikovaLoop/_internal/web/`.
 - Khi khởi động lại ứng dụng `MeikovaLoop.exe`, toàn bộ phổ âm và quầng sáng mờ mới sẽ tự động hiển thị mà không cần xóa cache thủ công.
+
+
+---
+
+## Phiên làm việc: 17/11/2026 (Khắc phục Vạch Phổ Dày Đặc, Lớp Màng Màu Phát Quang Bao Bọc & Ánh Sáng Neon Chấm Sáng v1.0.36)
+
+### 1. Mục tiêu hoàn thành:
+1. **Phủ Dày Đặc Vạch Phổ Hướng Tâm (Dense Precision Dial):**
+   - Nâng mật độ vạch sóng $N$ từ 180 lên 256 điểm quanh vòng tròn, đảm bảo khoảng cách giữa các vạch chỉ ~5px (chuẩn đồng hồ Thụy Sĩ).
+   - Thiết lập chiều cao sàn tối thiểu `Math.max(2.0, v * H)` cho mọi vạch phổ, triệt tiêu hoàn toàn các khoảng đen trống thưa thớt khi dải tần tĩnh lặng.
+2. **Lớp Màng Màu Phát Quang Bao Bọc Các Thanh Âm Lượng (Luminous Colored Membrane):**
+   - Dựng màng màu hữu cơ liên tục nối từ chân vành đĩa $r_0$ ôm trọn lấy đỉnh sóng $r_{\text{peak}} = r_0 + \text{barLen} + 1.2$, đổ dải màu xuyên thấu tỏa tia từ `col` $0.42 \to$ `hi` $0.26 \to$ $0.02$ cùng hào quang `shadowBlur = 10`.
+   - Bổ sung đường mép màng màu phát quang mảnh `1.0px` mềm mại theo màu bài hát (`theme.lift(col, 0.22)` ở độ mờ 38% kèm `shadowBlur = 6`), biến các vạch sóng thành một dải lụa năng lượng mềm mại nhấp nhô cùng âm nhạc thay vì các cọc trắng rời rạc.
+3. **Khôi phục Ánh Sáng Neon Rực Rỡ từ Chấm Sáng (Playhead Radiant Neon Bloom):**
+   - Gỡ bỏ điều kiện `if (this.memoryPressure !== "high")` từng triệt tiêu hoàn toàn quầng hào quang của đầu đọc khi hệ thống ở mức tải cao.
+   - Nâng cấp bán kính phát quang neon lên $R = (32 + 16 \cdot \text{pulse} + 20 \cdot \text{bass}) \cdot \text{gain}$ ($\approx 48 \sim 68\text{px}$) với 5 dải chuyển màu mượt mà từ lõi neon trắng hồng rực rỡ lan tỏa êm dịu vào nền tối.
+4. **Phục Hồi Đèn Nền Vòng Khuyên Lúc Tải Cao:**
+   - Cho phép `_drawLights` tiếp tục phát quang nhịp thở vòng khuyên trong trạng thái `memoryPressure === "high"`, chỉ tiết giảm khi chạm ngưỡng nguy cấp `critical`.
+5. **Chuẩn Hóa SSOT v1.0.36 & Kiểm Thử Toàn Diện:**
+   - Đồng bộ version `v1.0.36` trên 6 tệp trọng yếu qua `version.py`.
+   - Vượt qua 22/22 kiểm thử vòng đời bộ nhớ và 6/6 bài kiểm thử tải đối kháng.
+   - Đồng bộ tài nguyên Web vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code:
+- `.\.venv\Scripts\python.exe tests/test_memory_lifecycle.py`: Ran 22 tests in 36.450s - OK (Exit Code 0).
+- `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: Ran 6 tests in 19.910s - OK (Exit Code 0).
+- `.\.venv\Scripts\python.exe version.py --check`: ALL 6 FILES IN 100% VERSION SYNCHRONIZATION (Exit Code 0).
+- Headless Visual Test (`halo_membrane_verified.png`): 100.0% diện tích màng màu bao bọc các vạch, hào quang playhead đạt độ rộng >60px, đỉnh 12h giữ khoảng cách an toàn tuyệt đối với mép canvas.
+
+### 3. Cảnh báo kỹ thuật & Lưu ý vận hành:
+- Tài nguyên Web tại `dist/MeikovaLoop/_internal/web/` đã được cập nhật trực tiếp. Người dùng chỉ cần khởi động lại ứng dụng `MeikovaLoop.exe` hoặc reload để trải nghiệm ngay giao diện màng màu mới.
