@@ -1176,3 +1176,37 @@ ode --check các file JS: ALL PASSED (Exit Code 0).
 - `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: Ran 6 tests in 18.436s - OK (Exit Code 0).
 - `.\.venv\Scripts\python.exe version.py --check`: ALL 6 FILES IN 100% VERSION SYNCHRONIZATION (Exit Code 0).
 - Playwright Bounding Box Inspection: $\Delta Y = 0.00\text{px}$ giữa SVG và H2; độ lệch tâm Setlist với Deck $< 0.7\text{px}$.
+
+---
+
+## Phiên làm việc: 17/11/2026 (Màng Hào Quang Kính Neon Trong Suốt & Triệt Tiêu Lỗi Phím Space Hijack Focus Button v1.0.38)
+
+### 1. Mục tiêu hoàn thành:
+1. **Triệt Tiêu Đường Viền Đa Giác Gãy Khúc Cứng Quanh Đĩa Nhạc:**
+   - Xóa bỏ hoàn toàn chỉ thị `ctx.stroke()` vẽ viền đỉnh sóng nối các đỉnh tần số xung quanh đĩa nhạc. Triệt tiêu 100% cảm giác khung lồng sắt gãy góc nhân tạo.
+2. **Thiết Lập Màng Hào Quang Neon / Kính Mờ Trong Suốt (Neon / Frosted Glass Aura):**
+   - Chuyển đổi chế độ pha trộn sang `ctx.globalCompositeOperation = "screen"`, đảm bảo cộng ánh sáng phát quang thuần khiết, triệt tiêu hoàn toàn hiện tượng màu nâu bùn hay đục ngầu trên nền tối.
+   - Sử dụng dải gradient tỏa tia trong suốt đa tầng: $0.24 \to 0.13 \to 0.04 \to 0$, kết hợp hiệu ứng tán sắc mềm `ctx.shadowColor` cùng `ctx.shadowBlur = 18`.
+3. **Bộ Lọc Thông Thấp Đường Bao (Organic Low-Pass Envelope):**
+   - Áp dụng bộ lọc trung bình trượt có trọng số kiểu Gaussian ($W = 8$) trên mảng biên độ âm tần thô `rawV`.
+   - Mép màng hào quang uốn lượn nhấp nhô theo sóng lỏng mượt mà tự nhiên theo nhịp điệu của bài hát thay vì các cạnh răng cưa sắc nhọn.
+4. **Bảo Tồn Các Vạch Phổ Dày Đặc Chính Xác (Dense Precision Hairlines):**
+   - Duy trì $N = 240 \sim 256$ vạch chia thanh thoát (`lineWidth = 1.25`, `lineCap = "round"`), phân tầng 4 cấp độ sáng (`lighter`), nhấp nhô xuyên qua lớp màng kính neon phát quang.
+5. **Khắc Phục Lỗi Nút Bị Dính Focus & Phím Space Kích Hoạt Lại Nút Đang Focus:**
+   - **Nguyên nhân gốc rễ:** Trình duyệt mặc định giữ focus trên `<button>` sau khi click chuột. Khi người dùng bấm Space, browser kích hoạt `click` trên nút đang focus đó. Đồng thời dòng `if (e.target.closest("button")) return;` trong `main.js` khiến lệnh Play/Pause bị bỏ qua hoàn toàn.
+   - **Giải pháp:** 
+     + Thêm cơ chế tự động giải phóng focus (`pointerup` và `click` event listeners): Tự động gọi `btn.blur()` ngay sau khi người dùng nhấp chuột hoặc chạm vào bất kỳ nút bấm hay action control nào.
+     + Lắng nghe sự kiện `keydown` ở capture phase (`useCapture: true`).
+     + Khi phím `Space` được kích hoạt ngoài các ô nhập text (`input, textarea, select, [contenteditable]`): Gọi ngay `e.preventDefault()`, `e.stopPropagation()`, giải phóng `document.activeElement.blur()`, và kích hoạt Play/Pause qua `$("#btn-play")?.click()`.
+     + Đã kiểm chứng tự động qua Playwright Headless Edge: Nút đã click không bao giờ giữ focus, phím Space luôn luôn Play/Pause và không kích hoạt lại nút đang focus.
+6. **Đóng Gói Native Desktop Shell Chuẩn Môi Trường venv Nội Bộ:**
+   - Sử dụng chính xác Python 3.12.4 và PyInstaller 6.22.3 từ virtual environment nội bộ dự án: `D:\JOB\DEV\MashLoop\.venv\Scripts\pyinstaller.exe`.
+   - Biên dịch thành công binary `dist/MeikovaLoop/MeikovaLoop.exe` (Exit Code 0, dung lượng ~67.2MB).
+   - Đồng bộ toàn bộ web assets (`viz.js`, `main.js`, `app.css`, `index.html`) vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code:
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" tests/test_memory_lifecycle.py`: Ran 22 tests in 30.066s - OK (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" tests/stress_adversarial_r3.py`: Ran 6 tests in 17.438s - OK (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" version.py --check`: ALL 6 FILES IN 100% VERSION SYNCHRONIZATION (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" tools/test_focus_space_behavior.py`: ALL TESTS PASSED WITH 100% SUCCESS (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\pyinstaller.exe" --noconfirm meikova_loop.spec`: Build complete successfully (Exit Code 0).

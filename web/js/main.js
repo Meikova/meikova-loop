@@ -1314,15 +1314,44 @@ if (timerBtn && timerPopover) {
   });
 }
 
+// Giải phóng focus sau khi click chuột / chạm vào bất kỳ button hoặc action control nào
+// Điều này ngăn chặn nút bị dính viền focus và triệt tiêu hoàn toàn lỗi phím Space kích hoạt lại nút vừa click
+document.addEventListener("pointerup", (e) => {
+  const btn = e.target.closest("button, [role='button'], input[type='button'], input[type='submit']");
+  if (btn) {
+    setTimeout(() => {
+      if (document.activeElement === btn) {
+        btn.blur();
+      }
+    }, 0);
+  }
+}, { passive: true });
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button, [role='button'], input[type='button'], input[type='submit']");
+  if (btn && document.activeElement === btn) {
+    btn.blur();
+  }
+}, { passive: true });
+
+// Lắng nghe ở capture phase (true) để chặn triệt để hành vi browser tự động kích hoạt click trên button đang focus
 document.addEventListener("keydown", (e) => {
   if (e.target.closest("input, textarea, select, [contenteditable]")) return;
   if (e.ctrlKey || e.metaKey) return;
   if (e.altKey && !(e.key === "m" || e.key === "M")) return;
-  if (e.code === "Space") {
-    if (e.target.closest("button")) return; // a focused button handles Space itself
+  if (e.code === "Space" || e.key === " " || e.key === "Spacebar") {
     e.preventDefault();
-    $("#btn-play").click();
-    showHudToast(player.playing ? "Tiếp tục phát (Space)" : "Tạm dừng (Space)");
+    e.stopPropagation();
+    if (document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+    const playBtn = $("#btn-play");
+    if (playBtn && !playBtn.disabled) {
+      playBtn.click();
+      playBtn.blur?.();
+      showHudToast(player.playing ? "Tiếp tục phát (Space)" : "Tạm dừng (Space)");
+    }
+    return;
   } else if (e.key === "j" || e.key === "J") {
     $("#btn-jump")?.click();
   } else if (e.key === "n" || e.key === "N") {
@@ -1392,7 +1421,7 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "?") {
     $("#btn-shortcuts-modal")?.click();
   }
-});
+}, true);
 
 // ==========================================================================
 // STRATEGIC FEATURES: RECORDER, VOCAL KARAOKE, MINI PLAYER, MEDIA KEYS

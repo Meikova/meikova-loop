@@ -2057,100 +2057,97 @@ export class Viz {
       const x = (1 - u) * (HALO_BANDS - 1);
       const i = Math.floor(x), f = x - i;
       const v = this.bands[i] * (1 - f) + (this.bands[Math.min(HALO_BANDS - 1, i + 1)] || 0) * f;
-      return Math.pow(v, 1.4) * (0.55 + 0.45 * u);
+      return Math.pow(v, 1.35) * (0.55 + 0.45 * u);
     };
     const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
-    const hi = theme.lift(col, 0.14);
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = ring.alpha;
+    const hi = theme.lift(col, 0.22);
     const cosA0 = Math.cos(a0), sinA0 = Math.sin(a0);
 
-    // Precalculate coordinates and heights for all N dense ticks
-    const rPeaks = new Float32Array(N + 1);
+    // Compute raw band amplitudes and precalculate trigonometric projection
+    const rawV = new Float32Array(N);
     const cosAngles = new Float32Array(N + 1);
     const sinAngles = new Float32Array(N + 1);
-    const barLens = new Float32Array(N + 1);
-    const amps = new Float32Array(N + 1);
 
     for (let k = 0; k <= N; k++) {
       const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
-      const ca = cosA0 * cosTh - sinA0 * sinTh;
-      const sa = sinA0 * cosTh + cosA0 * sinTh;
-      cosAngles[k] = ca;
-      sinAngles[k] = sa;
-
-      const v = amp(k);
-      amps[k] = v;
-      const barLen = Math.max(2.0, v * H);
-      barLens[k] = barLen;
-      rPeaks[k] = r0 + barLen + 1.2;
+      cosAngles[k] = cosA0 * cosTh - sinA0 * sinTh;
+      sinAngles[k] = sinA0 * cosTh + cosA0 * sinTh;
+      if (k < N) rawV[k] = amp(k);
     }
 
-    // 1. Ethereal colored membrane enclosing the bars (Lớp màng màu bao bọc các thanh)
-    const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H + 4);
-    g.addColorStop(0, theme.css(col, 0.42));
-    g.addColorStop(0.35, theme.css(hi, 0.26));
-    g.addColorStop(0.72, theme.css(hi, 0.12));
-    g.addColorStop(1, theme.css(col, 0.02));
+    // 1. Organic Low-Pass Envelope for the Neon / Frosted Glass Aura (màng màu mỏng, trong suốt, nhấp nhô mềm mại)
+    const smoothV = new Float32Array(N + 1);
+    const W = 8;
+    for (let k = 0; k < N; k++) {
+      let sum = 0, count = 0;
+      for (let j = -W; j <= W; j++) {
+        const idx = (k + j + N) % N;
+        const weight = 1 - Math.abs(j) / (W + 1);
+        sum += rawV[idx] * weight;
+        count += weight;
+      }
+      smoothV[k] = sum / count;
+    }
+    smoothV[N] = smoothV[0];
+
+    // Render Neon Glass Membrane: 100% transparent/screen blend mode, zero hard stroke lines
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = ring.alpha;
+
+    const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H * 1.08);
+    g.addColorStop(0, theme.css(theme.lift(col, 0.20), 0.24));
+    g.addColorStop(0.35, theme.css(hi, 0.13));
+    g.addColorStop(0.72, theme.css(col, 0.04));
+    g.addColorStop(1, theme.css(col, 0));
     ctx.fillStyle = g;
+
     ctx.beginPath();
     for (let k = 0; k <= N; k++) {
-      const x = ring.x + rPeaks[k] * cosAngles[k];
-      const y = ring.y + rPeaks[k] * sinAngles[k];
+      const waveH = Math.max(2.5, smoothV[k] * H * 1.05);
+      const r = r0 + waveH;
+      const x = ring.x + r * cosAngles[k];
+      const y = ring.y + r * sinAngles[k];
       if (k === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
     ctx.closePath();
+
     if (!this.reduced) {
-      ctx.shadowColor = theme.css(col, 0.5);
-      ctx.shadowBlur = 10;
+      ctx.shadowColor = theme.css(theme.lift(col, 0.35), 0.70);
+      ctx.shadowBlur = 18;
     }
     ctx.fill();
-    if (!this.reduced) ctx.shadowBlur = 0;
+    ctx.restore();
 
-    // 2. Soft luminous crest boundary line of the membrane (Mép màng màu phát quang nhẹ)
-    ctx.beginPath();
-    for (let k = 0; k <= N; k++) {
-      const x = ring.x + rPeaks[k] * cosAngles[k];
-      const y = ring.y + rPeaks[k] * sinAngles[k];
-      if (k === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = theme.css(theme.lift(col, 0.22), 0.38);
-    ctx.lineWidth = 1.0;
-    if (!this.reduced) {
-      ctx.shadowColor = theme.css(theme.lift(col, 0.22), 0.45);
-      ctx.shadowBlur = 6;
-    }
-    ctx.stroke();
-    if (!this.reduced) ctx.shadowBlur = 0;
-
-    // 3. Dense precision hairlines (Các vạch phổ dày đặc, thanh thoát)
-    ctx.lineWidth = 1.35;
+    // 2. Dense Precision Hairlines (các vạch chia thanh thoát, nhấp nhô theo từng dao động âm thanh)
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = ring.alpha;
+    ctx.lineWidth = 1.25;
     ctx.lineCap = "round";
+
     const groups = [[], [], [], []];
     for (let k = 0; k < N; k++) {
-      const v = amps[k];
+      const v = rawV[k];
       const ca = cosAngles[k], sa = sinAngles[k];
-      const len = barLens[k];
+      const len = Math.max(2.0, v * H);
       groups[Math.min(3, Math.floor(v * 4))].push(ca, sa, len);
     }
+
     for (let q = 0; q < 4; q++) {
       const bars = groups[q];
       if (!bars.length) continue;
-      ctx.strokeStyle = theme.css(hi, 0.36 + 0.18 * q);
+      ctx.strokeStyle = theme.css(hi, 0.30 + 0.2 * q);
       ctx.beginPath();
       for (let i = 0; i < bars.length; i += 3) {
         const c = bars[i], s = bars[i + 1], len = bars[i + 2];
-        ctx.moveTo(ring.x + (r0 + 1.8) * c, ring.y + (r0 + 1.8) * s);
-        ctx.lineTo(ring.x + (r0 + 1.8 + len) * c, ring.y + (r0 + 1.8 + len) * s);
+        ctx.moveTo(ring.x + (r0 + 1.5) * c, ring.y + (r0 + 1.5) * s);
+        ctx.lineTo(ring.x + (r0 + 1.5 + len) * c, ring.y + (r0 + 1.5 + len) * s);
       }
       ctx.stroke();
     }
-
     ctx.restore();
   }
 
