@@ -1090,3 +1090,34 @@ ode --check các file JS: ALL PASSED (Exit Code 0).
 ### 3. Cảnh báo kỹ thuật:
 - Khi chạy `tests/test_server_and_features.py` phần kiểm tra PyTorch (`test_empty_beats_guard_and_librosa_fallback`), hệ thống Windows đang chạy nhiều tiến trình có thể gặp lỗi paging file (`WinError 1455` khi nạp `cufft64_11.dll`). Điều này thuộc về giới hạn virtual memory của HĐH khi nạp thư viện CUDA, không liên quan đến logic mã nguồn.
 - Bản build `dist\MeikovaLoop\MeikovaLoop.exe` đã được đồng bộ hóa các file `web/` mới (`v175`); nếu tiến trình `MeikovaLoop.exe` đang chạy, người dùng chỉ cần nhấn `Ctrl+R` hoặc mở lại ứng dụng từ khay hệ thống để áp dụng CSS/JS mới.
+
+
+---
+
+## Phiên làm việc: 17/11/2026 (Khôi phục Phổ Âm Thanh Halo Tinh tế, Chống Cắt Đỉnh 12h & Bản Dựng v1.0.35)
+
+### 1. Mục tiêu hoàn thành:
+1. **Khôi phục Phổ Âm Lượng Halo Nguyên Bản Tinh Tế (`web/js/viz.js`):**
+   - Loại bỏ hoàn toàn khối đa giác khung dây (wireframe polygon) gây cảm giác lưới thép cứng nhắc.
+   - Khôi phục cấu trúc vạch phổ hướng tâm tinh xảo ($N = 180$, bề rộng `1.3px`, đầu bo tròn `round`), phân loại 4 cấp độ sáng theo năng lượng âm thanh.
+   - Khôi phục đáp ứng biên độ phi tuyến bậc hai $v^2 \cdot (0.55 + 0.45 \cdot u)$ cùng ngưỡng lọc nhiễu âm sàn ($v < 0.015$), giúp vạch phổ chỉ chuyển động nhịp nhàng tại các dải tần số có nhạc cụ thật sự rung động.
+2. **Triệt tiêu Hiện Tượng Cắt Phẳng Ở Đỉnh 12h (Safe Headroom Clamping):**
+   - Tính toán biên an toàn động theo chiều dọc màn hình: `safeHeadroom = Math.max(6, Math.min(ring.y - r0 - 12, this.h - ring.y - r0 - 12))`.
+   - Giới hạn chiều cao sóng tối đa $H \le safeHeadroom$, đảm bảo phổ âm không bao giờ chạm tới mép trên canvas ($y = 0$) dù trên màn hình nhỏ hay khi đĩa xoay phóng to.
+3. **Hiệu Ứng Quầng Sáng Mờ Nhấp Nhô Dưới Chân Vạch (Soft Ambient Halo Aura):**
+   - Đổ màu gradient tỏa tia mềm từ viền ngoài $r_0$ đến đỉnh sóng $r_0 + H$ (`col` $0.32 \to$ `hi` $0.16 \to 0$) kèm quầng phát sáng `shadowBlur = 10`, tạo cảm giác các vạch phổ gắn kết hữu cơ trên một nền năng lượng phát quang mềm mại thay vì đứng rời rạc.
+4. **Chuẩn Hóa Phiên Bản SSOT v1.0.35 & Đóng Gói Nhị Phân:**
+   - Đồng bộ version `v1.0.35` trên 6 tệp trọng yếu: `package.json`, `installer.iss`, `loopbox/__init__.py`, `loopbox/config.py`, `loopbox/tray.py`, và `web/index.html`.
+   - Biên dịch hoàn tất `dist/MeikovaLoop/MeikovaLoop.exe` qua PyInstaller với Exit Code 0.
+   - Đồng bộ hóa các tệp Web JS/CSS vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code:
+- `.\.venv\Scripts\python.exe tests/test_memory_lifecycle.py`: 22/22 PASSED (Exit Code 0).
+- `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: 6/6 PASSED (Exit Code 0).
+- `.\.venv\Scripts\python.exe version.py --check`: ALL 6 FILES CONSISTENT AT v1.0.35 (Exit Code 0).
+- `.\.venv\Scripts\pyinstaller.exe --noconfirm meikova_loop.spec`: Exit Code 0 (`dist/MeikovaLoop/MeikovaLoop.exe` generated).
+- Playwright Visual Inspection (`halo_perfect.png`): 0px clipping at $y = 0$, đường cong mượt mà 360 độ (Exit Code 0).
+
+### 3. Cảnh báo kỹ thuật & Lưu ý vận hành:
+- Đã đồng bộ tài nguyên giao diện vào thư mục `dist/MeikovaLoop/_internal/web/`.
+- Khi khởi động lại ứng dụng `MeikovaLoop.exe`, toàn bộ phổ âm và quầng sáng mờ mới sẽ tự động hiển thị mà không cần xóa cache thủ công.
