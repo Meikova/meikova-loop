@@ -335,11 +335,18 @@ class MemoryMonitor:
         """Override memory metrics for deterministic unit and adversarial testing."""
         with self._lock:
             self._simulated_metrics = metrics
+            if "state" in metrics and metrics["state"] in ("normal", "high", "critical"):
+                self._state = metrics["state"]
+                self._recovery_start_time = None
+                self._high_candidate_count = 0
 
     def clear_simulation(self) -> None:
         """Clear any active simulation override."""
         with self._lock:
             self._simulated_metrics = None
+            self._recovery_start_time = None
+            self._high_candidate_count = 0
+            self._state = "normal"
 
     def _query_effective_memory(self) -> Dict[str, Any]:
         raw = query_raw_memory()

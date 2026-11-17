@@ -632,7 +632,7 @@ class TestAdversarialR3VisualizerStress(unittest.TestCase):
     def test_adv_6_realtime_4s_dwell_and_gradient_call_counts(self):
         """Stress: Real-time 4000ms dwell expiration and gradient invocation counting."""
         from loopbox.memory_monitor import memory_monitor
-        memory_monitor.set_simulation(commit_avail_mb=8000.0, commit_pct=50.0, phys_avail_mb=6000.0)
+        memory_monitor.set_simulation(commit_avail_mb=8000.0, commit_pct=50.0, phys_avail_mb=6000.0, state="normal")
         try:
             ctx, page = self.new_page(dpr=2.0)
 

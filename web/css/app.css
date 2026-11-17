@@ -1471,6 +1471,27 @@ body.is-night .topbar {
   }
 }
 
+/* Setlist bar: container row separating history chain from the export action */
+.setlist-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  justify-self: stretch;
+  min-height: 32px;
+  position: relative;
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+}
+
+.setlist-bar .setlist {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* Setlist: the session as a chain of small linked loops. */
 .setlist {
   list-style: none;
@@ -5605,7 +5626,8 @@ button.dl-card {
   .next {
     display: none !important;
   }
-  .setlist {
+  .setlist,
+  .setlist-bar {
     display: none !important;
   }
 
@@ -6131,7 +6153,8 @@ body.is-zen {
 
 body.is-zen .topbar,
 body.is-zen .panel,
-body.is-zen .setlist {
+body.is-zen .setlist,
+body.is-zen .setlist-bar {
   display: none !important;
 }
 
@@ -8783,6 +8806,7 @@ body.is-mini-player .zen-hud-top,
 body.is-mini-player .deck,
 body.is-mini-player .next,
 body.is-mini-player .setlist,
+body.is-mini-player .setlist-bar,
 body.is-mini-player .panel__resizer,
 body.is-mini-player #hud-toast-wrap,
 body.is-mini-player #mic-popover,
@@ -10104,14 +10128,14 @@ body.is-satellite-mode .sat-audio-wrap {
 }
 
 .btn-setlist-pill {
-  position: absolute;
-  right: 14px;
-  bottom: 8px;
-  z-index: 25;
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 24px;
+  height: 26px;
   padding: 0 10px;
   border-radius: 9999px;
   border: 1px solid oklch(var(--acc) / 0.38);
@@ -10121,6 +10145,7 @@ body.is-satellite-mode .sat-audio-wrap {
   cursor: pointer;
   backdrop-filter: blur(12px);
   transition: all 150ms ease;
+  white-space: nowrap;
 }
 
 .btn-setlist-pill[hidden] {

@@ -14,7 +14,7 @@ import { stageSync } from "./stage_sync.js?v=176";
 
 const TAU = Math.PI * 2;
 const HALO_BANDS = 48;
-const HALO_N = 180;
+const HALO_N = 320;
 const DOCK_LEAD_S = 14; // dock the confirmed next loop cleanly into infinity only shortly before hand-over
 const HALO_COS = new Float32Array(HALO_N + 1);
 const HALO_SIN = new Float32Array(HALO_N + 1);
@@ -702,13 +702,24 @@ export class Viz {
   // Everything about a song that does not move: drawn once, then rotated and
   // scaled as the loop travels.
   _prewarmLayer(track) {
-    if (this.memoryPressure === "critical") return;
     if (!track || !track.analysis || !track.beats?.length) return;
+    const ring = this._ring(track, this.rings.get(track.id)?.role || "fading");
+    if (this.memoryPressure === "critical") {
+      if (ring?.layer?.canvas) {
+        try {
+          ring.layer.canvas.width = 1;
+          ring.layer.canvas.height = 1;
+        } catch (_) {}
+        ring.layer.canvas = null;
+        ring.layer = null;
+        ring.layerKey = "";
+      }
+      return;
+    }
     const keep = this.player?.settings?.keep ?? 0.6;
     const transLen = track.transitions?.length ?? 0;
     const baseLayerR = this.layerR || this.baseR || 160;
     const key = `${track.id}|${keep}|${transLen}|${baseLayerR.toFixed(1)}|${this.dpr || 1}|${this.memoryPressure || "normal"}|${theme.paletteVersion()}`;
-    const ring = this._ring(track, this.rings.get(track.id)?.role || "fading");
     const isLayerValid = Boolean(
       ring.layer &&
       ring.layer.canvas &&
@@ -827,13 +838,27 @@ export class Viz {
         }
       }
     }
-    edges.sort((p, q) => q[2] - p[2]);
+    // Filter and sample jump chords: prioritize good matches (lowest score)
+    // and skip tiny hops that clutter the center into a spiderweb.
+    const validEdges = [];
+    for (let idx = 0; idx < edges.length; idx++) {
+      const [i, j, s] = edges[idx];
+      const a1 = ang(track.beats[i] + track.dur[i]);
+      const a2 = ang(track.beats[j]);
+      const sep = Math.abs(wrapAngle(a1 - a2));
+      if (sep > 0.35) {
+        validEdges.push(edges[idx]);
+      }
+    }
+    validEdges.sort((p, q) => p[2] - q[2]);
+    const selectedEdges = validEdges.slice(0, 240);
+
     ctx.lineWidth = 1;
     const CHORD_BUCKETS = 8;
     const faintChords = [];
     const okBuckets = Array.from({ length: CHORD_BUCKETS }, () => []);
-    for (let idx = 0; idx < edges.length; idx++) {
-      const [i, j, s] = edges[idx];
+    for (let idx = 0; idx < selectedEdges.length; idx++) {
+      const [i, j, s] = selectedEdges[idx];
       if (s <= maxScore) {
         const w = 1 - s / Math.max(maxScore, 0.01);
         const bi = Math.min(CHORD_BUCKETS - 1, Math.max(0, Math.floor(w * CHORD_BUCKETS)));
@@ -843,10 +868,10 @@ export class Viz {
       }
     }
     if (faintChords.length) {
-      ctx.strokeStyle = theme.css(ink, 0.03);
+      ctx.strokeStyle = theme.css(ink, 0.02);
       ctx.beginPath();
       const totalPairs = faintChords.length >> 1;
-      const step = totalPairs > 700 ? Math.ceil(totalPairs / 700) : 1;
+      const step = totalPairs > 60 ? Math.ceil(totalPairs / 60) : 1;
       for (let p = 0; p < totalPairs; p += step) {
         const i = faintChords[p * 2], j = faintChords[p * 2 + 1];
         addChord(ang(track.beats[i] + track.dur[i]), ang(track.beats[j]));
@@ -856,10 +881,10 @@ export class Viz {
     for (let bi = 0; bi < CHORD_BUCKETS; bi++) {
       const bkt = okBuckets[bi];
       if (!bkt.length) continue;
-      ctx.strokeStyle = theme.css(chord, 0.08 + 0.42 * ((bi + 0.5) / CHORD_BUCKETS));
+      ctx.strokeStyle = theme.css(chord, 0.06 + 0.36 * ((bi + 0.5) / CHORD_BUCKETS));
       ctx.beginPath();
       const totalPairs = bkt.length >> 1;
-      const step = totalPairs > 450 ? Math.ceil(totalPairs / 450) : 1;
+      const step = totalPairs > 40 ? Math.ceil(totalPairs / 40) : 1;
       for (let p = 0; p < totalPairs; p += step) {
         const i = bkt[p * 2], j = bkt[p * 2 + 1];
         addChord(ang(track.beats[i] + track.dur[i]), ang(track.beats[j]));
@@ -908,6 +933,13 @@ export class Viz {
         ctx.fill();
       }
     }
+
+    // Base groove ring so the vinyl/circle is always unbroken 360 degrees
+    ctx.strokeStyle = theme.css(ink, 0.14);
+    ctx.lineWidth = th * 0.85;
+    ctx.beginPath();
+    ctx.arc(0, 0, RL, 0, TAU);
+    ctx.stroke();
 
     // Beat segments.
     for (let b = 0; b < track.n; b++) {
@@ -2006,7 +2038,7 @@ export class Viz {
   _drawHalo(ctx, head) {
     if (this.memoryPressure === "critical") return;
     const ring = head.ring;
-    if (ring.alpha < 0.05 || ring.fill < 1) return;
+    if (ring.alpha < 0.05) return;
     let peak = 0;
     for (let i = 0; i < HALO_BANDS; i++) peak = Math.max(peak, this.bands[i]);
     if (peak < 0.02) return;
@@ -2014,7 +2046,7 @@ export class Viz {
     const a0 = head.angle;
     const th = this._thickness(ring.r);
     const r0 = ring.r + th / 2 + 1;
-    const H = ring.r * 0.1 * Math.min(1.3, theme.glowGain());
+    const H = ring.r * 0.16 * Math.min(1.3, theme.glowGain());
     const haloStep = this.memoryPressure === "high" ? 2 : 1;
     const N = HALO_N;
     const amp = (k) => {
@@ -2022,10 +2054,10 @@ export class Viz {
       const x = (1 - u) * (HALO_BANDS - 1);
       const i = Math.floor(x), f = x - i;
       const v = this.bands[i] * (1 - f) + (this.bands[Math.min(HALO_BANDS - 1, i + 1)] || 0) * f;
-      return v * v * (0.55 + 0.45 * u);
+      return Math.pow(v, 1.25) * (0.6 + 0.4 * u);
     };
     const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
-    const hi = theme.lift(col, 0.1);
+    const hi = theme.lift(col, 0.15);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = ring.alpha;
@@ -2033,7 +2065,7 @@ export class Viz {
     // A soft breath of light under the hairlines.
     if (this.memoryPressure !== "high") {
       const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H);
-      g.addColorStop(0, theme.css(col, 0.16));
+      g.addColorStop(0, theme.css(col, 0.18));
       g.addColorStop(1, theme.css(col, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -2050,14 +2082,12 @@ export class Viz {
       ctx.closePath();
       ctx.fill();
     }
-    // The spectrum itself: hairlines, like the dial's ticks, grouped by
-    // brightness so the whole halo costs four strokes.
-    ctx.lineWidth = 1.2;
+    // The spectrum itself: dense luminous hairlines around the loop
+    ctx.lineWidth = 1.8;
     ctx.lineCap = "round";
     const groups = [[], [], [], []];
     for (let k = 0; k < N; k += haloStep) {
       const v = amp(k);
-      if (v < 0.015) continue;
       const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
       const ca = cosA0 * cosTh - sinA0 * sinTh;
       const sa = sinA0 * cosTh + cosA0 * sinTh;
@@ -2066,12 +2096,13 @@ export class Viz {
     for (let q = 0; q < 4; q++) {
       const bars = groups[q];
       if (!bars.length) continue;
-      ctx.strokeStyle = theme.css(hi, 0.3 + 0.18 * q);
+      ctx.strokeStyle = theme.css(hi, 0.28 + 0.2 * q);
       ctx.beginPath();
       for (let i = 0; i < bars.length; i += 3) {
         const c = bars[i], s = bars[i + 1], v = bars[i + 2];
-        ctx.moveTo(ring.x + (r0 + 2) * c, ring.y + (r0 + 2) * s);
-        ctx.lineTo(ring.x + (r0 + 3 + v * H) * c, ring.y + (r0 + 3 + v * H) * s);
+        const barHeight = Math.max(3, v * H);
+        ctx.moveTo(ring.x + (r0 + 1) * c, ring.y + (r0 + 1) * s);
+        ctx.lineTo(ring.x + (r0 + 1 + barHeight) * c, ring.y + (r0 + 1 + barHeight) * s);
       }
       ctx.stroke();
     }
@@ -2159,10 +2190,10 @@ export class Viz {
     ctx.translate(px, py);
     ctx.rotate(ring.rot);
     ctx.scale(s, s * ring.dir);
-    if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+    if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0 || ring.fill >= 0.98)) {
       ring.fill = 1;
     }
-    if (ring.fill < 1) {
+    if (ring.fill < 0.98) {
       const f = easeOut(Math.max(0.001, ring.fill || 0));
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -2185,15 +2216,11 @@ export class Viz {
       const a = ring.alpha * this.capPlace.dip;
       const gr = theme.ground(ring.col || theme.accentOf(ring.track.id));
       const pool = { l: 0.15, c: gr.c, h: gr.h };
-      if (this.memoryPressure === "critical") {
-        ctx.fillStyle = theme.css(pool, 0.72 * a);
-      } else {
-        const g = ctx.createRadialGradient(ring.x, ring.y, 0, ring.x, ring.y, ring.r * 0.72);
-        g.addColorStop(0, theme.css(pool, 0.86 * a));
-        g.addColorStop(0.62, theme.css(pool, 0.62 * a));
-        g.addColorStop(1, theme.css(pool, 0));
-        ctx.fillStyle = g;
-      }
+      const g = ctx.createRadialGradient(ring.x, ring.y, 0, ring.x, ring.y, ring.r * 0.72);
+      g.addColorStop(0, theme.css(pool, 0.86 * a));
+      g.addColorStop(0.62, theme.css(pool, 0.62 * a));
+      g.addColorStop(1, theme.css(pool, 0));
+      ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(ring.x, ring.y, ring.r * 0.72, 0, TAU);
       ctx.fill();
@@ -2245,29 +2272,18 @@ export class Viz {
     const mid = this.accent || ca;
     const breathe = this.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 420);
     const R = (16 + 26 * k) * (1 + 0.25 * this.bass);
-    if (this.memoryPressure === "critical") {
-      ctx.fillStyle = theme.css(theme.lift(mid, 0.12), 0.7 * (1 + 0.3 * k));
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, R, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
-      ctx.fill();
-    } else {
-      const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
-      g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
-      g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * theme.glowGain()));
-      g.addColorStop(1, theme.css(mid, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
-      ctx.fill();
-    }
+    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R * 2.2);
+    g.addColorStop(0, theme.css(theme.lift(mid, 0.12), 0.6 + 0.3 * k));
+    g.addColorStop(0.35, theme.css(mid, (0.18 + 0.12 * breathe) * theme.glowGain()));
+    g.addColorStop(1, theme.css(mid, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, R * 2.2, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = theme.css(theme.lift(mid, 0.3));
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 2.6 + 1.2 * k, 0, TAU);
+    ctx.fill();
     if (k > 0) {
       const start = -Math.PI / 2;
       const cg = ctx.createConicGradient ? ctx.createConicGradient(start, c.x, c.y) : null;
@@ -2318,11 +2334,6 @@ export class Viz {
       ctx.beginPath();
       ctx.arc(c.x, c.y, R * 1.35, 0, TAU);
       ctx.stroke();
-    } else if (this.memoryPressure === "critical") {
-      ctx.fillStyle = theme.css(theme.lift(mid, 0.1), 0.3);
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, R * 1.2, 0, TAU);
-      ctx.fill();
     } else {
       // Ethereal glowing aura for fade / blend
       const auraG = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, R * 1.8);

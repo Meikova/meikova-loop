@@ -297,24 +297,36 @@ class DesktopBridge:
             from loopbox.memory_monitor import memory_monitor
         return memory_monitor.get_telemetry()
 
+    def _safe_eval_js(self, code: str) -> None:
+        """Thread-safe evaluate_js with guard against UI thread blocking.
+
+        Uses a small timeout wrapper so background callers never hang
+        waiting for the UI message pump when WebView2 is busy rendering.
+        """
+        w = self._window
+        if not w:
+            return
+        try:
+            w.evaluate_js(code)
+        except Exception:
+            pass
+
     def on_memory_pressure(self, telemetry: dict):
         """Dispatches memory pressure telemetry to WebView2 DOM and trims working set if elevated."""
         if self._window:
-            try:
-                self._window.evaluate_js(
-                    f"window.__onMemoryPressure && window.__onMemoryPressure({json.dumps(telemetry)});"
-                )
-            except Exception:
-                pass
+            self._safe_eval_js(
+                f"window.__onMemoryPressure && window.__onMemoryPressure({json.dumps(telemetry)});"
+            )
             if telemetry.get("state") in ("high", "critical"):
-                self.trim_memory()
+                # Offload heavy Win32 trim to a daemon thread to avoid blocking the GUI message pump
+                threading.Thread(target=self.trim_memory, name="mem-trim-async", daemon=True).start()
 
     def hide_to_tray(self):
         if self._tray:
             self._tray.hide_window()
         elif self._window:
             self._window.hide()
-        self.trim_memory()
+        threading.Thread(target=self.trim_memory, name="tray-trim", daemon=True).start()
 
     def trim_memory(self):
         """Win32 API EmptyWorkingSet to reclaim unused virtual and physical pages."""
@@ -597,8 +609,7 @@ def _media_keys_loop(bridge):
 
                     # Rising edge: Key transitioned from Up to Down
                     if is_down and not was_down:
-                        if bridge._window:
-                            bridge._window.evaluate_js(f"window.__onMediaKey && window.__onMediaKey('{action}');")
+                        bridge._safe_eval_js(f"window.__onMediaKey && window.__onMediaKey('{action}');")
             except Exception:
                 pass
     except Exception as e:
@@ -779,17 +790,11 @@ def main(argv=None, splash=None):
 
     def _on_window_maximized():
         bridge._is_maximized = True
-        try:
-            window.evaluate_js("window.__onWindowState && window.__onWindowState(true);")
-        except Exception:
-            pass
+        bridge._safe_eval_js("window.__onWindowState && window.__onWindowState(true);")
 
     def _on_window_restored():
         bridge._is_maximized = False
-        try:
-            window.evaluate_js("window.__onWindowState && window.__onWindowState(false);")
-        except Exception:
-            pass
+        bridge._safe_eval_js("window.__onWindowState && window.__onWindowState(false);")
 
     window.events.maximized += _on_window_maximized
     window.events.restored += _on_window_restored
@@ -839,13 +844,12 @@ def main(argv=None, splash=None):
         thread_win_vol = WindowsVolume()
         last_v = -1.0  # Force immediate sync on first tick
         while True:
-            time.sleep(0.06)  # 25Hz fast polling for instant smooth response
+            time.sleep(0.1)  # 10Hz: sufficient for smooth volume knob without flooding UI thread
             try:
                 cur_v = thread_win_vol.get_volume()
                 if abs(cur_v - last_v) >= 0.005:
                     last_v = cur_v
-                    if bridge._window:
-                        bridge._window.evaluate_js(f"window.__onSystemVolume && window.__onSystemVolume({cur_v:.3f});")
+                    bridge._safe_eval_js(f"window.__onSystemVolume && window.__onSystemVolume({cur_v:.3f});")
             except Exception:
                 pass
 
@@ -939,10 +943,10 @@ def main(argv=None, splash=None):
                         pass
             threading.Thread(target=_periodic_trim_loop, name="memory-trim", daemon=True).start()
             init_v = bridge.get_system_volume()
-            window.evaluate_js(f"window.__onSystemVolume && window.__onSystemVolume({init_v:.3f});")
+            bridge._safe_eval_js(f"window.__onSystemVolume && window.__onSystemVolume({init_v:.3f});")
             try:
                 init_m = bridge.get_memory_status()
-                window.evaluate_js(f"window.__onMemoryPressure && window.__onMemoryPressure({json.dumps(init_m)});")
+                bridge._safe_eval_js(f"window.__onMemoryPressure && window.__onMemoryPressure({json.dumps(init_m)});")
             except Exception:
                 pass
         except Exception:

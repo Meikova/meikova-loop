@@ -1,5 +1,43 @@
 # BẢN GIAO TIẾP LIÊN PHIÊN (SESSION HANDOFF) — MEIKOVA LOOP
 
+## Phiên làm việc: 17/11/2026 (Dense Halo Visualizer, Canvas Seam Self-Healing, Responsive Setlist Bar & Freeze Fix v1.0.33)
+
+### 1. Mục tiêu hoàn thành
+- **F1: Triệt tiêu hiện tượng treo ứng dụng Desktop (`MeikovaLoop.exe is not responding`)**:
+  - `loopbox/desktop.py`: Bổ sung `_safe_eval_js()` bọc bảo vệ `window.evaluate_js` an toàn chống deadlock message pump khi WebView2 đang bận.
+  - Tách lệnh dọn dẹp bộ nhớ `trim_memory()` chạy bất đồng bộ trên luồng nền daemon (`mem-trim-async`) trong `on_memory_pressure()` và `hide_to_tray()`.
+  - Giảm tần số vòng lặp đồng bộ âm lượng `_volume_sync_loop` từ 25Hz (0.06s) xuống 10Hz (0.1s) để giảm tải cho cầu nối pywebview.
+- **F2: Vòng phổ âm thanh ngoài dày đặc và chuyển động sống động (Dense Dynamic Halo Visualizer)**:
+  - `web/js/viz.js`: Tăng số thanh phổ `HALO_N` từ 180 lên 320 thanh, tính toán trước 321 điểm lượng giác trong `HALO_COS` và `HALO_SIN`.
+  - Tăng độ dày nét vẽ `ctx.lineWidth = 1.8`, tăng chiều cao tối đa `H = ring.r * 0.16`.
+  - Thêm ngưỡng chiều cao cơ sở `Math.max(3, v * H)` cho toàn bộ 320 thanh, loại bỏ điều kiện ngắt quãng `ring.fill < 1`, giúp vòng phổ tròn 360 độ luôn dày đặc, liên tục, nhảy múa theo beat mà không bị thưa thớt.
+- **F3: Tự chữa lành khe hở 12 giờ và loại bỏ lỗi render rác**:
+  - `web/js/viz.js`: Bổ sung vòng rãnh nền liên tục (Base Groove Ring) từ 0 đến TAU bên dưới các phân đoạn beat, tự động bù đắp và liền mạch khe hở ở vị trí 12 giờ đối với các bài hát có beat detection bắt đầu muộn.
+  - Khôi phục hiệu ứng chuyển sắc tâm mềm mại (`createRadialGradient`) cho đĩa caption trung tâm trên mọi chế độ, loại bỏ hoàn toàn đĩa đen cứng viền sắc.
+  - Lọc thông minh cung hợp âm nhảy (Jump Chords): Loại bỏ các bước nhảy quá ngắn (`sep > 0.35 rad`), ưu tiên các cung khớp điểm số cao nhất và giới hạn tối đa 240 cung, triệt tiêu hiện tượng chùm nan quạt mạng nhện màu nâu dày đặc gây giật lag.
+- **F4: Tái cấu trúc thanh Setlist và nút Xuất Setlist linh hoạt không đè chữ**:
+  - `web/index.html` & `web/css/app.css`: Đưa `#history` và `#btn-export-setlist` vào khối cha `.setlist-bar` chuẩn Flexbox với `justify-self: stretch; width: 100%; min-width: 0; box-sizing: border-box;`.
+  - Thiết lập `.setlist` nhận `flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-x: auto;`, cho phép danh sách bài hát cuộn ngang tự do bên trong mà không làm phình layout ra ngoài.
+  - Nút `.btn-setlist-pill` chuyển sang `position: relative; flex: 0 0 auto; margin-left: auto; white-space: nowrap;`, neo chắc chắn ở góc phải và tự động co lại thành icon trên màn hình di động nhỏ mà tuyệt đối không bao giờ đè lên tên bài hát.
+- **F5: Đồng bộ phiên bản SSOT v1.0.33 và Đóng gói Native**:
+  - Đồng bộ chuẩn SemVer v1.0.33 trên 6 tệp trọng yếu: `package.json`, `installer.iss`, `loopbox/__init__.py`, `loopbox/config.py`, `loopbox/tray.py`, và `web/index.html`.
+  - Biên dịch PyInstaller desktop `dist/MeikovaLoop/MeikovaLoop.exe` đạt Exit Code 0.
+  - Đồng bộ toàn bộ tài nguyên web mới sang `dist/MeikovaLoop/_internal/web/`.
+  - 28/28 bài kiểm thử Lifecycle và Stress Adversarial R3 đạt 100% Exit Code 0.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code
+- `.\.venv\Scripts\python.exe -m unittest tests/test_memory_lifecycle.py -v`: 22/22 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe -m unittest tests/stress_adversarial_r3.py -v`: 6/6 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe version.py --check`: 100% PASS (Exit Code 0)
+- `.\.venv\Scripts\python.exe test_setlist_pos.py` (Desktop/Mobile Portrait/Landscape): PASS (Exit Code 0)
+- PyInstaller compile `MeikovaLoop.exe`: PASS (Exit Code 0)
+
+### 3. Cảnh báo kỹ thuật & Lưu ý cho phiên sau
+- Trên Windows PowerShell, khi chạy lệnh không dùng cú pháp `&&` nối lệnh (PowerShell 5.1 không hỗ trợ), thay bằng `;`.
+- Khi cập nhật mã nguồn giao diện trong `web/`, luôn chạy lệnh `Copy-Item -Recurse -Force web/* dist/MeikovaLoop/_internal/web/` để đồng bộ ngay lập tức cho ứng dụng Desktop nội bộ.
+
+---
+
 ## Phiên làm việc: 16/11/2026 (Dynamic Memory Pressure Sensing, Adaptive Audio Throttling & Self-Healing Canvas v1.0.32)
 
 ### 1. Mục tiêu hoàn thành
