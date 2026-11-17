@@ -1499,6 +1499,8 @@ body.is-night .topbar {
   padding: 0 var(--space-2);
   display: flex;
   align-items: center;
+  justify-content: center;
+  justify-content: safe center;
   max-width: 100%;
   min-height: 30px;
   overflow-x: auto;
@@ -4336,6 +4338,25 @@ dialog.mobile-modal,
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+.mobile-modal__title-wrap .mobile-modal__icon {
+  display: block;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.mobile-modal__title-wrap h2 {
+  margin: 0 !important;
+  padding: 0 !important;
+  font: 600 clamp(15px, 2.2vw, 18px) / 1 var(--font-display, var(--font-sans)) !important;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
 }
 
 .mobile-modal__icon-badge {

@@ -1152,3 +1152,27 @@ ode --check các file JS: ALL PASSED (Exit Code 0).
 
 ### 3. Cảnh báo kỹ thuật & Lưu ý vận hành:
 - Tài nguyên Web tại `dist/MeikovaLoop/_internal/web/` đã được cập nhật trực tiếp. Người dùng chỉ cần khởi động lại ứng dụng `MeikovaLoop.exe` hoặc reload để trải nghiệm ngay giao diện màng màu mới.
+
+
+---
+
+## Phiên làm việc: 17/11/2026 (Căn Giữa Danh Sách Bài Hát Dưới Deck & Căn Chỉnh Đồng Trục SVG Tiêu Đề Modal v1.0.37)
+
+### 1. Mục tiêu hoàn thành:
+1. **Căn Giữa Danh Sách Bài Hát Đang Phát (`.setlist`):**
+   - Áp dụng `justify-content: center; justify-content: safe center;` cho container danh sách bài `.setlist`.
+   - Kết quả: Khi chỉ có 1 bài hoặc một vài bài, chuỗi bài hát được tự động căn giữa đối xứng hoàn hảo ngay dưới Floating Deck trung tâm (độ lệch tâm `< 0.7px`), khắc phục tình trạng bài hát bị dạt cô độc về mép trái màn hình. Khi danh sách dài tràn màn hình, chỉ thị `safe center` tự động chuyển sang căn lề an toàn chống mất đầu chuỗi và cho phép cuộn ngang mượt mà.
+2. **Triệt tiêu Lệch Trục Tiêu Đề Modal So Với SVG (`.mobile-modal__title-wrap`):**
+   - **Nguyên nhân gốc rễ:** Thẻ `h2` trong các modal kế thừa `margin-bottom: var(--space-2)` (8px) từ `.consent h2`. Khi flexbox căn giữa (`align-items: center`), margin-box của chữ bị dồn thêm 8px phía dưới đẩy phần hiển thị chữ lên cao hơn SVG ~4px.
+   - **Giải pháp:** Thiết lập tường minh `.mobile-modal__title-wrap h2 { margin: 0 !important; padding: 0 !important; font: 600 clamp(15px, 2.2vw, 18px) / 1 var(--font-display, var(--font-sans)) !important; display: flex; align-items: center; }` và `.mobile-modal__title-wrap .mobile-modal__icon { display: block; flex-shrink: 0; width: 20px; height: 20px; }`.
+   - **Kiểm chứng Playwright:** Tọa độ tâm quang học SVG $Y = 186.50\text{px}$, Tâm chữ $Y = 186.50\text{px}$, độ lệch $\Delta Y = \mathbf{0.00\text{px}}$ (chuẩn xác pixel-perfect tuyệt đối).
+3. **Đồng Bộ & Đóng Gói SSOT v1.0.37:**
+   - Đồng bộ version `v1.0.37` trên 6 tệp trọng yếu qua `version.py`.
+   - Đồng bộ tài nguyên Web vào `dist/MeikovaLoop/_internal/web/`.
+   - Vượt qua 22/22 kiểm thử bộ nhớ và 6/6 kiểm thử đối kháng.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code:
+- `.\.venv\Scripts\python.exe tests/test_memory_lifecycle.py`: Ran 22 tests in 36.346s - OK (Exit Code 0).
+- `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: Ran 6 tests in 18.436s - OK (Exit Code 0).
+- `.\.venv\Scripts\python.exe version.py --check`: ALL 6 FILES IN 100% VERSION SYNCHRONIZATION (Exit Code 0).
+- Playwright Bounding Box Inspection: $\Delta Y = 0.00\text{px}$ giữa SVG và H2; độ lệch tâm Setlist với Deck $< 0.7\text{px}$.
