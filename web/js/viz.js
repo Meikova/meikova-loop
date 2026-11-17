@@ -18,6 +18,10 @@ const HALO_N = 320;
 const DOCK_LEAD_S = 14; // dock the confirmed next loop cleanly into infinity only shortly before hand-over
 const HALO_COS = new Float32Array(HALO_N + 1);
 const HALO_SIN = new Float32Array(HALO_N + 1);
+const HALO_RAW_H = new Float32Array(HALO_N + 1);
+const HALO_SMOOTH_H = new Float32Array(HALO_N + 1);
+const HALO_CA = new Float32Array(HALO_N + 1);
+const HALO_SA = new Float32Array(HALO_N + 1);
 for (let k = 0; k <= HALO_N; k++) {
   const theta = Math.PI + (k / HALO_N) * TAU;
   HALO_COS[k] = Math.cos(theta);
@@ -2046,7 +2050,7 @@ export class Viz {
     const a0 = head.angle;
     const th = this._thickness(ring.r);
     const r0 = ring.r + th / 2 + 1;
-    const H = ring.r * 0.16 * Math.min(1.3, theme.glowGain());
+    const H = ring.r * 0.18 * Math.min(1.3, theme.glowGain());
     const haloStep = this.memoryPressure === "high" ? 2 : 1;
     const N = HALO_N;
     const amp = (k) => {
@@ -2058,54 +2062,115 @@ export class Viz {
     };
     const col = ring.col || (T?.id ? theme.accentOf(T.id) : theme.idleAccent());
     const hi = theme.lift(col, 0.15);
+    const cosA0 = Math.cos(a0), sinA0 = Math.sin(a0);
+
+    // 1. Compute raw heights and rotated direction vectors
+    for (let k = 0; k <= N; k += haloStep) {
+      const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
+      HALO_CA[k] = cosA0 * cosTh - sinA0 * sinTh;
+      HALO_SA[k] = sinA0 * cosTh + cosA0 * sinTh;
+      const v = amp(k);
+      HALO_RAW_H[k] = Math.max(3.5, v * H);
+    }
+
+    // 2. Spatial smoothing (5-tap Gaussian window) so the crest flows as a cohesive liquid wave
+    let maxH = 0;
+    for (let k = 0; k <= N; k += haloStep) {
+      const km2 = (k - 2 * haloStep + N) % N;
+      const km1 = (k - haloStep + N) % N;
+      const kp1 = (k + haloStep) % N;
+      const kp2 = (k + 2 * haloStep) % N;
+      const sm = (
+        HALO_RAW_H[km2] * 0.08 +
+        HALO_RAW_H[km1] * 0.22 +
+        HALO_RAW_H[k]   * 0.40 +
+        HALO_RAW_H[kp1] * 0.22 +
+        HALO_RAW_H[kp2] * 0.08
+      );
+      HALO_SMOOTH_H[k] = sm;
+      if (sm > maxH) maxH = sm;
+    }
+    HALO_SMOOTH_H[N] = HALO_SMOOTH_H[0];
+    HALO_CA[N] = HALO_CA[0];
+    HALO_SA[N] = HALO_SA[0];
+
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = ring.alpha;
-    const cosA0 = Math.cos(a0), sinA0 = Math.sin(a0);
-    // A soft breath of light under the hairlines.
+
+    // 3. LAYER 1: Ambient Blurred Undulating Color Ribbon (Mảng màu blur phát quang nhấp nhô)
     if (this.memoryPressure !== "high") {
-      const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + H);
-      g.addColorStop(0, theme.css(col, 0.18));
+      const g = ctx.createRadialGradient(ring.x, ring.y, r0, ring.x, ring.y, r0 + maxH + 8);
+      g.addColorStop(0, theme.css(col, 0.45));
+      g.addColorStop(0.5, theme.css(hi, 0.25));
+      g.addColorStop(0.85, theme.css(col, 0.12));
       g.addColorStop(1, theme.css(col, 0));
+
       ctx.fillStyle = g;
       ctx.beginPath();
       for (let k = 0; k <= N; k += haloStep) {
-        const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
-        const ca = cosA0 * cosTh - sinA0 * sinTh;
-        const sa = sinA0 * cosTh + cosA0 * sinTh;
-        const r = r0 + amp(k) * H;
-        const x = ring.x + r * ca, y = ring.y + r * sa;
-        if (k) ctx.lineTo(x, y);
-        else ctx.moveTo(x, y);
+        const r = r0 + HALO_SMOOTH_H[k];
+        const x = ring.x + r * HALO_CA[k];
+        const y = ring.y + r * HALO_SA[k];
+        if (k === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
-      ctx.arc(ring.x, ring.y, r0, a0 + Math.PI + TAU, a0 + Math.PI, true);
+      for (let k = N; k >= 0; k -= haloStep) {
+        const x = ring.x + r0 * HALO_CA[k];
+        const y = ring.y + r0 * HALO_SA[k];
+        ctx.lineTo(x, y);
+      }
       ctx.closePath();
+
+      if (!this.reduced) {
+        ctx.shadowColor = theme.css(col, 0.65);
+        ctx.shadowBlur = 14;
+      }
       ctx.fill();
+      if (!this.reduced) ctx.shadowBlur = 0;
     }
-    // The spectrum itself: dense luminous hairlines around the loop
+
+    // 4. LAYER 2: Luminous Crest Wave Line (Đường viền sóng phát quang mềm mại kết nối các đỉnh thanh)
+    ctx.beginPath();
+    for (let k = 0; k <= N; k += haloStep) {
+      const r = r0 + HALO_SMOOTH_H[k];
+      const x = ring.x + r * HALO_CA[k];
+      const y = ring.y + r * HALO_SA[k];
+      if (k === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
     ctx.lineWidth = 1.8;
+    ctx.strokeStyle = theme.css(hi, 0.78);
+    if (!this.reduced && this.memoryPressure !== "high") {
+      ctx.shadowColor = theme.css(hi, 0.85);
+      ctx.shadowBlur = 8;
+    }
+    ctx.stroke();
+    if (!this.reduced) ctx.shadowBlur = 0;
+
+    // 5. LAYER 3: Internal Luminous Filament Bars (Các thanh âm lượng như các nan tia sáng nhấp nhô)
+    ctx.lineWidth = 1.5;
     ctx.lineCap = "round";
     const groups = [[], [], [], []];
     for (let k = 0; k < N; k += haloStep) {
-      const v = amp(k);
-      const cosTh = HALO_COS[k], sinTh = HALO_SIN[k];
-      const ca = cosA0 * cosTh - sinA0 * sinTh;
-      const sa = sinA0 * cosTh + cosA0 * sinTh;
-      groups[Math.min(3, Math.floor(v * 4))].push(ca, sa, v);
+      const v = (HALO_SMOOTH_H[k] - 3.5) / (H || 1);
+      const q = Math.min(3, Math.max(0, Math.floor(v * 4)));
+      groups[q].push(HALO_CA[k], HALO_SA[k], HALO_SMOOTH_H[k]);
     }
     for (let q = 0; q < 4; q++) {
       const bars = groups[q];
       if (!bars.length) continue;
-      ctx.strokeStyle = theme.css(hi, 0.28 + 0.2 * q);
+      ctx.strokeStyle = theme.css(hi, 0.35 + 0.22 * q);
       ctx.beginPath();
       for (let i = 0; i < bars.length; i += 3) {
-        const c = bars[i], s = bars[i + 1], v = bars[i + 2];
-        const barHeight = Math.max(3, v * H);
+        const c = bars[i], s = bars[i + 1], h = bars[i + 2];
         ctx.moveTo(ring.x + (r0 + 1) * c, ring.y + (r0 + 1) * s);
-        ctx.lineTo(ring.x + (r0 + 1 + barHeight) * c, ring.y + (r0 + 1 + barHeight) * s);
+        ctx.lineTo(ring.x + (r0 + 1 + h) * c, ring.y + (r0 + 1 + h) * s);
       }
       ctx.stroke();
     }
+
     ctx.restore();
   }
 
