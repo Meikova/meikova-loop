@@ -716,6 +716,8 @@ export class Viz {
       }
       return;
     }
+    const mood = track.analysis?.mood || track.meta?.mood || null;
+    if (mood) theme.registerMood(track.id, mood);
     const keep = this.player?.settings?.keep ?? 0.6;
     const transLen = track.transitions?.length ?? 0;
     const baseLayerR = this.layerR || this.baseR || 160;
@@ -729,17 +731,19 @@ export class Viz {
     );
     if (ring.layerKey !== key || !isLayerValid) {
       ring.alpha = ring.alpha ?? 0;
-      if (ring.layer?.canvas) {
-        try {
-          ring.layer.canvas.width = 1;
-          ring.layer.canvas.height = 1;
-        } catch (_) {}
-        ring.layer.canvas = null;
-        ring.layer = null;
-      }
-      ring.layer = this._buildLayer(track);
-      if (track.beats?.length > 0) {
-        ring.layerKey = key;
+      const newLayer = this._buildLayer(track);
+      if (newLayer && newLayer.canvas && newLayer.canvas.width > 1) {
+        const oldCanvas = ring.layer?.canvas;
+        ring.layer = newLayer;
+        if (track.beats?.length > 0) {
+          ring.layerKey = key;
+        }
+        if (oldCanvas && oldCanvas !== newLayer.canvas) {
+          try {
+            oldCanvas.width = 1;
+            oldCanvas.height = 1;
+          } catch (_) {}
+        }
       }
     }
   }
@@ -798,7 +802,6 @@ export class Viz {
     const ang = (t) => this._ang(track, t);
     const rin = RL - th / 2 - 3;
     const mood = track.analysis?.mood || track.meta?.mood || null;
-    if (mood) theme.registerMood(track.id, mood);
     let hostCol = forcedCol;
     if (!hostCol && stageSync.isStageMirrorActive) {
       if (stageSync.telemetry?.track_id === track.id && Array.isArray(stageSync.telemetry?.color_a) && stageSync.telemetry.color_a.length >= 3) {
@@ -1060,7 +1063,9 @@ export class Viz {
 
   _roles(view) {
     const p = this.player;
-    const primary = view?.entry.track || (p.cur ? p.cur.track : null);
+    const lastVia = p?.history?.at(-1)?.via;
+    const isImmediate = lastVia === "start" || lastVia === "skip";
+    const primary = (isImmediate && p.cur?.track) ? p.cur.track : (view?.entry?.track || (p.cur ? p.cur.track : null));
     let second = null;
     let secondTr = null;
     let placeholder = null;
@@ -1154,18 +1159,36 @@ export class Viz {
     if (primary && primary.id !== this.primaryId) {
       // A new song is playing: the one before it leaves the stage.
       const before = this.primaryId ? this.rings.get(this.primaryId) : null;
-      if (before) before.role = "leaving";
       const fresh = !this.rings.has(primary.id);
       const ring = this._ring(primary, "primary");
       const wasDockedVisible = !fresh && ring.alpha > 0.35 && !isImmediateVia;
-      if (!hasActiveMix && !wasDockedVisible) {
+
+      if (isImmediateVia) {
+        if (before) {
+          this._disposeRing(before);
+          this.rings.delete(before.track?.id || this.primaryId);
+        }
         ring.x = L.a.x;
         ring.y = L.a.y;
         ring.r = L.a.r;
         ring._layoutR = ring.r;
-        ring.alpha = Math.max(0.25, ring.alpha || 0);
-        ring.fill = before ? 1 : (this.reduced ? 1 : 0);
+        ring.alpha = 1;
+        ring.fill = 1;
         if (before) ring.dir = -before.dir;
+      } else {
+        if (before) before.role = "leaving";
+        if (!hasActiveMix && !wasDockedVisible) {
+          ring.x = L.a.x;
+          ring.y = L.a.y;
+          ring.r = L.a.r;
+          ring._layoutR = ring.r;
+          ring.alpha = 1;
+          ring.fill = 1;
+          if (before) ring.dir = -before.dir;
+        }
+      }
+      if (!ring.layer || !ring.layer.canvas || ring.layer.canvas.width <= 1) {
+        this._prewarmLayer(primary);
       }
       this.primaryId = primary.id;
     }
@@ -1215,10 +1238,11 @@ export class Viz {
           alpha: 0,
         };
       }
-      if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+      if (ring.role === "primary") {
         ring.fill = 1;
+      } else if (ring.fill < 1) {
+        ring.fill = Math.min(1, ring.fill + dt / 1.2);
       }
-      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
       const tg = ring.target;
       if (!tg) continue;
       if (ring.x === null || ring._layoutR === null) {
@@ -1378,8 +1402,13 @@ export class Viz {
     const curNow = (effectiveNow !== undefined && effectiveNow !== null) ? effectiveNow : view.now;
     const T = primary.track;
     const e = view.entry;
+    if (!T || !Array.isArray(T.beats) || T.beats.length === 0) return { lead: null, ghost: null };
+    if (!e || e.track?.id !== T.id) {
+      return { lead: this._head(primary, 0, 0), ghost: null };
+    }
     const rate = e.rate || 1;
-    let span = T.dur[e.beat];
+    const safeBeat = Math.max(0, Math.min(T.n - 1, e.beat || 0));
+    let span = T.dur[safeBeat] || 0.5;
     const tl = this.player?.timeline;
     if (tl && view.index !== undefined && view.index + 1 < tl.length) {
       const nextE = tl[view.index + 1];
@@ -1388,7 +1417,7 @@ export class Viz {
       }
     }
     const frac = span > 0 ? Math.max(0, Math.min(1, ((curNow - e.t) * rate) / span)) : 0;
-    const onA = this._head(primary, e.beat, frac);
+    const onA = this._head(primary, safeBeat, frac);
     const b = this.mixNow?.blend ? this.mixNow.m : null;
     const sr = b && curNow >= b.times[0] ? this.rings.get(b.B.id) : null;
     if (!sr || sr.role !== "second" || sr.alpha < 0.05) return { lead: onA, ghost: null };
@@ -1535,7 +1564,7 @@ export class Viz {
           ring.r = L.a.r;
           ring._layoutR = ring.r;
           ring.alpha = 1;
-          ring.fill = this.reduced || (t.primary?.fill ?? 1) >= 0.98 ? 1 : 0;
+          ring.fill = 1;
         }
       } else if (before && before.x !== null && Math.hypot(before.x - L.a.x, before.y - L.a.y) < L.a.r * 0.12) {
         const L2 = this._layout(true, 0);
@@ -1602,10 +1631,11 @@ export class Viz {
           alpha: 0,
         };
       }
-      if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+      if (ring.role === "primary") {
         ring.fill = 1;
+      } else if (ring.fill < 1) {
+        ring.fill = Math.min(1, ring.fill + dt / 1.2);
       }
-      if (ring.fill < 1) ring.fill = Math.min(1, ring.fill + dt / 1.2);
       const tg = ring.target;
       if (!tg) continue;
       if (ring.x === null || ring._layoutR === null) {
@@ -2054,7 +2084,7 @@ export class Viz {
   // to come out of the loop where it is being played.
   _drawHalo(ctx, head) {
     const ring = head.ring;
-    if (ring.alpha < 0.05 || ring.fill < 1) return;
+    if (ring.alpha < 0.05) return;
     let peak = 0;
     for (let i = 0; i < HALO_BANDS; i++) peak = Math.max(peak, this.bands[i]);
     if (peak < 0.02) return;
@@ -2194,10 +2224,12 @@ export class Viz {
   }
 
   _drawRing(ctx, ring) {
-    if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0)) {
+    if (ring.role === "primary") {
       ring.fill = 1;
     }
     if (ring.alpha < 0.01 || ring.x === null) return;
+    const mood = ring.track?.analysis?.mood || ring.track?.meta?.mood || null;
+    if (mood && ring.track?.id) theme.registerMood(ring.track.id, mood);
     const keep = this.player?.settings?.keep ?? 0.6;
     const transLen = ring.track?.transitions?.length ?? 0;
     const baseLayerR = this.layerR || this.baseR || ring.r || 160;
@@ -2223,16 +2255,18 @@ export class Viz {
     );
     if (ring.layerKey !== key || !isLayerValid) {
       if (ring.track?.beats?.length > 0) {
-        if (ring.layer?.canvas) {
-          try {
-            ring.layer.canvas.width = 1;
-            ring.layer.canvas.height = 1;
-          } catch (_) {}
-          ring.layer.canvas = null;
-          ring.layer = null;
+        const newLayer = this._buildLayer(ring.track, satForcedCol);
+        if (newLayer && newLayer.canvas && newLayer.canvas.width > 1) {
+          const oldCanvas = ring.layer?.canvas;
+          ring.layer = newLayer;
+          ring.layerKey = key;
+          if (oldCanvas && oldCanvas !== newLayer.canvas) {
+            try {
+              oldCanvas.width = 1;
+              oldCanvas.height = 1;
+            } catch (_) {}
+          }
         }
-        ring.layer = this._buildLayer(ring.track, satForcedCol);
-        ring.layerKey = key;
       }
     }
     const L = ring.layer;
@@ -2248,7 +2282,7 @@ export class Viz {
     ctx.translate(px, py);
     ctx.rotate(ring.rot);
     ctx.scale(s, s * ring.dir);
-    if (ring.role === "primary" && (ring.fill === undefined || ring.fill <= 0 || ring.fill >= 0.98)) {
+    if (ring.role === "primary") {
       ring.fill = 1;
     }
     if (ring.fill < 0.98) {
@@ -2285,7 +2319,7 @@ export class Viz {
     }
 
     // Minute labels stay upright while the loop turns.
-    if (ring.role === "primary" && ring.alpha > 0.3 && ring.fill >= 1) {
+    if (ring.role === "primary" && ring.alpha > 0.25) {
       ctx.save();
       ctx.globalAlpha = ring.alpha * 0.7;
       ctx.fillStyle = theme.css(theme.inkOf(ring.track.id), 0.7);

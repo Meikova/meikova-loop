@@ -1,5 +1,33 @@
 # BẢN GIAO TIẾP LIÊN PHIÊN (SESSION HANDOFF) — MEIKOVA LOOP
 
+## Phiên làm việc: 18/11/2026 (Eliminate Render Flicker & Detail Drop on Track Switch v1.0.42)
+
+### 1. Mục tiêu hoàn thành
+- **Triệt tiêu hoàn toàn hiện tượng nhấp nháy render và mất chi tiết khi chuyển sang bài mới**:
+  - **Nguyên nhân gốc rễ:**
+    1. **Vòng lặp hủy texture qua `theme.registerMood()`:** Trong `web/js/viz.js`, `_drawRing()` và `_prewarmLayer()` tính khóa cache `key` (chứa `theme.paletteVersion()`) trước khi gọi `_buildLayer()`. Bên trong `_buildLayer()`, lệnh `theme.registerMood(track.id, mood)` tăng biến đếm `version++` trong `theme.js`, khiến `key` ở khung hình tiếp theo không còn khớp với `ring.layerKey` vừa lưu. Kết quả là ngay frame kế tiếp, canvas offscreen vừa vẽ bị thu nhỏ về `1x1` (`canvas.width = 1`) và vẽ lại từ đầu, gây nhấp nháy khung hình.
+    2. **Trễ độ trễ âm thanh (`audibleTime()` vs `p.cur.track`):** Khi chuyển bài ngay (`via === "start" || via === "skip"`), `audible()` vẫn trả về timeline entry của bài cũ trong ~100ms bù độ trễ phần cứng, khiến `_heads()` dùng chỉ số beat của bài cũ truy xuất vào mảng `T.dur` của bài mới (rủi ro `undefined`/`NaN`) làm kim sáng và vòng phổ nhạc biến mất thoáng chốc.
+    3. **Khởi tạo mờ `alpha = 0.25`, `fill = 0` và chồng bóng đĩa cũ:** Khi bài mới lên sân khấu, `ring.alpha` khởi điểm `0.25` khiến nhãn phút (`alpha > 0.3`) không được vẽ trong các frame đầu; `ring.fill = 0` cắt xén đường tròn và chặn `_drawHalo` (`fill < 1`); trong khi đĩa cũ (`before`) vẫn mờ dần và chồng lên tâm đĩa mới.
+    4. **Hủy buffer trước khi hoàn tất buffer mới:** `_drawRing()` đặt `ring.layer = null` trước khi `_buildLayer()` trả về canvas hợp lệ.
+  - **Giải pháp triệt để (`web/js/viz.js`):**
+    - Đăng ký `theme.registerMood()` trước khi tạo `key` trong `_prewarmLayer()` và `_drawRing()`, đồng thời loại bỏ lệnh gọi `theme.registerMood()` bên trong `_buildLayer()` để `paletteVersion()` bất biến trong quá trình rasterize.
+    - Áp dụng hoán đổi double-buffer nguyên tử (Atomic Layer Swap) trong `_drawRing()` và `_prewarmLayer()`: chỉ thu hồi `oldCanvas` sau khi `newLayer` mới đã vẽ xong và hợp lệ (`width > 1`).
+    - Trong `_roles(view)`: ưu tiên trả về `p.cur.track` ngay lập tức khi `via` là `"start"` hoặc `"skip"`.
+    - Trong `_heads()`: kiểm tra `e.track?.id !== T.id` và kẹp chỉ số beat an toàn (`safeBeat`), neo đầu phát ở beat 0 khi timeline chưa đuổi kịp độ trễ âm thanh.
+    - Trong `_update()`: đặt `ring.alpha = 1` và `ring.fill = 1` cho đĩa chính (`primary`) trên mọi khung hình và đồng bộ cả Satellite Stage; thu hồi sạch đĩa cũ ngay lập tức khi chuyển bài trực tiếp (`isImmediateVia`), và prewarm offscreen layer đồng bộ ngay khi chuyển bài.
+    - Nới lỏng điều kiện hiển thị nhãn phút (`ring.alpha > 0.25`) và vòng phổ `_drawHalo()` (`ring.alpha >= 0.05`) để mọi chi tiết hiển thị tức thì ngay từ Frame 0.
+- **Đồng bộ SSOT v1.0.42 & Đóng gói Native**:
+  - Tăng SemVer Patch lên `v1.0.42` đồng bộ toàn bộ 6 tệp cấu hình (`version.py --check` PASS).
+  - Biên dịch lại `dist/MeikovaLoop/MeikovaLoop.exe` bằng `.venv\Scripts\pyinstaller.exe` và đồng bộ tài nguyên web vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code
+- `node --check web/js/viz.js; node --check web/js/player.js; node --check web/js/theme.js; node --check web/js/main.js`: Exit Code 0
+- `.\.venv\Scripts\python.exe tests/test_memory_lifecycle.py`: 22/22 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: 6/6 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe version.py --check`: 100% PASS v1.0.42 (Exit Code 0)
+
+---
+
 ## Phiên làm việc: 18/11/2026 (Fix Frozen UI When Skipping Track While Paused v1.0.41)
 
 ### 1. Mục tiêu hoàn thành
