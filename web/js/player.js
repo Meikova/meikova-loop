@@ -432,6 +432,8 @@ export class Player extends EventTarget {
       if (!this.timer) {
         this.timer = setInterval(() => this._tick(), TICK_MS);
       }
+      this._log(t, "seq");
+      this._tick();
 
       this.dispatchEvent(new Event("state"));
     } finally {
@@ -633,11 +635,19 @@ export class Player extends EventTarget {
     if (this.blend || this.fx) return false;
     const T = this.cur.track;
 
+    if (this.engine.ctx.state !== "running") {
+      await this.engine.ctx.resume().catch(() => {});
+    }
+
     // 1. If a plan is already active, fast-forward into it immediately if ready
     if (this.plan && this.plan.tr) {
       const targetId = this.plan.tr.to;
       try {
-        const targetTrack = await this.loader.get(targetId);
+        let targetTrack = await this.loader.get(targetId);
+        if (!targetTrack?.buffer) {
+          this.loader.drop?.(targetId);
+          targetTrack = await this.loader.get(targetId);
+        }
         if (targetTrack && this.cur && this.cur.track.id === T.id) {
           this._startImmediateCrossfade(targetTrack, this.plan.tr);
           return true;
@@ -666,13 +676,22 @@ export class Player extends EventTarget {
     }
 
     if (!targetId) {
-      // Only one song: seek to start
-      this.seek(0);
+      // Only one song: seek to start (and resume if paused)
+      if (this.userPaused) {
+        this.cur.beat = 0;
+        await this.play();
+      } else {
+        this.seek(0);
+      }
       return true;
     }
 
     try {
-      const targetTrack = await this.loader.get(targetId);
+      let targetTrack = await this.loader.get(targetId);
+      if (!targetTrack?.buffer) {
+        this.loader.drop?.(targetId);
+        targetTrack = await this.loader.get(targetId);
+      }
       if (!this.cur || this.cur.track.id !== T.id) return false;
       const tr = chosenTr || {
         type: "fade",
@@ -695,21 +714,39 @@ export class Player extends EventTarget {
 
   _startImmediateCrossfade(targetTrack, tr) {
     if (!this.cur) return;
+    const wasPaused = this.userPaused || !this.playing;
+    this.userPaused = false;
+    this.engine.startAnchor();
+    if (this.engine.ctx.state !== "running") {
+      this.engine.ctx.resume().catch(() => {});
+    }
+    if (this.engine.targetVol != null) {
+      this.engine.setVolume(this.engine.targetVol);
+    }
+    if (wasPaused) {
+      this.engine.stopAll(0.01);
+    }
+
     const t = this.engine.now + 0.05;
     const secs = tr.seconds || 2.5;
     const prev = this.cur;
     const v = this.engine.voice(targetTrack);
 
-    v.setBand("low", t, -14);
-    v.start(t, targetTrack.beats[0], 1, secs * 0.7);
-    v.sweep(t, 420, 18000, secs * 0.75);
-    v.rampBand("low", t + secs * 0.45, 0, secs * 0.3);
+    if (wasPaused) {
+      // Clean instant start when skipping from paused state
+      v.start(t, targetTrack.beats[0], 1, 0.03);
+    } else {
+      v.setBand("low", t, -14);
+      v.start(t, targetTrack.beats[0], 1, secs * 0.7);
+      v.sweep(t, 420, 18000, secs * 0.75);
+      v.rampBand("low", t + secs * 0.45, 0, secs * 0.3);
 
-    if (prev.voice) {
-      prev.voice.rampBand("low", t, -16, secs * 0.35);
-      prev.voice.sweep(t + secs * 0.2, 16000, 700, secs * 0.8);
-      prev.voice.gainCurve(FADE_A, t, secs);
-      prev.voice.stopAt(t + secs + 0.05);
+      if (prev.voice) {
+        prev.voice.rampBand("low", t, -16, secs * 0.35);
+        prev.voice.sweep(t + secs * 0.2, 16000, 700, secs * 0.8);
+        prev.voice.gainCurve(FADE_A, t, secs);
+        prev.voice.stopAt(t + secs + 0.05);
+      }
     }
 
     if (this.plan) this._dropPlan();
@@ -721,6 +758,10 @@ export class Player extends EventTarget {
     this.cooldown = Math.max(this.cooldown, Math.ceil(secs / targetTrack.dur[0]) + 2);
     this._log(t, "fade", { from: prev.beat, fromTrack: prev.track.id, tr });
     this._enterTrack(targetTrack, t, "skip", tr);
+    if (!this.timer) {
+      this.timer = setInterval(() => this._tick(), TICK_MS);
+    }
+    this._tick();
     this.dispatchEvent(new Event("track"));
     this.dispatchEvent(new Event("state"));
   }

@@ -1,5 +1,29 @@
 # BẢN GIAO TIẾP LIÊN PHIÊN (SESSION HANDOFF) — MEIKOVA LOOP
 
+## Phiên làm việc: 18/11/2026 (Fix Frozen UI When Skipping Track While Paused v1.0.41)
+
+### 1. Mục tiêu hoàn thành
+- **Khắc phục lỗi âm thanh phát nhưng giao diện bị đóng băng khi nhấn Pause rồi chuyển bài khác (`skipToNext`)**:
+  - **Nguyên nhân gốc rễ:** Khi người dùng tạm dừng (`pause()`), `this.userPaused = true` và `this.engine.stopAnchor()` được gọi. Khi nhấn chuyển bài tiếp theo (`#btn-next` -> `player.skipToNext()` -> `_startImmediateCrossfade()`), hệ thống khởi chạy âm thanh WebAudio (`v.start(...)`) cho bài mới nhưng **quên đặt lại `this.userPaused = false`, không kích hoạt `this.engine.startAnchor()`, không khôi phục `AudioContext` và không gọi `this._tick()`**. Kết quả là `player.playing` vẫn bằng `false` (nút Play không đổi thành Pause, phổ nhạc bị tắt tại `_spectrum()`, đồng hồ nhịp `_tick()` bị chặn ngay dòng đầu khiến kim sáng kẹt cứng ở vị trí 12 giờ).
+  - **Giải pháp triệt để:**
+    - `web/js/player.js`:
+      - Trong `skipToNext()`: tự động gọi `await this.engine.ctx.resume()`, kiểm tra và nạp lại buffer nếu bị thu hồi do áp lực bộ nhớ, và tự động tiếp tục phát nếu thư viện chỉ có 1 bài đang tạm dừng.
+      - Trong `_startImmediateCrossfade()`: nhận diện trạng thái `wasPaused`, đặt `this.userPaused = false`, gọi `this.engine.startAnchor()`, khôi phục âm lượng `targetVol`, phát sạch bài mới với fade-in 30ms (không lọc trầm 2.5s trên nền im lặng), bảo đảm `this.timer` hoạt động và kích hoạt ngay `this._tick()` để lịch nhịp và visualizer chạy tức thì.
+      - Trong `play()`: bổ sung `this._log(t, "seq"); this._tick();` để đồng bộ tức thời khi tiếp tục phát từ trạng thái tạm dừng.
+    - `web/js/main.js`: Bổ sung `engine.unlockAudio()`, `engine.ctx.resume()` và `renderTransport()` ngay trong trình xử lý nút `#btn-next`.
+    - `tests/test_memory_lifecycle.py`: Lấy giá trị nhỏ nhất trên 3 mẫu đo latency `query_raw_memory()` để tránh nhiễu lập lịch tiến trình OS trên Windows.
+- **Đồng bộ SSOT v1.0.41 & Đóng gói Native**:
+  - Đồng bộ chuẩn SemVer Patch `v1.0.41` trên toàn bộ 6 tệp cấu hình hệ thống (`version.py --check` PASS).
+  - Biên dịch PyInstaller `dist/MeikovaLoop/MeikovaLoop.exe` và đồng bộ tài nguyên web vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code
+- `node --check web/js/player.js; node --check web/js/main.js; node --check web/js/viz.js`: Exit Code 0
+- `.\.venv\Scripts\python.exe tests/test_memory_lifecycle.py`: 22/22 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: 6/6 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe version.py --check`: 100% PASS v1.0.41 (Exit Code 0)
+
+---
+
 ## Phiên làm việc: 18/11/2026 (Eliminate Rogue Crossing Point & Instant Centering on Skip v1.0.40)
 
 ### 1. Mục tiêu hoàn thành

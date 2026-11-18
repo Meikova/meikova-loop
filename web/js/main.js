@@ -1043,11 +1043,14 @@ $("#btn-next").addEventListener("click", async () => {
     return;
   }
 
+  engine.unlockAudio();
+  engine.ctx.resume?.().catch(() => {});
   showHudToast("Đang chuyển sang bài tiếp theo (N)...");
   const ok = await player.skipToNext();
   if (!ok) {
     player.forceTransition();
   }
+  renderTransport();
 });
 
 $("#btn-kho").addEventListener("click", () => {
