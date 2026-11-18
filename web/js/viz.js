@@ -1348,7 +1348,7 @@ export class Viz {
       this._broadcastHostTelemetry();
 
       this._drawLights(ctx, primary);
-      if (this.heads.lead && !this.reduced && this.memoryPressure !== "critical") this._drawHalo(ctx, this.heads.lead);
+      if (this.heads.lead && !this.reduced) this._drawHalo(ctx, this.heads.lead);
 
       // Back to front: leaving, the next song, the playing song.
       const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
@@ -1695,7 +1695,7 @@ export class Viz {
     const ang = this._satSmoothAng;
 
     // 4. Live Spectrum Halo around the active lead loop (moves to secRing during blend, matching Host)
-    if (leadRing && leadRing.track?.analysis && !this.reduced && this.memoryPressure !== "critical") {
+    if (leadRing && leadRing.track?.analysis && !this.reduced) {
       this._drawHalo(ctx, { ring: leadRing, angle: ang, beat: leadBeat, frac: leadFrac });
     }
 
@@ -1911,10 +1911,13 @@ export class Viz {
 
     ctx.save();
     if (this.memoryPressure === "critical") {
+      ctx.shadowColor = theme.css(theme.lift(col, 0.35), 0.95);
+      ctx.shadowBlur = 14;
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(hx, hy, Math.max(3, Math.min(5, th * 0.24)), 0, TAU);
       ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
       return;
     }
@@ -2036,7 +2039,6 @@ export class Viz {
   // playhead, lows at the playhead and highs on the far side. The music seems
   // to come out of the loop where it is being played.
   _drawHalo(ctx, head) {
-    if (this.memoryPressure === "critical") return;
     const ring = head.ring;
     if (ring.alpha < 0.05 || ring.fill < 1) return;
     let peak = 0;
@@ -2485,10 +2487,13 @@ export class Viz {
     ctx.globalAlpha = a;
 
     if (this.memoryPressure === "critical") {
+      ctx.shadowColor = theme.css(theme.lift(col, 0.35), 0.95);
+      ctx.shadowBlur = full ? 16 : 9;
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(hx, hy, full ? 2.8 : 2.0, 0, TAU);
       ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
       return;
     }

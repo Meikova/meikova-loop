@@ -387,16 +387,20 @@ class MemoryMonitor:
         commit_pct = float(raw.get("commit_pct", 0.0))
         phys_avail = float(raw.get("phys_avail_mb", 0.0))
 
+        # Physical RAM and Commit available are true physical constraints.
+        # High commit percentage (commit_pct) on modern Windows multi-tasking hosts
+        # is only a valid trigger if physical RAM or commit headroom is also constrained,
+        # preventing false positives when the machine has gigabytes of physical RAM free.
         is_critical_trigger = (
-            commit_avail <= CRITICAL_ENTER_COMMIT_AVAIL_MB
-            or commit_pct >= CRITICAL_ENTER_COMMIT_PCT
-            or phys_avail <= CRITICAL_ENTER_PHYS_AVAIL_MB
+            phys_avail <= CRITICAL_ENTER_PHYS_AVAIL_MB
+            or commit_avail <= CRITICAL_ENTER_COMMIT_AVAIL_MB
+            or (commit_pct >= CRITICAL_ENTER_COMMIT_PCT and (phys_avail <= HIGH_ENTER_PHYS_AVAIL_MB or commit_avail <= HIGH_ENTER_COMMIT_AVAIL_MB))
         )
 
         is_high_trigger = (
-            commit_avail <= HIGH_ENTER_COMMIT_AVAIL_MB
-            or commit_pct >= HIGH_ENTER_COMMIT_PCT
-            or phys_avail <= HIGH_ENTER_PHYS_AVAIL_MB
+            phys_avail <= HIGH_ENTER_PHYS_AVAIL_MB
+            or commit_avail <= HIGH_ENTER_COMMIT_AVAIL_MB
+            or (commit_pct >= HIGH_ENTER_COMMIT_PCT and (phys_avail <= 3072.0 or commit_avail <= 3500.0))
         )
 
         state_changed = False
@@ -409,7 +413,7 @@ class MemoryMonitor:
                 # Critical requires sustaining healthy headroom for >= 5s before recovery to High
                 can_recover_to_high = (
                     commit_avail >= CRITICAL_RECOVERY_COMMIT_AVAIL_MB
-                    and commit_pct < CRITICAL_RECOVERY_COMMIT_PCT
+                    and (commit_pct < CRITICAL_RECOVERY_COMMIT_PCT or phys_avail >= 2048.0)
                     and not is_critical_trigger
                 )
                 if can_recover_to_high:
@@ -436,8 +440,8 @@ class MemoryMonitor:
                 else:
                     # High requires sustaining healthy headroom for >= 8s before recovery to Normal
                     can_recover_to_normal = (
-                        commit_avail >= NORMAL_RECOVERY_COMMIT_AVAIL_MB
-                        and commit_pct < NORMAL_RECOVERY_COMMIT_PCT
+                        (commit_avail >= NORMAL_RECOVERY_COMMIT_AVAIL_MB or phys_avail >= 4096.0)
+                        and (commit_pct < NORMAL_RECOVERY_COMMIT_PCT or phys_avail >= NORMAL_RECOVERY_PHYS_AVAIL_MB)
                         and phys_avail >= NORMAL_RECOVERY_PHYS_AVAIL_MB
                         and not is_high_trigger
                     )

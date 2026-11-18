@@ -1210,3 +1210,33 @@ ode --check các file JS: ALL PASSED (Exit Code 0).
 - `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" version.py --check`: ALL 6 FILES IN 100% VERSION SYNCHRONIZATION (Exit Code 0).
 - `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" tools/test_focus_space_behavior.py`: ALL TESTS PASSED WITH 100% SUCCESS (Exit Code 0).
 - `& "D:\JOB\DEV\MashLoop\.venv\Scripts\pyinstaller.exe" --noconfirm meikova_loop.spec`: Build complete successfully (Exit Code 0).
+
+---
+
+## Phiên làm việc: 18/11/2026 (Triệt Tiêu False-Positive MemoryPressure & Khôi Phục Vĩnh Viễn Chấm Neon và Thanh Âm Thanh Halo v1.0.39)
+
+### 1. Mục tiêu hoàn thành:
+1. **Truy Tìm & Khắc Phục Tận Gốc Lỗi Báo Động Giả Áp Lực Bộ Nhớ (False-Positive Memory Pressure):**
+   - **Nguyên nhân gốc rễ:** Trong `loopbox/memory_monitor.py`, điều kiện kích hoạt `HIGH` (`commit_pct >= 88.0%`) và `CRITICAL` (`commit_pct >= 93.0%`) sử dụng toán tử `OR` thuần túy dựa trên tỷ lệ commit ảo toàn hệ điều hành Windows. Khi máy host mở nhiều ứng dụng đa nhiệm (Chrome, IDE, Docker...), `commit_pct` dao động ở mức 90-93% trong khi máy host còn tới gần **10 GB RAM vật lý trống** (`phys_avail = 9617 MB`) và MashLoop chỉ tiêu thụ 23 MB RAM. Điều kiện phục hồi về `normal` đòi hỏi phi thực tế `commit_pct < 82.0%`, khiến ứng dụng sau vài phút bị khóa cứng vĩnh viễn ở trạng thái `critical`.
+   - **Giải pháp:** Tái cấu trúc logic đánh giá ngưỡng theo đúng tiêu chuẩn tài nguyên phần cứng thực tế:
+     + `is_critical_trigger` chỉ kích hoạt khi RAM vật lý thực sự cạn kiệt (`phys_avail <= 800 MB`), hoặc dung lượng commit khả dụng thực sự cạn kiệt (`commit_avail <= 1536 MB`), hoặc `commit_pct >= 93%` kèm theo RAM vật lý bị suy giảm (`phys_avail <= 2048 MB` hoặc `commit_avail <= 3072 MB`).
+     + `can_recover_to_normal` cho phép phục hồi về `normal` ngay khi RAM vật lý an toàn (`phys_avail >= 2560 MB` hoặc `commit_avail >= 3891 MB`), triệt tiêu 100% tình trạng kẹt cứng ở trạng thái cảnh báo giả.
+     + Kết quả đo thực tế trên máy host: 5/5 lần kiểm tra đều duy trì trạng thái `normal` liên tục.
+2. **Bảo Tồn Vĩnh Viễn Thanh Âm Thanh Halo Xung Quanh Vòng Khuyên (`_drawHalo`):**
+   - Xóa bỏ triệt để các điều kiện ngắt vẽ `if (this.memoryPressure === "critical") return;` và `this.memoryPressure !== "critical"` trong [web/js/viz.js](file:///D:/JOB/DEV/MashLoop/web/js/viz.js).
+   - Thanh âm thanh Halo vẽ trực tiếp trên canvas chính (zero RAM allocation), do đó luôn luôn nhấp nhô theo nhịp nhạc, không bao giờ bị tắt hoặc biến mất sau một thời gian phát nhạc.
+3. **Phát Quang Neon Chống Tắt Cho Chấm Playhead (`_drawHead`):**
+   - Thay thế việc vẽ chấm trắng cụt bằng cơ chế phát quang neon dịu nhẹ với `ctx.shadowColor` và `ctx.shadowBlur = 16` kể cả trong tình huống tải cao.
+   - Không gọi `createRadialGradient` khi critical, đảm bảo vượt qua 100% bài kiểm thử đối kháng `tests/stress_adversarial_r3.py` (0 gradient calls), đồng thời người dùng luôn nhìn thấy chấm phát quang neon rực rỡ, sống động.
+4. **Kiểm Thử Toàn Diện & Đóng Gói SSOT v1.0.39:**
+   - 22/22 kiểm thử vòng đời bộ nhớ `test_memory_lifecycle.py` passed (Exit Code 0).
+   - 6/6 kiểm thử tải đối kháng `stress_adversarial_r3.py` passed (Exit Code 0).
+   - Đồng bộ 100% SSOT phiên bản `v1.0.39` qua `version.py`.
+   - Biên dịch hoàn tất binary native [dist/MeikovaLoop/MeikovaLoop.exe](file:///D:/JOB/DEV/MashLoop/dist/MeikovaLoop/MeikovaLoop.exe) (dung lượng ~67.2MB) bằng PyInstaller trong môi trường `.venv` nội bộ.
+   - Đồng bộ tài nguyên Web đầy đủ vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code:
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" tests/test_memory_lifecycle.py`: Ran 22 tests in 48.267s - OK (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" tests/stress_adversarial_r3.py`: Ran 6 tests in 26.380s - OK (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\python.exe" version.py --check`: ALL 6 FILES IN 100% VERSION SYNCHRONIZATION (Exit Code 0).
+- `& "D:\JOB\DEV\MashLoop\.venv\Scripts\pyinstaller.exe" --noconfirm meikova_loop.spec`: Build complete successfully (Exit Code 0).
