@@ -4287,7 +4287,7 @@ document.addEventListener("drop", (e) => {
 // ------------------------------------------------------------- stage text
 
 const KIND = {
-  cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", echo: "echo vang", wash: "reverb wash",
+  cut: "nối thẳng", drop: "drop", blend: "blend khớp nhịp", fade: "crossfade", skip: "chuyển ngay", echo: "echo vang", wash: "reverb wash",
   riser: "build-up", flanger: "flanger", gap: "ngắt lặng", brake: "phanh đĩa", roll: "cuộn nhịp", spin: "spinback",
   gate: "gate",
 };

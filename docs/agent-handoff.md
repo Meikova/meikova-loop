@@ -1,5 +1,29 @@
 # BẢN GIAO TIẾP LIÊN PHIÊN (SESSION HANDOFF) — MEIKOVA LOOP
 
+## Phiên làm việc: 18/11/2026 (Eliminate Rogue Crossing Point & Instant Centering on Skip v1.0.40)
+
+### 1. Mục tiêu hoàn thành
+- **Triệt tiêu chấm sáng thừa ở giữa khi chuyển bài ngay (Eliminate Rogue Crossing Point)**:
+  - `web/js/viz.js`: Trước đây `this.cross` và lệnh gọi `_drawCross(ctx, view, now)` (cả Host và Satellite Stage) chỉ kiểm tra `primary.alpha > 0.4` mà không kiểm tra xem vòng thứ 2 (`secondRing`) có thực sự hiển thị hay không. Khi người dùng chuyển bài ngay, cơ chế trễ `_twoHoldUntil` vẫn giữ `two = true` trong 1100ms, khiến `_layout(true)` sinh ra `L.cross` lơ lửng ngay tại rìa/trung tâm đĩa đơn và vẽ chấm sáng cùng 3 vòng sóng đồng tâm dư thừa.
+  - Bổ sung kiểm soát hiển thị chặt chẽ: `hasVisibleSecond = Boolean((secondRing && secondRing.alpha > 0.08) || this.placeholder)` cho cả tính toán `this.cross`, render `_drawCross`, Satellite Stage và `_broadcastHostTelemetry`. Khi chuyển sang bài mới hoặc có lệnh chuyển ngay (`isNewTrack || pendingImmediateSwitch`), lập tức reset sạch `this._twoHoldUntil = 0; this.cross = null;` (và xóa `this.lastCross` khi `via` là `"start"`/`"skip"`).
+- **Khắc phục lỗi đĩa bài mới bị đẩy lệch sang trái rồi mới trôi về giữa (Instant Centering on Track Switch)**:
+  - `web/js/viz.js`: Tái cấu trúc trình tự `_update(view, dt)` để đánh giá `isNewTrack` và `pendingImmediateSwitch` trước khi tính `two` và `_layout(two, swapProg)`. Khi không có phiên mix 2 đĩa chủ động (`!hasActiveMix`) và đĩa chưa được dock hiển thị sẵn, neo cố định tâm đĩa mới trực tiếp tại `(w / 2, h / 2)` với `L.a`, loại bỏ hoàn toàn nhánh `L2 = this._layout(true, 0)` đẩy đĩa mới từ phải sang trái rồi trôi ngược lại giữa.
+- **Đồng bộ luồng chuyển bài tức thời (Player & Visualizer Sync)**:
+  - `web/js/player.js`: `_startImmediateCrossfade()` gọi `_enterTrack(targetTrack, t, "skip", tr)`.
+  - `web/js/viz.js`: `_roles()` bỏ qua tạo đĩa 2 giả khi `via === "skip"` và xóa `this.lastPlan` khi không còn plan hoặc mix.
+  - `web/js/main.js`: Thêm `skip: "chuyển ngay"` vào từ điển `KIND`.
+- **Đồng bộ SSOT v1.0.40 & Đóng gói Native**:
+  - Tăng SemVer Patch lên `v1.0.40` đồng bộ 6 file hệ thống (`version.py --check` PASS).
+  - Đóng gói PyInstaller `dist/MeikovaLoop/MeikovaLoop.exe` bằng `.venv` và đồng bộ tài nguyên web vào `dist/MeikovaLoop/_internal/web/`.
+
+### 2. Lệnh kiểm tra đã chạy & Exit Code
+- `node --check web/js/viz.js; node --check web/js/player.js; node --check web/js/main.js`: Exit Code 0
+- `.\.venv\Scripts\python.exe tests/test_memory_lifecycle.py`: 22/22 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe tests/stress_adversarial_r3.py`: 6/6 PASSED (Exit Code 0)
+- `.\.venv\Scripts\python.exe version.py --check`: 100% PASS v1.0.40 (Exit Code 0)
+
+---
+
 ## Phiên làm việc: 17/11/2026 (Fluid Aurora Wave & Ambient Blurred Undulating Halo v1.0.34)
 
 ### 1. Mục tiêu hoàn thành

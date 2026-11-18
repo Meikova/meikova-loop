@@ -720,7 +720,7 @@ export class Player extends EventTarget {
     this.nextTime = t + targetTrack.dur[0];
     this.cooldown = Math.max(this.cooldown, Math.ceil(secs / targetTrack.dur[0]) + 2);
     this._log(t, "fade", { from: prev.beat, fromTrack: prev.track.id, tr });
-    this._enterTrack(targetTrack, t, "fade", tr);
+    this._enterTrack(targetTrack, t, "skip", tr);
     this.dispatchEvent(new Event("track"));
     this.dispatchEvent(new Event("state"));
   }

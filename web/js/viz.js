@@ -1068,10 +1068,11 @@ export class Viz {
     // by then: the mix itself keeps the next loop on stage from that moment.
     const mx = this.mixNow;
     if (p.plan) this.lastPlan = p.plan;
+    else if (!mx) this.lastPlan = null;
     if (mx && primary && primary.id === mx.m.A.id) {
       second = mx.m.B;
       secondTr = mx.m.tr;
-    } else if (p.cur && primary && p.cur.track.id !== primary.id && p.history.at(-1)?.via !== "start") {
+    } else if (p.cur && primary && p.cur.track.id !== primary.id && p.history.at(-1)?.via !== "start" && p.history.at(-1)?.via !== "skip") {
       // Same for a cut, a drop or a fade: the scheduler is already in the
       // next song while the listener is still in this one. Keep the ∞ until
       // the light gets to the crossing.
@@ -1113,15 +1114,29 @@ export class Viz {
   _update(view, dt) {
     const { primary, second, secondTr, placeholder } = this._roles(view);
     const nowWall = performance.now();
-    const rawTwo = !!(second || placeholder);
-    if (rawTwo) {
+    const isNewTrack = Boolean(primary && primary.id !== this.primaryId);
+    const lastVia = this.player?.history?.at(-1)?.via;
+    const isImmediateVia = lastVia === "start" || lastVia === "skip";
+    const pendingImmediateSwitch = Boolean(
+      this.player?.cur && primary && this.player.cur.track.id !== primary.id && isImmediateVia
+    );
+
+    if (isNewTrack || pendingImmediateSwitch) {
+      this._twoHoldUntil = 0;
+      this.cross = null;
+      if (isImmediateVia) this.lastCross = null;
+    }
+
+    const hasActiveMix = Boolean(this.mixNow && second && second.id !== primary?.id);
+    const rawTwo = Boolean(second || placeholder);
+    if (rawTwo && !isNewTrack && !pendingImmediateSwitch) {
       this._twoHoldUntil = nowWall + 1100;
-    } else if (this.mixNow || this.player?.settings?.mode !== "chain" || !primary) {
+    } else if (this.mixNow || this.player?.settings?.mode !== "chain" || !primary || isNewTrack || pendingImmediateSwitch) {
       this._twoHoldUntil = 0;
     }
     // Layout hysteresis: if a docked 2-ring plan drops momentarily before transition,
     // hold two-ring geometry briefly while searching for the replacement so it never pumps.
-    const two = rawTwo || (nowWall < (this._twoHoldUntil || 0));
+    const two = hasActiveMix || (!isNewTrack && !pendingImmediateSwitch && (rawTwo || (nowWall < (this._twoHoldUntil || 0))));
     const swapProg = (second && (this.mixNow || (this.player.cur && primary && this.player.cur.track.id !== primary.id)))
       ? this._mixProgress(view)
       : 0;
@@ -1142,30 +1157,15 @@ export class Viz {
       if (before) before.role = "leaving";
       const fresh = !this.rings.has(primary.id);
       const ring = this._ring(primary, "primary");
-      if (fresh) {
-        if (before) {
-          const L2 = this._layout(true, 0);
-          if (before.x !== null && before.y !== null) {
-            const br = before._layoutR || before.r;
-            before.x += (L2.a.x - before.x) * 0.28;
-            before.y += (L2.a.y - before.y) * 0.28;
-            before._layoutR = br + (L2.a.r - br) * 0.28;
-            before.r = before._layoutR;
-          }
-          ring.x = L2.b.x + (L2.b.x - L2.a.x) * 0.15;
-          ring.y = L2.b.y + (L2.b.y - L2.a.y) * 0.15;
-          ring.r = L2.b.r * 0.65;
-          ring._layoutR = ring.r;
-          ring.alpha = 0.25;
-          ring.fill = 1;
-          ring.dir = -before.dir;
-        } else {
-          ring.x = L.a.x;
-          ring.y = L.a.y;
-          ring.r = L.a.r;
-          ring._layoutR = ring.r;
-          ring.fill = this.reduced ? 1 : 0; // the very first loop sweeps in
-        }
+      const wasDockedVisible = !fresh && ring.alpha > 0.35 && !isImmediateVia;
+      if (!hasActiveMix && !wasDockedVisible) {
+        ring.x = L.a.x;
+        ring.y = L.a.y;
+        ring.r = L.a.r;
+        ring._layoutR = ring.r;
+        ring.alpha = Math.max(0.25, ring.alpha || 0);
+        ring.fill = before ? 1 : (this.reduced ? 1 : 0);
+        if (before) ring.dir = -before.dir;
       }
       this.primaryId = primary.id;
     }
@@ -1203,7 +1203,6 @@ export class Viz {
       }
     }
     this.placeholder = placeholder ? { id: placeholder, ...L.b, tr: secondTr } : null;
-    this.cross = two ? L.cross : null;
 
     for (const [id, ring] of this.rings) {
       const baseR = ring._layoutR || ring.r;
@@ -1248,6 +1247,10 @@ export class Viz {
         this.rings.delete(id);
       }
     }
+    const secondRing = [...this.rings.values()].find((r) => r.role === "second" && r.track?.id !== primary?.id);
+    const hasVisibleSecond = Boolean((secondRing && secondRing.alpha > 0.08) || this.placeholder);
+    this.cross = (two && hasVisibleSecond && L.cross) ? L.cross : null;
+
     const maxRings = this.memoryPressure === "critical" ? 1 : (this.memoryPressure === "high" ? 2 : 4);
     const pruneTarget = this.memoryPressure === "normal" ? 3 : maxRings;
     if (this.rings.size > maxRings) {
@@ -1354,7 +1357,9 @@ export class Viz {
       const order = [...this.rings.values()].sort((a, b) => (a.role === "primary") - (b.role === "primary"));
       for (const ring of order) this._drawRing(ctx, ring);
       if (this.placeholder) this._drawPlaceholder(ctx, this.placeholder, now);
-      if (this.cross && primary && primary.alpha > 0.4) this._drawCross(ctx, view, now);
+      const secondRing = [...this.rings.values()].find((r) => r.role === "second" && r.track?.id !== primary?.track?.id);
+      const hasVisibleSecond = Boolean((secondRing && secondRing.alpha > 0.08) || this.placeholder);
+      if (this.cross && primary && primary.alpha > 0.4 && hasVisibleSecond) this._drawCross(ctx, view, now);
 
       if (primary && view) this._drawLive(ctx, primary, view, now);
       this._drawHover(ctx);
@@ -1499,7 +1504,15 @@ export class Viz {
       if (before) before.role = "leaving";
       const fresh = !this.rings.has(primaryTrack.id);
       const ring = this._ring(primaryTrack, "primary");
-      if (fresh) {
+      if (!two || !(secondTrack || t.placeholder)) {
+        ring.x = L.a.x;
+        ring.y = L.a.y;
+        ring.r = L.a.r;
+        ring._layoutR = ring.r;
+        ring.alpha = Math.max(0.25, ring.alpha || 0);
+        ring.fill = before ? 1 : (this.reduced || (t.primary?.fill ?? 1) >= 0.98 ? 1 : 0);
+        if (before) ring.dir = -before.dir;
+      } else if (fresh) {
         if (before) {
           const L2 = this._layout(true, 0);
           if (before.x !== null && before.y !== null) {
@@ -1718,7 +1731,8 @@ export class Viz {
     }
 
     // 6. Draw Crossing Glow, Progress Ring & Transition Visuals (exact replica of Host _drawCross)
-    if (two && L.cross && primRing && primRing.alpha > 0.4) {
+    const hasVisibleSatSecond = Boolean((secRing && secRing.alpha > 0.08) || t.placeholder?.id);
+    if (two && L.cross && primRing && primRing.alpha > 0.4 && hasVisibleSatSecond) {
       const c = L.cross;
       const k = progress;
       const ca = primRing.col || this.accent || theme.idleAccent();
@@ -3040,7 +3054,9 @@ export class Viz {
         : null;
 
       const roles = this._roles(view);
-      const two = Boolean(this.cross || second || this.placeholder);
+      const secondRing = [...this.rings.values()].find((r) => r.role === "second" && r.track?.id !== activeTrack?.id);
+      const hasVisibleSecond = Boolean((secondRing && secondRing.alpha > 0.08) || this.placeholder);
+      const two = Boolean(this.cross || (second && hasVisibleSecond) || this.placeholder);
       const mixProg = view ? this._mixProgress(view) : 0;
       const swapProg = (second && (this.mixNow || (this.player?.cur && activeTrack && this.player.cur.track.id !== activeTrack.id)))
         ? mixProg
